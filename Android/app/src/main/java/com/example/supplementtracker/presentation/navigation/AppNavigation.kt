@@ -21,10 +21,16 @@ import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.home.HomeScreen
 import com.example.supplementtracker.presentation.home.HomeViewModel
 
-sealed class Screen(val route: String, val title: String, val icon: @Composable () -> Unit) {
-    data object Home : Screen("home", "Trang chủ", { Icon(Icons.Default.Home, contentDescription = null) })
-    data object History : Screen("history", "Lịch sử", { Icon(Icons.Default.DateRange, contentDescription = null) })
-    data object AddSupplement : Screen("add_supplement", "Thêm mới", { })
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.res.stringResource
+import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.home.SettingsScreen
+
+sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable () -> Unit) {
+    data object Home : Screen("home", R.string.nav_home, { Icon(Icons.Default.Home, contentDescription = null) })
+    data object History : Screen("history", R.string.nav_history, { Icon(Icons.Default.DateRange, contentDescription = null) })
+    data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = null) })
+    data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
 }
 
 @Composable
@@ -37,7 +43,7 @@ fun AppNavigation(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    val items = listOf(Screen.Home, Screen.History)
+    val items = listOf(Screen.Home, Screen.History, Screen.Settings)
 
     Scaffold(
         bottomBar = {
@@ -46,7 +52,7 @@ fun AppNavigation(
                     items.forEach { screen ->
                         NavigationBarItem(
                             icon = screen.icon,
-                            label = { Text(screen.title) },
+                            label = { Text(stringResource(screen.titleRes)) },
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
@@ -74,6 +80,9 @@ fun AppNavigation(
                 HistoryScreen(
                     viewModel = historyViewModel
                 )
+            }
+            composable(Screen.Settings.route) {
+                SettingsScreen()
             }
             composable(Screen.AddSupplement.route) {
                 AddSupplementScreen(

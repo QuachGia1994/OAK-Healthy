@@ -1,3 +1,19 @@
 <resources>
     <string name="app_name">OAK Healthy</string>
+    <string name="nav_home">Trang chủ</string>
+    <string name="nav_history">Lịch sử</string>
+    <string name="nav_settings">Cài đặt</string>
+    
+    <string name="settings_title">Thông tin ứng dụng</string>
+    <string name="settings_guide_title">Hướng dẫn sử dụng</string>
+    <string name="settings_guide_content">1. Nhấn (+) để thêm thực phẩm bổ sung mới.\n2. Chọn từ gợi ý để tự động điền chu kỳ.\n3. Tích chọn vòng tròn xanh ở Dashboard sau khi uống.\n4. Theo dõi chu kỳ On/Off và biểu đồ ở tab Lịch sử.</string>
+    
+    <string name="settings_intro_title">Giới thiệu</string>
+    <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>
+    
+    <string name="settings_copyright_title">Bản quyền &amp; Tác giả</string>
+    <string name="settings_app_version">Tên app: OAK Healthy v1.0</string>
+    <string name="settings_author">Tác giả: Mr. Phong (Personal Trader)</string>
+    <string name="settings_copyright">Copyright: © 2026 OAK Healthy. All rights reserved.</string>
+    <string name="settings_dedication">Dedicated to my Sư phụ and Benefactors</string>
 </resources>

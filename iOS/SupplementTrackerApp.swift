@@ -23,6 +23,11 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Lịch sử", systemImage: "clock.fill")
                 }
+            
+            SettingsView()
+                .tabItem {
+                    Label("Cài đặt", systemImage: "gearshape.fill")
+                }
         }
     }
 }
