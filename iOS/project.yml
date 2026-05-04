@@ -1,0 +1,30 @@
+name: OAKHealthy
+options:
+  bundleIdPrefix: com.example
+targets:
+  OAKHealthy:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: .
+    settings:
+      base:
+        INFOPLIST_FILE: Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.OAKHealthy
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: 6.0
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_IDENTITY: ""
+    info:
+      path: Info.plist
+      properties:
+        NSCalendarsFullAccessUsageDescription: "Ứng dụng cần truy cập lịch để đồng bộ chu kỳ uống thực phẩm bổ sung."
+        NSUserNotificationsUsageDescription: "Ứng dụng cần gửi thông báo để nhắc nhở bạn uống thực phẩm bổ sung đúng giờ."
+        UIApplicationSceneManifest:
+          UISceneConfigurations: {}
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
