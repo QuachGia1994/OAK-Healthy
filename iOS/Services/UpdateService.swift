@@ -19,12 +19,8 @@ public final class UpdateService {
     
     /// Kiểm tra phiên bản mới từ GitHub Gist/Remote JSON.
     public func checkForUpdates() async {
-        // Giả lập gọi API kiểm tra version
-        // Trong thực tế sẽ dùng URLSession.shared.data(from: url)
-        try? await Task.sleep(for: .seconds(1))
-        
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-        let remoteVersion = "1.1.0" // Giả sử version mới là 1.1.0
+        let remoteVersion = currentVersion
         
         if remoteVersion > currentVersion {
             self.updateInfo = AppUpdateInfo(

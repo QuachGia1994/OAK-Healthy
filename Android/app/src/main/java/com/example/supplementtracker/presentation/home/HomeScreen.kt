@@ -6,15 +6,17 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.DismissDirection
+import androidx.compose.material.DismissValue
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.SwipeToDismiss
+import androidx.compose.material.rememberDismissState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -171,7 +173,7 @@ private fun TimeGroupHeader(time: String) {
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 private fun DismissibleSupplementCard(
     item: SupplementUiItem,
     onToggleIntake: (String, Boolean) -> Unit,
@@ -179,54 +181,53 @@ private fun DismissibleSupplementCard(
     onEdit: (String) -> Unit
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value: SwipeToDismissBoxValue ->
-            when (value) {
-                SwipeToDismissBoxValue.EndToStart -> {
-                    onDelete(item.supplement)
-                    true
-                }
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    onEdit(item.supplement.id.toString())
-                    true
-                }
-                else -> true
+    val dismissState = rememberDismissState(confirmStateChange = { value: DismissValue ->
+        when (value) {
+            DismissValue.DismissedToStart -> {
+                onDelete(item.supplement)
+                true
             }
+            DismissValue.DismissedToEnd -> {
+                onEdit(item.supplement.id.toString())
+                true
+            }
+            else -> true
         }
-    )
+    })
 
     LaunchedEffect(dismissState.currentValue) {
-        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+        if (dismissState.currentValue != DismissValue.Default) {
             dismissState.reset()
         }
     }
 
-    SwipeToDismissBox(
+    SwipeToDismiss(
         state = dismissState,
-        backgroundContent = {
-            val direction = dismissState.targetValue
-            val isDelete = direction == SwipeToDismissBoxValue.EndToStart
+        background = {
+            val direction = dismissState.dismissDirection
+            val isDelete = direction == DismissDirection.EndToStart
+            val backgroundColor = when (direction) {
+                DismissDirection.EndToStart -> Color.Red
+                DismissDirection.StartToEnd -> Color(0xFF2E7D32)
+                null -> Color.Transparent
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        when (direction) {
-                            SwipeToDismissBoxValue.EndToStart -> Color.Red
-                            SwipeToDismissBoxValue.StartToEnd -> Color(0xFF2E7D32)
-                            else -> Color.Transparent
-                        }
-                    )
+                    .background(backgroundColor)
                     .padding(horizontal = 16.dp),
                 contentAlignment = if (isDelete) Alignment.CenterEnd else Alignment.CenterStart
             ) {
-                Icon(
-                    imageVector = if (isDelete) Icons.Default.Delete else Icons.Default.Edit,
-                    contentDescription = null,
-                    tint = Color.White
-                )
+                if (direction != null) {
+                    Icon(
+                        imageVector = if (isDelete) Icons.Default.Delete else Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                }
             }
-        }
-    ) {
+        },
+        dismissContent = {
         Box {
             ActiveSupplementCard(
                 item = item,
@@ -258,7 +259,8 @@ private fun DismissibleSupplementCard(
                 )
             }
         }
-    }
+        }
+    )
 }
 
 @Composable
