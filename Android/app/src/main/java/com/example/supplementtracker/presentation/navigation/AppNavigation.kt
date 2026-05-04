@@ -1,15 +1,7 @@
 package com.example.supplementtracker.presentation.navigation
 
-import androidx.compose.runtime.Composable
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import com.example.supplementtracker.presentation.add_supplement.AddSupplementScreen
-import com.example.supplementtracker.presentation.add_supplement.AddSupplementViewModel
-import com.example.supplementtracker.presentation.home.HomeScreen
-import com.example.supplementtracker.presentation.home.HomeViewModel
-
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
@@ -30,8 +22,8 @@ import com.example.supplementtracker.presentation.home.HomeScreen
 import com.example.supplementtracker.presentation.home.HomeViewModel
 
 sealed class Screen(val route: String, val title: String, val icon: @Composable () -> Unit) {
-    data object Home : Screen("home", "Trang chủ", { Icon(androidx.compose.material.icons.Icons.Default.Home, contentDescription = null) })
-    data object History : Screen("history", "Lịch sử", { Icon(androidx.compose.material.icons.Icons.Default.DateRange, contentDescription = null) })
+    data object Home : Screen("home", "Trang chủ", { Icon(Icons.Default.Home, contentDescription = null) })
+    data object History : Screen("history", "Lịch sử", { Icon(Icons.Default.DateRange, contentDescription = null) })
     data object AddSupplement : Screen("add_supplement", "Thêm mới", { })
 }
 
