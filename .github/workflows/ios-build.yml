@@ -135,6 +135,9 @@ jobs:
           print(f"Removed {changed} duplicate group-child references.")
           PY
 
+      - name: Download iOS Platform & Simulator Runtime
+        run: xcodebuild -downloadPlatform iOS
+
       - name: Build Archive
         run: |
           xcodebuild archive \
