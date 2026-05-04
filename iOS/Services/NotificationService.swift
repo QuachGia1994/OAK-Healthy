@@ -17,6 +17,7 @@ public protocol NotificationManaging: Sendable {
 
 /// Dịch vụ xử lý Local Notifications.
 @preconcurrency
+@MainActor
 public struct NotificationService: NotificationManaging {
     
     private let center = UNUserNotificationCenter.current()
@@ -77,6 +78,7 @@ public struct NotificationService: NotificationManaging {
     
     // MARK: - Private Helpers
     
+    @MainActor
     private func createNotificationRequest(for supplement: UserSupplement, at date: Date) async throws(NotificationError) {
         let content = UNMutableNotificationContent()
         content.title = "Đến giờ uống rồi! 🌿"

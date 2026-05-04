@@ -2,6 +2,7 @@ package com.example.supplementtracker.presentation.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,6 +11,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +34,7 @@ import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
 import com.example.supplementtracker.service.UpdateService
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -166,6 +171,7 @@ private fun TimeGroupHeader(time: String) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 private fun DismissibleSupplementCard(
     item: SupplementUiItem,
     onToggleIntake: (String, Boolean) -> Unit,
@@ -174,7 +180,7 @@ private fun DismissibleSupplementCard(
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
     val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
+        confirmValueChange = { value: SwipeToDismissBoxValue ->
             when (value) {
                 SwipeToDismissBoxValue.EndToStart -> {
                     onDelete(item.supplement)
@@ -198,7 +204,7 @@ private fun DismissibleSupplementCard(
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = {
-            val direction = dismissState.dismissDirection
+            val direction = dismissState.targetValue
             val isDelete = direction == SwipeToDismissBoxValue.EndToStart
             Box(
                 modifier = Modifier
