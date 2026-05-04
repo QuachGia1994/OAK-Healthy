@@ -3,14 +3,20 @@ package com.example.supplementtracker.presentation.home
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.supplementtracker.domain.model.UserSupplement
+import com.example.supplementtracker.domain.model.CycleStatus
+import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
+import java.time.LocalDate
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
@@ -55,7 +61,7 @@ fun SettingsScreen(
                     )
                 }
 
-                items(allSupplements) { supplement ->
+                items(items = allSupplements) { supplement ->
                     InfoCard(
                         title = supplement.name,
                         content = getCycleSummary(supplement)
@@ -88,6 +94,19 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+}
+
+private fun getCycleSummary(supplement: UserSupplement): String {
+    val config = supplement.cycleConfig
+    val calculateCycleUseCase = CalculateCycleUseCase()
+    val status = calculateCycleUseCase(supplement.startDate, config, LocalDate.now())
+    val statusText = if (status == CycleStatus.ON) "Đang trong chu kỳ" else "Đang trong kỳ nghỉ"
+
+    return if (config.isContinuous) {
+        "Uống liên tục"
+    } else {
+        "$statusText: ${config.daysOn} ngày uống / ${config.daysOff} ngày nghỉ"
     }
 }
 

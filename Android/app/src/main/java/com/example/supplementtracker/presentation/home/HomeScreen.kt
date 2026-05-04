@@ -144,9 +144,9 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun TimeGroupHeader(time: IntakeTime) {
+private fun TimeGroupHeader(time: String) {
     Text(
-        text = time.label,
+        text = time,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(top = 8.dp)
