@@ -1,4 +1,5 @@
 name: OAKHealthy
+compatibilityVersion: "Xcode 13.0"
 options:
   bundleIdPrefix: com.example
 targets:
