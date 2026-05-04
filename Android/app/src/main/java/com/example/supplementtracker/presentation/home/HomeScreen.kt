@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -90,7 +91,7 @@ fun HomeScreen(
                 is HomeUiState.Success -> HomeContent(
                     state = state, 
                     onToggleIntake = viewModel::toggleIntake,
-                    onDelete = viewModel::deleteSupplement
+                    onDelete = viewModel::deleteItem
                 )
                 is HomeUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
             }
@@ -101,7 +102,7 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     state: HomeUiState.Success,
-    onToggleIntake: (SupplementUiItem) -> Unit,
+    onToggleIntake: (String, Boolean) -> Unit,
     onDelete: (UserSupplement) -> Unit
 ) {
     LazyColumn(
@@ -156,7 +157,7 @@ private fun TimeGroupHeader(time: String) {
 @Composable
 private fun ActiveSupplementCard(
     item: SupplementUiItem,
-    onToggleIntake: (SupplementUiItem) -> Unit,
+    onToggleIntake: (String, Boolean) -> Unit,
     onDelete: (UserSupplement) -> Unit
 ) {
     Card(
@@ -177,12 +178,26 @@ private fun ActiveSupplementCard(
                         Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
-                IconButton(onClick = { onToggleIntake(item) }) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = "Toggle",
-                        tint = if (item.isTaken) Color.Green else Color.Gray
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconToggleButton(
+                        checked = item.isTaken,
+                        onCheckedChange = { checked ->
+                            onToggleIntake(item.supplement.id.toString(), checked)
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = "Toggle",
+                            tint = if (item.isTaken) Color.Green else Color.Gray
+                        )
+                    }
+                    IconButton(onClick = { onDelete(item.supplement) }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Xóa",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
             if (!item.advice.isNullOrBlank()) {

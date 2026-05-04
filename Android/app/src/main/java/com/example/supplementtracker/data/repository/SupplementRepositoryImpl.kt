@@ -4,7 +4,9 @@ import com.example.supplementtracker.data.local.IntakeRecordEntity
 import com.example.supplementtracker.data.local.SupplementDao
 import com.example.supplementtracker.data.mapper.toDomain
 import com.example.supplementtracker.data.mapper.toEntity
+import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.UserSupplement
+import com.example.supplementtracker.domain.model.UserSupplementTakenToday
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.UUID
 
 /**
  * Triển khai Repository xử lý logic lưu trữ thực tế.
@@ -40,8 +43,38 @@ class SupplementRepositoryImpl(
         }
     }
 
+    override fun getSupplementsWithTakenToday(
+        startOfDay: Long,
+        endOfDay: Long
+    ): Flow<List<UserSupplementTakenToday>> {
+        return dao.getSupplementsWithTakenToday(startOfDay, endOfDay).map { rows ->
+            rows.map { row ->
+                val supplement = UserSupplement(
+                    id = UUID.fromString(row.id),
+                    name = row.name,
+                    startDate = LocalDate.parse(row.startDate),
+                    cycleConfig = CycleConfig(
+                        daysOn = row.daysOn,
+                        daysOff = row.daysOff,
+                        isContinuous = row.isContinuous,
+                        durationMonths = row.durationMonths
+                    ),
+                    dailyDose = row.dailyDose,
+                    intakeTime = row.intakeTime
+                )
+                UserSupplementTakenToday(supplement = supplement, isTakenToday = row.isTakenToday)
+            }
+        }
+    }
+
     override suspend fun logIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {
-        dao.insertIntakeRecord(IntakeRecordEntity(supplementId = supplementId, date = date))
+        dao.insertIntakeRecord(
+            IntakeRecordEntity(
+                id = "$supplementId-$date",
+                supplementId = supplementId,
+                date = date
+            )
+        )
     }
 
     override suspend fun removeIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {

@@ -49,6 +49,14 @@ data class UserSupplement(
 )
 
 /**
+ * Wrapper cho trạng thái "đã uống hôm nay" của một chất bổ sung.
+ */
+data class UserSupplementTakenToday(
+    val supplement: UserSupplement,
+    val isTakenToday: Boolean
+)
+
+/**
  * Dữ liệu tham khảo từ từ điển.
  */
 data class SupplementReference(

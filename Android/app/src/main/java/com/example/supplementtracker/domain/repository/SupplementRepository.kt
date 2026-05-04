@@ -1,6 +1,7 @@
 package com.example.supplementtracker.domain.repository
 
 import com.example.supplementtracker.domain.model.UserSupplement
+import com.example.supplementtracker.domain.model.UserSupplementTakenToday
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -11,6 +12,7 @@ interface SupplementRepository {
     suspend fun deleteSupplement(supplement: UserSupplement)
     suspend fun getSupplementById(id: String): UserSupplement?
     fun getAllSupplements(): Flow<List<UserSupplement>>
+    fun getSupplementsWithTakenToday(startOfDay: Long, endOfDay: Long): Flow<List<UserSupplementTakenToday>>
 
     // Intake Records
     suspend fun logIntake(supplementId: String, date: Long)
