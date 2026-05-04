@@ -1,6 +1,6 @@
 import SwiftUI
 import SwiftData
-import UserNotifications
+@preconcurrency import UserNotifications
 
 @main
 struct SupplementTrackerApp: App {
@@ -21,6 +21,7 @@ struct SupplementTrackerApp: App {
     }
 }
 
+@preconcurrency
 class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         NotificationCenter.default.post(name: NSNotification.Name("OpenDashboard"), object: nil)

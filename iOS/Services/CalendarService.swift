@@ -67,7 +67,7 @@ public struct CalendarService: CalendarManaging {
         
         // Thiết lập thời gian bắt đầu dựa trên intakeTime
         var components = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        setTimeComponents(&components, for: supplement.intakeTime)
+        setTimeComponents(&components, timeString: supplement.intakeTime)
         
         guard let startDate = Calendar.current.date(from: components) else { return }
         event.startDate = startDate
@@ -80,13 +80,12 @@ public struct CalendarService: CalendarManaging {
         }
     }
     
-    private func setTimeComponents(_ components: inout DateComponents, for time: IntakeTime) {
-        switch time {
-        case .morning: components.hour = 8
-        case .afternoon: components.hour = 12
-        case .evening: components.hour = 17
-        case .night: components.hour = 21
-        }
-        components.minute = 0
+    private func setTimeComponents(_ components: inout DateComponents, timeString: String) {
+        let parts = timeString.split(separator: ":")
+        let hour = parts.first.flatMap { Int($0) } ?? 8
+        let minute = parts.dropFirst().first.flatMap { Int($0) } ?? 0
+        
+        components.hour = hour
+        components.minute = minute
     }
 }

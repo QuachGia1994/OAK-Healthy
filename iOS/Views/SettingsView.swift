@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
@@ -10,7 +11,7 @@ public struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    VStack(maxWidth: .infinity) {
+                    VStack {
                         OAKLogoView()
                             .padding(.vertical, 20)
                         
@@ -71,18 +72,18 @@ public struct SettingsView: View {
             }
             .navigationTitle("Cài đặt")
         }
+    }
+    
     private func getCycleSummary(for supplement: UserSupplement) -> String {
         let config = supplement.cycleConfig
-        let today = Date.now
         let cycleEngine = CycleCalculator()
-        let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: config, at: today)
+        let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: config, at: .now)
         let statusText = status == .on ? "Đang trong chu kỳ" : "Đang trong kỳ nghỉ"
         
         if config.isContinuous {
             return "Uống liên tục"
-        } else {
-            return "\(statusText): \(config.daysOn) ngày uống / \(config.daysOff) ngày nghỉ"
         }
+        return "\(statusText): \(config.daysOn) ngày uống / \(config.daysOff) ngày nghỉ"
     }
 }
 

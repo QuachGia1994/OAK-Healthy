@@ -74,6 +74,7 @@ public struct HomeView: View {
 
 /// Thành phần hiển thị nhóm theo thời gian.
 private struct TimeGroupSection: View {
+    @Environment(\.modelContext) private var modelContext
     let time: String
     let supplements: [UserSupplement]
     let viewModel: HomeViewModel
