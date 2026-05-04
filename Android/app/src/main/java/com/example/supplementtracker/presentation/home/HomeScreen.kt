@@ -20,13 +20,48 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import com.example.supplementtracker.service.UpdateService
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    updateService: UpdateService = UpdateService(), // Nên được inject qua DI
     onNavigateToAdd: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
+    val updateInfo by updateService.updateInfo.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        updateService.checkForUpdates(packageInfo.versionName ?: "1.0.0")
+    }
+
+    if (isUpdateAvailable) {
+        AlertDialog(
+            onDismissRequest = { /* Handle if force update */ },
+            title = { Text("Đã có phiên bản mới!") },
+            text = { Text("Hãy cập nhật để trải nghiệm những tính năng mới nhất và tăng cường bảo mật (v${updateInfo?.version}).") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo?.updateUrl))
+                    context.startActivity(intent)
+                }) {
+                    Text("Cập nhật ngay")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { /* Hide alert */ }) {
+                    Text("Để sau")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {

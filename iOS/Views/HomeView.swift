@@ -7,6 +7,7 @@ public struct HomeView: View {
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     
     @State private var viewModel = HomeViewModel()
+    @State private var updateService = UpdateService()
     @State private var isShowingAddSheet = false
     
     public init() {}
@@ -47,6 +48,17 @@ public struct HomeView: View {
                 AddSupplementView(modelContext: modelContext) { _ in
                     // Callback sau khi lưu thành công
                 }
+            }
+            .alert("Đã có phiên bản mới!", isPresented: $updateService.isUpdateAvailable) {
+                if let url = URL(string: updateService.updateInfo?.updateUrl ?? "") {
+                    Link("Cập nhật ngay", destination: url)
+                }
+                Button("Để sau", role: .cancel) { }
+            } message: {
+                Text("Hãy cập nhật để trải nghiệm những tính năng mới nhất và tăng cường bảo mật (v\(updateService.updateInfo?.version ?? "")).")
+            }
+            .task {
+                await updateService.checkForUpdates()
             }
             .onAppear {
                 viewModel.processSupplements(supplements)

@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <!-- Center the logo within the 108dp adaptive icon safety zone -->
+    <group
+        android:translateX="0"
+        android:translateY="0">
+        <!-- Leaf Shape -->
+        <path
+            android:pathData="M50,15 Q15,15 15,50 Q15,85 50,85 Q85,85 85,50 Q85,15 50,15 M50,15 L50,85"
+            android:strokeColor="#4CAF50"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"/>
+        <!-- O Character -->
+        <path
+            android:pathData="M50,42 A8,8 0 1,1 50,58 A8,8 0 1,1 50,42"
+            android:fillColor="#795548"/>
+    </group>
+</vector>
