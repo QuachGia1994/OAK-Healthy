@@ -15,28 +15,10 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import java.time.ZoneId
-
-/**
- * Trạng thái UI cho mỗi thực phẩm bổ sung trên Dashboard.
- */
-data class SupplementUiItem(
-    val supplement: UserSupplement,
-    val isTaken: Boolean,
-    val advice: String? = null
-)
-
-/**
- * Trạng thái UI cho màn hình Home Dashboard.
- */
-sealed class HomeUiState {
-    data object Loading : HomeUiState()
-    data class Success(
-        val activeSupplements: Map<String, List<SupplementUiItem>>,
-        val restingSupplements: List<RestingSupplementInfo>
-    ) : HomeUiState()
-}
+import com.example.supplementtracker.data.mock.SupplementDictionary
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
