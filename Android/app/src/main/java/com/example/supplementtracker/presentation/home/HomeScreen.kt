@@ -87,7 +87,11 @@ fun HomeScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (val state = uiState) {
                 is HomeUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                is HomeUiState.Success -> HomeContent(state, onLogIntake = viewModel::logIntake)
+                is HomeUiState.Success -> HomeContent(
+                    state = state, 
+                    onToggleIntake = viewModel::toggleIntake,
+                    onDelete = viewModel::deleteSupplement
+                )
                 is HomeUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
             }
         }
@@ -97,7 +101,8 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     state: HomeUiState.Success,
-    onLogIntake: (UserSupplement) -> Unit
+    onToggleIntake: (SupplementUiItem) -> Unit,
+    onDelete: (UserSupplement) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -111,10 +116,10 @@ private fun HomeContent(
             item { EmptyStateMessage("Hôm nay bạn không có lịch uống nào.") }
         }
 
-        state.activeSupplements.forEach { (time, supplements) ->
+        state.activeSupplements.forEach { (time, items) ->
             item { TimeGroupHeader(time) }
-            items(supplements) { supplement ->
-                ActiveSupplementCard(supplement, onLogIntake)
+            items(items) { item ->
+                ActiveSupplementCard(item, onToggleIntake, onDelete)
             }
         }
 
@@ -150,35 +155,43 @@ private fun TimeGroupHeader(time: IntakeTime) {
 
 @Composable
 private fun ActiveSupplementCard(
-    supplement: UserSupplement,
-    onLogIntake: (UserSupplement) -> Unit
+    item: SupplementUiItem,
+    onToggleIntake: (SupplementUiItem) -> Unit,
+    onDelete: (UserSupplement) -> Unit
 ) {
-    var isTaken by remember { mutableStateOf(false) }
-    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (isTaken) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+            containerColor = if (item.isTaken) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
         )
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(supplement.name, style = MaterialTheme.typography.titleMedium)
-                Text("Liều lượng: ${supplement.dailyDose}", style = MaterialTheme.typography.bodySmall)
-            }
-            IconButton(onClick = { 
-                if (!isTaken) {
-                    isTaken = true
-                    onLogIntake(supplement)
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.supplement.name, style = MaterialTheme.typography.titleMedium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(item.supplement.intakeTime, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text(" • ", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
                 }
-            }) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = "Đã uống",
-                    tint = if (isTaken) Color.Green else Color.Gray
+                IconButton(onClick = { onToggleIntake(item) }) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Toggle",
+                        tint = if (item.isTaken) Color.Green else Color.Gray
+                    )
+                }
+            }
+            if (!item.advice.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = item.advice,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                 )
             }
         }

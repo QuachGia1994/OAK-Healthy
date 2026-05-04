@@ -18,8 +18,9 @@ fun UserSupplement.toEntity(): SupplementEntity {
         daysOn = cycleConfig.daysOn,
         daysOff = cycleConfig.daysOff,
         isContinuous = cycleConfig.isContinuous,
+        durationMonths = cycleConfig.durationMonths,
         dailyDose = dailyDose,
-        intakeTime = intakeTime.name
+        intakeTime = intakeTime
     )
 }
 
@@ -31,9 +32,10 @@ fun SupplementEntity.toDomain(): UserSupplement {
         cycleConfig = CycleConfig(
             daysOn = daysOn,
             daysOff = daysOff,
-            isContinuous = isContinuous
+            isContinuous = isContinuous,
+            durationMonths = durationMonths
         ),
         dailyDose = dailyDose,
-        intakeTime = IntakeTime.valueOf(intakeTime)
+        intakeTime = intakeTime
     )
 }

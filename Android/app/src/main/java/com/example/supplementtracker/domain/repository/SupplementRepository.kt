@@ -14,6 +14,7 @@ interface SupplementRepository {
 
     // Intake Records
     suspend fun logIntake(supplementId: String, date: Long)
+    suspend fun removeIntake(supplementId: String, date: Long)
     fun getRecordsByDateRange(startDate: Long, endDate: Long): Flow<List<IntakeRecord>>
 }
 

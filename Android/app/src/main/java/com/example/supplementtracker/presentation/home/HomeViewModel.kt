@@ -15,6 +15,29 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
+import kotlinx.coroutines.flow.combine
+import java.time.ZoneId
+
+/**
+ * Trạng thái UI cho mỗi thực phẩm bổ sung trên Dashboard.
+ */
+data class SupplementUiItem(
+    val supplement: UserSupplement,
+    val isTaken: Boolean,
+    val advice: String? = null
+)
+
+/**
+ * Trạng thái UI cho màn hình Home Dashboard.
+ */
+sealed class HomeUiState {
+    data object Loading : HomeUiState()
+    data class Success(
+        val activeSupplements: Map<String, List<SupplementUiItem>>,
+        val restingSupplements: List<RestingSupplementInfo>
+    ) : HomeUiState()
+}
+
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
  */
@@ -24,35 +47,66 @@ class HomeViewModel(
     private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
 ) : ViewModel() {
 
-    val uiState: StateFlow<HomeUiState> = getAllSupplementsUseCase()
-        .map { supplements ->
-            processSupplements(supplements)
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = HomeUiState.Loading
-        )
+    private val _refreshTrigger = MutableStateFlow(0)
 
-    fun logIntake(supplement: UserSupplement) {
-        viewModelScope.launch {
-            repository.logIntake(supplement.id.toString(), System.currentTimeMillis())
-        }
+    val uiState: StateFlow<HomeUiState> = combine(
+        getAllSupplementsUseCase(),
+        _refreshTrigger
+    ) { supplements, _ ->
+        supplements
+    }.combine(
+        repository.getRecordsByDateRange(getStartOfDay(), getEndOfDay())
+    ) { supplements, todayRecords ->
+        processSupplements(supplements, todayRecords)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = HomeUiState.Loading
+    )
+
+    fun refresh() {
+        _refreshTrigger.value += 1
     }
 
-    private fun processSupplements(supplements: List<UserSupplement>): HomeUiState {
+    private fun getStartOfDay() = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    private fun getEndOfDay() = LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    private fun processSupplements(
+        supplements: List<UserSupplement>, 
+        todayRecords: List<com.example.supplementtracker.domain.repository.IntakeRecord>
+    ): HomeUiState {
         val today = LocalDate.now()
-        
-        val activeMap = supplements
+        val activeItems = supplements
             .filter { calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.ON }
-            .groupBy { it.intakeTime }
-            .toSortedMap(compareBy { it.ordinal })
+            .map { supplement ->
+                val isTaken = todayRecords.any { it.supplementId == supplement.id.toString() }
+                val advice = SupplementDictionary.references.find { it.name == supplement.name }?.advice
+                SupplementUiItem(supplement, isTaken, advice)
+            }
+            .groupBy { it.supplement.intakeTime }
+            .toSortedMap()
 
         val restingList = supplements
             .filter { calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF }
             .map { RestingSupplementInfo(it, calculateDaysRemaining(it, today)) }
 
-        return HomeUiState.Success(activeMap, restingList)
+        return HomeUiState.Success(activeItems, restingList)
+    }
+
+    fun toggleIntake(item: SupplementUiItem) {
+        viewModelScope.launch {
+            if (item.isTaken) {
+                repository.removeIntake(item.supplement.id.toString(), System.currentTimeMillis())
+            } else {
+                repository.logIntake(item.supplement.id.toString(), System.currentTimeMillis())
+            }
+        }
+    }
+
+    fun deleteSupplement(supplement: UserSupplement) {
+        viewModelScope.launch {
+            repository.deleteSupplement(supplement)
+        }
     }
 
     private fun calculateDaysRemaining(supplement: UserSupplement, today: LocalDate): Int {

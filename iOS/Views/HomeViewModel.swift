@@ -7,7 +7,7 @@ import SwiftData
 @MainActor
 public final class HomeViewModel {
     // MARK: - State
-    public var activeSupplements: [IntakeTime: [UserSupplement]] = [:]
+    public var activeSupplements: [String: [UserSupplement]] = [:]
     public var restingSupplements: [RestingSupplementInfo] = []
     
     // MARK: - Dependencies
@@ -15,14 +15,49 @@ public final class HomeViewModel {
     
     public init(cycleEngine: any CycleCalculating = CycleCalculator()) {
         self.cycleEngine = cycleEngine
+        
+        // Lắng nghe thay đổi múi giờ hệ thống
+        NotificationCenter.default.addObserver(
+            forName: Notification.Name.NSSystemTimeZoneDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // Refresh logic handled by @Query observation in View
+        }
     }
     
     // MARK: - Logic
     
-    /// Lưu nhật ký uống.
-    public func logIntake(for supplement: UserSupplement, context: ModelContext) {
-        let record = IntakeRecord(date: .now, status: "Taken", supplement: supplement)
-        context.insert(record)
+    /// Toggle trạng thái uống trong ngày hôm nay.
+    public func toggleIntake(for supplement: UserSupplement, context: ModelContext) {
+        let calendar = Calendar.current
+        let today = Date.now
+        
+        // Kiểm tra xem đã có bản ghi trong ngày hôm nay chưa
+        let todayRecords = supplement.intakeRecords.filter { calendar.isDate($0.date, inSameDayAs: today) }
+        
+        if let existingRecord = todayRecords.first {
+            // Nếu đã có -> Xóa (Untick)
+            context.delete(existingRecord)
+        } else {
+            // Nếu chưa có -> Thêm mới (Tick)
+            let newRecord = IntakeRecord(date: today, status: "Taken", supplement: supplement)
+            context.insert(newRecord)
+        }
+        
+        try? context.save()
+    }
+    
+    /// Kiểm tra xem một chất đã được uống hôm nay chưa.
+    public func isTakenToday(_ supplement: UserSupplement) -> Bool {
+        let calendar = Calendar.current
+        let today = Date.now
+        return supplement.intakeRecords.contains { calendar.isDate($0.date, inSameDayAs: today) }
+    }
+    
+    /// Xóa thực phẩm bổ sung.
+    public func deleteSupplement(_ supplement: UserSupplement, context: ModelContext) {
+        context.delete(supplement)
         try? context.save()
     }
     
@@ -30,7 +65,7 @@ public final class HomeViewModel {
     /// - Parameter supplements: Danh sách từ SwiftData.
     public func processSupplements(_ supplements: [UserSupplement]) {
         let today = Date.now
-        var active: [IntakeTime: [UserSupplement]] = [:]
+        var active: [String: [UserSupplement]] = [:]
         var resting: [RestingSupplementInfo] = []
         
         for supplement in supplements {

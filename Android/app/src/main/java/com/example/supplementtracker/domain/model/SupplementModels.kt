@@ -28,7 +28,8 @@ enum class IntakeTime(val label: String) {
 data class CycleConfig(
     val daysOn: Int,
     val daysOff: Int,
-    val isContinuous: Boolean = false
+    val isContinuous: Boolean = false,
+    val durationMonths: Int? = null
 ) {
     companion object {
         val Continuous = CycleConfig(1, 0, true)
@@ -44,7 +45,7 @@ data class UserSupplement(
     val startDate: LocalDate,
     val cycleConfig: CycleConfig,
     val dailyDose: String,
-    val intakeTime: IntakeTime
+    val intakeTime: String // Định dạng HH:mm
 )
 
 /**
@@ -52,7 +53,8 @@ data class UserSupplement(
  */
 data class SupplementReference(
     val name: String,
-    val preferredTime: IntakeTime,
+    val advice: String? = null,
+    val preferredTime: String,
     val defaultCycle: CycleConfig
 )
 

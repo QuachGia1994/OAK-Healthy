@@ -81,12 +81,28 @@ class AddSupplementViewModel(
         }
     }
 
+    fun onTimeChange(time: String) {
+        _state.update { it.copy(intakeTime = time) }
+    }
+
     fun onDailyDoseChange(dose: String) {
         _state.update { it.copy(dailyDose = dose) }
     }
 
     fun onContinuousToggle(continuous: Boolean) {
         _state.update { it.copy(isContinuous = continuous) }
+    }
+
+    fun onDurationChange(duration: String) {
+        _state.update { it.copy(durationMonths = duration) }
+    }
+
+    fun onDaysOnChange(days: String) {
+        _state.update { it.copy(daysOn = days) }
+    }
+
+    fun onDaysOffChange(days: String) {
+        _state.update { it.copy(daysOff = days) }
     }
 
     /**
@@ -107,7 +123,8 @@ class AddSupplementViewModel(
                     } else {
                         CycleConfig(
                             daysOn = currentState.daysOn.toIntOrNull() ?: 1,
-                            daysOff = currentState.daysOff.toIntOrNull() ?: 0
+                            daysOff = currentState.daysOff.toIntOrNull() ?: 0,
+                            durationMonths = currentState.durationMonths.toIntOrNull()
                         )
                     },
                     dailyDose = currentState.dailyDose,

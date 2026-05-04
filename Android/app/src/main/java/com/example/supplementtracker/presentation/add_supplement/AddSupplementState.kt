@@ -10,9 +10,10 @@ import java.time.LocalDate
 data class AddSupplementState(
     val name: String = "",
     val startDate: LocalDate = LocalDate.now(),
-    val intakeTime: IntakeTime = IntakeTime.MORNING,
+    val intakeTime: String = "08:00",
     val daysOn: String = "30",
     val daysOff: String = "7",
+    val durationMonths: String = "",
     val dailyDose: String = "",
     val isContinuous: Boolean = false,
     val suggestions: List<SupplementReference> = emptyList(),

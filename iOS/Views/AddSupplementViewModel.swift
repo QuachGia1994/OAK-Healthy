@@ -9,9 +9,10 @@ public final class AddSupplementViewModel {
     // MARK: - State
     public var name: String = ""
     public var startDate: Date = .now
-    public var intakeTime: IntakeTime = .morning
+    public var selectedTime: Date = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: .now) ?? .now
     public var daysOn: String = "30"
     public var daysOff: String = "7"
+    public var durationMonths: String = ""
     public var dailyDose: String = ""
     public var isContinuous: Bool = false
     
@@ -82,7 +83,19 @@ public final class AddSupplementViewModel {
     /// Áp dụng cấu hình từ gợi ý được chọn.
     public func selectSuggestion(_ reference: SupplementReference) {
         name = reference.name
-        intakeTime = reference.preferredTime
+        
+        // Chuyển đổi String HH:mm sang Date
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        if let date = formatter.date(from: reference.preferredTime) {
+            let calendar = Calendar.current
+            let components = calendar.dateComponents([.hour, .minute], from: date)
+            selectedTime = calendar.date(bySettingHour: components.hour ?? 8, 
+                                       minute: components.minute ?? 0, 
+                                       second: 0, 
+                                       of: .now) ?? .now
+        }
+        
         isContinuous = reference.defaultCycle.isContinuous
         daysOn = String(reference.defaultCycle.daysOn)
         daysOff = String(reference.defaultCycle.daysOff)
@@ -95,14 +108,22 @@ public final class AddSupplementViewModel {
         
         let config = isContinuous 
             ? CycleConfig.continuous 
-            : CycleConfig(daysOn: Int(daysOn) ?? 1, daysOff: Int(daysOff) ?? 0)
+            : CycleConfig(
+                daysOn: Int(daysOn) ?? 1, 
+                daysOff: Int(daysOff) ?? 0,
+                durationMonths: Int(durationMonths)
+            )
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let timeString = formatter.string(from: selectedTime)
         
         return UserSupplement(
             name: name,
             startDate: startDate,
             cycleConfig: config,
             dailyDose: dailyDose,
-            intakeTime: intakeTime
+            intakeTime: timeString
         )
     }
 }

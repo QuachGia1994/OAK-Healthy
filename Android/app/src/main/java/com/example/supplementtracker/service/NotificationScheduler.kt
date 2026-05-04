@@ -63,13 +63,12 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         }
     }
 
-    private fun getTriggerTime(intakeTime: IntakeTime): Long {
-        val time = when (intakeTime) {
-            IntakeTime.MORNING -> LocalTime.of(8, 0)
-            IntakeTime.AFTERNOON -> LocalTime.of(12, 0)
-            IntakeTime.EVENING -> LocalTime.of(17, 0)
-            IntakeTime.NIGHT -> LocalTime.of(21, 0)
-        }
+    private fun getTriggerTime(intakeTime: String): Long {
+        val parts = intakeTime.split(":")
+        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 8
+        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        
+        val time = LocalTime.of(hour, minute)
 
         var scheduledTime = LocalDateTime.of(java.time.LocalDate.now(), time)
         if (scheduledTime.isBefore(LocalDateTime.now())) {

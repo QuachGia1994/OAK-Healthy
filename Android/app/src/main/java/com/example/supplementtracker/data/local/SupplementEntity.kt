@@ -18,6 +18,7 @@ data class SupplementEntity(
     val daysOn: Int,
     val daysOff: Int,
     val isContinuous: Boolean,
+    val durationMonths: Int?, // Tổng thời hạn (tháng)
     val dailyDose: String,
     val intakeTime: String // Lưu dạng String enum
 )

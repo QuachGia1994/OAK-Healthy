@@ -42,6 +42,12 @@ class SupplementRepositoryImpl(
         dao.insertIntakeRecord(IntakeRecordEntity(supplementId = supplementId, date = date))
     }
 
+    override suspend fun removeIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {
+        val startOfDay = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endOfDay = LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        dao.deleteRecordByDate(supplementId, startOfDay, endOfDay)
+    }
+
     override fun getRecordsByDateRange(startDate: Long, endDate: Long): Flow<List<IntakeRecord>> {
         return combine(
             dao.getRecordsByDateRange(startDate, endDate),

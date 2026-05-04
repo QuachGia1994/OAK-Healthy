@@ -49,32 +49,42 @@ public struct AddSupplementView: View {
                 Section("Lịch trình & Chu kỳ") {
                     DatePicker("Ngày bắt đầu", selection: $viewModel.startDate, displayedComponents: .date)
                     
-                    Picker("Thời điểm uống", selection: $viewModel.intakeTime) {
-                        ForEach(IntakeTime.allCases, id: \.self) { time in
-                            Text(time.rawValue).tag(time)
-                        }
-                    }
+                    DatePicker("Giờ uống", selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
                     
                     Toggle("Uống liên tục (Không nghỉ)", isOn: $viewModel.isContinuous)
                     
                     if !viewModel.isContinuous {
                         HStack {
-                            Text("Ngày uống (On)")
+                            Text("Số ngày uống (On Days)")
                             Spacer()
-                            TextField("Ngày", text: $viewModel.daysOn)
+                            TextField("Ví dụ: 14", text: $viewModel.daysOn)
                                 .keyboardType(.numberPad)
                                 .multilineTextAlignment(.trailing)
-                                .frame(width: 50)
+                                .frame(width: 80)
                         }
                         
                         HStack {
-                            Text("Ngày nghỉ (Off)")
+                            Text("Số ngày nghỉ (Off Days)")
                             Spacer()
-                            TextField("Ngày", text: $viewModel.daysOff)
+                            TextField("Ví dụ: 7", text: $viewModel.daysOff)
                                 .keyboardType(.numberPad)
                                 .multilineTextAlignment(.trailing)
-                                .frame(width: 50)
+                                .frame(width: 80)
                         }
+                    }
+                    
+                    HStack {
+                        Text("Tổng thời hạn (Duration)")
+                        Spacer()
+                        TextField("Vô thời hạn", text: $viewModel.durationMonths)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    if !viewModel.durationMonths.isEmpty {
+                        Text("Tháng")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

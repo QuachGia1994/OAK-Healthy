@@ -18,7 +18,11 @@ import androidx.compose.ui.text.font.FontStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    homeViewModel: HomeViewModel? = null // Giả định inject VM để lấy danh sách
+) {
+    val uiState by homeViewModel?.uiState?.collectAsStateWithLifecycle() ?: mutableStateOf(null)
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text(stringResource(R.string.settings_title)) })
@@ -32,30 +36,33 @@ fun SettingsScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            item {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(
-                        imageVector = ImageVector.vectorResource(id = R.drawable.ic_oak_logo),
-                        contentDescription = "OAK Healthy Logo",
-                        modifier = Modifier.size(120.dp)
-                    )
+            // ... Logo Section ...
+
+            // Section: Danh sách của tôi
+            if (uiState is HomeUiState.Success) {
+                val successState = uiState as HomeUiState.Success
+                val allSupplements = (successState.activeSupplements.values.flatten().map { it.supplement } + 
+                                     successState.restingSupplements.map { it.supplement })
+                    .distinctBy { it.id }
+                    .sortedBy { it.name }
+
+                item {
                     Text(
-                        text = "OAK Healthy",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "Danh sách của tôi",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.settings_dedication),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontStyle = FontStyle.Italic,
-                        color = MaterialTheme.colorScheme.secondary
+                }
+
+                items(allSupplements) { supplement ->
+                    InfoCard(
+                        title = supplement.name,
+                        content = getCycleSummary(supplement)
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
-            
+
             item {
                 InfoCard(
                     title = stringResource(R.string.settings_guide_title),

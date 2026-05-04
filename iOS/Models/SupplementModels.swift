@@ -31,16 +31,20 @@ public struct CycleConfig: Codable, Sendable, Equatable {
     public let daysOff: Int
     /// Cờ xác định việc uống liên tục không nghỉ.
     public let isContinuous: Bool
+    /// Tổng thời hạn tính bằng tháng (nil là vô thời hạn).
+    public let durationMonths: Int?
     
     /// Khởi tạo cấu hình chu kỳ.
     /// - Parameters:
     ///   - daysOn: Số ngày uống.
     ///   - daysOff: Số ngày nghỉ.
     ///   - isContinuous: Có uống liên tục hay không.
-    public init(daysOn: Int, daysOff: Int, isContinuous: Bool = false) {
+    ///   - durationMonths: Tổng thời hạn.
+    public init(daysOn: Int, daysOff: Int, isContinuous: Bool = false, durationMonths: Int? = nil) {
         self.daysOn = daysOn
         self.daysOff = daysOff
         self.isContinuous = isContinuous
+        self.durationMonths = durationMonths
     }
     
     /// Cấu hình mặc định cho việc uống liên tục.
@@ -62,8 +66,8 @@ public final class UserSupplement: Identifiable {
     public var cycleConfig: CycleConfig
     /// Liều lượng hàng ngày (VD: 1000 IU).
     public var dailyDose: String
-    /// Thời điểm uống trong ngày.
-    public var intakeTime: IntakeTime
+    /// Thời điểm uống trong ngày (Định dạng HH:mm).
+    public var intakeTime: String
     
     /// Liên kết tới Profile người dùng.
     public var profile: UserProfile?
@@ -87,7 +91,7 @@ public final class UserSupplement: Identifiable {
         startDate: Date,
         cycleConfig: CycleConfig,
         dailyDose: String,
-        intakeTime: IntakeTime,
+        intakeTime: String,
         profile: UserProfile? = nil
     ) {
         self.id = id
@@ -157,8 +161,10 @@ public struct SupplementReference: Codable, Sendable, Identifiable {
     public var id: String { name }
     /// Tên chất.
     public let name: String
-    /// Thời điểm uống khuyến nghị.
-    public let preferredTime: IntakeTime
+    /// Ghi chú/Lời khuyên uống.
+    public let advice: String?
+    /// Thời điểm uống khuyến nghị (HH:mm).
+    public let preferredTime: String
     /// Chu kỳ uống mặc định.
     public let defaultCycle: CycleConfig
 }

@@ -15,6 +15,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.domain.model.IntakeTime
 
+import android.app.TimePickerDialog
+import androidx.compose.ui.platform.LocalContext
+
 /**
  * Màn hình thêm mới chất bổ sung (Jetpack Compose).
  */
@@ -26,6 +29,15 @@ fun AddSupplementScreen(
     onSave: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+
+    val timePickerDialog = TimePickerDialog(
+        context,
+        { _, hour, minute ->
+            viewModel.onTimeChange(String.format("%02d:%02d", hour, minute))
+        },
+        8, 0, true
+    )
 
     Scaffold(
         topBar = {
@@ -63,7 +75,9 @@ fun AddSupplementScreen(
                     state.suggestions.forEach { suggestion ->
                         ListItem(
                             headlineContent = { Text(suggestion.name) },
-                            supportingContent = { Text("Gợi ý: ${suggestion.preferredTime.label}") },
+                            supportingContent = { 
+                                Text(suggestion.advice ?: "Gợi ý: ${suggestion.preferredTime}") 
+                            },
                             trailingContent = { Icon(Icons.Default.AddCircle, contentDescription = null) },
                             modifier = Modifier.clickable { viewModel.onSuggestionClick(suggestion) }
                         )
@@ -85,6 +99,17 @@ fun AddSupplementScreen(
             // Section: Lịch trình & Chu kỳ
             Text("Lịch trình & Chu kỳ", style = MaterialTheme.typography.titleMedium)
             
+            OutlinedCard(
+                onClick = { timePickerDialog.show() },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Giờ uống: ${state.intakeTime}")
+                }
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -101,21 +126,33 @@ fun AddSupplementScreen(
                 Row(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = state.daysOn,
-                        onValueChange = { /* Update daysOn in VM */ },
-                        label = { Text("Ngày uống") },
+                        onValueChange = viewModel::onDaysOnChange,
+                        label = { Text("Số ngày uống (On Days)") },
+                        placeholder = { Text("Ví dụ: 14 ngày") },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     OutlinedTextField(
                         value = state.daysOff,
-                        onValueChange = { /* Update daysOff in VM */ },
-                        label = { Text("Ngày nghỉ") },
+                        onValueChange = viewModel::onDaysOffChange,
+                        label = { Text("Số ngày nghỉ (Off Days)") },
+                        placeholder = { Text("Ví dụ: 7 ngày") },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                 }
+                Spacer(modifier = Modifier.height(8.dp))
             }
+
+            OutlinedTextField(
+                value = state.durationMonths,
+                onValueChange = viewModel::onDurationChange,
+                label = { Text("Tổng thời hạn (Duration)") },
+                placeholder = { Text("Ví dụ: 3 tháng hoặc để trống") },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
         }
     }
 }

@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
+    @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
+    
     public init() {}
     
     public var body: some View {
@@ -23,6 +25,23 @@ public struct SettingsView: View {
                 }
                 .listRowBackground(Color.clear)
 
+                Section("Danh sách của tôi") {
+                    if supplements.isEmpty {
+                        Text("Chưa có chất bổ sung nào.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(supplements) { supplement in
+                            VStack(alignment: .leading) {
+                                Text(supplement.name)
+                                    .font(.headline)
+                                Text(getCycleSummary(for: supplement))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                
                 Section("Hướng dẫn sử dụng") {
                     VStack(alignment: .leading, spacing: 8) {
                         GuideRow(number: "1", text: "Nhấn (+) để thêm thực phẩm bổ sung mới.")
@@ -51,6 +70,18 @@ public struct SettingsView: View {
                 }
             }
             .navigationTitle("Cài đặt")
+        }
+    private func getCycleSummary(for supplement: UserSupplement) -> String {
+        let config = supplement.cycleConfig
+        let today = Date.now
+        let cycleEngine = CycleCalculator()
+        let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: config, at: today)
+        let statusText = status == .on ? "Đang trong chu kỳ" : "Đang trong kỳ nghỉ"
+        
+        if config.isContinuous {
+            return "Uống liên tục"
+        } else {
+            return "\(statusText): \(config.daysOn) ngày uống / \(config.daysOff) ngày nghỉ"
         }
     }
 }

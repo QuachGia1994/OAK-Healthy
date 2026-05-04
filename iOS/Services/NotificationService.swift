@@ -42,16 +42,18 @@ public struct NotificationService: NotificationManaging {
     /// Chỉ nhắc nhở vào những ngày "On".
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
         let calendar = Calendar.current
-        var dateComponents = calendar.dateComponents([.hour, .minute], from: supplement.startDate)
         
-        // Thiết lập giờ dựa trên intakeTime
-        setTimeComponents(&dateComponents, for: supplement.intakeTime)
+        // Parse intakeTime (HH:mm)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        guard let timeDate = formatter.date(from: supplement.intakeTime) else { return }
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
         
         // Lên lịch cho 30 ngày tới (iOS giới hạn 64 thông báo local)
         for dayOffset in 0..<30 {
             guard let checkDate = calendar.date(byAdding: .day, value: dayOffset, to: .now),
-                  let triggerDate = calendar.date(bySettingHour: dateComponents.hour ?? 8, 
-                                                minute: dateComponents.minute ?? 0, 
+                  let triggerDate = calendar.date(bySettingHour: timeComponents.hour ?? 8, 
+                                                minute: timeComponents.minute ?? 0, 
                                                 second: 0, 
                                                 of: checkDate) else { continue }
             
@@ -72,20 +74,12 @@ public struct NotificationService: NotificationManaging {
     
     // MARK: - Private Helpers
     
-    private func setTimeComponents(_ components: inout DateComponents, for time: IntakeTime) {
-        switch time {
-        case .morning: components.hour = 8; components.minute = 0
-        case .afternoon: components.hour = 12; components.minute = 0
-        case .evening: components.hour = 17; components.minute = 0
-        case .night: components.hour = 21; components.minute = 0
-        }
-    }
-    
     private func createNotificationRequest(for supplement: UserSupplement, at date: Date) async throws(NotificationError) {
         let content = UNMutableNotificationContent()
-        content.title = "Đến giờ uống \(supplement.name)"
-        content.body = "Liều lượng: \(supplement.dailyDose)"
+        content.title = "Đến giờ uống rồi! 🌿"
+        content.body = "Bạn cần nạp \(supplement.name) - Liều lượng: \(supplement.dailyDose). Chúc bạn một phiên giao dịch/làm việc hiệu quả!"
         content.sound = .default
+        content.userInfo = ["supplementID": supplement.id.uuidString]
         
         let triggerComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)

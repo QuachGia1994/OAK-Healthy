@@ -39,17 +39,27 @@ public struct CycleCalculator: CycleCalculating {
         config: CycleConfig,
         at currentDate: Date = .now
     ) throws(CycleError) -> CycleStatus {
-        // Early return cho trường hợp uống liên tục
+        let calendar = Calendar.current
+        
+        // 1. Kiểm tra thời hạn (Duration)
+        if let months = config.durationMonths,
+           let endDate = calendar.date(byAdding: .month, value: months, to: startDate) {
+            guard currentDate <= endDate else { return .off }
+        }
+        
+        // 2. Early return cho trường hợp uống liên tục
         guard !config.isContinuous else { return .on }
         
-        // Early return nếu ngày kiểm tra trước ngày bắt đầu
-        guard currentDate >= startDate else { return .on }
+        // 3. Early return nếu ngày kiểm tra trước ngày bắt đầu
+        // Sử dụng startOfDay để so sánh ngày chính xác
+        let startDay = calendar.startOfDay(for: startDate)
+        let currentDay = calendar.startOfDay(for: currentDate)
+        guard currentDay >= startDay else { return .on }
         
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.day], from: startDate, to: currentDate)
+        let components = calendar.dateComponents([.day], from: startDay, to: currentDay)
         
         guard let daysElapsed = components.day else {
-            throw .calculationOverflow
+            throw CycleError.calculationOverflow
         }
         
         return calculateStatus(daysElapsed: daysElapsed, config: config)

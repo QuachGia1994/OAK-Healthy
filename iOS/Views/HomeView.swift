@@ -20,9 +20,11 @@ public struct HomeView: View {
                         Text("Hôm nay bạn không có lịch uống nào.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(IntakeTime.allCases.sorted(by: { $0.order < $1.order }), id: \.self) { time in
+                        // Sắp xếp theo giờ uống
+                        let sortedTimes = viewModel.activeSupplements.keys.sorted()
+                        ForEach(sortedTimes, id: \.self) { time in
                             if let items = viewModel.activeSupplements[time] {
-                                TimeGroupSection(time: time, supplements: items, onLog: viewModel.logIntake)
+                                TimeGroupSection(time: time, supplements: items, viewModel: viewModel)
                             }
                         }
                     }
@@ -72,19 +74,30 @@ public struct HomeView: View {
 
 /// Thành phần hiển thị nhóm theo thời gian.
 private struct TimeGroupSection: View {
-    let time: IntakeTime
+    let time: String
     let supplements: [UserSupplement]
-    let onLog: (UserSupplement, ModelContext) -> Void
+    let viewModel: HomeViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(time.rawValue)
+            Text(time)
                 .font(.caption)
                 .fontWeight(.bold)
                 .foregroundStyle(.blue)
             
             ForEach(supplements) { supplement in
-                ActiveSupplementRow(supplement: supplement, onLog: onLog)
+                ActiveSupplementRow(
+                    supplement: supplement, 
+                    onToggle: viewModel.toggleIntake,
+                    isTaken: viewModel.isTakenToday(supplement)
+                )
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        viewModel.deleteSupplement(supplement, context: modelContext)
+                    } label: {
+                        Label("Xóa", systemImage: "trash")
+                    }
+                }
             }
         }
         .padding(.vertical, 4)
@@ -95,24 +108,28 @@ private struct TimeGroupSection: View {
 private struct ActiveSupplementRow: View {
     @Environment(\.modelContext) private var modelContext
     let supplement: UserSupplement
-    let onLog: (UserSupplement, ModelContext) -> Void
-    @State private var isTaken = false
+    let onToggle: (UserSupplement, ModelContext) -> Void
+    let isTaken: Bool
     
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
                 Text(supplement.name)
                     .font(.headline)
-                Text("Liều lượng: \(supplement.dailyDose)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Image(systemName: "clock")
+                        .font(.caption2)
+                    Text(supplement.intakeTime)
+                        .font(.caption2)
+                    Text("•")
+                    Text("Liều lượng: \(supplement.dailyDose)")
+                        .font(.caption)
+                }
+                .foregroundStyle(.secondary)
             }
             Spacer()
             Button {
-                isTaken.toggle()
-                if isTaken {
-                    onLog(supplement, modelContext)
-                }
+                onToggle(supplement, modelContext)
             } label: {
                 Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isTaken ? .green : .gray)

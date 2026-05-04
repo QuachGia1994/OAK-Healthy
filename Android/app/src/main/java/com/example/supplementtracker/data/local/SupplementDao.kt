@@ -30,4 +30,7 @@ interface SupplementDao {
 
     @Query("SELECT * FROM intake_records WHERE supplementId = :supplementId ORDER BY date DESC")
     fun getRecordsBySupplement(supplementId: String): Flow<List<IntakeRecordEntity>>
+
+    @Query("DELETE FROM intake_records WHERE supplementId = :supplementId AND date >= :startOfDay AND date <= :endOfDay")
+    suspend fun deleteRecordByDate(supplementId: String, startOfDay: Long, endOfDay: Long)
 }

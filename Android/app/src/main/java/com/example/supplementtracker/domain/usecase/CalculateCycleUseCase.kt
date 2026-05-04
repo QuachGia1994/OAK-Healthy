@@ -19,10 +19,16 @@ class CalculateCycleUseCase {
         config: CycleConfig,
         currentDate: LocalDate = LocalDate.now()
     ): CycleStatus {
-        // Early return cho uống liên tục
+        // 1. Kiểm tra thời hạn (Duration)
+        config.durationMonths?.let { months ->
+            val endDate = startDate.plusMonths(months.toLong())
+            if (currentDate.isAfter(endDate)) return CycleStatus.OFF
+        }
+
+        // 2. Early return cho uống liên tục
         if (config.isContinuous) return CycleStatus.ON
         
-        // Early return nếu ngày kiểm tra trước ngày bắt đầu
+        // 3. Early return nếu ngày kiểm tra trước ngày bắt đầu
         if (currentDate.isBefore(startDate)) return CycleStatus.ON
         
         val daysElapsed = ChronoUnit.DAYS.between(startDate, currentDate).toInt()
