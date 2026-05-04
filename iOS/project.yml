@@ -8,7 +8,12 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: .
+      - path: SupplementTrackerApp.swift
+      - path: Assets.xcassets
+      - path: Engine
+      - path: Models
+      - path: Services
+      - path: Views
     settings:
       base:
         INFOPLIST_FILE: Info.plist
