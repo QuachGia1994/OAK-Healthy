@@ -33,6 +33,7 @@ jobs:
             -project iOS/OAKHealthy.xcodeproj \
             -scheme OAKHealthy \
             -configuration Release \
+            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath build/OAKHealthy.xcarchive \
             CODE_SIGN_IDENTITY="" \
