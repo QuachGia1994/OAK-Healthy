@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Màn hình thêm mới thực phẩm bổ sung.
 public struct AddSupplementView: View {

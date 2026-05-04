@@ -1,5 +1,5 @@
 import Foundation
-import EventKit
+@preconcurrency import EventKit
 
 /// Các lỗi liên quan đến lịch hệ thống.
 public enum CalendarError: Error, Sendable {
@@ -15,6 +15,7 @@ public protocol CalendarManaging: Sendable {
 }
 
 /// Dịch vụ xử lý Apple Calendar.
+@preconcurrency
 public struct CalendarService: CalendarManaging {
     
     private let eventStore = EKEventStore()
@@ -29,11 +30,11 @@ public struct CalendarService: CalendarManaging {
         do {
             // Sử dụng API hiện đại cho iOS 17+
             let granted = try await eventStore.requestFullAccessToEvents()
-            guard granted else { throw .accessDenied }
+            guard granted else { throw CalendarError.accessDenied }
         } catch let error as CalendarError {
             throw error
         } catch {
-            throw .unknown(error)
+            throw CalendarError.unknown(error)
         }
     }
     
@@ -75,7 +76,7 @@ public struct CalendarService: CalendarManaging {
         do {
             try eventStore.save(event, span: .thisEvent)
         } catch {
-            throw .syncFailed
+            throw CalendarError.syncFailed
         }
     }
     

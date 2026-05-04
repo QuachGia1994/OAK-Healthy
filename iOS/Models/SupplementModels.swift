@@ -65,6 +65,9 @@ public final class UserSupplement: Identifiable {
     /// Thời điểm uống trong ngày.
     public var intakeTime: IntakeTime
     
+    /// Liên kết tới Profile người dùng.
+    public var profile: UserProfile?
+    
     /// Danh sách nhật ký lịch sử uống (Relationship cascade).
     @Relationship(deleteRule: .cascade, inverse: \IntakeRecord.supplement)
     public var intakeRecords: [IntakeRecord] = []
@@ -77,13 +80,15 @@ public final class UserSupplement: Identifiable {
     ///   - cycleConfig: Cấu hình chu kỳ.
     ///   - dailyDose: Liều lượng.
     ///   - intakeTime: Thời điểm uống.
+    ///   - profile: Profile sở hữu.
     public init(
         id: UUID = UUID(),
         name: String,
         startDate: Date,
         cycleConfig: CycleConfig,
         dailyDose: String,
-        intakeTime: IntakeTime
+        intakeTime: IntakeTime,
+        profile: UserProfile? = nil
     ) {
         self.id = id
         self.name = name
@@ -91,7 +96,24 @@ public final class UserSupplement: Identifiable {
         self.cycleConfig = cycleConfig
         self.dailyDose = dailyDose
         self.intakeTime = intakeTime
+        self.profile = profile
         self.intakeRecords = []
+    }
+}
+
+/// Profile người dùng (SwiftData Model).
+@Model
+public final class UserProfile: Identifiable {
+    @Attribute(.unique) public var id: UUID
+    public var name: String
+    
+    @Relationship(deleteRule: .cascade, inverse: \UserSupplement.profile)
+    public var supplements: [UserSupplement] = []
+    
+    public init(id: UUID = UUID(), name: String) {
+        self.id = id
+        self.name = name
+        self.supplements = []
     }
 }
 
@@ -144,7 +166,7 @@ public struct SupplementReference: Codable, Sendable, Identifiable {
 /// Thông tin bổ sung cho chất đang nghỉ (Dùng trong UI).
 ///
 /// Chứa thông tin về số ngày nghỉ còn lại trong chu kỳ hiện tại.
-public struct RestingSupplementInfo: Identifiable, Sendable {
+public struct RestingSupplementInfo: Identifiable {
     public var id: UUID { supplement.id }
     /// Chất bổ sung đang trong giai đoạn nghỉ.
     public let supplement: UserSupplement

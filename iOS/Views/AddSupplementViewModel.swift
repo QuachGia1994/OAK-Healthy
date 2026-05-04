@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 
 /// ViewModel quản lý logic thêm mới thực phẩm bổ sung.

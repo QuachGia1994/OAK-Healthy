@@ -1,5 +1,5 @@
 import Foundation
-import UserNotifications
+@preconcurrency import UserNotifications
 
 /// Các lỗi liên quan đến thông báo.
 public enum NotificationError: Error, Sendable {
@@ -16,6 +16,7 @@ public protocol NotificationManaging: Sendable {
 }
 
 /// Dịch vụ xử lý Local Notifications.
+@preconcurrency
 public struct NotificationService: NotificationManaging {
     
     private let center = UNUserNotificationCenter.current()
@@ -29,11 +30,11 @@ public struct NotificationService: NotificationManaging {
     public func requestAuthorization() async throws(NotificationError) {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-            guard granted else { throw .authorizationDenied }
+            guard granted else { throw NotificationError.authorizationDenied }
         } catch let error as NotificationError {
             throw error
         } catch {
-            throw .unknown(error)
+            throw NotificationError.unknown(error)
         }
     }
     
@@ -95,7 +96,7 @@ public struct NotificationService: NotificationManaging {
         do {
             try await center.add(request)
         } catch {
-            throw .schedulingFailed
+            throw NotificationError.schedulingFailed
         }
     }
 }
