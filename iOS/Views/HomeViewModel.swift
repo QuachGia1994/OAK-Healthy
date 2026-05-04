@@ -21,8 +21,7 @@ public final class HomeViewModel {
             forName: Notification.Name.NSSystemTimeZoneDidChange,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            // Refresh logic handled by @Query observation in View
+        ) { _ in
         }
     }
     

@@ -9,6 +9,7 @@ import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.Resource
 import com.example.supplementtracker.domain.model.SupplementReference
 import com.example.supplementtracker.domain.model.UserSupplement
+import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
 import com.example.supplementtracker.domain.usecase.SearchSupplementUseCase
 import com.example.supplementtracker.worker.CycleCheckWorker
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 class AddSupplementViewModel(
     private val searchUseCase: SearchSupplementUseCase = SearchSupplementUseCase(),
     private val saveSupplementUseCase: SaveSupplementUseCase,
+    private val repository: SupplementRepository,
     private val context: Context // Thêm context để dùng WorkManager
 ) : ViewModel() {
 
@@ -105,6 +107,31 @@ class AddSupplementViewModel(
         _state.update { it.copy(daysOff = days) }
     }
 
+    fun resetForAdd() {
+        _state.value = AddSupplementState()
+    }
+
+    fun loadSupplementForEdit(supplementId: String) {
+        viewModelScope.launch {
+            val supplement = repository.getSupplementById(supplementId) ?: return@launch
+            _state.update {
+                it.copy(
+                    editingSupplementId = supplement.id.toString(),
+                    name = supplement.name,
+                    startDate = supplement.startDate,
+                    intakeTime = supplement.intakeTime,
+                    isContinuous = supplement.cycleConfig.isContinuous,
+                    daysOn = supplement.cycleConfig.daysOn.toString(),
+                    daysOff = supplement.cycleConfig.daysOff.toString(),
+                    durationMonths = supplement.cycleConfig.durationMonths?.toString() ?: "",
+                    dailyDose = supplement.dailyDose,
+                    suggestions = emptyList(),
+                    error = null
+                )
+            }
+        }
+    }
+
     /**
      * Lưu thực phẩm bổ sung vào Room Database.
      */
@@ -116,6 +143,7 @@ class AddSupplementViewModel(
             _state.update { it.copy(isLoading = true) }
             try {
                 val supplement = UserSupplement(
+                    id = currentState.editingSupplementId?.let { java.util.UUID.fromString(it) } ?: java.util.UUID.randomUUID(),
                     name = currentState.name,
                     startDate = currentState.startDate,
                     cycleConfig = if (currentState.isContinuous) {
@@ -130,7 +158,11 @@ class AddSupplementViewModel(
                     dailyDose = currentState.dailyDose,
                     intakeTime = currentState.intakeTime
                 )
-                saveSupplementUseCase(supplement)
+                if (currentState.editingSupplementId == null) {
+                    saveSupplementUseCase(supplement)
+                } else {
+                    repository.updateSupplement(supplement)
+                }
                 
                 // Enqueue Worker để kiểm tra chu kỳ hàng ngày
                 enqueueCycleCheckWorker()

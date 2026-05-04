@@ -21,13 +21,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontStyle
+import com.example.supplementtracker.presentation.navigation.AppTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    homeViewModel: HomeViewModel? = null // Giả định inject VM để lấy danh sách
+    homeViewModel: HomeViewModel,
+    appTheme: AppTheme,
+    onThemeChange: (AppTheme) -> Unit
 ) {
-    val uiState by homeViewModel?.uiState?.collectAsStateWithLifecycle() ?: mutableStateOf(null)
+    val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -43,6 +46,13 @@ fun SettingsScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // ... Logo Section ...
+
+            item {
+                AppearanceCard(
+                    appTheme = appTheme,
+                    onThemeChange = onThemeChange
+                )
+            }
 
             // Section: Danh sách của tôi
             if (uiState is HomeUiState.Success) {
@@ -94,6 +104,35 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun AppearanceCard(
+    appTheme: AppTheme,
+    onThemeChange: (AppTheme) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Giao diện", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            Column {
+                ThemeRow("Sáng", appTheme == AppTheme.LIGHT) { onThemeChange(AppTheme.LIGHT) }
+                ThemeRow("Tối", appTheme == AppTheme.DARK) { onThemeChange(AppTheme.DARK) }
+                ThemeRow("Hệ thống", appTheme == AppTheme.SYSTEM) { onThemeChange(AppTheme.SYSTEM) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onSelect)
+        Text(text = label)
     }
 }
 

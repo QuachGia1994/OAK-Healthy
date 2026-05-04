@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface SupplementRepository {
     suspend fun saveSupplement(supplement: UserSupplement)
+    suspend fun updateSupplement(supplement: UserSupplement)
     suspend fun deleteSupplement(supplement: UserSupplement)
     suspend fun getSupplementById(id: String): UserSupplement?
     fun getAllSupplements(): Flow<List<UserSupplement>>

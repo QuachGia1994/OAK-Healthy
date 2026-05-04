@@ -29,6 +29,10 @@ class SupplementRepositoryImpl(
         dao.insertSupplement(supplement.toEntity())
     }
 
+    override suspend fun updateSupplement(supplement: UserSupplement) = withContext(Dispatchers.IO) {
+        dao.updateSupplement(supplement.toEntity())
+    }
+
     override suspend fun deleteSupplement(supplement: UserSupplement) = withContext(Dispatchers.IO) {
         dao.deleteSupplement(supplement.toEntity())
     }

@@ -26,18 +26,27 @@ import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.home.SettingsScreen
 
+enum class AppTheme {
+    LIGHT,
+    DARK,
+    SYSTEM
+}
+
 sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable () -> Unit) {
     data object Home : Screen("home", R.string.nav_home, { Icon(Icons.Default.Home, contentDescription = null) })
     data object History : Screen("history", R.string.nav_history, { Icon(Icons.Default.DateRange, contentDescription = null) })
     data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = null) })
     data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
+    data object EditSupplement : Screen("edit_supplement/{id}", R.string.app_name, { })
 }
 
 @Composable
 fun AppNavigation(
     homeViewModel: HomeViewModel,
     historyViewModel: HistoryViewModel,
-    addSupplementViewModel: AddSupplementViewModel
+    addSupplementViewModel: AddSupplementViewModel,
+    appTheme: AppTheme,
+    onThemeChange: (AppTheme) -> Unit
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -73,7 +82,8 @@ fun AppNavigation(
             composable(Screen.Home.route) {
                 HomeScreen(
                     viewModel = homeViewModel,
-                    onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) }
+                    onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
+                    onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") }
                 )
             }
             composable(Screen.History.route) {
@@ -82,13 +92,31 @@ fun AppNavigation(
                 )
             }
             composable(Screen.Settings.route) {
-                SettingsScreen()
+                SettingsScreen(
+                    homeViewModel = homeViewModel,
+                    appTheme = appTheme,
+                    onThemeChange = onThemeChange
+                )
             }
             composable(Screen.AddSupplement.route) {
                 AddSupplementScreen(
                     viewModel = addSupplementViewModel,
+                    supplementId = null,
                     onBack = { navController.popBackStack() },
                     onSave = { 
+                        addSupplementViewModel.saveSupplement {
+                            navController.popBackStack()
+                        }
+                    }
+                )
+            }
+            composable(Screen.EditSupplement.route) { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id")
+                AddSupplementScreen(
+                    viewModel = addSupplementViewModel,
+                    supplementId = id,
+                    onBack = { navController.popBackStack() },
+                    onSave = {
                         addSupplementViewModel.saveSupplement {
                             navController.popBackStack()
                         }

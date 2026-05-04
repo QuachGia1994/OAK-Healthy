@@ -9,9 +9,9 @@ public struct AddSupplementView: View {
     
     public var onSave: (UserSupplement) -> Void
     
-    public init(modelContext: ModelContext, onSave: @escaping (UserSupplement) -> Void) {
+    public init(modelContext: ModelContext, editingSupplement: UserSupplement? = nil, onSave: @escaping (UserSupplement) -> Void) {
         self.onSave = onSave
-        _viewModel = State(initialValue: AddSupplementViewModel(modelContext: modelContext))
+        _viewModel = State(initialValue: AddSupplementViewModel(modelContext: modelContext, editingSupplement: editingSupplement))
     }
     
     public var body: some View {

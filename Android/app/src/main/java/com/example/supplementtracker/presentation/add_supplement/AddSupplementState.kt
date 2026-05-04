@@ -8,6 +8,7 @@ import java.time.LocalDate
  * Trạng thái UI cho màn hình thêm chất.
  */
 data class AddSupplementState(
+    val editingSupplementId: String? = null,
     val name: String = "",
     val startDate: LocalDate = LocalDate.now(),
     val intakeTime: String = "08:00",

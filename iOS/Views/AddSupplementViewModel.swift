@@ -24,27 +24,63 @@ public final class AddSupplementViewModel {
     private let notificationService: any NotificationManaging
     private let calendarService: any CalendarManaging
     private let modelContext: ModelContext
+    private var editingSupplement: UserSupplement?
     
     public init(
         modelContext: ModelContext,
+        editingSupplement: UserSupplement? = nil,
         suggestService: any AutoSuggestService = SupplementAutoSuggester(),
         notificationService: any NotificationManaging = NotificationService(),
         calendarService: any CalendarManaging = CalendarService()
     ) {
         self.modelContext = modelContext
+        self.editingSupplement = editingSupplement
         self.suggestService = suggestService
         self.notificationService = notificationService
         self.calendarService = calendarService
+        
+        if let supplement = editingSupplement {
+            name = supplement.name
+            startDate = supplement.startDate
+            dailyDose = supplement.dailyDose
+            isContinuous = supplement.cycleConfig.isContinuous
+            daysOn = String(supplement.cycleConfig.daysOn)
+            daysOff = String(supplement.cycleConfig.daysOff)
+            durationMonths = supplement.cycleConfig.durationMonths.map(String.init) ?? ""
+            
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm"
+            if let timeDate = formatter.date(from: supplement.intakeTime) {
+                let calendar = Calendar.current
+                let components = calendar.dateComponents([.hour, .minute], from: timeDate)
+                selectedTime = calendar.date(
+                    bySettingHour: components.hour ?? 8,
+                    minute: components.minute ?? 0,
+                    second: 0,
+                    of: .now
+                ) ?? .now
+            }
+        }
     }
     
     // MARK: - Actions
 
     /// Lưu thực phẩm bổ sung và thiết lập thông báo/lịch.
     public func saveSupplement() async -> UserSupplement? {
-        guard let supplement = createSupplement() else { return nil }
-        
-        // Lưu vào SwiftData
-        modelContext.insert(supplement)
+        let supplement: UserSupplement
+        if let existing = editingSupplement {
+            guard let updated = createSupplement(id: existing.id) else { return nil }
+            existing.name = updated.name
+            existing.startDate = updated.startDate
+            existing.cycleConfig = updated.cycleConfig
+            existing.dailyDose = updated.dailyDose
+            existing.intakeTime = updated.intakeTime
+            supplement = existing
+        } else {
+            guard let created = createSupplement(id: UUID()) else { return nil }
+            modelContext.insert(created)
+            supplement = created
+        }
         
         do {
             try modelContext.save()
@@ -103,7 +139,7 @@ public final class AddSupplementViewModel {
     }
     
     /// Tạo đối tượng UserSupplement hoàn chỉnh.
-    public func createSupplement() -> UserSupplement? {
+    public func createSupplement(id: UUID) -> UserSupplement? {
         guard !name.isEmpty else { return nil }
         
         let config = isContinuous 
@@ -119,6 +155,7 @@ public final class AddSupplementViewModel {
         let timeString = formatter.string(from: selectedTime)
         
         return UserSupplement(
+            id: id,
             name: name,
             startDate: startDate,
             cycleConfig: config,

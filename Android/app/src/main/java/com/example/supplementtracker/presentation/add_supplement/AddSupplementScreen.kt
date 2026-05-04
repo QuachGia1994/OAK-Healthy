@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun AddSupplementScreen(
     viewModel: AddSupplementViewModel,
+    supplementId: String? = null,
     onBack: () -> Unit,
     onSave: () -> Unit
 ) {
@@ -40,10 +41,18 @@ fun AddSupplementScreen(
         8, 0, true
     )
 
+    LaunchedEffect(supplementId) {
+        if (supplementId == null) {
+            viewModel.resetForAdd()
+            return@LaunchedEffect
+        }
+        viewModel.loadSupplementForEdit(supplementId)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Thêm chất mới") },
+                title = { Text(if (supplementId == null) "Thêm chất mới" else "Chỉnh sửa") },
                 actions = {
                     Button(onClick = onSave, enabled = state.name.isNotBlank()) {
                         Text("Lưu")

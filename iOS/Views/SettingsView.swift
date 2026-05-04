@@ -4,6 +4,7 @@ import SwiftData
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
+    @AppStorage("appTheme") private var appTheme: String = "system"
     
     public init() {}
     
@@ -25,6 +26,15 @@ public struct SettingsView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .listRowBackground(Color.clear)
+
+                Section("Giao diện") {
+                    Picker("Giao diện", selection: $appTheme) {
+                        Text("Sáng").tag("light")
+                        Text("Tối").tag("dark")
+                        Text("Hệ thống").tag("system")
+                    }
+                    .pickerStyle(.segmented)
+                }
 
                 Section("Danh sách của tôi") {
                     if supplements.isEmpty {

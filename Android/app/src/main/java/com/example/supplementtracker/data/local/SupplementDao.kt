@@ -11,6 +11,9 @@ interface SupplementDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSupplement(supplement: SupplementEntity)
 
+    @Update
+    suspend fun updateSupplement(supplement: SupplementEntity)
+
     @Delete
     suspend fun deleteSupplement(supplement: SupplementEntity)
 

@@ -10,9 +10,9 @@ public enum NotificationError: Error, Sendable {
 
 /// Giao thức quản lý thông báo nhắc nhở.
 public protocol NotificationManaging: Sendable {
-    func requestAuthorization() async throws(NotificationError)
-    func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError)
-    func cancelReminders(for supplement: UserSupplement) async
+    @MainActor func requestAuthorization() async throws(NotificationError)
+    @MainActor func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError)
+    @MainActor func cancelReminders(for supplement: UserSupplement) async
 }
 
 /// Dịch vụ xử lý Local Notifications.
@@ -27,6 +27,7 @@ public struct NotificationService: NotificationManaging {
     }
     
     /// Yêu cầu quyền gửi thông báo từ người dùng.
+    @MainActor
     public func requestAuthorization() async throws(NotificationError) {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
@@ -40,6 +41,7 @@ public struct NotificationService: NotificationManaging {
     
     /// Lên lịch nhắc nhở cho thực phẩm bổ sung.
     /// Chỉ nhắc nhở vào những ngày "On".
+    @MainActor
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
         let calendar = Calendar.current
         
@@ -68,6 +70,7 @@ public struct NotificationService: NotificationManaging {
         }
     }
     
+    @MainActor
     public func cancelReminders(for supplement: UserSupplement) async {
         center.removePendingNotificationRequests(withIdentifiers: [supplement.id.uuidString])
     }

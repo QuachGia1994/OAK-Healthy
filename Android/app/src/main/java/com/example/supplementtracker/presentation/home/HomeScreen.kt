@@ -1,5 +1,7 @@
 package com.example.supplementtracker.presentation.home
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,16 +9,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.supplementtracker.domain.model.IntakeTime
 import com.example.supplementtracker.domain.model.UserSupplement
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -31,7 +34,8 @@ import com.example.supplementtracker.service.UpdateService
 fun HomeScreen(
     viewModel: HomeViewModel,
     updateService: UpdateService = UpdateService(), // Nên được inject qua DI
-    onNavigateToAdd: () -> Unit
+    onNavigateToAdd: () -> Unit,
+    onNavigateToEdit: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
@@ -91,7 +95,8 @@ fun HomeScreen(
                 is HomeUiState.Success -> HomeContent(
                     state = state, 
                     onToggleIntake = viewModel::toggleIntake,
-                    onDelete = viewModel::deleteItem
+                    onDelete = viewModel::deleteItem,
+                    onEdit = onNavigateToEdit
                 )
                 is HomeUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
             }
@@ -103,7 +108,8 @@ fun HomeScreen(
 private fun HomeContent(
     state: HomeUiState.Success,
     onToggleIntake: (String, Boolean) -> Unit,
-    onDelete: (UserSupplement) -> Unit
+    onDelete: (UserSupplement) -> Unit,
+    onEdit: (String) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -119,8 +125,13 @@ private fun HomeContent(
 
         state.activeSupplements.forEach { (time, items) ->
             item { TimeGroupHeader(time) }
-            items(items) { item ->
-                ActiveSupplementCard(item, onToggleIntake, onDelete)
+            items(items, key = { it.supplement.id }) { item ->
+                DismissibleSupplementCard(
+                    item = item,
+                    onToggleIntake = onToggleIntake,
+                    onDelete = onDelete,
+                    onEdit = onEdit
+                )
             }
         }
 
@@ -155,13 +166,103 @@ private fun TimeGroupHeader(time: String) {
 }
 
 @Composable
+private fun DismissibleSupplementCard(
+    item: SupplementUiItem,
+    onToggleIntake: (String, Boolean) -> Unit,
+    onDelete: (UserSupplement) -> Unit,
+    onEdit: (String) -> Unit
+) {
+    var isMenuOpen by remember { mutableStateOf(false) }
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onDelete(item.supplement)
+                    true
+                }
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    onEdit(item.supplement.id.toString())
+                    true
+                }
+                else -> true
+            }
+        }
+    )
+
+    LaunchedEffect(dismissState.currentValue) {
+        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+            dismissState.reset()
+        }
+    }
+
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            val direction = dismissState.dismissDirection
+            val isDelete = direction == SwipeToDismissBoxValue.EndToStart
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        when (direction) {
+                            SwipeToDismissBoxValue.EndToStart -> Color.Red
+                            SwipeToDismissBoxValue.StartToEnd -> Color(0xFF2E7D32)
+                            else -> Color.Transparent
+                        }
+                    )
+                    .padding(horizontal = 16.dp),
+                contentAlignment = if (isDelete) Alignment.CenterEnd else Alignment.CenterStart
+            ) {
+                Icon(
+                    imageVector = if (isDelete) Icons.Default.Delete else Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+            }
+        }
+    ) {
+        Box {
+            ActiveSupplementCard(
+                item = item,
+                onToggleIntake = onToggleIntake,
+                modifier = Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = { isMenuOpen = true }
+                )
+            )
+            DropdownMenu(
+                expanded = isMenuOpen,
+                onDismissRequest = { isMenuOpen = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Chỉnh sửa") },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    onClick = {
+                        isMenuOpen = false
+                        onEdit(item.supplement.id.toString())
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Xóa") },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    onClick = {
+                        isMenuOpen = false
+                        onDelete(item.supplement)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ActiveSupplementCard(
     item: SupplementUiItem,
     onToggleIntake: (String, Boolean) -> Unit,
-    onDelete: (UserSupplement) -> Unit
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = if (item.isTaken) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
         )
@@ -178,26 +279,17 @@ private fun ActiveSupplementCard(
                         Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconToggleButton(
-                        checked = item.isTaken,
-                        onCheckedChange = { checked ->
-                            onToggleIntake(item.supplement.id.toString(), checked)
-                        }
-                    ) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = "Toggle",
-                            tint = if (item.isTaken) Color.Green else Color.Gray
-                        )
+                IconToggleButton(
+                    checked = item.isTaken,
+                    onCheckedChange = { checked ->
+                        onToggleIntake(item.supplement.id.toString(), checked)
                     }
-                    IconButton(onClick = { onDelete(item.supplement) }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Xóa",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Toggle",
+                        tint = if (item.isTaken) Color.Green else Color.Gray
+                    )
                 }
             }
             if (!item.advice.isNullOrBlank()) {
@@ -206,7 +298,7 @@ private fun ActiveSupplementCard(
                     text = item.advice,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    fontStyle = FontStyle.Italic
                 )
             }
         }

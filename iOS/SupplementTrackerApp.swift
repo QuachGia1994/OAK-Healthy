@@ -6,10 +6,12 @@ import SwiftData
 struct SupplementTrackerApp: App {
     @State private var selectedTab = 0
     @State private var delegate = NotificationDelegate()
+    @AppStorage("appTheme") private var appTheme: String = "system"
     
     var body: some Scene {
         WindowGroup {
             MainTabView(selectedTab: $selectedTab)
+                .preferredColorScheme(preferredColorScheme)
                 .onAppear {
                     UNUserNotificationCenter.current().delegate = delegate
                 }
@@ -18,6 +20,14 @@ struct SupplementTrackerApp: App {
                 }
         }
         .modelContainer(for: [UserSupplement.self, IntakeRecord.self])
+    }
+    
+    private var preferredColorScheme: ColorScheme? {
+        switch appTheme {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
     }
 }
 

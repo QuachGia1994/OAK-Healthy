@@ -10,8 +10,8 @@ public enum CalendarError: Error, Sendable {
 
 /// Giao thức quản lý đồng bộ lịch.
 public protocol CalendarManaging: Sendable {
-    func requestAccess() async throws(CalendarError)
-    func syncCycleToCalendar(for supplement: UserSupplement) async throws(CalendarError)
+    @MainActor func requestAccess() async throws(CalendarError)
+    @MainActor func syncCycleToCalendar(for supplement: UserSupplement) async throws(CalendarError)
 }
 
 /// Dịch vụ xử lý Apple Calendar.
@@ -26,6 +26,7 @@ public struct CalendarService: CalendarManaging {
     }
     
     /// Yêu cầu quyền truy cập lịch.
+    @MainActor
     public func requestAccess() async throws(CalendarError) {
         do {
             // Sử dụng API hiện đại cho iOS 17+
@@ -39,6 +40,7 @@ public struct CalendarService: CalendarManaging {
     }
     
     /// Đồng bộ chu kỳ uống vào Apple Calendar.
+    @MainActor
     public func syncCycleToCalendar(for supplement: UserSupplement) async throws(CalendarError) {
         let calendar = Calendar.current
         

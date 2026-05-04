@@ -9,6 +9,7 @@ public struct HomeView: View {
     @State private var viewModel = HomeViewModel()
     @State private var updateService = UpdateService()
     @State private var isShowingAddSheet = false
+    @State private var editingSupplement: UserSupplement?
     
     public init() {}
     
@@ -24,7 +25,12 @@ public struct HomeView: View {
                         let sortedTimes = viewModel.activeSupplements.keys.sorted()
                         ForEach(sortedTimes, id: \.self) { time in
                             if let items = viewModel.activeSupplements[time] {
-                                TimeGroupSection(time: time, supplements: items, viewModel: viewModel)
+                                TimeGroupSection(
+                                    time: time,
+                                    supplements: items,
+                                    viewModel: viewModel,
+                                    onEdit: { editingSupplement = $0 }
+                                )
                             }
                         }
                     }
@@ -33,7 +39,35 @@ public struct HomeView: View {
                 if !viewModel.restingSupplements.isEmpty {
                     Section("Đang trong chu kỳ nghỉ") {
                         ForEach(viewModel.restingSupplements) { info in
-                            RestingSupplementRow(info: info)
+                            RestingSupplementRow(info: info, onEdit: { editingSupplement = $0 })
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        viewModel.deleteSupplement(info.supplement, context: modelContext)
+                                    } label: {
+                                        Label("Xóa", systemImage: "trash")
+                                    }
+                                }
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        editingSupplement = info.supplement
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    .tint(.orange)
+                                }
+                                .contextMenu {
+                                    Button {
+                                        editingSupplement = info.supplement
+                                    } label: {
+                                        Label("Chỉnh sửa", systemImage: "pencil")
+                                    }
+                                    
+                                    Button(role: .destructive) {
+                                        viewModel.deleteSupplement(info.supplement, context: modelContext)
+                                    } label: {
+                                        Label("Xóa", systemImage: "trash")
+                                    }
+                                }
                         }
                     }
                 }
@@ -49,6 +83,10 @@ public struct HomeView: View {
             .sheet(isPresented: $isShowingAddSheet) {
                 AddSupplementView(modelContext: modelContext) { _ in
                     // Callback sau khi lưu thành công
+                }
+            }
+            .sheet(item: $editingSupplement) { supplement in
+                AddSupplementView(modelContext: modelContext, editingSupplement: supplement) { _ in
                 }
             }
             .alert("Đã có phiên bản mới!", isPresented: $updateService.isUpdateAvailable) {
@@ -78,6 +116,7 @@ private struct TimeGroupSection: View {
     let time: String
     let supplements: [UserSupplement]
     let viewModel: HomeViewModel
+    let onEdit: (UserSupplement) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -92,7 +131,28 @@ private struct TimeGroupSection: View {
                     onToggle: viewModel.toggleIntake,
                     isTaken: viewModel.isTakenToday(supplement)
                 )
+                .swipeActions(edge: .leading) {
+                    Button {
+                        onEdit(supplement)
+                    } label: {
+                        Label("Edit", systemImage: "pencil")
+                    }
+                    .tint(.orange)
+                }
                 .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        viewModel.deleteSupplement(supplement, context: modelContext)
+                    } label: {
+                        Label("Xóa", systemImage: "trash")
+                    }
+                }
+                .contextMenu {
+                    Button {
+                        onEdit(supplement)
+                    } label: {
+                        Label("Chỉnh sửa", systemImage: "pencil")
+                    }
+                    
                     Button(role: .destructive) {
                         viewModel.deleteSupplement(supplement, context: modelContext)
                     } label: {
@@ -146,6 +206,7 @@ private struct ActiveSupplementRow: View {
 /// Thành phần hiển thị chất đang nghỉ.
 private struct RestingSupplementRow: View {
     let info: RestingSupplementInfo
+    let onEdit: (UserSupplement) -> Void
     
     var body: some View {
         HStack {
