@@ -26,6 +26,114 @@ jobs:
         run: |
           cd iOS
           xcodegen generate
+      
+      - name: Fix malformed PBXGroup duplicates
+        run: |
+          python3 - <<'PY'
+          import re
+          from collections import defaultdict
+          from pathlib import Path
+          
+          pbxproj_path = Path("iOS/OAKHealthy.xcodeproj/project.pbxproj")
+          text = pbxproj_path.read_text(encoding="utf-8", errors="replace")
+          lines = text.splitlines(keepends=True)
+          
+          group_blocks = []
+          i = 0
+          while i < len(lines):
+              line = lines[i]
+              m = re.match(r'^\s*([0-9A-F]{24}) /\* (.*?) \*/ = \{\s*$', line)
+              if not m:
+                  i += 1
+                  continue
+              uuid = m.group(1)
+              comment = m.group(2)
+              start = i
+              i += 1
+              isa_is_pbxgroup = False
+              has_path = False
+              children_start = None
+              children_end = None
+              children_entries = []
+              while i < len(lines):
+                  if re.search(r'\bisa\s*=\s*PBXGroup\s*;', lines[i]):
+                      isa_is_pbxgroup = True
+                  if re.search(r'^\s*path\s*=\s*', lines[i]):
+                      has_path = True
+                  if re.search(r'^\s*children\s*=\s*\(\s*$', lines[i]):
+                      children_start = i
+                      i += 1
+                      while i < len(lines):
+                          if re.search(r'^\s*\);\s*$', lines[i]):
+                              children_end = i
+                              break
+                          cm = re.match(r'^\s*([0-9A-F]{24}) /\* .* \*/,\s*$', lines[i])
+                          if cm:
+                              children_entries.append((cm.group(1), i))
+                          i += 1
+                  if re.search(r'^\s*\};\s*$', lines[i]):
+                      end = i
+                      i += 1
+                      break
+                  i += 1
+              
+              if isa_is_pbxgroup and children_start is not None and children_end is not None:
+                  group_blocks.append({
+                      "uuid": uuid,
+                      "comment": comment,
+                      "start": start,
+                      "end": end,
+                      "has_path": has_path,
+                      "children": children_entries,
+                  })
+          
+          child_to_parents = defaultdict(list)
+          group_by_uuid = {g["uuid"]: g for g in group_blocks}
+          
+          for g in group_blocks:
+              for child_uuid, _line_index in g["children"]:
+                  child_to_parents[child_uuid].append(g["uuid"])
+          
+          def pick_parent(parents):
+              root_like = [p for p in parents if not group_by_uuid.get(p, {}).get("has_path", True)]
+              if root_like:
+                  for p in root_like:
+                      if group_by_uuid.get(p, {}).get("comment") == "OAKHealthy":
+                          return p
+                  return root_like[0]
+              for p in parents:
+                  if group_by_uuid.get(p, {}).get("comment") == "OAKHealthy":
+                      return p
+              return parents[0]
+          
+          removals = defaultdict(set)  # parent_uuid -> set(child_uuid)
+          for child_uuid, parents in child_to_parents.items():
+              if len(parents) <= 1:
+                  continue
+              keep = pick_parent(parents)
+              for p in parents:
+                  if p != keep:
+                      removals[p].add(child_uuid)
+          
+          if not removals:
+              print("No duplicate PBXGroup memberships detected.")
+              raise SystemExit(0)
+          
+          changed = 0
+          for parent_uuid, child_uuids in removals.items():
+              g = group_by_uuid.get(parent_uuid)
+              if not g:
+                  continue
+              child_line_map = {c: idx for c, idx in g["children"]}
+              for child_uuid in child_uuids:
+                  idx = child_line_map.get(child_uuid)
+                  if idx is not None:
+                      lines[idx] = ""
+                      changed += 1
+          
+          pbxproj_path.write_text("".join(lines), encoding="utf-8")
+          print(f"Removed {changed} duplicate group-child references.")
+          PY
 
       - name: Build Archive
         run: |
