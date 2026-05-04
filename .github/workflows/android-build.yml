@@ -24,7 +24,10 @@ jobs:
           cache: gradle
 
       - name: Build with Gradle
-        run: gradle assembleDebug
+        run: |
+          gradle wrapper --gradle-version 8.7
+          chmod +x gradlew
+          ./gradlew assembleDebug
         working-directory: ./Android
 
       - name: Upload APK Artifact
