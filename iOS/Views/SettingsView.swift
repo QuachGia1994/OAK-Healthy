@@ -10,6 +10,7 @@ public struct SettingsView: View {
     @AppStorage("appTheme") private var appTheme: String = "system"
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
+    @State private var isShowingFactoryResetConfirm = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -41,7 +42,7 @@ public struct SettingsView: View {
             activeClientManager.setCurrentClientId(first.id)
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
-            ClientEditorSheet(title: "Add a Client", initialName: "") { name in
+            ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
                 guard !name.isEmpty else { return }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
@@ -50,7 +51,7 @@ public struct SettingsView: View {
             }
         }
         .sheet(item: $editingClient) { client in
-            ClientEditorSheet(title: "Edit Client", initialName: client.name) { name in
+            ClientEditorSheet(title: "edit_client".localized, initialName: client.name) { name in
                 client.name = name
                 try? modelContext.save()
             }
@@ -66,16 +67,17 @@ public struct SettingsView: View {
             userGuideSection
             aboutSection
             copyrightSection
+            factoryResetSection
         }
         .scrollContentBackground(.hidden)
-        .navigationTitle("settings_title")
+        .navigationTitle("settings_title".localized)
     }
     
     @ViewBuilder
     private var clientManagementSection: some View {
-        Section("Client Management") {
+        Section {
             if clients.isEmpty {
-                Text("Add a Client to start.")
+                Text("add_client_to_start".localized)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(clients) { client in
@@ -89,9 +91,11 @@ public struct SettingsView: View {
                 }
             }
             
-            Button("Add a Client") {
+            Button("add_client".localized) {
                 isShowingAddClientSheet = true
             }
+        } header: {
+            Text("client_management".localized)
         }
         .listRowBackground(glassRowBackground)
     }
@@ -103,7 +107,7 @@ public struct SettingsView: View {
                 OAKLogoView()
                     .padding(.top, 12)
                 
-                Text("dedication_text")
+                Text("dedication_text".localized)
                     .font(.subheadline)
                     .italic()
                     .foregroundStyle(.secondary)
@@ -122,22 +126,26 @@ public struct SettingsView: View {
     
     @ViewBuilder
     private var themeSelectionSection: some View {
-        Section("appearance_title") {
-            Picker("appearance_title", selection: $appTheme) {
-                Text("appearance_light").tag("light")
-                Text("appearance_dark").tag("dark")
-                Text("appearance_system").tag("system")
+        Section {
+            Picker(selection: $appTheme) {
+                Text("appearance_light".localized).tag("light")
+                Text("appearance_dark".localized).tag("dark")
+                Text("appearance_system".localized).tag("system")
+            } label: {
+                Text("appearance_title".localized)
             }
             .pickerStyle(.segmented)
+        } header: {
+            Text("appearance_title".localized)
         }
         .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
     private var supplementListSection: some View {
-        Section("my_list_title") {
+        Section {
             if supplements.isEmpty {
-                Text("no_supplements_yet")
+                Text("no_supplements_yet".localized)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(supplements) { supplement in
@@ -147,51 +155,79 @@ public struct SettingsView: View {
                     )
                 }
             }
+        } header: {
+            Text("my_list_title".localized)
         }
         .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
     private var userGuideSection: some View {
-        Section("user_guide_title") {
+        Section {
             VStack(alignment: .leading, spacing: 8) {
-                GuideRow(number: "1", text: String(localized: "settings_guide_1"))
-                GuideRow(number: "2", text: String(localized: "settings_guide_2"))
-                GuideRow(number: "3", text: String(localized: "settings_guide_3"))
-                GuideRow(number: "4", text: String(localized: "settings_guide_4"))
+                GuideRow(number: "1", text: "settings_guide_1".localized)
+                GuideRow(number: "2", text: "settings_guide_2".localized)
+                GuideRow(number: "3", text: "settings_guide_3".localized)
+                GuideRow(number: "4", text: "settings_guide_4".localized)
             }
             .padding(.vertical, 4)
+        } header: {
+            Text("user_guide_title".localized)
         }
         .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
     private var aboutSection: some View {
-        Section("about_title") {
-            Text(String(localized: "settings_about_body"))
+        Section {
+            Text("settings_about_body".localized)
                 .font(.body)
                 .foregroundStyle(.secondary)
+        } header: {
+            Text("about_title".localized)
         }
         .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
     private var copyrightSection: some View {
-        Section("copyright_title") {
+        Section {
             VStack(alignment: .leading, spacing: 4) {
-                Text("settings_app_name_label")
+                Text("settings_app_name_label".localized)
                     .font(.body)
                     .foregroundStyle(.secondary)
-                Text("settings_author_label")
+                Text("settings_author_label".localized)
                     .font(.body)
                     .foregroundStyle(.secondary)
-                Text(String(localized: "settings_copyright_body"))
+                Text("settings_copyright_body".localized)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .padding(.top, 4)
             }
+        } header: {
+            Text("copyright_title".localized)
         }
         .listRowBackground(glassRowBackground)
+    }
+
+    @ViewBuilder
+    private var factoryResetSection: some View {
+        Section {
+            Button("factory_reset".localized, role: .destructive) {
+                isShowingFactoryResetConfirm = true
+            }
+        }
+        .listRowBackground(glassRowBackground)
+        .confirmationDialog(
+            "wipe_data_warning".localized,
+            isPresented: $isShowingFactoryResetConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("delete".localized, role: .destructive) {
+                performFactoryReset()
+            }
+            Button("cancel".localized, role: .cancel) {}
+        }
     }
     
     private var backgroundGradient: LinearGradient {
@@ -219,12 +255,39 @@ public struct SettingsView: View {
         let config = supplement.cycleConfig
         let cycleEngine = CycleCalculator()
         let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: config, at: .now)
-        let statusText = status == .on ? String(localized: "cycle_status_on") : String(localized: "cycle_status_off")
+        let statusText = status == .on ? "cycle_status_on".localized : "cycle_status_off".localized
         
         if config.isContinuous {
-            return String(localized: "cycle_continuous")
+            return "cycle_continuous".localized
         }
-        return String(format: String(localized: "cycle_summary_format"), statusText, config.daysOn, config.daysOff)
+        return String(format: "cycle_summary_format".localized, statusText, config.daysOn, config.daysOff)
+    }
+
+    private func performFactoryReset() {
+        do {
+            let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
+            for record in records {
+                modelContext.delete(record)
+            }
+            
+            let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
+            for supplement in supplements {
+                modelContext.delete(supplement)
+            }
+            
+            let clients = try modelContext.fetch(FetchDescriptor<ClientProfile>())
+            for client in clients {
+                modelContext.delete(client)
+            }
+            
+            try modelContext.save()
+        } catch {
+            return
+        }
+        
+        UserDefaults.standard.removeObject(forKey: "SkippedUpdateVersion")
+        appTheme = "system"
+        activeClientManager.setCurrentClientId(nil)
     }
 }
 
@@ -252,14 +315,14 @@ private struct ClientRow: View {
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Label("delete", systemImage: "trash")
+                Label("delete".localized, systemImage: "trash")
             }
         }
         .swipeActions(edge: .leading) {
             Button {
                 onEdit()
             } label: {
-                Label("edit", systemImage: "pencil")
+                Label("edit".localized, systemImage: "pencil")
             }
             .tint(.orange)
         }

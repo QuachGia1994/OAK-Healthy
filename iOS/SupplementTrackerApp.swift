@@ -53,21 +53,21 @@ struct MainTabView: View {
             HomeView(activeClientManager: activeClientManager)
                 .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("tab_home", systemImage: "house.fill")
+                    Label("tab_home".localized, systemImage: "house.fill")
                 }
                 .tag(0)
             
             HistoryView(activeClientManager: activeClientManager)
                 .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("tab_history", systemImage: "clock.fill")
+                    Label("tab_history".localized, systemImage: "clock.fill")
                 }
                 .tag(1)
             
             SettingsView(activeClientManager: activeClientManager)
                 .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("tab_settings", systemImage: "gearshape.fill")
+                    Label("tab_settings".localized, systemImage: "gearshape.fill")
                 }
                 .tag(2)
         }

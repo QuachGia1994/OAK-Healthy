@@ -39,18 +39,18 @@ public struct HomeView: View {
                 
                 if clients.isEmpty {
                     VStack(spacing: 12) {
-                        Text("Add a Client to start.")
+                        Text("add_client_to_start".localized)
                             .foregroundStyle(.secondary)
-                        Button("Add a Client") {
+                        Button("add_client".localized) {
                             isShowingAddClientSheet = true
                         }
                         .buttonStyle(.borderedProminent)
                     }
                 } else {
                     List {
-                    Section("today_intake_title") {
+                    Section {
                         if viewModel.activeSupplements.isEmpty {
-                            Text("no_intake_today")
+                            Text("no_intake_today".localized)
                                 .foregroundStyle(.secondary)
                         } else {
                             let sortedTimes = viewModel.activeSupplements.keys.sorted()
@@ -65,24 +65,26 @@ public struct HomeView: View {
                                 }
                             }
                         }
+                    } header: {
+                        Text("today_intake_title".localized)
                     }
                     
                     if !viewModel.restingSupplements.isEmpty {
-                        Section("resting_title") {
+                        Section {
                             ForEach(viewModel.restingSupplements) { info in
                                 RestingSupplementRow(info: info, onEdit: { editingSupplement = $0 })
                                     .swipeActions(edge: .trailing) {
                                         Button(role: .destructive) {
                                             viewModel.deleteSupplement(info.supplement, context: modelContext)
                                         } label: {
-                                            Label("delete", systemImage: "trash")
+                                            Label("delete".localized, systemImage: "trash")
                                         }
                                     }
                                     .swipeActions(edge: .leading) {
                                         Button {
                                             editingSupplement = info.supplement
                                         } label: {
-                                            Label("edit", systemImage: "pencil")
+                                            Label("edit".localized, systemImage: "pencil")
                                         }
                                         .tint(.orange)
                                     }
@@ -90,16 +92,18 @@ public struct HomeView: View {
                                         Button {
                                             editingSupplement = info.supplement
                                         } label: {
-                                            Label("edit", systemImage: "pencil")
+                                            Label("edit".localized, systemImage: "pencil")
                                         }
                                         
                                         Button(role: .destructive) {
                                             viewModel.deleteSupplement(info.supplement, context: modelContext)
                                         } label: {
-                                            Label("delete", systemImage: "trash")
+                                            Label("delete".localized, systemImage: "trash")
                                         }
                                     }
                             }
+                        } header: {
+                            Text("resting_title".localized)
                         }
                     }
                     }
@@ -113,7 +117,7 @@ public struct HomeView: View {
                                         activeClientManager.setCurrentClientId(client.id)
                                     }
                                 }
-                                Button("Add a Client") {
+                                Button("add_client".localized) {
                                     isShowingAddClientSheet = true
                                 }
                             } label: {
@@ -138,12 +142,12 @@ public struct HomeView: View {
                         AddSupplementView(modelContext: modelContext, editingSupplement: supplement, activeClient: activeClient) { _ in
                         }
                     }
-                    .alert("update_available_title", isPresented: $updateService.isUpdateAvailable) {
+                    .alert("update_available_title".localized, isPresented: $updateService.isUpdateAvailable) {
                         if let url = URL(string: updateService.updateInfo?.updateUrl ?? "") {
-                            Link("update_now", destination: url)
+                            Link("update_now".localized, destination: url)
                         }
                         if updateService.updateInfo?.forceUpdate != true {
-                            Button("later", role: .cancel) {
+                            Button("later".localized, role: .cancel) {
                                 updateService.skipUpdate(version: updateService.updateInfo?.version ?? "")
                             }
                         }
@@ -151,7 +155,7 @@ public struct HomeView: View {
                         let version = updateService.updateInfo?.version ?? ""
                         let notes = updateService.updateInfo?.releaseNotes ?? ""
                         if notes.isEmpty {
-                            Text(String(format: String(localized: "update_available_message"), version))
+                            Text(String(format: "update_available_message_format".localized, version))
                         } else {
                             Text(notes)
                         }
@@ -197,7 +201,7 @@ public struct HomeView: View {
     }
     
     private var navigationTitle: String {
-        activeClient?.name ?? String(localized: "dashboard_title")
+        activeClient?.name ?? "dashboard_title".localized
     }
 }
 
@@ -211,13 +215,13 @@ private struct AddClientSheet: View {
             Form {
                 TextField("Name", text: $name)
             }
-            .navigationTitle("Add a Client")
+            .navigationTitle("add_client".localized)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("cancel".localized) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("save".localized) {
                         onSave(name.trimmingCharacters(in: .whitespacesAndNewlines))
                         dismiss()
                     }
@@ -253,7 +257,7 @@ private struct TimeGroupSection: View {
                     Button {
                         onEdit(supplement)
                     } label: {
-                        Label("edit", systemImage: "pencil")
+                        Label("edit".localized, systemImage: "pencil")
                     }
                     .tint(.orange)
                 }
@@ -261,20 +265,20 @@ private struct TimeGroupSection: View {
                     Button(role: .destructive) {
                         viewModel.deleteSupplement(supplement, context: modelContext)
                     } label: {
-                        Label("delete", systemImage: "trash")
+                        Label("delete".localized, systemImage: "trash")
                     }
                 }
                 .contextMenu {
                     Button {
                         onEdit(supplement)
                     } label: {
-                        Label("edit", systemImage: "pencil")
+                        Label("edit".localized, systemImage: "pencil")
                     }
                     
                     Button(role: .destructive) {
                         viewModel.deleteSupplement(supplement, context: modelContext)
                     } label: {
-                        Label("delete", systemImage: "trash")
+                        Label("delete".localized, systemImage: "trash")
                     }
                 }
             }
@@ -301,7 +305,7 @@ private struct ActiveSupplementRow: View {
                     Text(supplement.intakeTime)
                         .font(.caption2)
                     Text("•")
-                    Text(String(format: String(localized: "dose_format"), supplement.dailyDose))
+                    Text(String(format: "dose_format".localized, supplement.dailyDose))
                         .font(.caption)
                 }
                 .foregroundStyle(.secondary)
@@ -333,12 +337,12 @@ private struct RestingSupplementRow: View {
                 Text(info.supplement.name)
                     .font(.headline)
                     .foregroundStyle(.secondary)
-                Text("resting_title")
+                Text("resting_title".localized)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(String(format: String(localized: "days_remaining_format"), info.daysRemaining))
+            Text(String(format: "days_remaining_format".localized, info.daysRemaining))
                 .font(.caption)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

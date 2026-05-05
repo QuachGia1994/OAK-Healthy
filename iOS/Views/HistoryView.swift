@@ -29,14 +29,14 @@ public struct HistoryView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         VStack(alignment: .leading) {
-                            Text("intake_frequency_last_7")
+                            Text("intake_frequency_last_7".localized)
                                 .font(.headline)
                             
                             Chart {
                                 ForEach(viewModel.weeklyData) { data in
                                     BarMark(
-                                        x: .value(String(localized: "chart_axis_day"), data.date, unit: .day),
-                                        y: .value(String(localized: "chart_axis_count"), data.count)
+                                        x: .value("chart_axis_day".localized, data.date, unit: .day),
+                                        y: .value("chart_axis_count".localized, data.count)
                                     )
                                     .foregroundStyle(Color.blue.gradient)
                                     .cornerRadius(4)
@@ -55,11 +55,11 @@ public struct HistoryView: View {
                         .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
                         
                         VStack(alignment: .leading) {
-                            Text("log_details")
+                            Text("log_details".localized)
                                 .font(.headline)
                             
                             if records.isEmpty {
-                                Text("no_logs_yet")
+                                Text("no_logs_yet".localized)
                                     .foregroundStyle(.secondary)
                             } else {
                                 ForEach(records) { record in
@@ -71,7 +71,7 @@ public struct HistoryView: View {
                     .padding()
                 }
             }
-            .navigationTitle("history_title")
+            .navigationTitle("history_title".localized)
             .onAppear {
                 viewModel.processHistory(records: records)
             }
@@ -99,7 +99,7 @@ private struct HistoryRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(record.supplement?.name ?? String(localized: "not_available"))
+                Text(record.supplement?.name ?? "not_available".localized)
                     .font(.body)
                     .fontWeight(.medium)
                 Text(record.date.formatted(date: .abbreviated, time: .shortened))

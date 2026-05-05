@@ -81,9 +81,9 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     private func createNotificationRequest(for supplement: UserSupplement, at date: Date) async throws(NotificationError) {
         let content = UNMutableNotificationContent()
-        content.title = String(localized: "notification_title")
+        content.title = "notification_title".localized
         content.body = String(
-            format: String(localized: "notification_body_format"),
+            format: "notification_body_format".localized,
             supplement.name,
             supplement.dailyDose
         )

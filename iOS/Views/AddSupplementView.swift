@@ -34,13 +34,13 @@ public struct AddSupplementView: View {
                     cycleSection
                 }
                 .scrollContentBackground(.hidden)
-                .navigationTitle("add_supplement_title")
+                .navigationTitle("add_supplement_title".localized)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("cancel") { dismiss() }
+                        Button("cancel".localized) { dismiss() }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("save") {
+                        Button("save".localized) {
                             Task {
                                 if let supplement = await viewModel.saveSupplement() {
                                     onSave(supplement)
@@ -63,15 +63,17 @@ public struct AddSupplementView: View {
     }
     
     private var basicSection: some View {
-        Section("basic_info_title") {
-            TextField("name_hint", text: $viewModel.name)
+        Section {
+            TextField("name_hint".localized, text: $viewModel.name)
                 .onChange(of: viewModel.name) {
                     Task { await viewModel.updateSuggestions() }
                 }
             
             suggestionsSection
             
-            TextField("dose_hint", text: $viewModel.dailyDose)
+            TextField("dose_hint".localized, text: $viewModel.dailyDose)
+        } header: {
+            Text("basic_info_title".localized)
         }
     }
     
@@ -91,7 +93,7 @@ public struct AddSupplementView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text(String(format: String(localized: "suggested_format"), suggestion.preferredTime))
+                                Text(String(format: "suggested_format".localized, suggestion.preferredTime))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -105,25 +107,25 @@ public struct AddSupplementView: View {
     }
     
     private var cycleSection: some View {
-        Section("schedule_cycle_title") {
-            DatePicker("start_date", selection: $viewModel.startDate, displayedComponents: .date)
-            DatePicker("intake_time", selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
-            Toggle("continuous", isOn: $viewModel.isContinuous)
+        Section {
+            DatePicker("start_date".localized, selection: $viewModel.startDate, displayedComponents: .date)
+            DatePicker("intake_time".localized, selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
+            Toggle("continuous".localized, isOn: $viewModel.isContinuous)
             
             if !viewModel.isContinuous {
                 HStack {
-                    Text("on_days")
+                    Text("on_days".localized)
                     Spacer()
-                    TextField("example_on_days", text: $viewModel.daysOn)
+                    TextField("example_on_days".localized, text: $viewModel.daysOn)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
                 }
                 
                 HStack {
-                    Text("off_days")
+                    Text("off_days".localized)
                     Spacer()
-                    TextField("example_off_days", text: $viewModel.daysOff)
+                    TextField("example_off_days".localized, text: $viewModel.daysOff)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
@@ -131,19 +133,21 @@ public struct AddSupplementView: View {
             }
             
             HStack {
-                Text("duration")
+                Text("duration".localized)
                 Spacer()
-                TextField("unlimited", text: $viewModel.durationMonths)
+                TextField("unlimited".localized, text: $viewModel.durationMonths)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 80)
             }
             
             if !viewModel.durationMonths.isEmpty {
-                Text("months")
+                Text("months".localized)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        } header: {
+            Text("schedule_cycle_title".localized)
         }
     }
 }

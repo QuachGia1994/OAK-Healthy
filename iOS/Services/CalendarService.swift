@@ -63,8 +63,8 @@ public struct CalendarService: CalendarManaging {
     
     private func createEvent(for supplement: UserSupplement, on date: Date) throws(CalendarError) {
         let event = EKEvent(eventStore: eventStore)
-        event.title = String(format: String(localized: "calendar_event_title_format"), supplement.name)
-        event.notes = String(format: String(localized: "calendar_event_notes_format"), supplement.dailyDose)
+        event.title = String(format: "calendar_event_title_format".localized, supplement.name)
+        event.notes = String(format: "calendar_event_notes_format".localized, supplement.dailyDose)
         event.calendar = eventStore.defaultCalendarForNewEvents
         
         // Thiết lập thời gian bắt đầu dựa trên intakeTime
