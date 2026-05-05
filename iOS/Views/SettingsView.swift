@@ -7,14 +7,14 @@ public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
-    @Query private var supplements: [UserSupplement]
+    @Query(sort: \UserSupplement.name) private var allSupplements: [UserSupplement]
     @AppStorage("appTheme") private var appTheme: String = "system"
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
     @State private var isShowingImportPicker = false
-    @State private var exportJSONData: Data?
-    @State private var shareStackPNGData: Data?
+    @State private var exportJSONURL: URL?
+    @State private var shareStackPNGURL: URL?
     @State private var errorMessage: String?
     @State private var isShowingError = false
     
@@ -22,21 +22,10 @@ public struct SettingsView: View {
     
     public init(activeClientManager: ActiveClientManager) {
         self.activeClientManager = activeClientManager
-        if let id = activeClientManager.currentClientId {
-            _supplements = Query(
-                filter: #Predicate<UserSupplement> { $0.client?.id == id },
-                sort: [SortDescriptor(\UserSupplement.name)]
-            )
-        } else {
-            _supplements = Query(
-                filter: #Predicate<UserSupplement> { _ in false },
-                sort: [SortDescriptor(\UserSupplement.name)]
-            )
-        }
     }
     
     public var body: some View {
-        let refreshId = "\(activeClientManager.currentClientId?.uuidString ?? "nil")-\(supplements.count)-\(colorScheme == .dark ? "d" : "l")"
+        let refreshId = "\(activeClientManager.currentClientId?.uuidString ?? "nil")-\(supplementsForActiveClient.count)-\(colorScheme == .dark ? "d" : "l")"
         NavigationStack {
             ZStack {
                 backgroundGradient.ignoresSafeArea()
@@ -121,8 +110,8 @@ public struct SettingsView: View {
     @ViewBuilder
     private var dataTransferSection: some View {
         Section {
-            if let exportJSONData {
-                ShareLink(item: ShareableJSON(data: exportJSONData)) {
+            if let exportJSONURL {
+                ShareLink(item: exportJSONURL) {
                     Label("export_data".localized, systemImage: "square.and.arrow.up")
                 }
             } else {
@@ -135,8 +124,8 @@ public struct SettingsView: View {
                 isShowingImportPicker = true
             }
             
-            if let shareStackPNGData {
-                ShareLink(item: ShareablePNG(data: shareStackPNGData)) {
+            if let shareStackPNGURL {
+                ShareLink(item: shareStackPNGURL) {
                     Label("share_stack".localized, systemImage: "square.and.arrow.up")
                 }
             }
@@ -217,11 +206,11 @@ public struct SettingsView: View {
     @ViewBuilder
     private var supplementListSection: some View {
         Section {
-            if supplements.isEmpty {
+            if supplementsForActiveClient.isEmpty {
                 Text("no_supplements_yet".localized)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(supplements) { supplement in
+                ForEach(supplementsForActiveClient) { supplement in
                     SupplementRow(
                         name: supplement.name,
                         cycleSummary: getCycleSummary(for: supplement)
@@ -365,17 +354,40 @@ public struct SettingsView: View {
     
     private func refreshSharePayloads() {
         guard activeClientManager.currentClientId != nil else {
-            exportJSONData = nil
-            shareStackPNGData = nil
+            exportJSONURL = nil
+            shareStackPNGURL = nil
             return
         }
-        exportJSONData = try? SupplementExportCodec.encode(supplements: supplements)
-        shareStackPNGData = try? SupplementExportCodec.renderShareImageData(supplements: supplements, colorScheme: colorScheme)
+        do {
+            let json = try SupplementExportCodec.encode(supplements: supplementsForActiveClient)
+            exportJSONURL = try writeTempFile(named: "OAKHealthy_Stack.json", data: json)
+        } catch {
+            exportJSONURL = nil
+            showError(message: "export_failed".localized)
+        }
+        
+        do {
+            let png = try SupplementExportCodec.renderShareImageData(supplements: supplementsForActiveClient, colorScheme: colorScheme)
+            shareStackPNGURL = try writeTempFile(named: "OAKHealthy_Stack.png", data: png)
+        } catch {
+            shareStackPNGURL = nil
+        }
     }
     
     private func showError(message: String) {
         errorMessage = message
         isShowingError = true
+    }
+    
+    private var supplementsForActiveClient: [UserSupplement] {
+        guard let currentClientId = activeClientManager.currentClientId else { return [] }
+        return allSupplements.filter { $0.client?.id == currentClientId }
+    }
+    
+    private func writeTempFile(named fileName: String, data: Data) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try data.write(to: url, options: [.atomic])
+        return url
     }
 }
 

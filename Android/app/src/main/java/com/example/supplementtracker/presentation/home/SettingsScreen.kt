@@ -66,6 +66,7 @@ fun SettingsScreen(
     val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val shareChooserTitle = stringResource(R.string.share_stack)
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
     } else {
@@ -296,7 +297,7 @@ fun SettingsScreen(
                                         putExtra(Intent.EXTRA_STREAM, uri)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
-                                    context.startActivity(Intent.createChooser(intent, stringResource(R.string.share_stack)))
+                                    context.startActivity(Intent.createChooser(intent, shareChooserTitle))
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {

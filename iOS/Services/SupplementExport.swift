@@ -100,13 +100,8 @@ struct SupplementExportCodec {
         for client: ClientProfile,
         context: ModelContext
     ) throws -> UserSupplement? {
-        try context.fetch(
-            FetchDescriptor<UserSupplement>(
-                predicate: #Predicate { supplement in
-                    supplement.client?.id == client.id && supplement.name == name
-                }
-            )
-        ).first
+        let all = try context.fetch(FetchDescriptor<UserSupplement>())
+        return all.first { $0.client?.id == client.id && $0.name == name }
     }
     
     private static func createSupplement(
@@ -178,24 +173,6 @@ struct SupplementExportCodec {
         formatter.dateFormat = "yyyy-MM-dd"
         guard let date = formatter.date(from: string) else { throw SupplementExportError.invalidDate }
         return date
-    }
-}
-
-struct ShareableJSON: Transferable {
-    let data: Data
-    
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .json) { $0.data }
-            .suggestedFileName("OAKHealthy_Stack.json")
-    }
-}
-
-struct ShareablePNG: Transferable {
-    let data: Data
-    
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .png) { $0.data }
-            .suggestedFileName("OAKHealthy_Stack.png")
     }
 }
 
