@@ -49,6 +49,9 @@ import java.io.FileOutputStream
 import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +68,7 @@ fun SettingsScreen(
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareChooserTitle = stringResource(R.string.share_stack)
     val backgroundBrush = if (isDark) {
@@ -274,30 +278,42 @@ fun SettingsScreen(
 
                             OutlinedButton(
                                 onClick = {
-                                    val items = allSupplements
-                                        .sortedBy { it.intakeTime }
-                                        .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
+                                    coroutineScope.launch {
+                                        try {
+                                            val shareItems = allSupplements
+                                                .sortedBy { it.intakeTime }
+                                                .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
 
-                                    val bitmap = StackShareImageGenerator.generate(
-                                        context = context,
-                                        items = items,
-                                        isDark = isDark
-                                    )
-                                    val file = File(context.cacheDir, "OAKHealthy_Stack.png")
-                                    FileOutputStream(file).use { stream ->
-                                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                                            val bitmap = StackShareImageGenerator.generate(
+                                                context = context,
+                                                items = shareItems,
+                                                isDark = isDark
+                                            )
+
+                                            val file = withContext(Dispatchers.IO) {
+                                                val target = File(context.cacheDir, "OAKHealthy_Stack.png")
+                                                FileOutputStream(target).use { stream ->
+                                                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                                                }
+                                                target
+                                            }
+
+                                            val uri = FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                file
+                                            )
+
+                                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                                type = "image/png"
+                                                putExtra(Intent.EXTRA_STREAM, uri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(intent, shareChooserTitle))
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar("Share failed")
+                                        }
                                     }
-                                    val uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        file
-                                    )
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "image/png"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, shareChooserTitle))
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
