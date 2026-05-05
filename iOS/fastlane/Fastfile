@@ -1,0 +1,17 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and Archive the iOS App"
+  lane :build do
+    gym(
+      project: "OAKHealthy.xcodeproj",
+      scheme: "OAKHealthy",
+      configuration: "Release",
+      export_method: "development", # Or app-store if you have proper certs later
+      skip_codesigning: true,       # Crucial for CI without certificates
+      clean: true,
+      destination: "generic/platform=iOS"
+    )
+  end
+end
+

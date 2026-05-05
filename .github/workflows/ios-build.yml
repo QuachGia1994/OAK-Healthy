@@ -135,30 +135,20 @@ jobs:
           print(f"Removed {changed} duplicate group-child references.")
           PY
 
-      - name: Build Archive
-        run: |
-          xcodebuild archive \
-            -project iOS/OAKHealthy.xcodeproj \
-            -scheme OAKHealthy \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -archivePath build/OAKHealthy.xcarchive \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            SUPPORTED_PLATFORMS="iphoneos" \
-            ENABLE_PREVIEWS=NO
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: iOS
 
-      - name: Export IPA (Unsigned)
-        run: |
-          mkdir -p Payload
-          cp -r build/OAKHealthy.xcarchive/Products/Applications/OAKHealthy.app Payload/
-          zip -r OAKHealthy.ipa Payload
+      - name: Build iOS App with Fastlane
+        working-directory: ./iOS
+        run: bundle exec fastlane build
           
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: OAKHealthy-IPA
-          path: OAKHealthy.ipa
+          path: iOS/*.ipa
           if-no-files-found: error
