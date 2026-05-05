@@ -103,6 +103,16 @@ public final class UserSupplement: Identifiable {
         self.client = client
         self.intakeRecords = []
     }
+    
+    public var instruction: String? {
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedName.isEmpty else { return nil }
+        
+        let reference = SupplementDictionary.references.first {
+            $0.name.compare(normalizedName, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+        return reference?.advice
+    }
 }
 
 /// Hồ sơ học viên/khách hàng (Coach Mode).

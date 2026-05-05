@@ -196,6 +196,7 @@ public struct HomeView: View {
                         let version = updateService.updateInfo?.version ?? ""
                         let notes = updateService.updateInfo?.releaseNotes ?? ""
                         if notes.isEmpty {
+                            Text("update_description".localized)
                             Text(String(format: "update_available_message_format".localized, version))
                         } else {
                             Text(notes)
@@ -282,7 +283,7 @@ private struct ActiveSupplementRow: View {
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(supplement.name)
                     .font(.headline)
                 HStack {
@@ -295,6 +296,15 @@ private struct ActiveSupplementRow: View {
                         .font(.caption)
                 }
                 .foregroundStyle(.secondary)
+                
+                if let instruction = supplement.instruction, !instruction.isEmpty {
+                    Text(instruction.localized)
+                        .font(.caption)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer()
             Button {

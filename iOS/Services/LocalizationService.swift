@@ -83,6 +83,7 @@ public struct LocalizationService: Sendable {
         "update_available_message_format": ("Update to get the latest features and security improvements (v%@).", "Hãy cập nhật để trải nghiệm những tính năng mới nhất và tăng cường bảo mật (v%@)."),
         "update_now": ("Update Now", "Cập nhật ngay"),
         "later": ("Later", "Để sau"),
+        "update_description": ("Update Coach Mode, Liquid Glass UI, and data synchronization.", "Cập nhật tính năng Quản lý học viên (Coach Mode), tối ưu giao diện Liquid Glass và đồng bộ dữ liệu."),
         "dedication_text": ("With all dedication and research in the fitness & trading journey.", "Bằng cả tâm huyết và nghiên cứu trong hành trình gym & trading."),
         "factory_reset": ("Factory Reset", "Khôi phục cài đặt gốc"),
         "wipe_data_warning": ("This will permanently delete all clients and logs. Continue?", "Hành động này sẽ xóa toàn bộ dữ liệu học viên và nhật ký. Tiếp tục?"),
