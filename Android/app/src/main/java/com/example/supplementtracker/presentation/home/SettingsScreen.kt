@@ -49,6 +49,7 @@ import java.io.FileOutputStream
 import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -290,10 +291,13 @@ fun SettingsScreen(
                                                 isDark = isDark
                                             )
 
-                                            val file = withContext(Dispatchers.IO) {
-                                                val target = File(context.cacheDir, "OAKHealthy_Stack.png")
+                                            val imageFile = withContext(Dispatchers.IO) {
+                                                val cachePath = File(context.cacheDir, "shared_images")
+                                                cachePath.mkdirs()
+                                                val target = File(cachePath, "oak_stack_${System.currentTimeMillis()}.png")
                                                 FileOutputStream(target).use { stream ->
                                                     bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                                                    stream.flush()
                                                 }
                                                 target
                                             }
@@ -301,7 +305,7 @@ fun SettingsScreen(
                                             val uri = FileProvider.getUriForFile(
                                                 context,
                                                 "${context.packageName}.fileprovider",
-                                                file
+                                                imageFile
                                             )
 
                                             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -309,8 +313,10 @@ fun SettingsScreen(
                                                 putExtra(Intent.EXTRA_STREAM, uri)
                                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             }
-                                            context.startActivity(Intent.createChooser(intent, shareChooserTitle))
+                                            context.startActivity(Intent.createChooser(intent, "Share Stack via"))
                                         } catch (e: Exception) {
+                                            Log.e("ShareStack", "Error sharing stack", e)
+                                            e.printStackTrace()
                                             snackbarHostState.showSnackbar("Share failed")
                                         }
                                     }

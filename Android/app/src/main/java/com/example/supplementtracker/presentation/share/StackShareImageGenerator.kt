@@ -58,6 +58,9 @@ object StackShareImageGenerator {
         val widthSpec = View.MeasureSpec.makeMeasureSpec(desiredWidth, View.MeasureSpec.EXACTLY)
         val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         composeView.measure(widthSpec, heightSpec)
+        check(composeView.measuredWidth > 0 && composeView.measuredHeight > 0) {
+            "Invalid measured size: ${composeView.measuredWidth}x${composeView.measuredHeight}"
+        }
         composeView.layout(0, 0, composeView.measuredWidth, composeView.measuredHeight)
 
         val bitmap = Bitmap.createBitmap(
