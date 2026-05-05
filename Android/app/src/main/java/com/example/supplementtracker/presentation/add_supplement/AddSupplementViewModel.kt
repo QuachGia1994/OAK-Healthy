@@ -140,7 +140,19 @@ class AddSupplementViewModel(
      */
     fun saveSupplement(onSuccess: () -> Unit) {
         val currentState = _state.value
-        if (currentState.name.isBlank()) return
+        val name = currentState.name.trim()
+        if (name.isEmpty()) return
+        
+        val daysOn = if (currentState.isContinuous) null else currentState.daysOn.toIntOrNull()
+        val daysOff = if (currentState.isContinuous) null else currentState.daysOff.toIntOrNull()
+        
+        if (!currentState.isContinuous) {
+            val isInvalid = (daysOn == null || daysOn <= 0) || (daysOff == null || daysOff < 0)
+            if (isInvalid) {
+                _state.update { it.copy(error = "Please enter valid On/Off days.") }
+                return
+            }
+        }
 
         viewModelScope.launch {
             val clientId = activeClientManager.currentClientId.value
@@ -154,14 +166,14 @@ class AddSupplementViewModel(
                 val supplement = UserSupplement(
                     id = currentState.editingSupplementId?.let { java.util.UUID.fromString(it) } ?: java.util.UUID.randomUUID(),
                     clientId = clientId,
-                    name = currentState.name,
+                    name = name,
                     startDate = currentState.startDate,
                     cycleConfig = if (currentState.isContinuous) {
                         CycleConfig.Continuous
                     } else {
                         CycleConfig(
-                            daysOn = currentState.daysOn.toIntOrNull() ?: 1,
-                            daysOff = currentState.daysOff.toIntOrNull() ?: 0,
+                            daysOn = daysOn ?: 1,
+                            daysOff = daysOff ?: 0,
                             durationMonths = currentState.durationMonths.toIntOrNull()
                         )
                     },

@@ -107,7 +107,7 @@ fun HomeScreen(
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
     } else {
-        Brush.linearGradient(listOf(Color(0xFFF1F8E9), Color.White))
+        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9), Color.White))
     }
 
     Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
@@ -140,7 +140,12 @@ fun HomeScreen(
                                     expanded = isClientMenuExpanded,
                                     onDismissRequest = { isClientMenuExpanded = false }
                                 ) {
-                                    clients.forEach { client ->
+                                    val addClientLabel = stringResource(R.string.add_a_client)
+                                    val menuClients = clients
+                                        .filter { it.name.isNotBlank() }
+                                        .filter { it.name.trim() != addClientLabel }
+                                        .distinctBy { it.name.trim().lowercase() }
+                                    menuClients.forEach { client ->
                                         key(client.id) {
                                             DropdownMenuItem(
                                                 text = { Text(client.name) },
@@ -151,6 +156,7 @@ fun HomeScreen(
                                             )
                                         }
                                     }
+                                    HorizontalDivider()
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.add_a_client)) },
                                         onClick = {
@@ -383,12 +389,8 @@ private fun ActiveSupplementCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) {
-        Color.White.copy(alpha = if (item.isTaken) 0.18f else 0.14f)
-    } else {
-        Color.White.copy(alpha = if (item.isTaken) 0.70f else 0.55f)
-    }
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
 
     Card(
         modifier = modifier
@@ -444,8 +446,8 @@ private fun ActiveSupplementCard(
 private fun RestingSupplementCard(info: RestingSupplementInfo) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.55f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.30f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
 
     Card(
         modifier = Modifier

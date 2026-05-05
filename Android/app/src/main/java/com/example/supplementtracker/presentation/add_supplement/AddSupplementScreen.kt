@@ -71,7 +71,13 @@ fun AddSupplementScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = { Text(if (supplementId == null) stringResource(R.string.add_supplement_title) else stringResource(R.string.edit_supplement_title)) },
                     actions = {
-                        Button(onClick = onSave, enabled = state.name.isNotBlank()) {
+                        val isFormValid = state.name.isNotBlank() && (
+                            state.isContinuous || (
+                                (state.daysOn.toIntOrNull() ?: 0) > 0 &&
+                                    (state.daysOff.toIntOrNull() ?: -1) >= 0
+                                )
+                            )
+                        Button(onClick = onSave, enabled = isFormValid) {
                             Text(stringResource(R.string.save))
                         }
                     }
