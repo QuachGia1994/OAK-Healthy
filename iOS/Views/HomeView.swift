@@ -52,27 +52,67 @@ public struct HomeView: View {
                         if viewModel.activeSupplements.isEmpty {
                             Text("no_intake_today".localized)
                                 .foregroundStyle(.secondary)
-                        } else {
-                            let sortedTimes = viewModel.activeSupplements.keys.sorted()
-                            ForEach(sortedTimes, id: \.self) { time in
-                                if let items = viewModel.activeSupplements[time] {
-                                    TimeGroupSection(
-                                        time: time,
-                                        supplements: items,
-                                        viewModel: viewModel,
-                                        onEdit: { editingSupplement = $0 }
-                                    )
-                                }
-                            }
                         }
                     } header: {
                         Text("today_intake_title".localized)
+                    }
+                    
+                    let sortedTimes = viewModel.activeSupplements.keys.sorted()
+                    ForEach(sortedTimes, id: \.self) { time in
+                        if let items = viewModel.activeSupplements[time] {
+                            Section {
+                                ForEach(items) { supplement in
+                                    ActiveSupplementRow(
+                                        supplement: supplement,
+                                        onToggle: viewModel.toggleIntake,
+                                        isTaken: viewModel.isTakenToday(supplement)
+                                    )
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                                    .swipeActions(edge: .leading) {
+                                        Button {
+                                            editingSupplement = supplement
+                                        } label: {
+                                            Label("edit".localized, systemImage: "pencil")
+                                        }
+                                        .tint(.orange)
+                                    }
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) {
+                                            viewModel.deleteSupplement(supplement, context: modelContext)
+                                        } label: {
+                                            Label("delete".localized, systemImage: "trash")
+                                        }
+                                    }
+                                    .contextMenu {
+                                        Button {
+                                            editingSupplement = supplement
+                                        } label: {
+                                            Label("edit".localized, systemImage: "pencil")
+                                        }
+                                        
+                                        Button(role: .destructive) {
+                                            viewModel.deleteSupplement(supplement, context: modelContext)
+                                        } label: {
+                                            Label("delete".localized, systemImage: "trash")
+                                        }
+                                    }
+                                }
+                            } header: {
+                                Text(time)
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.blue)
+                            }
+                        }
                     }
                     
                     if !viewModel.restingSupplements.isEmpty {
                         Section {
                             ForEach(viewModel.restingSupplements) { info in
                                 RestingSupplementRow(info: info, onEdit: { editingSupplement = $0 })
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
                                     .swipeActions(edge: .trailing) {
                                         Button(role: .destructive) {
                                             viewModel.deleteSupplement(info.supplement, context: modelContext)
@@ -108,6 +148,7 @@ public struct HomeView: View {
                     }
                     }
                     .scrollContentBackground(.hidden)
+                    .listStyle(.plain)
                     .navigationTitle(navigationTitle)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
@@ -229,61 +270,6 @@ private struct AddClientSheet: View {
                 }
             }
         }
-    }
-}
-
-/// Thành phần hiển thị nhóm theo thời gian.
-private struct TimeGroupSection: View {
-    @Environment(\.modelContext) private var modelContext
-    let time: String
-    let supplements: [UserSupplement]
-    let viewModel: HomeViewModel
-    let onEdit: (UserSupplement) -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(time)
-                .font(.caption)
-                .fontWeight(.bold)
-                .foregroundStyle(.blue)
-            
-            ForEach(supplements) { supplement in
-                ActiveSupplementRow(
-                    supplement: supplement, 
-                    onToggle: viewModel.toggleIntake,
-                    isTaken: viewModel.isTakenToday(supplement)
-                )
-                .swipeActions(edge: .leading) {
-                    Button {
-                        onEdit(supplement)
-                    } label: {
-                        Label("edit".localized, systemImage: "pencil")
-                    }
-                    .tint(.orange)
-                }
-                .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) {
-                        viewModel.deleteSupplement(supplement, context: modelContext)
-                    } label: {
-                        Label("delete".localized, systemImage: "trash")
-                    }
-                }
-                .contextMenu {
-                    Button {
-                        onEdit(supplement)
-                    } label: {
-                        Label("edit".localized, systemImage: "pencil")
-                    }
-                    
-                    Button(role: .destructive) {
-                        viewModel.deleteSupplement(supplement, context: modelContext)
-                    } label: {
-                        Label("delete".localized, systemImage: "trash")
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 4)
     }
 }
 
