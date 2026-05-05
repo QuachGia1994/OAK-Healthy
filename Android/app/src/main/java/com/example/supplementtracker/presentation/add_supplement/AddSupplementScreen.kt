@@ -63,7 +63,6 @@ fun AddSupplementScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDark) backgroundBrush else backgroundColor)
     ) {
         Scaffold(
             containerColor = Color.Transparent,
