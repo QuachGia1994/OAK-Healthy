@@ -83,4 +83,8 @@
     <string name="notification_default_name">Supplement</string>
     <string name="notification_title">Time to take it! 🌿</string>
     <string name="notification_body_format">You need to take %1$s - Dose: %2$s. Wishing you a productive work/trading session!</string>
+
+    <string name="factory_reset">Factory Reset</string>
+    <string name="wipe_data_warning">This will permanently delete all clients and logs. Continue?</string>
+    <string name="cancel">Cancel</string>
 </resources>

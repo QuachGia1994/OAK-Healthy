@@ -83,4 +83,8 @@
     <string name="supplement_note_coq10">Hỗ trợ năng lượng tế bào. Nên uống sau bữa ăn.</string>
     <string name="supplement_note_creatine">Hỗ trợ sức mạnh và hiệu suất. Uống mỗi ngày.</string>
     <string name="supplement_note_zinc">Tránh uống khi bụng đói.</string>
+
+    <string name="factory_reset">Khôi phục cài đặt gốc</string>
+    <string name="wipe_data_warning">Hành động này sẽ xóa toàn bộ dữ liệu học viên và nhật ký. Tiếp tục?</string>
+    <string name="cancel">Hủy</string>
 </resources>

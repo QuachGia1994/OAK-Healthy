@@ -25,6 +25,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
@@ -47,16 +48,21 @@ fun SettingsScreen(
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundColor = Color(0xFFF2F2F7)
-    val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    val backgroundBrush = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    }
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
     var isEditClientDialogVisible by remember { mutableStateOf(false) }
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
+    var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(backgroundBrush)
     ) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -164,8 +170,38 @@ fun SettingsScreen(
                         """.trimIndent()
                     )
                 }
+
+                item {
+                    TextButton(onClick = { isFactoryResetDialogVisible = true }) {
+                        Text(
+                            text = stringResource(R.string.factory_reset),
+                            color = Color(0xFFD32F2F),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
         }
+    }
+
+    if (isFactoryResetDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isFactoryResetDialogVisible = false },
+            title = { Text(stringResource(R.string.factory_reset)) },
+            text = { Text(stringResource(R.string.wipe_data_warning)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    clients.forEach { homeViewModel.deleteClient(it) }
+                    activeClientManager.setCurrentClientId(null)
+                    isFactoryResetDialogVisible = false
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { isFactoryResetDialogVisible = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 
     if (isAddClientDialogVisible) {
@@ -241,8 +277,8 @@ private fun AppearanceCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     Card(
         modifier = Modifier
@@ -256,23 +292,58 @@ private fun AppearanceCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Text(stringResource(R.string.appearance_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
-            Column {
-                ThemeRow(stringResource(R.string.appearance_light), appTheme == AppTheme.LIGHT) { onThemeChange(AppTheme.LIGHT) }
-                ThemeRow(stringResource(R.string.appearance_dark), appTheme == AppTheme.DARK) { onThemeChange(AppTheme.DARK) }
-                ThemeRow(stringResource(R.string.appearance_system), appTheme == AppTheme.SYSTEM) { onThemeChange(AppTheme.SYSTEM) }
-            }
+            AppThemeSegmentedControl(
+                appTheme = appTheme,
+                onThemeChange = onThemeChange
+            )
         }
     }
 }
 
 @Composable
-private fun ThemeRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+private fun AppThemeSegmentedControl(
+    appTheme: AppTheme,
+    onThemeChange: (AppTheme) -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val outerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFFF2F2F7)
+    val selectedColor = if (isDark) Color.White.copy(alpha = 0.22f) else Color.White
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color(0x14000000)
+
+    val items = listOf(
+        Triple(stringResource(R.string.appearance_light), AppTheme.LIGHT, appTheme == AppTheme.LIGHT),
+        Triple(stringResource(R.string.appearance_dark), AppTheme.DARK, appTheme == AppTheme.DARK),
+        Triple(stringResource(R.string.appearance_system), AppTheme.SYSTEM, appTheme == AppTheme.SYSTEM)
+    )
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(outerColor, RoundedCornerShape(14.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        RadioButton(selected = selected, onClick = onSelect)
-        Text(text = label)
+        items.forEach { (label, theme, selected) ->
+            val pillShape = RoundedCornerShape(12.dp)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .shadow(if (selected) 2.dp else 0.dp, pillShape)
+                    .background(if (selected) selectedColor else Color.Transparent, pillShape)
+            ) {
+                TextButton(
+                    onClick = { onThemeChange(theme) },
+                    colors = ButtonDefaults.textButtonColors(containerColor = Color.Transparent),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = label,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (isDark) Color.White else Color(0xFF111111)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -298,8 +369,8 @@ private fun getCycleSummary(supplement: UserSupplement): String {
 private fun InfoCard(title: String, content: String) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     Card(
         modifier = Modifier
@@ -338,8 +409,8 @@ private fun ClientManagementCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     Card(
         modifier = Modifier
@@ -355,10 +426,12 @@ private fun ClientManagementCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (clients.isEmpty()) {
-                Text(text = "No clients yet.", style = MaterialTheme.typography.bodyMedium)
+                Text(text = stringResource(R.string.add_client_to_start), style = MaterialTheme.typography.bodyMedium)
             } else {
                 clients.forEach { client ->
                     key(client.id) {
+                        var isMenuExpanded by remember { mutableStateOf(false) }
+                        val isActive = client.id == currentClientId
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -366,13 +439,40 @@ private fun ClientManagementCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(text = client.name, modifier = Modifier.weight(1f))
-                            val isActive = client.id == currentClientId
                             if (isActive) {
                                 Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
                             }
-                            TextButton(onClick = { onSelect(client.id) }) { Text(stringResource(R.string.select)) }
-                            TextButton(onClick = { onEdit(client) }) { Text(stringResource(R.string.edit)) }
-                            TextButton(onClick = { onDelete(client) }) { Text(stringResource(R.string.delete)) }
+
+                            IconButton(onClick = { isMenuExpanded = true }) {
+                                Icon(imageVector = Icons.Default.MoreVert, contentDescription = null)
+                            }
+
+                            DropdownMenu(
+                                expanded = isMenuExpanded,
+                                onDismissRequest = { isMenuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.select)) },
+                                    onClick = {
+                                        onSelect(client.id)
+                                        isMenuExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.edit)) },
+                                    onClick = {
+                                        onEdit(client)
+                                        isMenuExpanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.delete)) },
+                                    onClick = {
+                                        onDelete(client)
+                                        isMenuExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -390,8 +490,8 @@ private fun ClientManagementCard(
 private fun LogoCard() {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(20.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     Card(
         modifier = Modifier

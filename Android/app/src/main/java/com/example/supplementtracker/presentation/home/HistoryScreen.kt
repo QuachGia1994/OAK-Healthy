@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -18,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +31,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.ceil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,12 +41,16 @@ fun HistoryScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundColor = Color(0xFFF2F2F7)
-    val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    val backgroundBrush = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(backgroundBrush)
     ) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -57,7 +65,7 @@ fun HistoryScreen(
                 when (val state = uiState) {
                     is HistoryUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     is HistoryUiState.Success -> HistoryContent(state)
-                    is HistoryUiState.NoClient -> Text("Add a Client to see history.", modifier = Modifier.align(Alignment.Center))
+                    is HistoryUiState.NoClient -> Text(stringResource(R.string.add_client_to_start), modifier = Modifier.align(Alignment.Center))
                 }
             }
         }
@@ -68,8 +76,8 @@ fun HistoryScreen(
 private fun HistoryContent(state: HistoryUiState.Success) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -82,13 +90,13 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp)
-                    .shadow(if (isDark) 12.dp else 2.dp, shape),
+                    .shadow(12.dp, shape),
                 shape = shape,
                 colors = CardDefaults.cardColors(containerColor = containerColor),
                 border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                SimpleBarChart(data = state.chartData)
+                PremiumBarChart(data = state.chartData)
             }
         }
         
@@ -107,24 +115,103 @@ private fun HistoryContent(state: HistoryUiState.Success) {
 }
 
 @Composable
-private fun SimpleBarChart(data: List<HistoryChartData>) {
-    val maxCount = data.maxOfOrNull { it.count }?.coerceAtLeast(1) ?: 1
-    
-    Canvas(modifier = Modifier.fillMaxWidth().height(200.dp).padding(top = 16.dp)) {
-        val barWidth = size.width / (data.size * 1.5f)
-        val space = (size.width - (barWidth * data.size)) / (data.size + 1)
-        
-        data.forEachIndexed { index, item ->
-            val barHeight = (item.count.toFloat() / maxCount) * size.height
-            val x = space + index * (barWidth + space)
-            val y = size.height - barHeight
-            
-            drawRect(
-                color = Color(0xFF42A5F5),
-                topLeft = Offset(x, y),
-                size = Size(barWidth, barHeight)
-            )
+private fun PremiumBarChart(data: List<HistoryChartData>) {
+    val maxCount = data.maxOfOrNull { it.count }?.coerceAtLeast(0) ?: 0
+    val step = chooseStep(maxCount)
+    val maxAxis = if (maxCount == 0) step * 4 else ceil(maxCount.toFloat() / step).toInt() * step
+    val yLabels = (0..(maxAxis / step)).map { it * step }
+
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val gridColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f)
+    val axisTextColor = if (isDark) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.9f)
+    val barColor = if (isDark) Color(0xFF64B5F6) else Color(0xFF2196F3)
+
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.width(32.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                yLabels.reversed().forEach { value ->
+                    Text(
+                        text = value.toString(),
+                        fontSize = 11.sp,
+                        color = axisTextColor,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                    )
+                }
+            }
+
+            Canvas(
+                modifier = Modifier
+                    .height(180.dp)
+                    .weight(1f)
+                    .padding(start = 10.dp)
+            ) {
+                val chartHeight = size.height
+                val chartWidth = size.width
+
+                val lineCount = yLabels.size
+                for (i in 0 until lineCount) {
+                    val y = chartHeight * (i.toFloat() / (lineCount - 1).coerceAtLeast(1))
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(0f, y),
+                        end = Offset(chartWidth, y),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+
+                if (data.isEmpty()) return@Canvas
+
+                val spacing = 10.dp.toPx()
+                val barWidth = ((chartWidth - spacing * (data.size + 1)) / data.size).coerceAtLeast(8.dp.toPx())
+                val radius = 8.dp.toPx()
+
+                data.forEachIndexed { index, item ->
+                    val ratio = if (maxAxis == 0) 0f else item.count.toFloat() / maxAxis.toFloat()
+                    val barHeight = ratio * (chartHeight - 6.dp.toPx())
+                    val left = spacing + index * (barWidth + spacing)
+                    val top = chartHeight - barHeight
+                    drawRoundRect(
+                        color = barColor,
+                        topLeft = Offset(left, top),
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius, radius)
+                    )
+                }
+            }
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 32.dp + 10.dp)
+        ) {
+            data.forEach { item ->
+                Text(
+                    text = item.label,
+                    fontSize = 11.sp,
+                    color = axisTextColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+private fun chooseStep(maxCount: Int): Int {
+    return when {
+        maxCount <= 4 -> 1
+        maxCount <= 8 -> 2
+        maxCount <= 20 -> 5
+        else -> 10
     }
 }
 
@@ -135,13 +222,13 @@ private fun HistoryRecordItem(record: IntakeRecord) {
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (isDark) 10.dp else 2.dp, shape),
+            .shadow(10.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
@@ -152,7 +239,11 @@ private fun HistoryRecordItem(record: IntakeRecord) {
                 Text(record.supplementName ?: "N/A", style = MaterialTheme.typography.bodyLarge)
                 Text(dateTime.format(formatter), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
-            Text(stringResource(R.string.taken), color = Color.Green, fontWeight = FontWeight.Bold)
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = Color(0xFF2E7D32)
+            )
         }
     }
 }

@@ -105,12 +105,16 @@ fun HomeScreen(
     }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundColor = Color(0xFFF2F2F7)
-    val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    val backgroundBrush = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(backgroundBrush)
     ) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -385,8 +389,8 @@ private fun ActiveSupplementCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     Card(
         modifier = modifier
@@ -442,8 +446,8 @@ private fun ActiveSupplementCard(
 private fun RestingSupplementCard(info: RestingSupplementInfo) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
 
     Card(
         modifier = Modifier

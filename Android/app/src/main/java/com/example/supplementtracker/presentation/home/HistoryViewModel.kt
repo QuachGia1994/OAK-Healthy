@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.time.ZoneOffset
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * Dữ liệu cho biểu đồ lịch sử.
@@ -67,9 +69,18 @@ class HistoryViewModel(
             val endOfDay = date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
             
             val count = records.filter { it.date in startOfDay until endOfDay }.count()
-            chartData.add(HistoryChartData(date.dayOfWeek.name.take(3), count))
+            chartData.add(HistoryChartData(label = dayLabel(date), count = count))
         }
 
         return HistoryUiState.Success(chartData, records)
+    }
+
+    private fun dayLabel(date: LocalDate): String {
+        val locale = Locale.getDefault()
+        if (locale.language == "vi") {
+            val value = date.dayOfWeek.value
+            return if (value == 7) "CN" else "Thứ ${value + 1}"
+        }
+        return date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
     }
 }
