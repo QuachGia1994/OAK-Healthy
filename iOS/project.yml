@@ -35,6 +35,9 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: "OAK Healthy"
+        CFBundleLocalizations:
+          - en
+          - vi
         NSCalendarsFullAccessUsageDescription: "OAK Healthy needs access to your calendar to sync your supplement cycle."
         NSUserNotificationsUsageDescription: "OAK Healthy needs permission to send notifications to remind you at the right time."
         UIApplicationSceneManifest:

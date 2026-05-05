@@ -6,7 +6,8 @@ public struct LocalizationService: Sendable {
     private init() {}
     
     private var isVietnamese: Bool {
-        Locale.current.language.languageCode?.identifier == "vi"
+        guard let preferredLanguage = Locale.preferredLanguages.first else { return false }
+        return preferredLanguage.hasPrefix("vi")
     }
     
     private let dictionary: [String: (en: String, vi: String)] = [
@@ -20,7 +21,8 @@ public struct LocalizationService: Sendable {
         "no_logs_yet": ("No logs yet.", "Chưa có nhật ký nào."),
         "today_intake_title": ("Today's Intake", "Cần uống hôm nay"),
         "no_intake_today": ("No intake scheduled for today.", "Không có lịch uống hôm nay."),
-        "add_client_to_start": ("Add a Client to start.", "Thêm học viên để bắt đầu."),
+        "add_client_to_start": ("Add a Client to start.", "Thêm một học viên để bắt đầu."),
+        "Add a Client to start.": ("Add a Client to start.", "Thêm một học viên để bắt đầu."),
         "resting_title": ("Resting", "Đang nghỉ"),
         "taken": ("Taken", "Đã uống"),
         "settings_title": ("Settings", "Cài đặt"),
