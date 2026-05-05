@@ -87,4 +87,11 @@
     <string name="factory_reset">Khôi phục cài đặt gốc</string>
     <string name="wipe_data_warning">Hành động này sẽ xóa toàn bộ dữ liệu học viên và nhật ký. Tiếp tục?</string>
     <string name="cancel">Hủy</string>
+
+    <string name="export_data">Xuất dữ liệu</string>
+    <string name="import_data">Nhập dữ liệu</string>
+    <string name="share_stack">Chia sẻ danh sách</string>
+    <string name="missing_active_client">Vui lòng chọn học viên trước.</string>
+    <string name="invalid_json">File JSON không hợp lệ.</string>
+    <string name="import_success">Đã nhập dữ liệu.</string>
 </resources>

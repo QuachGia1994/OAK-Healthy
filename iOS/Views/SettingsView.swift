@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
@@ -11,6 +12,11 @@ public struct SettingsView: View {
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
+    @State private var isShowingImportPicker = false
+    @State private var exportJSONData: Data?
+    @State private var shareStackPNGData: Data?
+    @State private var errorMessage: String?
+    @State private var isShowingError = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -30,6 +36,7 @@ public struct SettingsView: View {
     }
     
     public var body: some View {
+        let refreshId = "\(activeClientManager.currentClientId?.uuidString ?? "nil")-\(supplements.count)-\(colorScheme == .dark ? "d" : "l")"
         NavigationStack {
             ZStack {
                 backgroundGradient.ignoresSafeArea()
@@ -40,6 +47,9 @@ public struct SettingsView: View {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
+        }
+        .task(id: refreshId) {
+            refreshSharePayloads()
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
             ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
@@ -56,6 +66,40 @@ public struct SettingsView: View {
                 try? modelContext.save()
             }
         }
+        .fileImporter(
+            isPresented: $isShowingImportPicker,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            do {
+                guard let clientId = activeClientManager.currentClientId else {
+                    showError(message: "missing_active_client".localized)
+                    return
+                }
+                guard let url = try result.get().first else { return }
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer {
+                    if didAccess { url.stopAccessingSecurityScopedResource() }
+                }
+                let data = try Data(contentsOf: url)
+                let file = try SupplementExportCodec.decode(data: data)
+                guard let client = clients.first(where: { $0.id == clientId }) else {
+                    showError(message: "missing_active_client".localized)
+                    return
+                }
+                try SupplementExportCodec.importFile(file, client: client, context: modelContext)
+                refreshSharePayloads()
+            } catch SupplementExportError.invalidJSON {
+                showError(message: "invalid_json".localized)
+            } catch {
+                showError(message: "import_failed".localized)
+            }
+        }
+        .alert("error_title".localized, isPresented: $isShowingError) {
+            Button("ok".localized) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
     
     private var settingsList: some View {
@@ -63,6 +107,7 @@ public struct SettingsView: View {
             clientManagementSection
             appHeaderSection
             themeSelectionSection
+            dataTransferSection
             supplementListSection
             userGuideSection
             aboutSection
@@ -71,6 +116,34 @@ public struct SettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .navigationTitle("settings_title".localized)
+    }
+    
+    @ViewBuilder
+    private var dataTransferSection: some View {
+        Section {
+            if let exportJSONData {
+                ShareLink(item: ShareableJSON(data: exportJSONData)) {
+                    Label("export_data".localized, systemImage: "square.and.arrow.up")
+                }
+            } else {
+                Button("export_data".localized) {
+                    refreshSharePayloads()
+                }
+            }
+            
+            Button("import_data".localized) {
+                isShowingImportPicker = true
+            }
+            
+            if let shareStackPNGData {
+                ShareLink(item: ShareablePNG(data: shareStackPNGData)) {
+                    Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                }
+            }
+        } header: {
+            Text("data_tools".localized)
+        }
+        .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
@@ -288,6 +361,21 @@ public struct SettingsView: View {
         UserDefaults.standard.removeObject(forKey: "SkippedUpdateVersion")
         appTheme = "system"
         activeClientManager.setCurrentClientId(nil)
+    }
+    
+    private func refreshSharePayloads() {
+        guard activeClientManager.currentClientId != nil else {
+            exportJSONData = nil
+            shareStackPNGData = nil
+            return
+        }
+        exportJSONData = try? SupplementExportCodec.encode(supplements: supplements)
+        shareStackPNGData = try? SupplementExportCodec.renderShareImageData(supplements: supplements, colorScheme: colorScheme)
+    }
+    
+    private func showError(message: String) {
+        errorMessage = message
+        isShowingError = true
     }
 }
 

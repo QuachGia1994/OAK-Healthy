@@ -87,4 +87,11 @@
     <string name="factory_reset">Factory Reset</string>
     <string name="wipe_data_warning">This will permanently delete all clients and logs. Continue?</string>
     <string name="cancel">Cancel</string>
+
+    <string name="export_data">Export Data</string>
+    <string name="import_data">Import Data</string>
+    <string name="share_stack">Share Stack</string>
+    <string name="missing_active_client">Please select a client first.</string>
+    <string name="invalid_json">Invalid JSON file.</string>
+    <string name="import_success">Imported.</string>
 </resources>

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -24,6 +25,10 @@ import java.time.ZoneId
 import com.example.supplementtracker.data.mock.SupplementDictionary
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
+import com.example.supplementtracker.domain.export.SupplementExportJson
+import com.example.supplementtracker.domain.export.SupplementExportSchema
+import com.example.supplementtracker.domain.model.CycleConfig
+import com.example.supplementtracker.R
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
@@ -36,6 +41,8 @@ class HomeViewModel(
 ) : ViewModel() {
 
     private val _refreshTrigger = MutableStateFlow(0)
+    private val _dataTransferMessage = MutableStateFlow<String?>(null)
+    val dataTransferMessage: StateFlow<String?> = _dataTransferMessage
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
 
@@ -56,6 +63,10 @@ class HomeViewModel(
 
     fun refresh() {
         _refreshTrigger.value += 1
+    }
+    
+    fun clearDataTransferMessage() {
+        _dataTransferMessage.value = null
     }
 
     private fun getStartOfDay() = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -102,6 +113,64 @@ class HomeViewModel(
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
             repository.deleteSupplement(supplement)
+        }
+    }
+    
+    fun importSupplementsFromJson(json: String) {
+        viewModelScope.launch {
+            val clientId = activeClientManager.currentClientId.value
+            if (clientId == null) {
+                _dataTransferMessage.value = context.getString(R.string.missing_active_client)
+                return@launch
+            }
+            
+            val decoded = SupplementExportJson.decode(json).getOrElse {
+                _dataTransferMessage.value = context.getString(R.string.invalid_json)
+                return@launch
+            }
+            
+            if (decoded.schemaVersion != SupplementExportSchema.VERSION) {
+                _dataTransferMessage.value = context.getString(R.string.invalid_json)
+                return@launch
+            }
+            
+            val existing = repository.getAllSupplements(clientId.toString()).first()
+            val byName = existing.associateBy { it.name.trim().lowercase() }
+            
+            decoded.supplements.forEach { dto ->
+                val key = dto.name.trim().lowercase()
+                val cycle = CycleConfig(
+                    daysOn = dto.cycle.daysOn,
+                    daysOff = dto.cycle.daysOff,
+                    isContinuous = dto.cycle.isContinuous,
+                    durationMonths = dto.cycle.durationMonths
+                )
+                val startDate = runCatching { LocalDate.parse(dto.startDate) }.getOrElse { LocalDate.now() }
+                
+                val updated = byName[key]?.copy(
+                    name = dto.name,
+                    startDate = startDate,
+                    cycleConfig = cycle,
+                    dailyDose = dto.dailyDose,
+                    intakeTime = dto.intakeTime
+                ) ?: UserSupplement(
+                    clientId = clientId,
+                    name = dto.name,
+                    startDate = startDate,
+                    cycleConfig = cycle,
+                    dailyDose = dto.dailyDose,
+                    intakeTime = dto.intakeTime
+                )
+                
+                if (byName.containsKey(key)) {
+                    repository.updateSupplement(updated)
+                } else {
+                    repository.saveSupplement(updated)
+                }
+            }
+            
+            refresh()
+            _dataTransferMessage.value = context.getString(R.string.import_success)
         }
     }
 

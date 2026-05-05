@@ -1,5 +1,9 @@
 package com.example.supplementtracker.presentation.home
 
+import android.content.Intent
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,7 +37,18 @@ import androidx.compose.ui.text.font.FontStyle
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
+import com.example.supplementtracker.domain.export.SupplementExportCycleDTO
+import com.example.supplementtracker.domain.export.SupplementExportFileDTO
+import com.example.supplementtracker.domain.export.SupplementExportJson
+import com.example.supplementtracker.domain.export.SupplementExportSchema
+import com.example.supplementtracker.domain.export.SupplementExportSupplementDTO
+import com.example.supplementtracker.presentation.share.StackShareImageGenerator
+import com.example.supplementtracker.presentation.share.StackShareItem
+import java.io.File
+import java.io.FileOutputStream
 import java.util.UUID
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,10 +58,13 @@ fun SettingsScreen(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
+    val context = LocalContext.current
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
@@ -58,6 +76,34 @@ fun SettingsScreen(
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
+    var pendingExportJson by remember { mutableStateOf<String?>(null) }
+
+    val createJsonDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val json = pendingExportJson ?: return@rememberLauncherForActivityResult
+        if (uri == null) return@rememberLauncherForActivityResult
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            output.write(json.toByteArray(Charsets.UTF_8))
+        }
+        pendingExportJson = null
+    }
+
+    val openJsonDocument = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val json = context.contentResolver.openInputStream(uri)?.use { input ->
+            input.readBytes().toString(Charsets.UTF_8)
+        } ?: return@rememberLauncherForActivityResult
+        homeViewModel.importSupplementsFromJson(json)
+    }
+
+    LaunchedEffect(dataTransferMessage) {
+        val message = dataTransferMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        homeViewModel.clearDataTransferMessage()
+    }
 
     Box(
         modifier = Modifier
@@ -66,6 +112,7 @@ fun SettingsScreen(
     ) {
         Scaffold(
             containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -169,6 +216,94 @@ fun SettingsScreen(
                             ${stringResource(R.string.settings_copyright)}
                         """.trimIndent()
                     )
+                }
+
+                item {
+                    if (currentClientId != null) {
+                        val allSupplements = when (uiState) {
+                            is HomeUiState.Success -> {
+                                val successState = uiState as HomeUiState.Success
+                                (successState.activeSupplements.values.flatten().map { it.supplement } +
+                                    successState.restingSupplements.map { it.supplement })
+                                    .distinctBy { it.id }
+                            }
+                            else -> emptyList()
+                        }
+
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = {
+                                    val dto = SupplementExportFileDTO(
+                                        schemaVersion = SupplementExportSchema.VERSION,
+                                        exportedAtEpochMs = System.currentTimeMillis(),
+                                        supplements = allSupplements.map { supplement ->
+                                            SupplementExportSupplementDTO(
+                                                name = supplement.name,
+                                                dailyDose = supplement.dailyDose,
+                                                intakeTime = supplement.intakeTime,
+                                                startDate = supplement.startDate.toString(),
+                                                category = null,
+                                                cycle = SupplementExportCycleDTO(
+                                                    isContinuous = supplement.cycleConfig.isContinuous,
+                                                    daysOn = supplement.cycleConfig.daysOn,
+                                                    daysOff = supplement.cycleConfig.daysOff,
+                                                    durationMonths = supplement.cycleConfig.durationMonths
+                                                )
+                                            )
+                                        }
+                                    )
+                                    pendingExportJson = SupplementExportJson.encode(dto)
+                                    createJsonDocument.launch("OAKHealthy_Stack.json")
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(stringResource(R.string.export_data))
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedButton(
+                                onClick = { openJsonDocument.launch(arrayOf("application/json")) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(stringResource(R.string.import_data))
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    val items = allSupplements
+                                        .sortedBy { it.intakeTime }
+                                        .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
+
+                                    val bitmap = StackShareImageGenerator.generate(
+                                        context = context,
+                                        items = items,
+                                        isDark = isDark
+                                    )
+                                    val file = File(context.cacheDir, "OAKHealthy_Stack.png")
+                                    FileOutputStream(file).use { stream ->
+                                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                                    }
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        file
+                                    )
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "image/png"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, stringResource(R.string.share_stack)))
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(stringResource(R.string.share_stack))
+                            }
+                        }
+                    }
                 }
 
                 item {
