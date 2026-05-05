@@ -135,9 +135,6 @@ jobs:
           print(f"Removed {changed} duplicate group-child references.")
           PY
 
-      - name: Download iOS Platform & Simulator Runtime
-        run: xcodebuild -downloadPlatform iOS
-
       - name: Build Archive
         run: |
           xcodebuild archive \
@@ -149,7 +146,8 @@ jobs:
             -archivePath build/OAKHealthy.xcarchive \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            SUPPORTED_PLATFORMS="iphoneos"
 
       - name: Export IPA (Unsigned)
         run: |
