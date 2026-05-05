@@ -366,7 +366,8 @@ private fun ClientManagementCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(text = client.name, modifier = Modifier.weight(1f))
-                            if (client.id == currentClientId) {
+                            val isActive = client.id == currentClientId
+                            if (isActive) {
                                 Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
                             }
                             TextButton(onClick = { onSelect(client.id) }) { Text(stringResource(R.string.select)) }

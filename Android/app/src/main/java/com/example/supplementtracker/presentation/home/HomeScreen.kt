@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissValue
+import androidx.compose.material.Divider
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.rememberDismissState
@@ -140,13 +141,9 @@ fun HomeScreen(
                                     expanded = isClientMenuExpanded,
                                     onDismissRequest = { isClientMenuExpanded = false }
                                 ) {
-                                    val addClientLabel = stringResource(R.string.add_a_client)
-                                    val menuClients = clients
-                                        .filter { it.name.isNotBlank() }
-                                        .filter { it.name.trim() != addClientLabel }
-                                        .distinctBy { it.name.trim().lowercase() }
-                                    menuClients.forEach { client ->
-                                        key(client.id) {
+                                    clients
+                                        .distinctBy { it.name }
+                                        .forEach { client ->
                                             DropdownMenuItem(
                                                 text = { Text(client.name) },
                                                 onClick = {
@@ -155,7 +152,6 @@ fun HomeScreen(
                                                 }
                                             )
                                         }
-                                    }
                                     Divider()
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.add_a_client)) },

@@ -71,7 +71,7 @@
     <string name="client_management">Quản lý học viên</string>
     <string name="add_a_client">Thêm học viên</string>
     <string name="student_prefix">Học viên: %1$s</string>
-    <string name="select">Chọn</string>
+    <string name="select">Chuyển</string>
     <string name="add_client_to_start">Thêm học viên để bắt đầu.</string>
 
     <string name="supplement_note_vitamin_d3">Nên uống cùng bữa ăn có chất béo để hấp thụ tối đa.</string>
