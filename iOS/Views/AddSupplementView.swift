@@ -89,7 +89,7 @@ public struct AddSupplementView: View {
                             Text(suggestion.name)
                                 .font(.headline)
                             if let advice = suggestion.advice, !advice.isEmpty {
-                                Text(advice)
+                                Text(advice.localized)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             } else {

@@ -8,63 +8,63 @@ public enum SupplementDictionary {
     public static let references: [SupplementReference] = [
         SupplementReference(
             name: "Ashwagandha",
-            advice: "Supports stress reduction and sleep quality.",
+            advice: "supplement_advice_ashwagandha",
             preferredTime: "21:00",
             preferredDose: nil,
             defaultCycle: CycleConfig(daysOn: 28, daysOff: 7)
         ),
         SupplementReference(
             name: "Boron",
-            advice: "Cycle it to support hormone optimization.",
+            advice: "supplement_advice_boron",
             preferredTime: "08:00",
             preferredDose: nil,
             defaultCycle: CycleConfig(daysOn: 14, daysOff: 7)
         ),
         SupplementReference(
             name: "Caffeine",
-            advice: "Boosts focus and energy for workouts and trading sessions. Take ~30 minutes pre-workout.",
+            advice: "supplement_advice_caffeine",
             preferredTime: "07:30",
             preferredDose: "200 mg",
             defaultCycle: .continuous
         ),
         SupplementReference(
             name: "Vitamin D3",
-            advice: "Take with a fat-containing meal for better absorption.",
+            advice: "supplement_advice_vitamin_d3",
             preferredTime: "08:00",
             preferredDose: nil,
             defaultCycle: .continuous
         ),
         SupplementReference(
             name: "Omega-3",
-            advice: "Take after a fatty meal for best absorption.",
+            advice: "supplement_advice_omega_3",
             preferredTime: "12:00",
             preferredDose: nil,
             defaultCycle: .continuous
         ),
         SupplementReference(
             name: "CoQ10",
-            advice: "Supports cellular energy. Take after a meal.",
+            advice: "supplement_advice_coq10",
             preferredTime: "12:00",
             preferredDose: nil,
             defaultCycle: .continuous
         ),
         SupplementReference(
             name: "Creatine",
-            advice: "Supports strength and performance. Take daily.",
+            advice: "supplement_advice_creatine",
             preferredTime: "12:00",
             preferredDose: nil,
             defaultCycle: .continuous
         ),
         SupplementReference(
             name: "Magnesium",
-            advice: "Supports muscles and nervous system. Take before sleep.",
+            advice: "supplement_advice_magnesium",
             preferredTime: "21:00",
             preferredDose: nil,
             defaultCycle: .continuous
         ),
         SupplementReference(
             name: "Zinc",
-            advice: "Avoid taking on an empty stomach.",
+            advice: "supplement_advice_zinc",
             preferredTime: "21:00",
             preferredDose: nil,
             defaultCycle: .continuous
