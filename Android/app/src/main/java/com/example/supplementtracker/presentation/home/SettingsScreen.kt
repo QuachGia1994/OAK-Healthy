@@ -277,8 +277,8 @@ private fun AppearanceCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     Card(
         modifier = Modifier
@@ -286,7 +286,7 @@ private fun AppearanceCard(
             .shadow(if (isDark) 12.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -369,8 +369,8 @@ private fun getCycleSummary(supplement: UserSupplement): String {
 private fun InfoCard(title: String, content: String) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     Card(
         modifier = Modifier
@@ -378,7 +378,7 @@ private fun InfoCard(title: String, content: String) {
             .shadow(if (isDark) 10.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -409,8 +409,8 @@ private fun ClientManagementCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     Card(
         modifier = Modifier
@@ -418,7 +418,7 @@ private fun ClientManagementCard(
             .shadow(if (isDark) 12.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -490,8 +490,8 @@ private fun ClientManagementCard(
 private fun LogoCard() {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(20.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     Card(
         modifier = Modifier
@@ -499,7 +499,7 @@ private fun LogoCard() {
             .shadow(if (isDark) 14.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

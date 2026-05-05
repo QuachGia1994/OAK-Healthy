@@ -389,8 +389,8 @@ private fun ActiveSupplementCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     Card(
         modifier = modifier
@@ -400,7 +400,7 @@ private fun ActiveSupplementCard(
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         ),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -446,8 +446,8 @@ private fun ActiveSupplementCard(
 private fun RestingSupplementCard(info: RestingSupplementInfo) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     Card(
         modifier = Modifier
@@ -455,7 +455,7 @@ private fun RestingSupplementCard(info: RestingSupplementInfo) {
             .shadow(if (isDark) 10.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(

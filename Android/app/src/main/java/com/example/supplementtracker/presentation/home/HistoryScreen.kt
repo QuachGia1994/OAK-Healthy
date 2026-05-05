@@ -76,8 +76,8 @@ fun HistoryScreen(
 private fun HistoryContent(state: HistoryUiState.Success) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -93,7 +93,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     .shadow(12.dp, shape),
                 shape = shape,
                 colors = CardDefaults.cardColors(containerColor = containerColor),
-                border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+                border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 PremiumBarChart(data = state.chartData)
@@ -123,7 +123,7 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val gridColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f)
-    val axisTextColor = if (isDark) Color.White.copy(alpha = 0.75f) else Color.White.copy(alpha = 0.9f)
+    val axisTextColor = if (isDark) Color.White.copy(alpha = 0.75f) else Color(0xFF374151)
     val barColor = if (isDark) Color(0xFF64B5F6) else Color(0xFF2196F3)
 
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -222,8 +222,8 @@ private fun HistoryRecordItem(record: IntakeRecord) {
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.22f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
+    val borderColor = Color.White.copy(alpha = 0.20f)
 
     Card(
         modifier = Modifier
@@ -231,7 +231,7 @@ private fun HistoryRecordItem(record: IntakeRecord) {
             .shadow(10.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
