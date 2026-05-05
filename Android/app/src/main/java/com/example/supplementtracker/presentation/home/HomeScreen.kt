@@ -156,7 +156,7 @@ fun HomeScreen(
                                             )
                                         }
                                     }
-                                    HorizontalDivider()
+                                    Divider()
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.add_a_client)) },
                                         onClick = {
