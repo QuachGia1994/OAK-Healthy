@@ -105,13 +105,14 @@ fun HomeScreen(
     }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9), Color.White))
-    }
+    val backgroundColor = Color(0xFFF2F2F7)
+    val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
 
-    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) backgroundBrush else backgroundColor)
+    ) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -385,13 +386,13 @@ private fun ActiveSupplementCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
 
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(12.dp, shape),
+            .shadow(if (isDark) 12.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = containerColor
@@ -442,13 +443,13 @@ private fun ActiveSupplementCard(
 private fun RestingSupplementCard(info: RestingSupplementInfo) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(10.dp, shape),
+            .shadow(if (isDark) 10.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),

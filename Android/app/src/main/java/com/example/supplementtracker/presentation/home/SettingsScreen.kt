@@ -47,17 +47,18 @@ fun SettingsScreen(
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9), Color.White))
-    }
+    val backgroundColor = Color(0xFFF2F2F7)
+    val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
     var isEditClientDialogVisible by remember { mutableStateOf(false) }
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
 
-    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) backgroundBrush else backgroundColor)
+    ) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -241,13 +242,13 @@ private fun AppearanceCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(12.dp, shape),
+            .shadow(if (isDark) 12.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
@@ -298,13 +299,13 @@ private fun getCycleSummary(supplement: UserSupplement): String {
 private fun InfoCard(title: String, content: String) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(10.dp, shape),
+            .shadow(if (isDark) 10.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
@@ -338,13 +339,13 @@ private fun ClientManagementCard(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(12.dp, shape),
+            .shadow(if (isDark) 12.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
@@ -390,13 +391,13 @@ private fun ClientManagementCard(
 private fun LogoCard() {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shape = RoundedCornerShape(20.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.50f)
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.70f)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color(0x14000000)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(14.dp, shape),
+            .shadow(if (isDark) 14.dp else 2.dp, shape),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),

@@ -41,11 +41,8 @@ fun AddSupplementScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFF1F8E9), Color.White))
-    }
+    val backgroundColor = Color(0xFFF2F2F7)
+    val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
 
     val timePickerDialog = TimePickerDialog(
         context,
@@ -63,7 +60,11 @@ fun AddSupplementScreen(
         viewModel.loadSupplementForEdit(supplementId)
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) backgroundBrush else backgroundColor)
+    ) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -101,13 +102,13 @@ fun AddSupplementScreen(
             // Hiển thị gợi ý
             if (state.suggestions.isNotEmpty()) {
                 val shape = RoundedCornerShape(16.dp)
-                val containerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.55f)
-                val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+                val containerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White
+                val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color(0x14000000)
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
-                        .shadow(12.dp, shape),
+                        .shadow(if (isDark) 12.dp else 2.dp, shape),
                     shape = shape,
                     colors = CardDefaults.cardColors(containerColor = containerColor),
                     border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
@@ -115,6 +116,7 @@ fun AddSupplementScreen(
                 ) {
                     state.suggestions.forEach { suggestion ->
                         ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             headlineContent = { Text(suggestion.name) },
                             supportingContent = { 
                                 Text(suggestion.advice ?: stringResource(R.string.suggested, suggestion.preferredTime)) 
@@ -141,14 +143,14 @@ fun AddSupplementScreen(
             Text(stringResource(R.string.schedule_cycle_title), style = MaterialTheme.typography.titleMedium)
             
             val timeShape = RoundedCornerShape(16.dp)
-            val timeContainerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.55f)
-            val timeBorderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+            val timeContainerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White
+            val timeBorderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color(0x14000000)
             Card(
                 onClick = { timePickerDialog.show() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
-                    .shadow(10.dp, timeShape),
+                    .shadow(if (isDark) 10.dp else 2.dp, timeShape),
                 shape = timeShape,
                 colors = CardDefaults.cardColors(containerColor = timeContainerColor),
                 border = androidx.compose.foundation.BorderStroke(1.dp, timeBorderColor),
