@@ -7,11 +7,12 @@ platform :ios do
       project: "OAKHealthy.xcodeproj",
       scheme: "OAKHealthy",
       configuration: "Release",
-      export_method: "development", # Or app-store if you have proper certs later
-      skip_codesigning: true,       # Crucial for CI without certificates
+      skip_codesigning: true,
+      skip_package_ipa: true,
+      skip_package_pkg: true,
       clean: true,
-      destination: "generic/platform=iOS"
+      destination: "generic/platform=iOS",
+      archive_path: "./build/OAKHealthy.xcarchive"
     )
   end
 end
-

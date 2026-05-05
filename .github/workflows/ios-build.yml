@@ -153,10 +153,17 @@ jobs:
       - name: Build iOS App with Fastlane
         working-directory: ./iOS
         run: bundle exec fastlane build
+
+      - name: Package Unsigned IPA
+        working-directory: ./iOS
+        run: |
+          mkdir -p Payload
+          cp -R build/OAKHealthy.xcarchive/Products/Applications/OAKHealthy.app Payload/
+          zip -qr OAKHealthy_Unsigned.ipa Payload
           
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OAKHealthy-IPA
-          path: iOS/*.ipa
+          name: OAKHealthy-iOS-IPA
+          path: iOS/OAKHealthy_Unsigned.ipa
           if-no-files-found: error
