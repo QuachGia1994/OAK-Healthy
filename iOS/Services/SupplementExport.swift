@@ -89,7 +89,10 @@ struct SupplementExportCodec {
         colorScheme: ColorScheme
     ) throws -> Data {
         let items = makeShareItems(from: supplements)
-        let renderer = ImageRenderer(content: StackShareSnapshotView(items: items).environment(\.colorScheme, .light))
+        let renderer = ImageRenderer(
+            content: StackShareSnapshotView(items: items)
+                .environment(\.colorScheme, colorScheme)
+        )
         renderer.scale = 3
         guard let cgImage = renderer.cgImage else { throw SupplementExportError.writeFailed }
         return try pngData(from: cgImage)
@@ -186,55 +189,96 @@ private struct StackShareItem: Identifiable, Sendable {
 private struct StackShareSnapshotView: View {
     let items: [StackShareItem]
     
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(white: 0.95), Color(white: 0.90)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("OAK Healthy")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.primary)
+                Spacer()
+            }
             
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("OAK Healthy")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.black)
-                    Spacer()
-                }
-                
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(items.prefix(12)) { item in
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(item.time)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(items) { item in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(item.time)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 52, alignment: .leading)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            Text(item.dose)
                                 .font(.caption)
-                                .foregroundStyle(Color.gray)
-                                .frame(width: 52, alignment: .leading)
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.name)
-                                    .font(.headline)
-                                    .foregroundStyle(Color.black)
-                                Text(item.dose)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.gray)
-                            }
-                            Spacer()
+                                .foregroundStyle(.secondary)
                         }
+                        Spacer()
                     }
                 }
             }
-            .padding(18)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(Color.black.opacity(0.06), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 10)
-            .padding(18)
         }
-        .frame(width: 400, height: 520, alignment: .center)
+        .padding(18)
+        .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(cardBorder, lineWidth: 1)
+        )
+        .shadow(color: cardShadow, radius: 16, x: 0, y: 10)
+        .padding(18)
+        .frame(width: 400, alignment: .center)
+        .background(gradientBackground)
+    }
+    
+    private var gradientBackground: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: gradientColors,
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+    }
+    
+    private var gradientColors: [Color] {
+        switch colorScheme {
+        case .dark:
+            return [Color(white: 0.1), Color(white: 0.05)]
+        default:
+            return [Color(white: 0.95), Color(white: 0.90)]
+        }
+    }
+    
+    private var cardBackground: Color {
+        switch colorScheme {
+        case .dark:
+            return Color(white: 0.12)
+        default:
+            return .white
+        }
+    }
+    
+    private var cardBorder: Color {
+        switch colorScheme {
+        case .dark:
+            return Color.white.opacity(0.10)
+        default:
+            return Color.black.opacity(0.06)
+        }
+    }
+    
+    private var cardShadow: Color {
+        switch colorScheme {
+        case .dark:
+            return Color.black.opacity(0.50)
+        default:
+            return Color.black.opacity(0.12)
+        }
     }
 }
