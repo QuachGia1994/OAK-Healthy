@@ -3,7 +3,7 @@ package com.example.supplementtracker.presentation.share
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.view.View
+import android.view.Choreographer
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +28,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class StackShareItem(
     val name: String,
@@ -36,8 +44,11 @@ data class StackShareItem(
 )
 
 object StackShareImageGenerator {
-    fun generate(
+    suspend fun generate(
         context: Context,
+        lifecycleOwner: LifecycleOwner,
+        savedStateRegistryOwner: SavedStateRegistryOwner,
+        viewModelStoreOwner: ViewModelStoreOwner,
         items: List<StackShareItem>,
         isDark: Boolean
     ): Bitmap {
@@ -47,6 +58,9 @@ object StackShareImageGenerator {
         val composeView = ComposeView(context)
         composeView.layoutParams = ViewGroup.LayoutParams(desiredWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
         composeView.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        composeView.setViewTreeLifecycleOwner(lifecycleOwner)
+        composeView.setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
+        composeView.setViewTreeViewModelStoreOwner(viewModelStoreOwner)
 
         composeView.setContent {
             StackShareCapture(
@@ -55,24 +69,38 @@ object StackShareImageGenerator {
             )
         }
 
-        val widthSpec = View.MeasureSpec.makeMeasureSpec(desiredWidth, View.MeasureSpec.EXACTLY)
-        val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        composeView.measure(widthSpec, heightSpec)
-        check(composeView.measuredWidth > 0 && composeView.measuredHeight > 0) {
-            "Invalid measured size: ${composeView.measuredWidth}x${composeView.measuredHeight}"
+        try {
+            awaitNextFrame()
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(desiredWidth, View.MeasureSpec.EXACTLY)
+            val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            composeView.measure(widthSpec, heightSpec)
+            check(composeView.measuredWidth > 0 && composeView.measuredHeight > 0) {
+                "Invalid measured size: ${composeView.measuredWidth}x${composeView.measuredHeight}"
+            }
+            composeView.layout(0, 0, composeView.measuredWidth, composeView.measuredHeight)
+            awaitNextFrame()
+
+            val bitmap = Bitmap.createBitmap(
+                composeView.measuredWidth,
+                composeView.measuredHeight,
+                Bitmap.Config.ARGB_8888
+            )
+            val canvas = Canvas(bitmap)
+            composeView.draw(canvas)
+            return bitmap
+        } finally {
+            composeView.disposeComposition()
         }
-        composeView.layout(0, 0, composeView.measuredWidth, composeView.measuredHeight)
+    }
 
-        val bitmap = Bitmap.createBitmap(
-            composeView.measuredWidth,
-            composeView.measuredHeight,
-            Bitmap.Config.ARGB_8888
-        )
-        val canvas = Canvas(bitmap)
-        composeView.draw(canvas)
-        composeView.disposeComposition()
-
-        return bitmap
+    private suspend fun awaitNextFrame() {
+        suspendCancellableCoroutine { continuation ->
+            Choreographer.getInstance().postFrameCallback {
+                if (continuation.isActive) {
+                    continuation.resume(Unit)
+                }
+            }
+        }
     }
 }
 

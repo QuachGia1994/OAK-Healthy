@@ -48,11 +48,16 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.core.content.FileProvider
 import android.util.Log
+import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.findViewTreeLifecycleOwner
+import androidx.lifecycle.findViewTreeViewModelStoreOwner
+import androidx.savedstate.ViewTreeSavedStateRegistryOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +74,7 @@ fun SettingsScreen(
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val hostView = LocalView.current
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareChooserTitle = stringResource(R.string.share_stack)
@@ -285,8 +291,29 @@ fun SettingsScreen(
                                                 .sortedBy { it.intakeTime }
                                                 .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
 
+                                            val lifecycleOwner = hostView.findViewTreeLifecycleOwner()
+                                            if (lifecycleOwner == null) {
+                                                Toast.makeText(context, "Lỗi chia sẻ: Missing LifecycleOwner", Toast.LENGTH_LONG).show()
+                                                return@launch
+                                            }
+
+                                            val savedStateRegistryOwner = ViewTreeSavedStateRegistryOwner.get(hostView)
+                                            if (savedStateRegistryOwner == null) {
+                                                Toast.makeText(context, "Lỗi chia sẻ: Missing SavedStateRegistryOwner", Toast.LENGTH_LONG).show()
+                                                return@launch
+                                            }
+
+                                            val viewModelStoreOwner = hostView.findViewTreeViewModelStoreOwner()
+                                            if (viewModelStoreOwner == null) {
+                                                Toast.makeText(context, "Lỗi chia sẻ: Missing ViewModelStoreOwner", Toast.LENGTH_LONG).show()
+                                                return@launch
+                                            }
+
                                             val bitmap = StackShareImageGenerator.generate(
                                                 context = context,
+                                                lifecycleOwner = lifecycleOwner,
+                                                savedStateRegistryOwner = savedStateRegistryOwner,
+                                                viewModelStoreOwner = viewModelStoreOwner,
                                                 items = shareItems,
                                                 isDark = isDark
                                             )
@@ -317,7 +344,7 @@ fun SettingsScreen(
                                         } catch (e: Exception) {
                                             Log.e("ShareStack", "Error sharing stack", e)
                                             e.printStackTrace()
-                                            snackbarHostState.showSnackbar("Share failed")
+                                            Toast.makeText(context, "Lỗi chia sẻ: ${e.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
                                         }
                                     }
                                 },
