@@ -93,7 +93,7 @@ public struct SettingsView: View {
                 isShowingAddClientSheet = true
             }
         }
-        .listRowBackground(.ultraThinMaterial)
+        .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
@@ -130,7 +130,7 @@ public struct SettingsView: View {
             }
             .pickerStyle(.segmented)
         }
-        .listRowBackground(.ultraThinMaterial)
+        .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
@@ -148,7 +148,7 @@ public struct SettingsView: View {
                 }
             }
         }
-        .listRowBackground(.ultraThinMaterial)
+        .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
@@ -162,7 +162,7 @@ public struct SettingsView: View {
             }
             .padding(.vertical, 4)
         }
-        .listRowBackground(.ultraThinMaterial)
+        .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
@@ -172,7 +172,7 @@ public struct SettingsView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
         }
-        .listRowBackground(.ultraThinMaterial)
+        .listRowBackground(glassRowBackground)
     }
     
     @ViewBuilder
@@ -187,7 +187,7 @@ public struct SettingsView: View {
                     .padding(.top, 4)
             }
         }
-        .listRowBackground(.ultraThinMaterial)
+        .listRowBackground(glassRowBackground)
     }
     
     private var backgroundGradient: LinearGradient {
@@ -195,6 +195,10 @@ public struct SettingsView: View {
             ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
             : [Color(.systemGroupedBackground), Color(.systemBackground)]
         return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    private var glassRowBackground: some View {
+        Color.clear.background(.ultraThinMaterial)
     }
     
     private func deleteClient(_ client: ClientProfile) {
