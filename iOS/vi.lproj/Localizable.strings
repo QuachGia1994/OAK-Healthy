@@ -7,7 +7,7 @@
 "dashboard_title" = "Dashboard";
 "today_intake_title" = "Cần uống hôm nay";
 "resting_title" = "Đang nghỉ";
-"no_intake_today" = "Hôm nay bạn không có lịch uống nào.";
+"no_intake_today" = "Không có lịch uống hôm nay.";
 "delete" = "Xóa";
 "edit" = "Chỉnh sửa";
 
@@ -48,19 +48,19 @@
 "appearance_dark" = "Tối";
 "appearance_system" = "Hệ thống";
 "my_list_title" = "Danh sách của tôi";
-"no_supplements_yet" = "Chưa có chất bổ sung nào.";
+"no_supplements_yet" = "Chưa có thực phẩm bổ sung.";
 "user_guide_title" = "Hướng dẫn sử dụng";
 "about_title" = "Giới thiệu";
 "copyright_title" = "Bản quyền & Tác giả";
 "dedication_text" = "Bằng cả tâm huyết và nghiên cứu trong hành trình gym & trading.";
-"settings_guide_1" = "Nhấn (+) để thêm thực phẩm bổ sung mới.";
-"settings_guide_2" = "Chọn từ gợi ý để tự động điền chu kỳ.";
-"settings_guide_3" = "Tích chọn vòng tròn ở Dashboard sau khi uống.";
-"settings_guide_4" = "Theo dõi chu kỳ On/Off và biểu đồ ở tab Lịch sử.";
-"settings_about_body" = "OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.";
-"settings_app_name_label" = "Tên app";
-"settings_author_label" = "Tác giả";
-"settings_copyright_body" = "© 2026 OAK Healthy. All rights reserved.";
+"settings_guide_1" = "1. Nhấn (+) để thêm thực phẩm bổ sung mới.";
+"settings_guide_2" = "2. Chọn từ gợi ý để tự động điền chu kỳ.";
+"settings_guide_3" = "3. Tích chọn vòng tròn ở Dashboard sau khi uống.";
+"settings_guide_4" = "4. Theo dõi chu kỳ On/Off ở tab Lịch sử.";
+"settings_about_body" = "OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên.";
+"settings_app_name_label" = "Tên app: OAK Healthy v1.0";
+"settings_author_label" = "Tác giả: Mr. Phong (Personal Trader)";
+"settings_copyright_body" = "Copyright © 2026 OAK Healthy. Mọi bản quyền được bảo lưu.";
 
 /* Cycle */
 "cycle_status_on" = "Đang trong chu kỳ";
@@ -69,7 +69,7 @@
 "cycle_summary_format" = "%@, %d ngày uống / %d ngày nghỉ";
 
 /* Update */
-"update_available_title" = "Đã có phiên bản mới!";
+"update_available_title" = "Có bản cập nhật mới";
 "update_available_message" = "Hãy cập nhật để trải nghiệm những tính năng mới nhất và tăng cường bảo mật (v%@).";
 "update_now" = "Cập nhật ngay";
 "later" = "Để sau";

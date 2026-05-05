@@ -179,8 +179,12 @@ public struct SettingsView: View {
     private var copyrightSection: some View {
         Section("copyright_title") {
             VStack(alignment: .leading, spacing: 4) {
-                LabeledContent(String(localized: "settings_app_name_label"), value: "OAK Healthy v1.0")
-                LabeledContent(String(localized: "settings_author_label"), value: "Mr. Phong (Personal Trader)")
+                Text("settings_app_name_label")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                Text("settings_author_label")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
                 Text(String(localized: "settings_copyright_body"))
                     .font(.caption)
                     .foregroundStyle(.tertiary)

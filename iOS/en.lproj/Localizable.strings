@@ -1,5 +1,5 @@
 /* Tabs */
-"tab_home" = "Dashboard";
+"tab_home" = "Home";
 "tab_history" = "History";
 "tab_settings" = "Settings";
 
@@ -7,7 +7,7 @@
 "dashboard_title" = "Dashboard";
 "today_intake_title" = "Today's Intake";
 "resting_title" = "Resting";
-"no_intake_today" = "No scheduled intakes today.";
+"no_intake_today" = "No intake scheduled for today.";
 "delete" = "Delete";
 "edit" = "Edit";
 
@@ -53,14 +53,14 @@
 "about_title" = "About";
 "copyright_title" = "Copyright & Author";
 "dedication_text" = "With all dedication and research in the fitness & trading journey.";
-"settings_guide_1" = "Tap (+) to add a new supplement.";
-"settings_guide_2" = "Pick from suggestions to auto-fill the cycle.";
-"settings_guide_3" = "Check the circle on Dashboard after taking it.";
-"settings_guide_4" = "Track On/Off cycles and charts in History.";
-"settings_about_body" = "OAK Healthy - A professional supplement cycle assistant for traders and athletes. Helps optimize performance and discipline.";
-"settings_app_name_label" = "App";
-"settings_author_label" = "Author";
-"settings_copyright_body" = "© 2026 OAK Healthy. All rights reserved.";
+"settings_guide_1" = "1. Tap (+) to add a new supplement.";
+"settings_guide_2" = "2. Choose from suggestions for auto-cycles.";
+"settings_guide_3" = "3. Tap the circle on Dashboard after taking.";
+"settings_guide_4" = "4. Track ON/OFF cycles in History.";
+"settings_about_body" = "OAK Healthy - Professional supplement tracker for Traders and Athletes.";
+"settings_app_name_label" = "OAK Healthy v1.0";
+"settings_author_label" = "Mr. Phong (Personal Trader)";
+"settings_copyright_body" = "Copyright © 2026 OAK Healthy. All rights reserved.";
 
 /* Cycle */
 "cycle_status_on" = "In cycle";
@@ -69,9 +69,9 @@
 "cycle_summary_format" = "%@, %d on / %d off";
 
 /* Update */
-"update_available_title" = "Update available!";
+"update_available_title" = "Update Available";
 "update_available_message" = "Update to get the latest features and security improvements (v%@).";
-"update_now" = "Update now";
+"update_now" = "Update Now";
 "later" = "Later";
 
 /* Formats */

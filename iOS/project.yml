@@ -16,7 +16,6 @@ targets:
       - path: Services
       - path: Views
     resources:
-      - path: Localizable.xcstrings
       - path: en.lproj
       - path: vi.lproj
     settings:
