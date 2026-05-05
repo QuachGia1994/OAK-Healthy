@@ -8,6 +8,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -45,6 +48,7 @@ fun AppNavigation(
     homeViewModel: HomeViewModel,
     historyViewModel: HistoryViewModel,
     addSupplementViewModel: AddSupplementViewModel,
+    activeClientManager: ActiveClientManager,
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
@@ -53,11 +57,20 @@ fun AppNavigation(
     val currentDestination = navBackStackEntry?.destination
 
     val items = listOf(Screen.Home, Screen.History, Screen.Settings)
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val navContainerColor = if (isDark) {
+        Color.White.copy(alpha = 0.10f)
+    } else {
+        Color.White.copy(alpha = 0.70f)
+    }
 
     Scaffold(
         bottomBar = {
             if (currentDestination?.route != Screen.AddSupplement.route) {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = navContainerColor,
+                    tonalElevation = 0.dp
+                ) {
                     items.forEach { screen ->
                         NavigationBarItem(
                             icon = screen.icon,
@@ -82,6 +95,7 @@ fun AppNavigation(
             composable(Screen.Home.route) {
                 HomeScreen(
                     viewModel = homeViewModel,
+                    activeClientManager = activeClientManager,
                     onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
                     onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") }
                 )
@@ -94,6 +108,7 @@ fun AppNavigation(
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     homeViewModel = homeViewModel,
+                    activeClientManager = activeClientManager,
                     appTheme = appTheme,
                     onThemeChange = onThemeChange
                 )

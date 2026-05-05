@@ -9,6 +9,8 @@ import com.example.supplementtracker.domain.model.UserSupplementTakenToday
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
@@ -19,29 +21,34 @@ import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.ZoneId
 import com.example.supplementtracker.data.mock.SupplementDictionary
+import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.domain.model.ClientProfile
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
  */
 class HomeViewModel(
     private val repository: com.example.supplementtracker.domain.repository.SupplementRepository,
+    private val activeClientManager: ActiveClientManager,
     private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
 ) : ViewModel() {
 
     private val _refreshTrigger = MutableStateFlow(0)
 
-    val uiState: StateFlow<HomeUiState> = _refreshTrigger
-        .flatMapLatest {
-            repository.getSupplementsWithTakenToday(getStartOfDay(), getEndOfDay())
-        }
-        .map { supplements ->
-            processSupplements(supplements)
+    val uiState: StateFlow<HomeUiState> = combine(
+        activeClientManager.currentClientId,
+        _refreshTrigger
+    ) { clientId, _ -> clientId }
+        .flatMapLatest { clientId ->
+            val id = clientId?.toString() ?: return@flatMapLatest flowOf(HomeUiState.NoClient)
+            repository.getSupplementsWithTakenToday(id, getStartOfDay(), getEndOfDay())
+                .map { supplements -> processSupplements(supplements) }
         }
         .stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = HomeUiState.Loading
-    )
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = HomeUiState.Loading
+        )
 
     fun refresh() {
         _refreshTrigger.value += 1
@@ -91,6 +98,24 @@ class HomeViewModel(
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
             repository.deleteSupplement(supplement)
+        }
+    }
+
+    fun createClient(profile: ClientProfile) {
+        viewModelScope.launch {
+            repository.saveClient(profile)
+        }
+    }
+
+    fun deleteClient(profile: ClientProfile) {
+        viewModelScope.launch {
+            repository.deleteClient(profile)
+        }
+    }
+
+    fun updateClient(profile: ClientProfile) {
+        viewModelScope.launch {
+            repository.updateClient(profile)
         }
     }
 

@@ -1,8 +1,12 @@
 package com.example.supplementtracker.service
 
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Thông tin phiên bản ứng dụng từ xa.
@@ -10,7 +14,15 @@ import kotlinx.coroutines.flow.asStateFlow
 data class AppUpdateInfo(
     val version: String,
     val updateUrl: String,
-    val forceUpdate: Boolean
+    val forceUpdate: Boolean,
+    val releaseNotes: String
+)
+
+data class UpdateConfig(
+    val latestVersion: String,
+    val isForceUpdate: Boolean,
+    val releaseNotes: String,
+    val updateUrl: String
 )
 
 /**
@@ -27,17 +39,64 @@ class UpdateService {
      * Kiểm tra phiên bản mới bất đồng bộ.
      */
     suspend fun checkForUpdates(currentVersionName: String) {
-        // Giả lập gọi API kiểm tra version
-        delay(1000)
-        
-        val remoteVersion = "1.1.0" // Giả sử version mới
-        if (remoteVersion > currentVersionName) {
+        val config = fetchConfig() ?: return
+        if (!isVersionNewer(config.latestVersion, currentVersionName)) return
+
+        withContext(Dispatchers.Main) {
             _updateInfo.value = AppUpdateInfo(
-                version = remoteVersion,
-                updateUrl = "https://github.com/your-repo/OAK-Healthy/releases",
-                forceUpdate = false
+                version = config.latestVersion,
+                updateUrl = config.updateUrl,
+                forceUpdate = config.isForceUpdate,
+                releaseNotes = config.releaseNotes
             )
             _isUpdateAvailable.value = true
         }
+    }
+
+    fun dismissUpdate() {
+        _isUpdateAvailable.value = false
+    }
+
+    private suspend fun fetchConfig(): UpdateConfig? = withContext(Dispatchers.IO) {
+        runCatching {
+            val url = URL(CONFIG_URL)
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 5_000
+                readTimeout = 5_000
+            }
+
+            connection.inputStream.bufferedReader().use { reader ->
+                val json = JSONObject(reader.readText())
+                UpdateConfig(
+                    latestVersion = json.getString("latest_version"),
+                    isForceUpdate = json.getBoolean("is_force_update"),
+                    releaseNotes = json.getString("release_notes"),
+                    updateUrl = json.getString("update_url")
+                )
+            }
+        }.getOrNull()
+    }
+
+    private fun isVersionNewer(remote: String, current: String): Boolean {
+        return compareVersions(remote, current) > 0
+    }
+
+    private fun compareVersions(a: String, b: String): Int {
+        val aParts = a.split(".").map { it.toIntOrNull() ?: 0 }
+        val bParts = b.split(".").map { it.toIntOrNull() ?: 0 }
+        val count = maxOf(aParts.size, bParts.size)
+
+        for (i in 0 until count) {
+            val left = aParts.getOrElse(i) { 0 }
+            val right = bParts.getOrElse(i) { 0 }
+            if (left != right) return left - right
+        }
+        return 0
+    }
+
+    private companion object {
+        private const val CONFIG_URL =
+            "https://gist.githubusercontent.com/QuachGia1994/901e36f6bab91729d5dd0e2ccce7202f/raw/oak_update.json"
     }
 }

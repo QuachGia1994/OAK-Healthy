@@ -1,19 +1,70 @@
 <resources>
     <string name="app_name">OAK Healthy</string>
-    <string name="nav_home">Trang chủ</string>
-    <string name="nav_history">Lịch sử</string>
-    <string name="nav_settings">Cài đặt</string>
+    <string name="nav_home">Dashboard</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
     
-    <string name="settings_title">Thông tin ứng dụng</string>
-    <string name="settings_guide_title">Hướng dẫn sử dụng</string>
-    <string name="settings_guide_content">1. Nhấn (+) để thêm thực phẩm bổ sung mới.\n2. Chọn từ gợi ý để tự động điền chu kỳ.\n3. Tích chọn vòng tròn xanh ở Dashboard sau khi uống.\n4. Theo dõi chu kỳ On/Off và biểu đồ ở tab Lịch sử.</string>
+    <string name="settings_title">Settings</string>
+    <string name="app_information_title">App Information</string>
+    <string name="settings_guide_title">User Guide</string>
+    <string name="settings_guide_content">1. Tap (+) to add a new supplement.\n2. Pick from suggestions to auto-fill the cycle.\n3. Check the circle on Dashboard after taking it.\n4. Track On/Off cycles and charts in History.</string>
     
-    <string name="settings_intro_title">Giới thiệu</string>
-    <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>
+    <string name="settings_intro_title">About</string>
+    <string name="settings_intro_content">OAK Healthy - A professional supplement cycle assistant for traders and athletes. Helps optimize performance and discipline.</string>
     
-    <string name="settings_copyright_title">Bản quyền &amp; Tác giả</string>
-    <string name="settings_app_version">Tên app: OAK Healthy v1.0</string>
-    <string name="settings_author">Tác giả: Mr. Phong (Personal Trader)</string>
-    <string name="settings_copyright">Copyright: © 2026 OAK Healthy. All rights reserved.</string>
-    <string name="settings_dedication">Dedicated to my Sư phụ and Benefactors</string>
+    <string name="settings_copyright_title">Copyright &amp; Author</string>
+    <string name="settings_app_version">App: OAK Healthy v1.0</string>
+    <string name="settings_author">Author: Mr. Phong (Personal Trader)</string>
+    <string name="settings_copyright">© 2026 OAK Healthy. All rights reserved.</string>
+    <string name="settings_dedication">With all dedication and research in the fitness &amp; trading journey.</string>
+
+    <string name="appearance_title">Appearance</string>
+    <string name="appearance_light">Light</string>
+    <string name="appearance_dark">Dark</string>
+    <string name="appearance_system">System</string>
+    <string name="cycle_status_on">In cycle</string>
+    <string name="cycle_status_off">In rest</string>
+    <string name="cycle_continuous">Continuous</string>
+    <string name="cycle_summary_format">%1$s: %2$d on / %3$d off</string>
+
+    <string name="today_intake_title">Today\'s Intake</string>
+    <string name="resting_title">Resting</string>
+    <string name="no_intake_today">No scheduled intakes today.</string>
+    <string name="rest_until">Rest until: %1$s</string>
+    <string name="days_remaining">%1$d days left</string>
+
+    <string name="update_available_title">Update available!</string>
+    <string name="update_available_message">Update to get the latest features and security improvements (v%1$s).</string>
+    <string name="update_now">Update now</string>
+    <string name="later">Later</string>
+
+    <string name="add_supplement_title">Add Supplement</string>
+    <string name="edit_supplement_title">Edit Supplement</string>
+    <string name="save">Save</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="name_hint">Name (e.g., Vitamin D3)</string>
+    <string name="daily_dose_hint">Daily dose</string>
+    <string name="schedule_cycle_title">Schedule &amp; Cycle</string>
+    <string name="intake_time">Intake time: %1$s</string>
+    <string name="continuous">Continuous</string>
+    <string name="on_days">On Days</string>
+    <string name="off_days">Off Days</string>
+    <string name="duration">Duration</string>
+    <string name="duration_placeholder">e.g., 3 months (leave blank for unlimited)</string>
+    <string name="example_on_days">e.g., 14 days</string>
+    <string name="example_off_days">e.g., 7 days</string>
+    <string name="suggested">Suggested: %1$s</string>
+    <string name="my_list_title">My List</string>
+
+    <string name="history_title">History</string>
+    <string name="intake_frequency_last_7">Intake Frequency (Last 7 days)</string>
+    <string name="log_details">Log Details</string>
+    <string name="no_logs_yet">No logs yet.</string>
+    <string name="taken">Taken</string>
+
+    <string name="notification_channel_name">Supplement reminders</string>
+    <string name="notification_default_name">Supplement</string>
+    <string name="notification_title">Time to take it! 🌿</string>
+    <string name="notification_body_format">You need to take %1$s - Dose: %2$s. Wishing you a productive work/trading session!</string>
 </resources>

@@ -3,53 +3,75 @@ import SwiftData
 
 /// Màn hình thêm mới thực phẩm bổ sung.
 public struct AddSupplementView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @State private var viewModel: AddSupplementViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     
     public var onSave: (UserSupplement) -> Void
     
-    public init(modelContext: ModelContext, editingSupplement: UserSupplement? = nil, onSave: @escaping (UserSupplement) -> Void) {
+    private let activeClient: ClientProfile?
+    
+    public init(
+        modelContext: ModelContext,
+        editingSupplement: UserSupplement? = nil,
+        activeClient: ClientProfile? = nil,
+        onSave: @escaping (UserSupplement) -> Void
+    ) {
         self.onSave = onSave
-        _viewModel = State(initialValue: AddSupplementViewModel(modelContext: modelContext, editingSupplement: editingSupplement))
+        self.activeClient = activeClient
+        _viewModel = State(initialValue: AddSupplementViewModel(modelContext: modelContext, editingSupplement: editingSupplement, activeClient: activeClient))
     }
     
     public var body: some View {
         NavigationStack {
-            Form {
-                basicSection
-                cycleSection
-            }
-            .navigationTitle("Thêm chất mới")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Hủy") { dismiss() }
+            ZStack {
+                backgroundGradient
+                    .ignoresSafeArea()
+                
+                Form {
+                    basicSection
+                    cycleSection
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Lưu") {
-                        Task {
-                            if let supplement = await viewModel.saveSupplement() {
-                                onSave(supplement)
-                                dismiss()
+                .scrollContentBackground(.hidden)
+                .navigationTitle("add_supplement_title")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("cancel") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("save") {
+                            Task {
+                                if let supplement = await viewModel.saveSupplement() {
+                                    onSave(supplement)
+                                    dismiss()
+                                }
                             }
                         }
+                        .disabled(viewModel.name.isEmpty)
                     }
-                    .disabled(viewModel.name.isEmpty)
                 }
             }
         }
     }
     
+    private var backgroundGradient: LinearGradient {
+        let colors: [Color] = colorScheme == .dark
+            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
+            : [Color(.systemGroupedBackground), Color(.systemBackground)]
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+    
     private var basicSection: some View {
-        Section("Thông tin cơ bản") {
-            TextField("Tên chất (VD: Vitamin D3)", text: $viewModel.name)
+        Section("basic_info_title") {
+            TextField("name_hint", text: $viewModel.name)
                 .onChange(of: viewModel.name) {
                     Task { await viewModel.updateSuggestions() }
                 }
             
             suggestionsSection
             
-            TextField("Liều lượng hàng ngày (VD: 1000 IU)", text: $viewModel.dailyDose)
+            TextField("dose_hint", text: $viewModel.dailyDose)
         }
     }
     
@@ -64,9 +86,15 @@ public struct AddSupplementView: View {
                         VStack(alignment: .leading) {
                             Text(suggestion.name)
                                 .font(.headline)
-                            Text("Gợi ý: \(suggestion.preferredTime)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if let advice = suggestion.advice, !advice.isEmpty {
+                                Text(advice)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(String(format: String(localized: "suggested_format"), suggestion.preferredTime))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         Spacer()
                         Image(systemName: "plus.circle")
@@ -77,25 +105,25 @@ public struct AddSupplementView: View {
     }
     
     private var cycleSection: some View {
-        Section("Lịch trình & Chu kỳ") {
-            DatePicker("Ngày bắt đầu", selection: $viewModel.startDate, displayedComponents: .date)
-            DatePicker("Giờ uống", selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
-            Toggle("Uống liên tục (Không nghỉ)", isOn: $viewModel.isContinuous)
+        Section("schedule_cycle_title") {
+            DatePicker("start_date", selection: $viewModel.startDate, displayedComponents: .date)
+            DatePicker("intake_time", selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
+            Toggle("continuous", isOn: $viewModel.isContinuous)
             
             if !viewModel.isContinuous {
                 HStack {
-                    Text("Số ngày uống (On Days)")
+                    Text("on_days")
                     Spacer()
-                    TextField("Ví dụ: 14", text: $viewModel.daysOn)
+                    TextField("example_on_days", text: $viewModel.daysOn)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
                 }
                 
                 HStack {
-                    Text("Số ngày nghỉ (Off Days)")
+                    Text("off_days")
                     Spacer()
-                    TextField("Ví dụ: 7", text: $viewModel.daysOff)
+                    TextField("example_off_days", text: $viewModel.daysOff)
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
@@ -103,16 +131,16 @@ public struct AddSupplementView: View {
             }
             
             HStack {
-                Text("Tổng thời hạn (Duration)")
+                Text("duration")
                 Spacer()
-                TextField("Vô thời hạn", text: $viewModel.durationMonths)
+                TextField("unlimited", text: $viewModel.durationMonths)
                     .keyboardType(.numberPad)
                     .multilineTextAlignment(.trailing)
                     .frame(width: 80)
             }
             
             if !viewModel.durationMonths.isEmpty {
-                Text("Tháng")
+                Text("months")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -138,7 +166,7 @@ private struct AddSupplementPreview: View {
     private static func makePreviewContext() -> ModelContext? {
         do {
             let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-            let container = try ModelContainer(for: UserSupplement.self, IntakeRecord.self, configurations: configuration)
+            let container = try ModelContainer(for: ClientProfile.self, UserSupplement.self, IntakeRecord.self, configurations: configuration)
             return container.mainContext
         } catch {
             return nil

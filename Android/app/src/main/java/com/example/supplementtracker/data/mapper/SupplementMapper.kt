@@ -13,6 +13,7 @@ import java.util.*
 fun UserSupplement.toEntity(): SupplementEntity {
     return SupplementEntity(
         id = id.toString(),
+        clientId = clientId.toString(),
         name = name,
         startDate = startDate.toString(),
         daysOn = cycleConfig.daysOn,
@@ -27,6 +28,7 @@ fun UserSupplement.toEntity(): SupplementEntity {
 fun SupplementEntity.toDomain(): UserSupplement {
     return UserSupplement(
         id = UUID.fromString(id),
+        clientId = UUID.fromString(clientId),
         name = name,
         startDate = LocalDate.parse(startDate),
         cycleConfig = CycleConfig(

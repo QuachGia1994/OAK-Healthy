@@ -8,6 +8,23 @@ import kotlinx.coroutines.flow.Flow
  */
 @Dao
 interface SupplementDao {
+    // --- Client Profiles ---
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertClientProfile(profile: ClientProfileEntity)
+
+    @Update
+    suspend fun updateClientProfile(profile: ClientProfileEntity)
+
+    @Delete
+    suspend fun deleteClientProfile(profile: ClientProfileEntity)
+
+    @Query("SELECT * FROM client_profiles ORDER BY createdAt ASC")
+    fun observeClientProfiles(): Flow<List<ClientProfileEntity>>
+
+    @Query("SELECT * FROM client_profiles WHERE id = :id")
+    suspend fun getClientProfileById(id: String): ClientProfileEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSupplement(supplement: SupplementEntity)
 
@@ -20,16 +37,37 @@ interface SupplementDao {
     @Query("SELECT * FROM supplements WHERE id = :id")
     suspend fun getSupplementById(id: String): SupplementEntity?
 
-    @Query("SELECT * FROM supplements ORDER BY name ASC")
-    fun getAllSupplements(): Flow<List<SupplementEntity>>
+    @Query("SELECT * FROM supplements WHERE clientId = :clientId ORDER BY name ASC")
+    fun getSupplementsByClient(clientId: String): Flow<List<SupplementEntity>>
 
     // --- Intake Records ---
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertIntakeRecord(record: IntakeRecordEntity)
 
-    @Query("SELECT * FROM intake_records WHERE date >= :startDate AND date <= :endDate ORDER BY date DESC")
-    fun getRecordsByDateRange(startDate: Long, endDate: Long): Flow<List<IntakeRecordEntity>>
+    @Query(
+        """
+        SELECT
+            r.id AS id,
+            r.supplementId AS supplementId,
+            r.date AS date,
+            r.status AS status,
+            s.name AS supplementName,
+            s.dailyDose AS dailyDose,
+            s.intakeTime AS intakeTime
+        FROM intake_records r
+        INNER JOIN supplements s ON s.id = r.supplementId
+        WHERE s.clientId = :clientId
+        AND r.date >= :startDate
+        AND r.date <= :endDate
+        ORDER BY r.date DESC
+        """
+    )
+    fun getRecordsByDateRange(
+        clientId: String,
+        startDate: Long,
+        endDate: Long
+    ): Flow<List<IntakeRecordWithSupplementEntity>>
 
     @Query("SELECT * FROM intake_records WHERE supplementId = :supplementId ORDER BY date DESC")
     fun getRecordsBySupplement(supplementId: String): Flow<List<IntakeRecordEntity>>
@@ -41,6 +79,7 @@ interface SupplementDao {
         """
         SELECT
             s.id AS id,
+            s.clientId AS clientId,
             s.name AS name,
             s.startDate AS startDate,
             s.daysOn AS daysOn,
@@ -60,14 +99,30 @@ interface SupplementDao {
                 ELSE 0
             END AS isTakenToday
         FROM supplements s
+        WHERE s.clientId = :clientId
         ORDER BY s.name ASC
         """
     )
-    fun getSupplementsWithTakenToday(startOfDay: Long, endOfDay: Long): Flow<List<SupplementWithTakenTodayEntity>>
+    fun getSupplementsWithTakenToday(
+        clientId: String,
+        startOfDay: Long,
+        endOfDay: Long
+    ): Flow<List<SupplementWithTakenTodayEntity>>
 }
+
+data class IntakeRecordWithSupplementEntity(
+    val id: String,
+    val supplementId: String,
+    val date: Long,
+    val status: String,
+    val supplementName: String,
+    val dailyDose: String,
+    val intakeTime: String
+)
 
 data class SupplementWithTakenTodayEntity(
     val id: String,
+    val clientId: String,
     val name: String,
     val startDate: String,
     val daysOn: Int,

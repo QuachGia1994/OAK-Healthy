@@ -7,6 +7,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
  */
 sealed class HomeUiState {
     data object Loading : HomeUiState()
+    data object NoClient : HomeUiState()
     data class Success(
         val activeSupplements: Map<String, List<SupplementUiItem>>,
         val restingSupplements: List<RestingSupplementInfo>

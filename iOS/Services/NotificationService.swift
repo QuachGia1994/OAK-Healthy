@@ -81,8 +81,12 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     private func createNotificationRequest(for supplement: UserSupplement, at date: Date) async throws(NotificationError) {
         let content = UNMutableNotificationContent()
-        content.title = "Đến giờ uống rồi! 🌿"
-        content.body = "Bạn cần nạp \(supplement.name) - Liều lượng: \(supplement.dailyDose). Chúc bạn một phiên giao dịch/làm việc hiệu quả!"
+        content.title = String(localized: "notification_title")
+        content.body = String(
+            format: String(localized: "notification_body_format"),
+            supplement.name,
+            supplement.dailyDose
+        )
         content.sound = .default
         content.userInfo = ["supplementID": supplement.id.uuidString]
         

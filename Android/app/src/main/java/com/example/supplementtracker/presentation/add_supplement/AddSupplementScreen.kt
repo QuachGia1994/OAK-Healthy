@@ -1,9 +1,11 @@
 package com.example.supplementtracker.presentation.add_supplement
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
@@ -12,12 +14,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.domain.model.IntakeTime
 
 import android.app.TimePickerDialog
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.example.supplementtracker.R
 
 /**
  * Màn hình thêm mới chất bổ sung (Jetpack Compose).
@@ -32,6 +40,12 @@ fun AddSupplementScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val backgroundBrush = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFF1F8E9), Color.White))
+    }
 
     val timePickerDialog = TimePickerDialog(
         context,
@@ -49,44 +63,55 @@ fun AddSupplementScreen(
         viewModel.loadSupplementForEdit(supplementId)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (supplementId == null) "Thêm chất mới" else "Chỉnh sửa") },
-                actions = {
-                    Button(onClick = onSave, enabled = state.name.isNotBlank()) {
-                        Text("Lưu")
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    title = { Text(if (supplementId == null) stringResource(R.string.add_supplement_title) else stringResource(R.string.edit_supplement_title)) },
+                    actions = {
+                        Button(onClick = onSave, enabled = state.name.isNotBlank()) {
+                            Text(stringResource(R.string.save))
+                        }
                     }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
+                )
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+            ) {
             // Section: Thông tin cơ bản
             OutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
-                label = { Text("Tên chất (VD: Vitamin D3)") },
+                label = { Text(stringResource(R.string.name_hint)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             // Hiển thị gợi ý
             if (state.suggestions.isNotEmpty()) {
+                val shape = RoundedCornerShape(16.dp)
+                val containerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.55f)
+                val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
+                        .shadow(12.dp, shape),
+                    shape = shape,
+                    colors = CardDefaults.cardColors(containerColor = containerColor),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     state.suggestions.forEach { suggestion ->
                         ListItem(
                             headlineContent = { Text(suggestion.name) },
                             supportingContent = { 
-                                Text(suggestion.advice ?: "Gợi ý: ${suggestion.preferredTime}") 
+                                Text(suggestion.advice ?: stringResource(R.string.suggested, suggestion.preferredTime)) 
                             },
                             trailingContent = { Icon(Icons.Default.AddCircle, contentDescription = null) },
                             modifier = Modifier.clickable { viewModel.onSuggestionClick(suggestion) }
@@ -100,23 +125,33 @@ fun AddSupplementScreen(
             OutlinedTextField(
                 value = state.dailyDose,
                 onValueChange = viewModel::onDailyDoseChange,
-                label = { Text("Liều lượng hàng ngày") },
+                label = { Text(stringResource(R.string.daily_dose_hint)) },
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Section: Lịch trình & Chu kỳ
-            Text("Lịch trình & Chu kỳ", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.schedule_cycle_title), style = MaterialTheme.typography.titleMedium)
             
-            OutlinedCard(
+            val timeShape = RoundedCornerShape(16.dp)
+            val timeContainerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.55f)
+            val timeBorderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+            Card(
                 onClick = { timePickerDialog.show() },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+                    .shadow(10.dp, timeShape),
+                shape = timeShape,
+                colors = CardDefaults.cardColors(containerColor = timeContainerColor),
+                border = androidx.compose.foundation.BorderStroke(1.dp, timeBorderColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Giờ uống: ${state.intakeTime}")
+                    Text(stringResource(R.string.intake_time, state.intakeTime))
                 }
             }
 
@@ -124,7 +159,7 @@ fun AddSupplementScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Uống liên tục")
+                Text(stringResource(R.string.continuous))
                 Spacer(modifier = Modifier.weight(1f))
                 Switch(
                     checked = state.isContinuous,
@@ -137,8 +172,8 @@ fun AddSupplementScreen(
                     OutlinedTextField(
                         value = state.daysOn,
                         onValueChange = viewModel::onDaysOnChange,
-                        label = { Text("Số ngày uống (On Days)") },
-                        placeholder = { Text("Ví dụ: 14 ngày") },
+                        label = { Text(stringResource(R.string.on_days)) },
+                        placeholder = { Text(stringResource(R.string.example_on_days)) },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
@@ -146,8 +181,8 @@ fun AddSupplementScreen(
                     OutlinedTextField(
                         value = state.daysOff,
                         onValueChange = viewModel::onDaysOffChange,
-                        label = { Text("Số ngày nghỉ (Off Days)") },
-                        placeholder = { Text("Ví dụ: 7 ngày") },
+                        label = { Text(stringResource(R.string.off_days)) },
+                        placeholder = { Text(stringResource(R.string.example_off_days)) },
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
@@ -158,11 +193,12 @@ fun AddSupplementScreen(
             OutlinedTextField(
                 value = state.durationMonths,
                 onValueChange = viewModel::onDurationChange,
-                label = { Text("Tổng thời hạn (Duration)") },
-                placeholder = { Text("Ví dụ: 3 tháng hoặc để trống") },
+                label = { Text(stringResource(R.string.duration)) },
+                placeholder = { Text(stringResource(R.string.duration_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
+            }
         }
     }
 }

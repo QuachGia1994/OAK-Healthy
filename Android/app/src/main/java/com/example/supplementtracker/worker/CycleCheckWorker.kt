@@ -26,8 +26,10 @@ class CycleCheckWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
-            // 1. Lấy tất cả thực phẩm bổ sung từ Room
-            val supplements = repository.getAllSupplements().first()
+            val clients = repository.observeClients().first()
+            val supplements = clients.flatMap { client ->
+                repository.getAllSupplements(client.id.toString()).first()
+            }
             val today = LocalDate.now()
 
             // 2. Kiểm tra chu kỳ cho từng chất

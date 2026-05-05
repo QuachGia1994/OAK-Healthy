@@ -1,0 +1,92 @@
+/* Tabs */
+"tab_home" = "Dashboard";
+"tab_history" = "History";
+"tab_settings" = "Settings";
+
+/* Dashboard */
+"dashboard_title" = "Dashboard";
+"today_intake_title" = "Today's Intake";
+"resting_title" = "Resting";
+"no_intake_today" = "No scheduled intakes today.";
+"delete" = "Delete";
+"edit" = "Edit";
+
+/* Add/Edit */
+"add_supplement_title" = "Add Supplement";
+"edit_supplement_title" = "Edit Supplement";
+"cancel" = "Cancel";
+"save" = "Save";
+"basic_info_title" = "Basic Info";
+"schedule_cycle_title" = "Schedule & Cycle";
+"name_hint" = "Name (e.g., Vitamin D3)";
+"dose_hint" = "Daily dose (e.g., 1000 IU)";
+"start_date" = "Start date";
+"intake_time" = "Intake time";
+"continuous" = "Continuous (No breaks)";
+"on_days" = "On Days";
+"off_days" = "Off Days";
+"duration" = "Duration";
+"months" = "Months";
+"unlimited" = "Unlimited";
+"suggested" = "Suggested:";
+"suggested_format" = "Suggested: %@";
+"example_on_days" = "e.g., 14";
+"example_off_days" = "e.g., 7";
+
+/* History */
+"history_title" = "History";
+"intake_frequency_last_7" = "Intake Frequency (Last 7 days)";
+"log_details" = "Log Details";
+"no_logs_yet" = "No logs yet.";
+"taken" = "Taken";
+
+/* Settings */
+"settings_title" = "Settings";
+"app_information" = "App Information";
+"appearance_title" = "Appearance";
+"appearance_light" = "Light";
+"appearance_dark" = "Dark";
+"appearance_system" = "System";
+"my_list_title" = "My List";
+"no_supplements_yet" = "No supplements yet.";
+"user_guide_title" = "User Guide";
+"about_title" = "About";
+"copyright_title" = "Copyright & Author";
+"dedication_text" = "With all dedication and research in the fitness & trading journey.";
+"settings_guide_1" = "Tap (+) to add a new supplement.";
+"settings_guide_2" = "Pick from suggestions to auto-fill the cycle.";
+"settings_guide_3" = "Check the circle on Dashboard after taking it.";
+"settings_guide_4" = "Track On/Off cycles and charts in History.";
+"settings_about_body" = "OAK Healthy - A professional supplement cycle assistant for traders and athletes. Helps optimize performance and discipline.";
+"settings_app_name_label" = "App";
+"settings_author_label" = "Author";
+"settings_copyright_body" = "© 2026 OAK Healthy. All rights reserved.";
+
+/* Cycle */
+"cycle_status_on" = "In cycle";
+"cycle_status_off" = "In rest";
+"cycle_continuous" = "Continuous";
+"cycle_summary_format" = "%@, %d on / %d off";
+
+/* Update */
+"update_available_title" = "Update available!";
+"update_available_message" = "Update to get the latest features and security improvements (v%@).";
+"update_now" = "Update now";
+"later" = "Later";
+
+/* Formats */
+"dose_format" = "Dose: %@";
+"days_remaining_format" = "%d days left";
+"not_available" = "N/A";
+
+/* Notifications */
+"notification_title" = "Time to take it! 🌿";
+"notification_body_format" = "You need to take %1$@ - Dose: %2$@. Wishing you a productive work/trading session!";
+
+/* Calendar */
+"calendar_event_title_format" = "Take %@";
+"calendar_event_notes_format" = "Dose: %@";
+
+/* Charts */
+"chart_axis_day" = "Day";
+"chart_axis_count" = "Count";

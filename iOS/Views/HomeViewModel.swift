@@ -56,6 +56,11 @@ public final class HomeViewModel {
     
     /// Xóa thực phẩm bổ sung.
     public func deleteSupplement(_ supplement: UserSupplement, context: ModelContext) {
+        if !supplement.intakeRecords.isEmpty {
+            for record in supplement.intakeRecords {
+                context.delete(record)
+            }
+        }
         context.delete(supplement)
         try? context.save()
     }

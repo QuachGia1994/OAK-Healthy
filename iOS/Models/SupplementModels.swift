@@ -69,8 +69,8 @@ public final class UserSupplement: Identifiable {
     /// Thời điểm uống trong ngày (Định dạng HH:mm).
     public var intakeTime: String
     
-    /// Liên kết tới Profile người dùng.
-    public var profile: UserProfile?
+    /// Liên kết tới học viên/khách hàng (Coach Mode).
+    public var client: ClientProfile?
     
     /// Danh sách nhật ký lịch sử uống (Relationship cascade).
     @Relationship(deleteRule: .cascade, inverse: \IntakeRecord.supplement)
@@ -92,7 +92,7 @@ public final class UserSupplement: Identifiable {
         cycleConfig: CycleConfig,
         dailyDose: String,
         intakeTime: String,
-        profile: UserProfile? = nil
+        client: ClientProfile? = nil
     ) {
         self.id = id
         self.name = name
@@ -100,23 +100,33 @@ public final class UserSupplement: Identifiable {
         self.cycleConfig = cycleConfig
         self.dailyDose = dailyDose
         self.intakeTime = intakeTime
-        self.profile = profile
+        self.client = client
         self.intakeRecords = []
     }
 }
 
-/// Profile người dùng (SwiftData Model).
+/// Hồ sơ học viên/khách hàng (Coach Mode).
 @Model
-public final class UserProfile: Identifiable {
+public final class ClientProfile: Identifiable {
     @Attribute(.unique) public var id: UUID
     public var name: String
     
-    @Relationship(deleteRule: .cascade, inverse: \UserSupplement.profile)
+    public var avatarColorHex: String
+    public var createdAt: Date
+    
+    @Relationship(deleteRule: .cascade, inverse: \UserSupplement.client)
     public var supplements: [UserSupplement] = []
     
-    public init(id: UUID = UUID(), name: String) {
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        avatarColorHex: String = "#00D084",
+        createdAt: Date = .now
+    ) {
         self.id = id
         self.name = name
+        self.avatarColorHex = avatarColorHex
+        self.createdAt = createdAt
         self.supplements = []
     }
 }
@@ -133,6 +143,7 @@ public final class IntakeRecord: Identifiable {
     /// Trạng thái (mặc định là "Taken").
     public var status: String
     /// Liên kết ngược tới chất bổ sung.
+    @Relationship(inverse: \UserSupplement.intakeRecords)
     public var supplement: UserSupplement?
     
     /// Khởi tạo nhật ký uống.
@@ -165,6 +176,8 @@ public struct SupplementReference: Codable, Sendable, Identifiable {
     public let advice: String?
     /// Thời điểm uống khuyến nghị (HH:mm).
     public let preferredTime: String
+    /// Liều lượng khuyến nghị (VD: 200 mg).
+    public let preferredDose: String?
     /// Chu kỳ uống mặc định.
     public let defaultCycle: CycleConfig
 }

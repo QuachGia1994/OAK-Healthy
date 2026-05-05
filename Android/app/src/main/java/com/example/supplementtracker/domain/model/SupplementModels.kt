@@ -4,6 +4,16 @@ import java.util.UUID
 import java.time.LocalDate
 
 /**
+ * Hồ sơ học viên/khách hàng (Coach Mode).
+ */
+data class ClientProfile(
+    val id: UUID = UUID.randomUUID(),
+    val name: String,
+    val avatarColorArgb: Int,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/**
  * Wrapper cho kết quả xử lý dữ liệu.
  */
 sealed class Resource<out T> {
@@ -41,6 +51,7 @@ data class CycleConfig(
  */
 data class UserSupplement(
     val id: UUID = UUID.randomUUID(),
+    val clientId: UUID,
     val name: String,
     val startDate: LocalDate,
     val cycleConfig: CycleConfig,
@@ -63,6 +74,7 @@ data class SupplementReference(
     val name: String,
     val advice: String? = null,
     val preferredTime: String,
+    val preferredDose: String? = null,
     val defaultCycle: CycleConfig
 )
 

@@ -11,45 +11,66 @@ object SupplementDictionary {
     val references = listOf(
         SupplementReference(
             name = "Ashwagandha",
-            advice = "Giúp giảm căng thẳng và cải thiện giấc ngủ.",
+            advice = "Supports stress reduction and sleep quality.",
             preferredTime = "21:00",
-            defaultCycle = CycleConfig(56, 14)
+            preferredDose = null,
+            defaultCycle = CycleConfig(28, 7)
         ),
         SupplementReference(
             name = "Boron",
-            advice = "Nên uống theo chu kỳ để tối ưu nội tiết tố.",
+            advice = "Cycle it to support hormone optimization.",
             preferredTime = "08:00",
+            preferredDose = null,
             defaultCycle = CycleConfig(14, 7)
         ),
         SupplementReference(
+            name = "Caffeine",
+            advice = "Boosts focus and energy for workouts and trading sessions. Take ~30 minutes pre-workout.",
+            preferredTime = "07:30",
+            preferredDose = "200 mg",
+            defaultCycle = CycleConfig.Continuous
+        ),
+        SupplementReference(
             name = "Vitamin D3",
-            advice = "Nên uống cùng bữa ăn có chất béo.",
+            advice = "Take with a fat-containing meal for better absorption.",
             preferredTime = "08:00",
+            preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
         SupplementReference(
             name = "Omega-3",
-            advice = "Nên uống sau bữa ăn giàu chất béo để hấp thu tốt nhất.",
+            advice = "Take after a fatty meal for best absorption.",
             preferredTime = "12:00",
+            preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
         SupplementReference(
             name = "CoQ10",
-            advice = "Cải thiện năng lượng tế bào, uống sau bữa ăn.",
+            advice = "Supports cellular energy. Take after a meal.",
             preferredTime = "12:00",
+            preferredDose = null,
+            defaultCycle = CycleConfig.Continuous
+        ),
+        SupplementReference(
+            name = "Creatine",
+            advice = "Supports strength and performance. Take daily.",
+            preferredTime = "12:00",
+            preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
         SupplementReference(
             name = "Magnesium",
-            advice = "Hỗ trợ cơ bắp và thần kinh, uống trước khi ngủ.",
+            advice = "Supports muscles and nervous system. Take before sleep.",
             preferredTime = "21:00",
+            preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
         SupplementReference(
             name = "Zinc",
-            advice = "Không nên uống khi bụng đói.",
+            advice = "Avoid taking on an empty stomach.",
             preferredTime = "21:00",
-            defaultCycle = CycleConfig(30, 7)
+            preferredDose = null,
+            defaultCycle = CycleConfig.Continuous
         )
     )
 }

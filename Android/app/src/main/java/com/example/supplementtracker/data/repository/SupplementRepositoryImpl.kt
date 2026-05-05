@@ -2,16 +2,17 @@ package com.example.supplementtracker.data.repository
 
 import com.example.supplementtracker.data.local.IntakeRecordEntity
 import com.example.supplementtracker.data.local.SupplementDao
+import com.example.supplementtracker.data.local.ClientProfileEntity
 import com.example.supplementtracker.data.mapper.toDomain
 import com.example.supplementtracker.data.mapper.toEntity
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
+import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -24,6 +25,24 @@ import java.util.UUID
 class SupplementRepositoryImpl(
     private val dao: SupplementDao
 ) : SupplementRepository {
+
+    override suspend fun saveClient(profile: ClientProfile) = withContext(Dispatchers.IO) {
+        dao.insertClientProfile(profile.toEntity())
+    }
+
+    override suspend fun updateClient(profile: ClientProfile) = withContext(Dispatchers.IO) {
+        dao.updateClientProfile(profile.toEntity())
+    }
+
+    override suspend fun deleteClient(profile: ClientProfile) = withContext(Dispatchers.IO) {
+        dao.deleteClientProfile(profile.toEntity())
+    }
+
+    override fun observeClients(): Flow<List<ClientProfile>> {
+        return dao.observeClientProfiles().map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
 
     override suspend fun saveSupplement(supplement: UserSupplement) = withContext(Dispatchers.IO) {
         dao.insertSupplement(supplement.toEntity())
@@ -41,20 +60,22 @@ class SupplementRepositoryImpl(
         dao.getSupplementById(id)?.toDomain()
     }
 
-    override fun getAllSupplements(): Flow<List<UserSupplement>> {
-        return dao.getAllSupplements().map { entities ->
+    override fun getAllSupplements(clientId: String): Flow<List<UserSupplement>> {
+        return dao.getSupplementsByClient(clientId).map { entities ->
             entities.map { it.toDomain() }
         }
     }
 
     override fun getSupplementsWithTakenToday(
+        clientId: String,
         startOfDay: Long,
         endOfDay: Long
     ): Flow<List<UserSupplementTakenToday>> {
-        return dao.getSupplementsWithTakenToday(startOfDay, endOfDay).map { rows ->
+        return dao.getSupplementsWithTakenToday(clientId, startOfDay, endOfDay).map { rows ->
             rows.map { row ->
                 val supplement = UserSupplement(
                     id = UUID.fromString(row.id),
+                    clientId = UUID.fromString(row.clientId),
                     name = row.name,
                     startDate = LocalDate.parse(row.startDate),
                     cycleConfig = CycleConfig(
@@ -87,20 +108,37 @@ class SupplementRepositoryImpl(
         dao.deleteRecordByDate(supplementId, startOfDay, endOfDay)
     }
 
-    override fun getRecordsByDateRange(startDate: Long, endDate: Long): Flow<List<IntakeRecord>> {
-        return combine(
-            dao.getRecordsByDateRange(startDate, endDate),
-            dao.getAllSupplements()
-        ) { records, supplements ->
+    override fun getRecordsByDateRange(clientId: String, startDate: Long, endDate: Long): Flow<List<IntakeRecord>> {
+        return dao.getRecordsByDateRange(clientId, startDate, endDate).map { records ->
             records.map { record ->
                 IntakeRecord(
                     id = record.id,
                     supplementId = record.supplementId,
                     date = record.date,
                     status = record.status,
-                    supplementName = supplements.find { it.id == record.supplementId }?.name
+                    supplementName = record.supplementName,
+                    dailyDose = record.dailyDose,
+                    intakeTime = record.intakeTime
                 )
             }
         }
     }
+}
+
+private fun ClientProfile.toEntity(): ClientProfileEntity {
+    return ClientProfileEntity(
+        id = id.toString(),
+        name = name,
+        avatarColorArgb = avatarColorArgb,
+        createdAt = createdAt
+    )
+}
+
+private fun ClientProfileEntity.toDomain(): ClientProfile {
+    return ClientProfile(
+        id = UUID.fromString(id),
+        name = name,
+        avatarColorArgb = avatarColorArgb,
+        createdAt = createdAt
+    )
 }

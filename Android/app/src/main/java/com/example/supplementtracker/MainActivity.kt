@@ -21,6 +21,7 @@ import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.navigation.AppNavigation
 import com.example.supplementtracker.presentation.navigation.AppTheme
+import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 
 import android.content.Intent
 import android.content.IntentFilter
@@ -45,19 +46,25 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             SupplementDatabase::class.java,
             SupplementDatabase.DATABASE_NAME
-        ).fallbackToDestructiveMigration().build()
+        )
+            .addMigrations(SupplementDatabase.MIGRATION_2_3)
+            .fallbackToDestructiveMigration()
+            .build()
         
         val repository = SupplementRepositoryImpl(db.supplementDao)
+        val activeClientManager = ActiveClientManager(applicationContext, repository)
         
         // Khởi tạo ViewModels
         val homeViewModel = HomeViewModel(
-            repository = repository
+            repository = repository,
+            activeClientManager = activeClientManager
         )
-        val historyViewModel = HistoryViewModel(repository)
+        val historyViewModel = HistoryViewModel(repository, activeClientManager)
         val addSupplementViewModel = AddSupplementViewModel(
             saveSupplementUseCase = SaveSupplementUseCase(repository),
             repository = repository,
-            context = applicationContext
+            context = applicationContext,
+            activeClientManager = activeClientManager
         )
 
         // Đăng ký TimeZoneChangeReceiver
@@ -79,6 +86,7 @@ class MainActivity : ComponentActivity() {
                         homeViewModel = homeViewModel,
                         historyViewModel = historyViewModel,
                         addSupplementViewModel = addSupplementViewModel,
+                        activeClientManager = activeClientManager,
                         appTheme = appTheme,
                         onThemeChange = { appTheme = it }
                     )

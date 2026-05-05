@@ -14,6 +14,9 @@ targets:
       - path: Models
       - path: Services
       - path: Views
+    resources:
+      - path: en.lproj
+      - path: vi.lproj
     settings:
       base:
         INFOPLIST_FILE: Info.plist
@@ -33,8 +36,9 @@ targets:
     info:
       path: Info.plist
       properties:
-        NSCalendarsFullAccessUsageDescription: "Ứng dụng cần truy cập lịch để đồng bộ chu kỳ uống thực phẩm bổ sung."
-        NSUserNotificationsUsageDescription: "Ứng dụng cần gửi thông báo để nhắc nhở bạn uống thực phẩm bổ sung đúng giờ."
+        CFBundleDisplayName: "OAK Healthy"
+        NSCalendarsFullAccessUsageDescription: "OAK Healthy needs access to your calendar to sync your supplement cycle."
+        NSUserNotificationsUsageDescription: "OAK Healthy needs permission to send notifications to remind you at the right time."
         UIApplicationSceneManifest:
           UISceneConfigurations: {}
         UILaunchScreen: {}

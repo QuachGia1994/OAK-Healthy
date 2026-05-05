@@ -2,11 +2,12 @@ package com.example.supplementtracker.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
-import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [SupplementEntity::class, IntakeRecordEntity::class],
-    version = 2,
+    entities = [ClientProfileEntity::class, SupplementEntity::class, IntakeRecordEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class SupplementDatabase : RoomDatabase() {
@@ -14,5 +15,90 @@ abstract class SupplementDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "supplement_db"
+
+        private const val DEFAULT_CLIENT_ID = "00000000-0000-0000-0000-000000000000"
+
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA foreign_keys=OFF")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS client_profiles (
+                        id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        avatarColorArgb INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        PRIMARY KEY(id)
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO client_profiles (id, name, avatarColorArgb, createdAt)
+                    VALUES ('$DEFAULT_CLIENT_ID', 'Client 1', 0, strftime('%s','now') * 1000)
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS supplements_new (
+                        id TEXT NOT NULL,
+                        clientId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        startDate TEXT NOT NULL,
+                        daysOn INTEGER NOT NULL,
+                        daysOff INTEGER NOT NULL,
+                        isContinuous INTEGER NOT NULL,
+                        durationMonths INTEGER,
+                        dailyDose TEXT NOT NULL,
+                        intakeTime TEXT NOT NULL,
+                        PRIMARY KEY(id),
+                        FOREIGN KEY(clientId) REFERENCES client_profiles(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO supplements_new (id, clientId, name, startDate, daysOn, daysOff, isContinuous, durationMonths, dailyDose, intakeTime)
+                    SELECT id, '$DEFAULT_CLIENT_ID', name, startDate, daysOn, daysOff, isContinuous, durationMonths, dailyDose, intakeTime
+                    FROM supplements
+                    """.trimIndent()
+                )
+
+                db.execSQL("DROP TABLE supplements")
+                db.execSQL("ALTER TABLE supplements_new RENAME TO supplements")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_supplements_clientId ON supplements(clientId)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS intake_records_new (
+                        id TEXT NOT NULL,
+                        supplementId TEXT NOT NULL,
+                        date INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        PRIMARY KEY(id),
+                        FOREIGN KEY(supplementId) REFERENCES supplements(id) ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO intake_records_new (id, supplementId, date, status)
+                    SELECT id, supplementId, date, status
+                    FROM intake_records
+                    """.trimIndent()
+                )
+
+                db.execSQL("DROP TABLE intake_records")
+                db.execSQL("ALTER TABLE intake_records_new RENAME TO intake_records")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_intake_records_supplementId ON intake_records(supplementId)")
+
+                db.execSQL("PRAGMA foreign_keys=ON")
+            }
+        }
     }
 }

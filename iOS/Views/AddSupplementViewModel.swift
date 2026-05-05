@@ -25,16 +25,19 @@ public final class AddSupplementViewModel {
     private let calendarService: any CalendarManaging
     private let modelContext: ModelContext
     private var editingSupplement: UserSupplement?
+    private let activeClient: ClientProfile?
     
     public init(
         modelContext: ModelContext,
         editingSupplement: UserSupplement? = nil,
+        activeClient: ClientProfile? = nil,
         suggestService: any AutoSuggestService = SupplementAutoSuggester(),
         notificationService: any NotificationManaging = NotificationService(),
         calendarService: any CalendarManaging = CalendarService()
     ) {
         self.modelContext = modelContext
         self.editingSupplement = editingSupplement
+        self.activeClient = activeClient ?? editingSupplement?.client
         self.suggestService = suggestService
         self.notificationService = notificationService
         self.calendarService = calendarService
@@ -119,6 +122,9 @@ public final class AddSupplementViewModel {
     /// Áp dụng cấu hình từ gợi ý được chọn.
     public func selectSuggestion(_ reference: SupplementReference) {
         name = reference.name
+        if let dose = reference.preferredDose {
+            dailyDose = dose
+        }
         
         // Chuyển đổi String HH:mm sang Date
         let formatter = DateFormatter()
@@ -141,6 +147,7 @@ public final class AddSupplementViewModel {
     /// Tạo đối tượng UserSupplement hoàn chỉnh.
     public func createSupplement(id: UUID) -> UserSupplement? {
         guard !name.isEmpty else { return nil }
+        guard let activeClient else { return nil }
         
         let config = isContinuous 
             ? CycleConfig.continuous 
@@ -160,7 +167,8 @@ public final class AddSupplementViewModel {
             startDate: startDate,
             cycleConfig: config,
             dailyDose: dailyDose,
-            intakeTime: timeString
+            intakeTime: timeString,
+            client: activeClient
         )
     }
 }

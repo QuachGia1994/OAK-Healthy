@@ -1,0 +1,70 @@
+<resources>
+    <string name="app_name">OAK Healthy</string>
+    <string name="nav_home">Trang chủ</string>
+    <string name="nav_history">Lịch sử</string>
+    <string name="nav_settings">Cài đặt</string>
+
+    <string name="settings_title">Cài đặt</string>
+    <string name="app_information_title">Thông tin ứng dụng</string>
+    <string name="settings_guide_title">Hướng dẫn sử dụng</string>
+    <string name="settings_guide_content">1. Nhấn (+) để thêm thực phẩm bổ sung mới.\n2. Chọn từ gợi ý để tự động điền chu kỳ.\n3. Tích chọn vòng tròn ở Dashboard sau khi uống.\n4. Theo dõi chu kỳ On/Off và biểu đồ ở tab Lịch sử.</string>
+
+    <string name="settings_intro_title">Giới thiệu</string>
+    <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>
+
+    <string name="settings_copyright_title">Bản quyền &amp; Tác giả</string>
+    <string name="settings_app_version">Tên app: OAK Healthy v1.0</string>
+    <string name="settings_author">Tác giả: Mr. Phong (Personal Trader)</string>
+    <string name="settings_copyright">© 2026 OAK Healthy. All rights reserved.</string>
+    <string name="settings_dedication">Bằng cả tâm huyết và nghiên cứu trong hành trình gym &amp; trading.</string>
+
+    <string name="appearance_title">Giao diện</string>
+    <string name="appearance_light">Sáng</string>
+    <string name="appearance_dark">Tối</string>
+    <string name="appearance_system">Hệ thống</string>
+    <string name="cycle_status_on">Đang trong chu kỳ</string>
+    <string name="cycle_status_off">Đang trong kỳ nghỉ</string>
+    <string name="cycle_continuous">Uống liên tục</string>
+    <string name="cycle_summary_format">%1$s: %2$d ngày uống / %3$d ngày nghỉ</string>
+
+    <string name="today_intake_title">Cần uống hôm nay</string>
+    <string name="resting_title">Đang nghỉ</string>
+    <string name="no_intake_today">Hôm nay bạn không có lịch uống nào.</string>
+    <string name="rest_until">Nghỉ đến: %1$s</string>
+    <string name="days_remaining">Còn %1$d ngày</string>
+
+    <string name="update_available_title">Đã có phiên bản mới!</string>
+    <string name="update_available_message">Hãy cập nhật để trải nghiệm những tính năng mới nhất và tăng cường bảo mật (v%1$s).</string>
+    <string name="update_now">Cập nhật ngay</string>
+    <string name="later">Để sau</string>
+
+    <string name="add_supplement_title">Thêm chất mới</string>
+    <string name="edit_supplement_title">Chỉnh sửa</string>
+    <string name="save">Lưu</string>
+    <string name="edit">Chỉnh sửa</string>
+    <string name="delete">Xóa</string>
+    <string name="name_hint">Tên chất (VD: Vitamin D3)</string>
+    <string name="daily_dose_hint">Liều lượng hàng ngày</string>
+    <string name="schedule_cycle_title">Lịch trình &amp; Chu kỳ</string>
+    <string name="intake_time">Giờ uống: %1$s</string>
+    <string name="continuous">Uống liên tục</string>
+    <string name="on_days">Số ngày uống</string>
+    <string name="off_days">Số ngày nghỉ</string>
+    <string name="duration">Tổng thời hạn</string>
+    <string name="duration_placeholder">Ví dụ: 3 tháng hoặc để trống</string>
+    <string name="example_on_days">Ví dụ: 14 ngày</string>
+    <string name="example_off_days">Ví dụ: 7 ngày</string>
+    <string name="suggested">Gợi ý: %1$s</string>
+    <string name="my_list_title">Danh sách của tôi</string>
+
+    <string name="history_title">Lịch sử</string>
+    <string name="intake_frequency_last_7">Tần suất uống (7 ngày qua)</string>
+    <string name="log_details">Chi tiết nhật ký</string>
+    <string name="no_logs_yet">Chưa có nhật ký nào.</string>
+    <string name="taken">Đã uống</string>
+
+    <string name="notification_channel_name">Nhắc nhở uống</string>
+    <string name="notification_default_name">Thực phẩm bổ sung</string>
+    <string name="notification_title">Đến giờ uống rồi! 🌿</string>
+    <string name="notification_body_format">Bạn cần nạp %1$s - Liều lượng: %2$s. Chúc bạn một phiên giao dịch/làm việc hiệu quả!</string>
+</resources>

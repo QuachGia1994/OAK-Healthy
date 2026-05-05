@@ -23,7 +23,7 @@ class SearchSupplementUseCase {
             }
             Resource.Success(results)
         } catch (e: Exception) {
-            Resource.Error("Lỗi tìm kiếm: ${e.message}")
+            Resource.Error("Search failed: ${e.message}")
         }
     }
 }

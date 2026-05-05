@@ -12,6 +12,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
 import com.example.supplementtracker.domain.usecase.SearchSupplementUseCase
+import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.worker.CycleCheckWorker
 import java.util.concurrent.TimeUnit
 import android.content.Context
@@ -29,7 +30,8 @@ class AddSupplementViewModel(
     private val searchUseCase: SearchSupplementUseCase = SearchSupplementUseCase(),
     private val saveSupplementUseCase: SaveSupplementUseCase,
     private val repository: SupplementRepository,
-    private val context: Context // Thêm context để dùng WorkManager
+    private val context: Context,
+    private val activeClientManager: ActiveClientManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AddSupplementState())
@@ -75,6 +77,7 @@ class AddSupplementViewModel(
             it.copy(
                 name = reference.name,
                 intakeTime = reference.preferredTime,
+                dailyDose = reference.preferredDose ?: it.dailyDose,
                 isContinuous = reference.defaultCycle.isContinuous,
                 daysOn = reference.defaultCycle.daysOn.toString(),
                 daysOff = reference.defaultCycle.daysOff.toString(),
@@ -140,10 +143,17 @@ class AddSupplementViewModel(
         if (currentState.name.isBlank()) return
 
         viewModelScope.launch {
+            val clientId = activeClientManager.currentClientId.value
+            if (clientId == null) {
+                _state.update { it.copy(error = "Select a client first.") }
+                return@launch
+            }
+
             _state.update { it.copy(isLoading = true) }
             try {
                 val supplement = UserSupplement(
                     id = currentState.editingSupplementId?.let { java.util.UUID.fromString(it) } ?: java.util.UUID.randomUUID(),
+                    clientId = clientId,
                     name = currentState.name,
                     startDate = currentState.startDate,
                     cycleConfig = if (currentState.isContinuous) {
@@ -170,7 +180,7 @@ class AddSupplementViewModel(
                 _state.update { it.copy(isLoading = false) }
                 onSuccess()
             } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = "Lỗi khi lưu: ${e.message}") }
+                _state.update { it.copy(isLoading = false, error = "Failed to save: ${e.message}") }
             }
         }
     }

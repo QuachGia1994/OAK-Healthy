@@ -4,59 +4,79 @@ import SwiftData
 
 /// Màn hình lịch sử uống với biểu đồ (iOS).
 public struct HistoryView: View {
-    @Query(sort: \IntakeRecord.date, order: .reverse) private var records: [IntakeRecord]
+    @Environment(\.colorScheme) private var colorScheme
+    @Query private var records: [IntakeRecord]
     @State private var viewModel = HistoryViewModel()
     
-    public init() {}
+    public let activeClientManager: ActiveClientManager
+    
+    public init(activeClientManager: ActiveClientManager) {
+        self.activeClientManager = activeClientManager
+        if let id = activeClientManager.currentClientId {
+            _records = Query(
+                filter: #Predicate<IntakeRecord> { $0.supplement?.client?.id == id },
+                sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
+            )
+        } else {
+            _records = Query(
+                filter: #Predicate<IntakeRecord> { _ in false },
+                sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
+            )
+        }
+    }
     
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Biểu đồ thống kê tuần
-                    VStack(alignment: .leading) {
-                        Text("Tần suất uống (7 ngày qua)")
-                            .font(.headline)
-                        
-                        Chart {
-                            ForEach(viewModel.weeklyData) { data in
-                                BarMark(
-                                    x: .value("Ngày", data.date, unit: .day),
-                                    y: .value("Số lần", data.count)
-                                )
-                                .foregroundStyle(Color.blue.gradient)
-                                .cornerRadius(4)
+            ZStack {
+                backgroundGradient
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading) {
+                            Text("intake_frequency_last_7")
+                                .font(.headline)
+                            
+                            Chart {
+                                ForEach(viewModel.weeklyData) { data in
+                                    BarMark(
+                                        x: .value(String(localized: "chart_axis_day"), data.date, unit: .day),
+                                        y: .value(String(localized: "chart_axis_count"), data.count)
+                                    )
+                                    .foregroundStyle(Color.blue.gradient)
+                                    .cornerRadius(4)
+                                }
+                            }
+                            .frame(height: 200)
+                            .chartXAxis {
+                                AxisMarks(values: .stride(by: .day)) { _ in
+                                    AxisValueLabel(format: .dateTime.weekday(.abbreviated))
+                                }
                             }
                         }
-                        .frame(height: 200)
-                        .chartXAxis {
-                            AxisMarks(values: .stride(by: .day)) { _ in
-                                AxisValueLabel(format: .dateTime.weekday(.abbreviated))
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+                        
+                        VStack(alignment: .leading) {
+                            Text("log_details")
+                                .font(.headline)
+                            
+                            if records.isEmpty {
+                                Text("no_logs_yet")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(records) { record in
+                                    HistoryRow(record: record)
+                                }
                             }
                         }
                     }
                     .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    
-                    // Danh sách lịch sử chi tiết
-                    VStack(alignment: .leading) {
-                        Text("Chi tiết nhật ký")
-                            .font(.headline)
-                        
-                        if records.isEmpty {
-                            Text("Chưa có nhật ký nào.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(records) { record in
-                                HistoryRow(record: record)
-                            }
-                        }
-                    }
                 }
-                .padding()
             }
-            .navigationTitle("Lịch sử")
+            .navigationTitle("history_title")
             .onAppear {
                 viewModel.processHistory(records: records)
             }
@@ -64,6 +84,13 @@ public struct HistoryView: View {
                 viewModel.processHistory(records: records)
             }
         }
+    }
+    
+    private var backgroundGradient: LinearGradient {
+        let colors: [Color] = colorScheme == .dark
+            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
+            : [Color(.systemGroupedBackground), Color(.systemBackground)]
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 }
 
@@ -74,7 +101,7 @@ private struct HistoryRow: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(record.supplement?.name ?? "N/A")
+                Text(record.supplement?.name ?? String(localized: "not_available"))
                     .font(.body)
                     .fontWeight(.medium)
                 Text(record.date.formatted(date: .abbreviated, time: .shortened))
@@ -86,12 +113,13 @@ private struct HistoryRow: View {
                 .foregroundStyle(.green)
         }
         .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 5)
     }
 }
 
 #Preview {
-    HistoryView()
-        .modelContainer(for: IntakeRecord.self, inMemory: true)
+    HistoryView(activeClientManager: ActiveClientManager())
+        .modelContainer(for: [ClientProfile.self, UserSupplement.self, IntakeRecord.self], inMemory: true)
 }

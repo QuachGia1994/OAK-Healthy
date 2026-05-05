@@ -7,10 +7,11 @@ struct SupplementTrackerApp: App {
     @State private var selectedTab = 0
     @State private var delegate = NotificationDelegate()
     @AppStorage("appTheme") private var appTheme: String = "system"
+    @State private var activeClientManager = ActiveClientManager()
     
     var body: some Scene {
         WindowGroup {
-            MainTabView(selectedTab: $selectedTab)
+            MainTabView(selectedTab: $selectedTab, activeClientManager: activeClientManager)
                 .preferredColorScheme(preferredColorScheme)
                 .onAppear {
                     UNUserNotificationCenter.current().delegate = delegate
@@ -19,7 +20,7 @@ struct SupplementTrackerApp: App {
                     selectedTab = 0
                 }
         }
-        .modelContainer(for: [UserSupplement.self, IntakeRecord.self])
+        .modelContainer(for: [ClientProfile.self, UserSupplement.self, IntakeRecord.self])
     }
     
     private var preferredColorScheme: ColorScheme? {
@@ -45,26 +46,32 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 
 struct MainTabView: View {
     @Binding var selectedTab: Int
+    let activeClientManager: ActiveClientManager
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView()
+            HomeView(activeClientManager: activeClientManager)
+                .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("Trang chủ", systemImage: "house.fill")
+                    Label("tab_home", systemImage: "house.fill")
                 }
                 .tag(0)
             
-            HistoryView()
+            HistoryView(activeClientManager: activeClientManager)
+                .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("Lịch sử", systemImage: "clock.fill")
+                    Label("tab_history", systemImage: "clock.fill")
                 }
                 .tag(1)
             
-            SettingsView()
+            SettingsView(activeClientManager: activeClientManager)
+                .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("Cài đặt", systemImage: "gearshape.fill")
+                    Label("tab_settings", systemImage: "gearshape.fill")
                 }
                 .tag(2)
         }
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
     }
 }

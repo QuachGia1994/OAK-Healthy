@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 class GetAllSupplementsUseCase(
     private val repository: SupplementRepository
 ) {
-    operator fun invoke(): Flow<List<UserSupplement>> {
-        return repository.getAllSupplements()
+    operator fun invoke(clientId: String): Flow<List<UserSupplement>> {
+        return repository.getAllSupplements(clientId)
     }
 }

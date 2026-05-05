@@ -27,7 +27,7 @@ import com.example.supplementtracker.MainActivity
 class NotificationReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        val name = intent.getStringExtra("SUPPLEMENT_NAME") ?: "Thực phẩm bổ sung"
+        val name = intent.getStringExtra("SUPPLEMENT_NAME") ?: context.getString(R.string.notification_default_name)
         val dose = intent.getStringExtra("DAILY_DOSE") ?: ""
         val id = intent.getStringExtra("SUPPLEMENT_ID") ?: ""
 
@@ -39,7 +39,10 @@ class NotificationReceiver : BroadcastReceiver() {
                 context.applicationContext,
                 SupplementDatabase::class.java,
                 SupplementDatabase.DATABASE_NAME
-            ).build()
+            )
+                .addMigrations(SupplementDatabase.MIGRATION_2_3)
+                .fallbackToDestructiveMigration()
+                .build()
             
             val supplementEntity = db.supplementDao.getSupplementById(id)
             if (supplementEntity != null) {
@@ -61,7 +64,7 @@ class NotificationReceiver : BroadcastReceiver() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Nhắc nhở uống thuốc",
+                context.getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
             )
             notificationManager.createNotificationChannel(channel)
@@ -78,8 +81,8 @@ class NotificationReceiver : BroadcastReceiver() {
 
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info) // Thay bằng icon của app
-            .setContentTitle("Đến giờ uống rồi! 🌿")
-            .setContentText("Bạn cần nạp $name - Liều lượng: $dose. Chúc bạn một phiên giao dịch/làm việc hiệu quả!")
+            .setContentTitle(context.getString(R.string.notification_title))
+            .setContentText(context.getString(R.string.notification_body_format, name, dose))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)

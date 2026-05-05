@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissValue
 import androidx.compose.material.ExperimentalMaterialApi
@@ -13,6 +14,7 @@ import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.rememberDismissState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -21,7 +23,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,12 +39,18 @@ import java.time.format.DateTimeFormatter
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.example.supplementtracker.R
 import com.example.supplementtracker.service.UpdateService
+import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.domain.model.ClientProfile
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    activeClientManager: ActiveClientManager,
     updateService: UpdateService = UpdateService(), // Nên được inject qua DI
     onNavigateToAdd: () -> Unit,
     onNavigateToEdit: (String) -> Unit
@@ -48,6 +59,12 @@ fun HomeScreen(
     val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
     val updateInfo by updateService.updateInfo.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val clients by activeClientManager.clients.collectAsStateWithLifecycle()
+    val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val currentClientName = clients.firstOrNull { it.id == currentClientId }?.name
+    var isClientMenuExpanded by remember { mutableStateOf(false) }
+    var isAddClientDialogVisible by remember { mutableStateOf(false) }
+    var newClientName by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -55,59 +72,146 @@ fun HomeScreen(
     }
 
     if (isUpdateAvailable) {
+        val isForceUpdate = updateInfo?.forceUpdate == true
+        val notes = updateInfo?.releaseNotes?.takeIf { it.isNotBlank() }
         AlertDialog(
-            onDismissRequest = { /* Handle if force update */ },
-            title = { Text("Đã có phiên bản mới!") },
-            text = { Text("Hãy cập nhật để trải nghiệm những tính năng mới nhất và tăng cường bảo mật (v${updateInfo?.version}).") },
+            onDismissRequest = {
+                if (!isForceUpdate) {
+                    updateService.dismissUpdate()
+                }
+            },
+            title = { Text(stringResource(R.string.update_available_title)) },
+            text = { Text(notes ?: stringResource(R.string.update_available_message, updateInfo?.version ?: "")) },
             confirmButton = {
                 TextButton(onClick = {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo?.updateUrl))
                     context.startActivity(intent)
                 }) {
-                    Text("Cập nhật ngay")
+                    Text(stringResource(R.string.update_now))
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { /* Hide alert */ }) {
-                    Text("Để sau")
+            dismissButton = if (!isForceUpdate) {
+                {
+                    TextButton(onClick = { updateService.dismissUpdate() }) {
+                        Text(stringResource(R.string.later))
+                    }
                 }
+            } else {
+                null
             }
         )
     }
 
-    Scaffold(
-        topBar = {
-            LargeTopAppBar(
-                title = { 
-                    Column {
-                        Text("Dashboard")
-                        Text(
-                            text = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, dd MMMM")),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val backgroundBrush = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFF1F8E9), Color.White))
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                LargeTopAppBar(
+                    colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = Color.Transparent),
+                    title = {
+                        Column {
+                            Box {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .combinedClickable(
+                                            onClick = { isClientMenuExpanded = true },
+                                            onLongClick = { isClientMenuExpanded = true }
+                                        )
+                                ) {
+                                    Text(text = currentClientName?.let { "Student: $it" } ?: "Add a Client")
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = isClientMenuExpanded,
+                                    onDismissRequest = { isClientMenuExpanded = false }
+                                ) {
+                                    clients.forEach { client ->
+                                        DropdownMenuItem(
+                                            text = { Text(client.name) },
+                                            onClick = {
+                                                isClientMenuExpanded = false
+                                                activeClientManager.setCurrentClientId(client.id)
+                                            }
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text("Add a Client") },
+                                        onClick = {
+                                            isClientMenuExpanded = false
+                                            isAddClientDialogVisible = true
+                                        }
+                                    )
+                                }
+                            }
+                            Text(
+                                text = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, dd MMMM")),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAdd) {
-                Icon(Icons.Default.Add, contentDescription = "Thêm chất mới")
-            }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (val state = uiState) {
-                is HomeUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                is HomeUiState.Success -> HomeContent(
-                    state = state, 
-                    onToggleIntake = viewModel::toggleIntake,
-                    onDelete = viewModel::deleteItem,
-                    onEdit = onNavigateToEdit
                 )
-                is HomeUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = onNavigateToAdd) {
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_supplement_title))
+                }
+            }
+        ) { padding ->
+            Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                when (val state = uiState) {
+                    is HomeUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    is HomeUiState.Success -> HomeContent(
+                        state = state,
+                        onToggleIntake = viewModel::toggleIntake,
+                        onDelete = viewModel::deleteItem,
+                        onEdit = onNavigateToEdit
+                    )
+                    is HomeUiState.NoClient -> Text("Add a Client to start.", modifier = Modifier.align(Alignment.Center))
+                    is HomeUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
+                }
             }
         }
+    }
+
+    if (isAddClientDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isAddClientDialogVisible = false },
+            title = { Text("Add a Client") },
+            text = {
+                OutlinedTextField(
+                    value = newClientName,
+                    onValueChange = { newClientName = it },
+                    label = { Text("Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val trimmed = newClientName.trim()
+                        if (trimmed.isEmpty()) return@TextButton
+                        val profile = ClientProfile(id = UUID.randomUUID(), name = trimmed, avatarColorArgb = 0)
+                        viewModel.createClient(profile)
+                        activeClientManager.setCurrentClientId(profile.id)
+                        newClientName = ""
+                        isAddClientDialogVisible = false
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { isAddClientDialogVisible = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -124,10 +228,10 @@ private fun HomeContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Section: Active Today
-        item { SectionHeader("Cần uống hôm nay") }
+        item { SectionHeader(stringResource(R.string.today_intake_title)) }
         
         if (state.activeSupplements.isEmpty()) {
-            item { EmptyStateMessage("Hôm nay bạn không có lịch uống nào.") }
+            item { EmptyStateMessage(stringResource(R.string.no_intake_today)) }
         }
 
         state.activeSupplements.forEach { (time, items) ->
@@ -144,7 +248,7 @@ private fun HomeContent(
 
         // Section: Resting
         if (state.restingSupplements.isNotEmpty()) {
-            item { SectionHeader("Đang trong chu kỳ nghỉ") }
+            item { SectionHeader(stringResource(R.string.resting_title)) }
             items(state.restingSupplements) { info ->
                 RestingSupplementCard(info)
             }
@@ -242,7 +346,7 @@ private fun DismissibleSupplementCard(
                 onDismissRequest = { isMenuOpen = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("Chỉnh sửa") },
+                    text = { Text(stringResource(R.string.edit)) },
                     leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                     onClick = {
                         isMenuOpen = false
@@ -250,7 +354,7 @@ private fun DismissibleSupplementCard(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("Xóa") },
+                    text = { Text(stringResource(R.string.delete)) },
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                     onClick = {
                         isMenuOpen = false
@@ -269,11 +373,25 @@ private fun ActiveSupplementCard(
     onToggleIntake: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val shape = RoundedCornerShape(12.dp)
+    val containerColor = if (isDark) {
+        Color.White.copy(alpha = if (item.isTaken) 0.18f else 0.14f)
+    } else {
+        Color.White.copy(alpha = if (item.isTaken) 0.70f else 0.55f)
+    }
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color.White.copy(alpha = 0.35f)
+
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(12.dp, shape),
+        shape = shape,
         colors = CardDefaults.cardColors(
-            containerColor = if (item.isTaken) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-        )
+            containerColor = containerColor
+        ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -295,7 +413,7 @@ private fun ActiveSupplementCard(
                 ) {
                     Icon(
                         Icons.Default.CheckCircle,
-                        contentDescription = "Toggle",
+                        contentDescription = null,
                         tint = if (item.isTaken) Color.Green else Color.Gray
                     )
                 }
@@ -316,9 +434,19 @@ private fun ActiveSupplementCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RestingSupplementCard(info: RestingSupplementInfo) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val shape = RoundedCornerShape(12.dp)
+    val containerColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.55f)
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.30f)
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(10.dp, shape),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -326,11 +454,17 @@ private fun RestingSupplementCard(info: RestingSupplementInfo) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(info.supplement.name, style = MaterialTheme.typography.titleMedium, color = Color.Gray)
-                Text("Nghỉ đến: ${LocalDate.now().plusDays(info.daysRemaining.toLong()).format(DateTimeFormatter.ofPattern("dd/MM"))}", 
-                     style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(
+                    stringResource(
+                        R.string.rest_until,
+                        LocalDate.now().plusDays(info.daysRemaining.toLong()).format(DateTimeFormatter.ofPattern("dd/MM"))
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
             }
             Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                Text("Còn ${info.daysRemaining} ngày", modifier = Modifier.padding(4.dp))
+                Text(stringResource(R.string.days_remaining, info.daysRemaining), modifier = Modifier.padding(4.dp))
             }
         }
     }
