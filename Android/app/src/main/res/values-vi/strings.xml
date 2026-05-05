@@ -70,6 +70,17 @@
 
     <string name="client_management">Quản lý học viên</string>
     <string name="add_a_client">Thêm học viên</string>
+    <string name="student_prefix">Học viên: %1$s</string>
     <string name="select">Chọn</string>
     <string name="add_client_to_start">Thêm học viên để bắt đầu.</string>
+
+    <string name="supplement_note_vitamin_d3">Nên uống cùng bữa ăn có chất béo để hấp thụ tối đa.</string>
+    <string name="supplement_note_ashwagandha">Nên dùng sau bữa ăn tối. Giúp hạ stress và phục hồi.</string>
+    <string name="supplement_note_boron">Giúp tăng Test tự do. Uống cùng bữa ăn.</string>
+    <string name="supplement_note_magnesium">Ưu tiên loại Bisglycinate cho buổi tối để ngủ sâu.</string>
+    <string name="supplement_note_caffeine">Tăng cường tập trung trước khi tập hoặc giao dịch.</string>
+    <string name="supplement_note_omega_3">Nên uống sau bữa ăn có chất béo để hấp thụ tốt nhất.</string>
+    <string name="supplement_note_coq10">Hỗ trợ năng lượng tế bào. Nên uống sau bữa ăn.</string>
+    <string name="supplement_note_creatine">Hỗ trợ sức mạnh và hiệu suất. Uống mỗi ngày.</string>
+    <string name="supplement_note_zinc">Tránh uống khi bụng đói.</string>
 </resources>

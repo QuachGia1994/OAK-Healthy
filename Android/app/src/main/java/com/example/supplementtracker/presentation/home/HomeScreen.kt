@@ -130,7 +130,7 @@ fun HomeScreen(
                                         .padding(end = 8.dp)
                                 ) {
                                     Text(
-                                        text = currentClientName?.let { "Student: $it" } ?: stringResource(R.string.add_a_client),
+                                        text = currentClientName?.let { stringResource(R.string.student_prefix, it) } ?: stringResource(R.string.add_a_client),
                                         modifier = Modifier.weight(1f),
                                         maxLines = 1
                                     )

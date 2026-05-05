@@ -5,24 +5,19 @@ import SwiftData
 /// Màn hình lịch sử uống với biểu đồ (iOS).
 public struct HistoryView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Query private var records: [IntakeRecord]
+    @Query(sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)])
+    private var allRecords: [IntakeRecord]
     @State private var viewModel = HistoryViewModel()
     
     public let activeClientManager: ActiveClientManager
     
     public init(activeClientManager: ActiveClientManager) {
         self.activeClientManager = activeClientManager
-        if let id = activeClientManager.currentClientId {
-            _records = Query(
-                filter: #Predicate<IntakeRecord> { $0.supplement?.client?.id == id },
-                sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
-            )
-        } else {
-            _records = Query(
-                filter: #Predicate<IntakeRecord> { _ in false },
-                sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
-            )
-        }
+    }
+    
+    private var records: [IntakeRecord] {
+        guard let currentClientId = activeClientManager.currentClientId else { return [] }
+        return allRecords.filter { $0.supplement?.client?.id == currentClientId }
     }
     
     public var body: some View {
@@ -81,6 +76,9 @@ public struct HistoryView: View {
                 viewModel.processHistory(records: records)
             }
             .onChange(of: records) {
+                viewModel.processHistory(records: records)
+            }
+            .onChange(of: activeClientManager.currentClientId) {
                 viewModel.processHistory(records: records)
             }
         }

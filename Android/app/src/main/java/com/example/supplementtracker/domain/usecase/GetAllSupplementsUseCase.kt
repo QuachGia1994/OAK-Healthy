@@ -14,3 +14,4 @@ class GetAllSupplementsUseCase(
         return repository.getAllSupplements(clientId)
     }
 }
+

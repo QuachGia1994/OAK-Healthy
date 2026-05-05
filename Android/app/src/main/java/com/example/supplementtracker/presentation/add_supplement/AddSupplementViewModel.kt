@@ -27,13 +27,13 @@ import kotlinx.coroutines.launch
  * ViewModel xử lý logic UI cho màn hình thêm chất.
  */
 class AddSupplementViewModel(
-    private val searchUseCase: SearchSupplementUseCase = SearchSupplementUseCase(),
     private val saveSupplementUseCase: SaveSupplementUseCase,
     private val repository: SupplementRepository,
     private val context: Context,
     private val activeClientManager: ActiveClientManager
 ) : ViewModel() {
 
+    private val searchUseCase: SearchSupplementUseCase = SearchSupplementUseCase(context)
     private val _state = MutableStateFlow(AddSupplementState())
     val state = _state.asStateFlow()
 

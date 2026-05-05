@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
         
         // Khởi tạo ViewModels
         val homeViewModel = HomeViewModel(
+            context = applicationContext,
             repository = repository,
             activeClientManager = activeClientManager
         )

@@ -2,6 +2,7 @@ name: OAKHealthy
 compatibilityVersion: "Xcode 13.0"
 options:
   bundleIdPrefix: com.example
+  developmentLanguage: en
 targets:
   OAKHealthy:
     type: application

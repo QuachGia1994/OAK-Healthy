@@ -1,76 +1,97 @@
 package com.example.supplementtracker.data.mock
 
+import android.content.Context
+import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleConfig
-import com.example.supplementtracker.domain.model.IntakeTime
 import com.example.supplementtracker.domain.model.SupplementReference
 
 /**
  * Từ điển cục bộ cung cấp dữ liệu mặc định.
  */
 object SupplementDictionary {
-    val references = listOf(
-        SupplementReference(
+    private data class Entry(
+        val name: String,
+        val adviceResId: Int?,
+        val preferredTime: String,
+        val preferredDose: String?,
+        val defaultCycle: CycleConfig
+    )
+
+    private val entries = listOf(
+        Entry(
             name = "Ashwagandha",
-            advice = "Supports stress reduction and sleep quality.",
+            adviceResId = R.string.supplement_note_ashwagandha,
             preferredTime = "21:00",
             preferredDose = null,
             defaultCycle = CycleConfig(28, 7)
         ),
-        SupplementReference(
+        Entry(
             name = "Boron",
-            advice = "Cycle it to support hormone optimization.",
+            adviceResId = R.string.supplement_note_boron,
             preferredTime = "08:00",
             preferredDose = null,
             defaultCycle = CycleConfig(14, 7)
         ),
-        SupplementReference(
+        Entry(
             name = "Caffeine",
-            advice = "Boosts focus and energy for workouts and trading sessions. Take ~30 minutes pre-workout.",
+            adviceResId = R.string.supplement_note_caffeine,
             preferredTime = "07:30",
             preferredDose = "200 mg",
             defaultCycle = CycleConfig.Continuous
         ),
-        SupplementReference(
+        Entry(
             name = "Vitamin D3",
-            advice = "Take with a fat-containing meal for better absorption.",
+            adviceResId = R.string.supplement_note_vitamin_d3,
             preferredTime = "08:00",
             preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
-        SupplementReference(
+        Entry(
             name = "Omega-3",
-            advice = "Take after a fatty meal for best absorption.",
+            adviceResId = R.string.supplement_note_omega_3,
             preferredTime = "12:00",
             preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
-        SupplementReference(
+        Entry(
             name = "CoQ10",
-            advice = "Supports cellular energy. Take after a meal.",
+            adviceResId = R.string.supplement_note_coq10,
             preferredTime = "12:00",
             preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
-        SupplementReference(
+        Entry(
             name = "Creatine",
-            advice = "Supports strength and performance. Take daily.",
+            adviceResId = R.string.supplement_note_creatine,
             preferredTime = "12:00",
             preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
-        SupplementReference(
+        Entry(
             name = "Magnesium",
-            advice = "Supports muscles and nervous system. Take before sleep.",
+            adviceResId = R.string.supplement_note_magnesium,
             preferredTime = "21:00",
             preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         ),
-        SupplementReference(
+        Entry(
             name = "Zinc",
-            advice = "Avoid taking on an empty stomach.",
+            adviceResId = R.string.supplement_note_zinc,
             preferredTime = "21:00",
             preferredDose = null,
             defaultCycle = CycleConfig.Continuous
         )
     )
+
+    fun localizedReferences(context: Context): List<SupplementReference> {
+        return entries.map { entry ->
+            SupplementReference(
+                name = entry.name,
+                advice = entry.adviceResId?.let(context::getString),
+                preferredTime = entry.preferredTime,
+                preferredDose = entry.preferredDose,
+                defaultCycle = entry.defaultCycle
+            )
+        }
+    }
 }

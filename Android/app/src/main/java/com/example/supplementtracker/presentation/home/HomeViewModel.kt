@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.home
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.supplementtracker.domain.model.CycleStatus
@@ -28,12 +29,15 @@ import com.example.supplementtracker.domain.model.ClientProfile
  * ViewModel xử lý logic cho màn hình chính Dashboard.
  */
 class HomeViewModel(
+    private val context: Context,
     private val repository: com.example.supplementtracker.domain.repository.SupplementRepository,
     private val activeClientManager: ActiveClientManager,
     private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
 ) : ViewModel() {
 
     private val _refreshTrigger = MutableStateFlow(0)
+    private val adviceByName: Map<String, String?> =
+        SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
 
     val uiState: StateFlow<HomeUiState> = combine(
         activeClientManager.currentClientId,
@@ -64,7 +68,7 @@ class HomeViewModel(
         val activeItems = supplements
             .filter { calculateCycleUseCase(it.supplement.startDate, it.supplement.cycleConfig, today) == CycleStatus.ON }
             .map { taken ->
-                val advice = SupplementDictionary.references.find { it.name == taken.supplement.name }?.advice
+                val advice = adviceByName[taken.supplement.name]
                 SupplementUiItem(taken.supplement, taken.isTakenToday, advice)
             }
             .groupBy { it.supplement.intakeTime }

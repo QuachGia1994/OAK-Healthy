@@ -20,8 +20,19 @@
 
     <string name="client_management">Client Management</string>
     <string name="add_a_client">Add a Client</string>
+    <string name="student_prefix">Student: %1$s</string>
     <string name="select">Select</string>
     <string name="add_client_to_start">Add a Client to start.</string>
+
+    <string name="supplement_note_vitamin_d3">Take with a fat-containing meal for better absorption.</string>
+    <string name="supplement_note_ashwagandha">Take after dinner. Reduces cortisol and aids recovery.</string>
+    <string name="supplement_note_boron">Boosts free testosterone. Take with meals.</string>
+    <string name="supplement_note_magnesium">Bisglycinate form preferred for deep sleep.</string>
+    <string name="supplement_note_caffeine">Boosts focus and energy for workouts and trading sessions.</string>
+    <string name="supplement_note_omega_3">Take after a fatty meal for best absorption.</string>
+    <string name="supplement_note_coq10">Supports cellular energy. Take after a meal.</string>
+    <string name="supplement_note_creatine">Supports strength and performance. Take daily.</string>
+    <string name="supplement_note_zinc">Avoid taking on an empty stomach.</string>
 
     <string name="appearance_title">Appearance</string>
     <string name="appearance_light">Light</string>

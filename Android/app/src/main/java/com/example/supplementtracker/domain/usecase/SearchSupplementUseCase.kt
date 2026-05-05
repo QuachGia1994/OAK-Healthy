@@ -1,5 +1,6 @@
 package com.example.supplementtracker.domain.usecase
 
+import android.content.Context
 import com.example.supplementtracker.data.mock.SupplementDictionary
 import com.example.supplementtracker.domain.model.Resource
 import com.example.supplementtracker.domain.model.SupplementReference
@@ -9,7 +10,9 @@ import kotlinx.coroutines.withContext
 /**
  * UseCase tìm kiếm gợi ý thực phẩm bổ sung.
  */
-class SearchSupplementUseCase {
+class SearchSupplementUseCase(
+    private val context: Context
+) {
     
     /**
      * Tìm kiếm trong từ điển mock.
@@ -18,7 +21,7 @@ class SearchSupplementUseCase {
         if (query.length < 2) return@withContext Resource.Success(emptyList())
         
         try {
-            val results = SupplementDictionary.references.filter {
+            val results = SupplementDictionary.localizedReferences(context).filter {
                 it.name.contains(query, ignoreCase = true)
             }
             Resource.Success(results)
