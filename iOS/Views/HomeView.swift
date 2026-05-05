@@ -143,7 +143,9 @@ public struct HomeView: View {
                             Link("update_now", destination: url)
                         }
                         if updateService.updateInfo?.forceUpdate != true {
-                            Button("later", role: .cancel) { }
+                            Button("later", role: .cancel) {
+                                updateService.skipUpdate(version: updateService.updateInfo?.version ?? "")
+                            }
                         }
                     } message: {
                         let version = updateService.updateInfo?.version ?? ""

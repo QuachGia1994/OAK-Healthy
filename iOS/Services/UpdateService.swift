@@ -41,6 +41,7 @@ public final class UpdateService {
             let (data, _) = try await URLSession.shared.data(from: url)
             let config = try JSONDecoder().decode(UpdateConfig.self, from: data)
             guard isVersion(config.latestVersion, newerThan: currentVersion) else { return }
+            if config.isForceUpdate == false, skippedUpdateVersion == config.latestVersion { return }
             
             updateInfo = AppUpdateInfo(
                 version: config.latestVersion,
@@ -52,6 +53,19 @@ public final class UpdateService {
         } catch {
             return
         }
+    }
+
+    public func skipUpdate(version: String) {
+        guard version.isEmpty == false else {
+            isUpdateAvailable = false
+            return
+        }
+        UserDefaults.standard.set(version, forKey: Self.skippedVersionKey)
+        isUpdateAvailable = false
+    }
+
+    private var skippedUpdateVersion: String? {
+        UserDefaults.standard.string(forKey: Self.skippedVersionKey)
     }
     
     private func isVersion(_ a: String, newerThan b: String) -> Bool {
@@ -70,4 +84,6 @@ public final class UpdateService {
         }
         return .orderedSame
     }
+
+    private static let skippedVersionKey = "SkippedUpdateVersion"
 }

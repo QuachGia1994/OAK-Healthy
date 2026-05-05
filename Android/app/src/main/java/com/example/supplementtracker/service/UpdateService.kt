@@ -1,5 +1,6 @@
 package com.example.supplementtracker.service
 
+import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,7 +29,10 @@ data class UpdateConfig(
 /**
  * Dịch vụ kiểm tra cập nhật phiên bản (Android).
  */
-class UpdateService {
+class UpdateService(
+    context: Context
+) {
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
     val updateInfo = _updateInfo.asStateFlow()
 
@@ -41,6 +45,7 @@ class UpdateService {
     suspend fun checkForUpdates(currentVersionName: String) {
         val config = fetchConfig() ?: return
         if (!isVersionNewer(config.latestVersion, currentVersionName)) return
+        if (!config.isForceUpdate && getSkippedUpdateVersion() == config.latestVersion) return
 
         withContext(Dispatchers.Main) {
             _updateInfo.value = AppUpdateInfo(
@@ -55,6 +60,19 @@ class UpdateService {
 
     fun dismissUpdate() {
         _isUpdateAvailable.value = false
+    }
+
+    fun skipUpdate(version: String) {
+        if (version.isBlank()) {
+            dismissUpdate()
+            return
+        }
+        prefs.edit().putString(KEY_SKIPPED_VERSION, version).apply()
+        dismissUpdate()
+    }
+
+    private fun getSkippedUpdateVersion(): String? {
+        return prefs.getString(KEY_SKIPPED_VERSION, null)
     }
 
     private suspend fun fetchConfig(): UpdateConfig? = withContext(Dispatchers.IO) {
@@ -96,6 +114,8 @@ class UpdateService {
     }
 
     private companion object {
+        private const val PREFS_NAME = "oak_update_prefs"
+        private const val KEY_SKIPPED_VERSION = "SkippedUpdateVersion"
         private const val CONFIG_URL =
             "https://gist.githubusercontent.com/QuachGia1994/901e36f6bab91729d5dd0e2ccce7202f/raw/oak_update.json"
     }

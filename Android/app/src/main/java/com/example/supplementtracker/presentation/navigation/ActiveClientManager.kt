@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Locale
 import java.util.UUID
 
 class ActiveClientManager(
@@ -23,7 +24,11 @@ class ActiveClientManager(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val clients: StateFlow<List<ClientProfile>> = repository.observeClients()
-        .map { list -> list.distinctBy { it.id } }
+        .map { list ->
+            list
+                .filter { it.name.isNotBlank() }
+                .distinctBy { it.name.trim().lowercase(Locale.ROOT) }
+        }
         .distinctUntilChanged()
         .stateIn(scope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 

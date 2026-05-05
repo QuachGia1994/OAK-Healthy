@@ -52,14 +52,14 @@ import java.util.UUID
 fun HomeScreen(
     viewModel: HomeViewModel,
     activeClientManager: ActiveClientManager,
-    updateService: UpdateService = UpdateService(), // Nên được inject qua DI
     onNavigateToAdd: () -> Unit,
     onNavigateToEdit: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val updateService = remember(context) { UpdateService(context.applicationContext) }
     val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
     val updateInfo by updateService.updateInfo.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
@@ -94,7 +94,7 @@ fun HomeScreen(
             },
             dismissButton = if (!isForceUpdate) {
                 {
-                    TextButton(onClick = { updateService.dismissUpdate() }) {
+                    TextButton(onClick = { updateService.skipUpdate(updateInfo?.version.orEmpty()) }) {
                         Text(stringResource(R.string.later))
                     }
                 }
@@ -469,7 +469,7 @@ private fun RestingSupplementCard(info: RestingSupplementInfo) {
                     color = Color.Gray
                 )
             }
-            Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+            Badge(containerColor = Color.Transparent) {
                 Text(stringResource(R.string.days_remaining, info.daysRemaining), modifier = Modifier.padding(4.dp))
             }
         }
