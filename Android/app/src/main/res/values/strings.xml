@@ -18,6 +18,11 @@
     <string name="settings_copyright">© 2026 OAK Healthy. All rights reserved.</string>
     <string name="settings_dedication">With all dedication and research in the fitness &amp; trading journey.</string>
 
+    <string name="client_management">Client Management</string>
+    <string name="add_a_client">Add a Client</string>
+    <string name="select">Select</string>
+    <string name="add_client_to_start">Add a Client to start.</string>
+
     <string name="appearance_title">Appearance</string>
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>

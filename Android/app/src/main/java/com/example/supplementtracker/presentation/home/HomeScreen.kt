@@ -59,7 +59,8 @@ fun HomeScreen(
     val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
     val updateInfo by updateService.updateInfo.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val clients by activeClientManager.clients.collectAsStateWithLifecycle()
+    val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
+    val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val currentClientName = clients.firstOrNull { it.id == currentClientId }?.name
     var isClientMenuExpanded by remember { mutableStateOf(false) }
@@ -117,7 +118,7 @@ fun HomeScreen(
                     colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = Color.Transparent),
                     title = {
                         Column {
-                            Box {
+                            Box(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
@@ -126,8 +127,13 @@ fun HomeScreen(
                                             onClick = { isClientMenuExpanded = true },
                                             onLongClick = { isClientMenuExpanded = true }
                                         )
+                                        .padding(end = 8.dp)
                                 ) {
-                                    Text(text = currentClientName?.let { "Student: $it" } ?: "Add a Client")
+                                    Text(
+                                        text = currentClientName?.let { "Student: $it" } ?: stringResource(R.string.add_a_client),
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1
+                                    )
                                     Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                                 }
                                 DropdownMenu(
@@ -135,16 +141,18 @@ fun HomeScreen(
                                     onDismissRequest = { isClientMenuExpanded = false }
                                 ) {
                                     clients.forEach { client ->
-                                        DropdownMenuItem(
-                                            text = { Text(client.name) },
-                                            onClick = {
-                                                isClientMenuExpanded = false
-                                                activeClientManager.setCurrentClientId(client.id)
-                                            }
-                                        )
+                                        key(client.id) {
+                                            DropdownMenuItem(
+                                                text = { Text(client.name) },
+                                                onClick = {
+                                                    isClientMenuExpanded = false
+                                                    activeClientManager.setCurrentClientId(client.id)
+                                                }
+                                            )
+                                        }
                                     }
                                     DropdownMenuItem(
-                                        text = { Text("Add a Client") },
+                                        text = { Text(stringResource(R.string.add_a_client)) },
                                         onClick = {
                                             isClientMenuExpanded = false
                                             isAddClientDialogVisible = true
@@ -176,7 +184,7 @@ fun HomeScreen(
                         onDelete = viewModel::deleteItem,
                         onEdit = onNavigateToEdit
                     )
-                    is HomeUiState.NoClient -> Text("Add a Client to start.", modifier = Modifier.align(Alignment.Center))
+                    is HomeUiState.NoClient -> Text(stringResource(R.string.add_client_to_start), modifier = Modifier.align(Alignment.Center))
                     is HomeUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
                 }
             }
@@ -186,7 +194,7 @@ fun HomeScreen(
     if (isAddClientDialogVisible) {
         AlertDialog(
             onDismissRequest = { isAddClientDialogVisible = false },
-            title = { Text("Add a Client") },
+            title = { Text(stringResource(R.string.add_a_client)) },
             text = {
                 OutlinedTextField(
                     value = newClientName,

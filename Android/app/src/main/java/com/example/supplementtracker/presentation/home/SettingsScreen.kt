@@ -43,7 +43,8 @@ fun SettingsScreen(
     onThemeChange: (AppTheme) -> Unit
 ) {
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
-    val clients by activeClientManager.clients.collectAsStateWithLifecycle()
+    val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
+    val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val backgroundBrush = if (isDark) {
@@ -170,7 +171,7 @@ fun SettingsScreen(
     if (isAddClientDialogVisible) {
         AlertDialog(
             onDismissRequest = { isAddClientDialogVisible = false },
-            title = { Text("Add a Client") },
+            title = { Text(stringResource(R.string.add_a_client)) },
             text = {
                 OutlinedTextField(
                     value = clientNameInput,
@@ -204,7 +205,7 @@ fun SettingsScreen(
         if (target != null) {
             AlertDialog(
                 onDismissRequest = { isEditClientDialogVisible = false },
-                title = { Text("Edit Client") },
+                title = { Text(stringResource(R.string.edit)) },
                 text = {
                     OutlinedTextField(
                         value = clientNameInput,
@@ -350,33 +351,35 @@ private fun ClientManagementCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Client Management", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.client_management), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
 
             if (clients.isEmpty()) {
                 Text(text = "No clients yet.", style = MaterialTheme.typography.bodyMedium)
             } else {
                 clients.forEach { client ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = client.name, modifier = Modifier.weight(1f))
-                        if (client.id == currentClientId) {
-                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                    key(client.id) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = client.name, modifier = Modifier.weight(1f))
+                            if (client.id == currentClientId) {
+                                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                            }
+                            TextButton(onClick = { onSelect(client.id) }) { Text(stringResource(R.string.select)) }
+                            TextButton(onClick = { onEdit(client) }) { Text(stringResource(R.string.edit)) }
+                            TextButton(onClick = { onDelete(client) }) { Text(stringResource(R.string.delete)) }
                         }
-                        TextButton(onClick = { onSelect(client.id) }) { Text("Select") }
-                        TextButton(onClick = { onEdit(client) }) { Text("Edit") }
-                        TextButton(onClick = { onDelete(client) }) { Text("Delete") }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
             Button(onClick = onAdd) {
-                Text("Add a Client")
+                Text(stringResource(R.string.add_a_client))
             }
         }
     }

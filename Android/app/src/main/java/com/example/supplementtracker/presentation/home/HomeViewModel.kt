@@ -103,6 +103,11 @@ class HomeViewModel(
 
     fun createClient(profile: ClientProfile) {
         viewModelScope.launch {
+            val newName = profile.name.trim()
+            val alreadyExists = activeClientManager.clients.value.any { existing ->
+                existing.name.trim().equals(newName, ignoreCase = true)
+            }
+            if (alreadyExists) return@launch
             repository.saveClient(profile)
         }
     }
@@ -115,6 +120,11 @@ class HomeViewModel(
 
     fun updateClient(profile: ClientProfile) {
         viewModelScope.launch {
+            val newName = profile.name.trim()
+            val alreadyExists = activeClientManager.clients.value.any { existing ->
+                existing.id != profile.id && existing.name.trim().equals(newName, ignoreCase = true)
+            }
+            if (alreadyExists) return@launch
             repository.updateClient(profile)
         }
     }

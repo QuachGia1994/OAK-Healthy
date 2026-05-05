@@ -67,4 +67,9 @@
     <string name="notification_default_name">Thực phẩm bổ sung</string>
     <string name="notification_title">Đến giờ uống rồi! 🌿</string>
     <string name="notification_body_format">Bạn cần nạp %1$s - Liều lượng: %2$s. Chúc bạn một phiên giao dịch/làm việc hiệu quả!</string>
+
+    <string name="client_management">Quản lý học viên</string>
+    <string name="add_a_client">Thêm học viên</string>
+    <string name="select">Chọn</string>
+    <string name="add_client_to_start">Thêm học viên để bắt đầu.</string>
 </resources>

@@ -9,6 +9,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -21,6 +23,8 @@ class ActiveClientManager(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val clients: StateFlow<List<ClientProfile>> = repository.observeClients()
+        .map { list -> list.distinctBy { it.id } }
+        .distinctUntilChanged()
         .stateIn(scope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _currentClientId = MutableStateFlow(loadClientId())

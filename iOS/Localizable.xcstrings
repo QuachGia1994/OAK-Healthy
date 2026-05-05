@@ -1,0 +1,169 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "about_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giới thiệu" } }
+      }
+    },
+    "appearance_dark" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dark" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tối" } }
+      }
+    },
+    "appearance_light" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Light" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Sáng" } }
+      }
+    },
+    "appearance_system" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hệ thống" } }
+      }
+    },
+    "appearance_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Appearance" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Giao diện" } }
+      }
+    },
+    "copyright_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copyright & Author" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bản quyền & Tác giả" } }
+      }
+    },
+    "dedication_text" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "With all dedication and research in the fitness & trading journey." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bằng cả tâm huyết và nghiên cứu trong hành trình gym & trading." } }
+      }
+    },
+    "later" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Later" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Để sau" } }
+      }
+    },
+    "my_list_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "My List" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Danh sách của tôi" } }
+      }
+    },
+    "no_intake_today" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No intake scheduled for today." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không có lịch uống hôm nay." } }
+      }
+    },
+    "no_supplements_yet" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No supplements yet." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chưa có thực phẩm bổ sung." } }
+      }
+    },
+    "settings_about_body" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OAK Healthy - Professional supplement tracker for Traders and Athletes." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên." } }
+      }
+    },
+    "settings_app_name_label" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "App Name: OAK Healthy v1.0" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tên app: OAK Healthy v1.0" } }
+      }
+    },
+    "settings_author_label" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Author: Mr. Phong (Personal Trader)" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tác giả: Mr. Phong (Personal Trader)" } }
+      }
+    },
+    "settings_copyright_body" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copyright © 2026 OAK Healthy. All rights reserved." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Copyright © 2026 OAK Healthy. Mọi bản quyền được bảo lưu." } }
+      }
+    },
+    "settings_guide_1" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "1. Tap (+) to add a new supplement." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "1. Nhấn (+) để thêm thực phẩm bổ sung mới." } }
+      }
+    },
+    "settings_guide_2" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "2. Choose from suggestions for auto-cycles." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "2. Chọn từ gợi ý để tự động điền chu kỳ." } }
+      }
+    },
+    "settings_guide_3" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "3. Tap the circle on Dashboard after taking." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "3. Tích chọn vòng tròn ở Dashboard sau khi uống." } }
+      }
+    },
+    "settings_guide_4" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "4. Track ON/OFF cycles in History." } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "4. Theo dõi chu kỳ On/Off ở tab Lịch sử." } }
+      }
+    },
+    "settings_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cài đặt" } }
+      }
+    },
+    "tab_history" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "History" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Lịch sử" } }
+      }
+    },
+    "tab_home" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Home" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Trang chủ" } }
+      }
+    },
+    "tab_settings" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cài đặt" } }
+      }
+    },
+    "today_intake_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Today's Intake" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cần uống hôm nay" } }
+      }
+    },
+    "update_available_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update Available" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Có bản cập nhật mới" } }
+      }
+    },
+    "update_now" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update Now" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Cập nhật ngay" } }
+      }
+    },
+    "user_guide_title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "User Guide" } },
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hướng dẫn sử dụng" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}
+
