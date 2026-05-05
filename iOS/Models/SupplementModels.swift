@@ -143,7 +143,6 @@ public final class IntakeRecord: Identifiable {
     /// Trạng thái (mặc định là "Taken").
     public var status: String
     /// Liên kết ngược tới chất bổ sung.
-    @Relationship(inverse: \UserSupplement.intakeRecords)
     public var supplement: UserSupplement?
     
     /// Khởi tạo nhật ký uống.

@@ -31,133 +31,8 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient
-                    .ignoresSafeArea()
-                
-                List {
-                    Section("Client Management") {
-                        if clients.isEmpty {
-                            Text("Add a Client to start.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(clients) { client in
-                                HStack {
-                                    Text(client.name)
-                                    Spacer()
-                                    if client.id == activeClientManager.currentClientId {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.green)
-                                    }
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    activeClientManager.setCurrentClientId(client.id)
-                                }
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) {
-                                        deleteClient(client)
-                                    } label: {
-                                        Label("delete", systemImage: "trash")
-                                    }
-                                }
-                                .swipeActions(edge: .leading) {
-                                    Button {
-                                        editingClient = client
-                                    } label: {
-                                        Label("edit", systemImage: "pencil")
-                                    }
-                                    .tint(.orange)
-                                }
-                            }
-                        }
-                        
-                        Button("Add a Client") {
-                            isShowingAddClientSheet = true
-                        }
-                    }
-                    .listRowBackground(.ultraThinMaterial)
-                    
-                    Section {
-                        VStack(spacing: 12) {
-                            OAKLogoView()
-                                .padding(.top, 12)
-                            
-                            Text("dedication_text")
-                                .font(.subheadline)
-                                .italic()
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.bottom, 12)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 12)
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    
-                    Section("appearance_title") {
-                        Picker("appearance_title", selection: $appTheme) {
-                            Text("appearance_light").tag("light")
-                            Text("appearance_dark").tag("dark")
-                            Text("appearance_system").tag("system")
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    .listRowBackground(.ultraThinMaterial)
-                    
-                    Section("my_list_title") {
-                        if supplements.isEmpty {
-                            Text("no_supplements_yet")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(supplements) { supplement in
-                                VStack(alignment: .leading) {
-                                    Text(supplement.name)
-                                        .font(.headline)
-                                    Text(getCycleSummary(for: supplement))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    .listRowBackground(.ultraThinMaterial)
-                    
-                    Section("user_guide_title") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            GuideRow(number: "1", text: String(localized: "settings_guide_1"))
-                            GuideRow(number: "2", text: String(localized: "settings_guide_2"))
-                            GuideRow(number: "3", text: String(localized: "settings_guide_3"))
-                            GuideRow(number: "4", text: String(localized: "settings_guide_4"))
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .listRowBackground(.ultraThinMaterial)
-                    
-                    Section("about_title") {
-                        Text(String(localized: "settings_about_body"))
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                    }
-                    .listRowBackground(.ultraThinMaterial)
-                    
-                    Section("copyright_title") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            LabeledContent(String(localized: "settings_app_name_label"), value: "OAK Healthy v1.0")
-                            LabeledContent(String(localized: "settings_author_label"), value: "Mr. Phong (Personal Trader)")
-                            Text(String(localized: "settings_copyright_body"))
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                                .padding(.top, 4)
-                        }
-                    }
-                    .listRowBackground(.ultraThinMaterial)
-                }
-                .scrollContentBackground(.hidden)
-                .navigationTitle("settings_title")
+                backgroundGradient.ignoresSafeArea()
+                settingsList
             }
         }
         .task {
@@ -180,6 +55,139 @@ public struct SettingsView: View {
                 try? modelContext.save()
             }
         }
+    }
+    
+    private var settingsList: some View {
+        List {
+            clientManagementSection
+            appHeaderSection
+            themeSelectionSection
+            supplementListSection
+            userGuideSection
+            aboutSection
+            copyrightSection
+        }
+        .scrollContentBackground(.hidden)
+        .navigationTitle("settings_title")
+    }
+    
+    @ViewBuilder
+    private var clientManagementSection: some View {
+        Section("Client Management") {
+            if clients.isEmpty {
+                Text("Add a Client to start.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(clients) { client in
+                    ClientRow(
+                        client: client,
+                        isActive: client.id == activeClientManager.currentClientId,
+                        onSelect: { activeClientManager.setCurrentClientId(client.id) },
+                        onEdit: { editingClient = client },
+                        onDelete: { deleteClient(client) }
+                    )
+                }
+            }
+            
+            Button("Add a Client") {
+                isShowingAddClientSheet = true
+            }
+        }
+        .listRowBackground(.ultraThinMaterial)
+    }
+    
+    @ViewBuilder
+    private var appHeaderSection: some View {
+        Section {
+            VStack(spacing: 12) {
+                OAKLogoView()
+                    .padding(.top, 12)
+                
+                Text("dedication_text")
+                    .font(.subheadline)
+                    .italic()
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 12)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+    }
+    
+    @ViewBuilder
+    private var themeSelectionSection: some View {
+        Section("appearance_title") {
+            Picker("appearance_title", selection: $appTheme) {
+                Text("appearance_light").tag("light")
+                Text("appearance_dark").tag("dark")
+                Text("appearance_system").tag("system")
+            }
+            .pickerStyle(.segmented)
+        }
+        .listRowBackground(.ultraThinMaterial)
+    }
+    
+    @ViewBuilder
+    private var supplementListSection: some View {
+        Section("my_list_title") {
+            if supplements.isEmpty {
+                Text("no_supplements_yet")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(supplements) { supplement in
+                    SupplementRow(
+                        name: supplement.name,
+                        cycleSummary: getCycleSummary(for: supplement)
+                    )
+                }
+            }
+        }
+        .listRowBackground(.ultraThinMaterial)
+    }
+    
+    @ViewBuilder
+    private var userGuideSection: some View {
+        Section("user_guide_title") {
+            VStack(alignment: .leading, spacing: 8) {
+                GuideRow(number: "1", text: String(localized: "settings_guide_1"))
+                GuideRow(number: "2", text: String(localized: "settings_guide_2"))
+                GuideRow(number: "3", text: String(localized: "settings_guide_3"))
+                GuideRow(number: "4", text: String(localized: "settings_guide_4"))
+            }
+            .padding(.vertical, 4)
+        }
+        .listRowBackground(.ultraThinMaterial)
+    }
+    
+    @ViewBuilder
+    private var aboutSection: some View {
+        Section("about_title") {
+            Text(String(localized: "settings_about_body"))
+                .font(.body)
+                .foregroundStyle(.secondary)
+        }
+        .listRowBackground(.ultraThinMaterial)
+    }
+    
+    @ViewBuilder
+    private var copyrightSection: some View {
+        Section("copyright_title") {
+            VStack(alignment: .leading, spacing: 4) {
+                LabeledContent(String(localized: "settings_app_name_label"), value: "OAK Healthy v1.0")
+                LabeledContent(String(localized: "settings_author_label"), value: "Mr. Phong (Personal Trader)")
+                Text(String(localized: "settings_copyright_body"))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
+            }
+        }
+        .listRowBackground(.ultraThinMaterial)
     }
     
     private var backgroundGradient: LinearGradient {
@@ -209,6 +217,59 @@ public struct SettingsView: View {
             return String(localized: "cycle_continuous")
         }
         return String(format: String(localized: "cycle_summary_format"), statusText, config.daysOn, config.daysOff)
+    }
+}
+
+private struct ClientRow: View {
+    let client: ClientProfile
+    let isActive: Bool
+    let onSelect: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        HStack {
+            Text(client.name)
+            Spacer()
+            if isActive {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect()
+        }
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("delete", systemImage: "trash")
+            }
+        }
+        .swipeActions(edge: .leading) {
+            Button {
+                onEdit()
+            } label: {
+                Label("edit", systemImage: "pencil")
+            }
+            .tint(.orange)
+        }
+    }
+}
+
+private struct SupplementRow: View {
+    let name: String
+    let cycleSummary: String
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(name)
+                .font(.headline)
+            Text(cycleSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
