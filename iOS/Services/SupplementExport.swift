@@ -24,6 +24,13 @@ struct SupplementExportCycle: Codable, Sendable {
     var daysOn: Int
     var daysOff: Int
     var durationMonths: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case isContinuous
+        case daysOn
+        case daysOff
+        case durationMonths
+    }
 }
 
 struct OAKBackupData: Codable, Sendable {
@@ -58,6 +65,15 @@ struct OAKBackupSupplement: Codable, Sendable {
     var intakeTime: String
     var startDate: String
     var cycle: SupplementExportCycle
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case dailyDose
+        case intakeTime
+        case startDate
+        case cycle
+    }
 }
 
 struct OAKBackupHistory: Codable, Sendable {
@@ -65,6 +81,13 @@ struct OAKBackupHistory: Codable, Sendable {
     var supplementId: String
     var dateEpochMs: Int64
     var status: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case supplementId
+        case dateEpochMs
+        case status
+    }
 }
 
 enum SupplementExportError: Error {
@@ -114,6 +137,10 @@ struct SupplementExportCodec {
     static func decodeBackupCompat(data: Data) throws -> OAKBackupData {
         if let decoded = try? JSONDecoder().decode(OAKBackupData.self, from: data) {
             return decoded
+        }
+
+        if let stack = try? JSONDecoder().decode([OAKBackupSupplement].self, from: data) {
+            return OAKBackupData(version: "1.1", stack: stack, history: [])
         }
         
         let legacy = try decode(data: data)

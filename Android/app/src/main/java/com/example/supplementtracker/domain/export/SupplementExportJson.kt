@@ -100,7 +100,17 @@ object OAKBackupJson {
 
     fun decodeCompat(json: String): Result<OAKBackupDataDTO> {
         return runCatching {
-            val root = runCatching { JSONObject(json) }.getOrNull()
+            val trimmed = json.trim()
+            if (trimmed.startsWith("[")) {
+                val array = JSONArray(trimmed)
+                return@runCatching OAKBackupDataDTO(
+                    version = OAKBackupSchema.VERSION,
+                    stack = decodeStackArray(array),
+                    history = emptyList()
+                )
+            }
+
+            val root = runCatching { JSONObject(trimmed) }.getOrNull()
             if (root == null) {
                 val legacy = SupplementExportJson.decode(json).getOrThrow()
                 return@runCatching OAKBackupDataDTO(
@@ -138,11 +148,7 @@ object OAKBackupJson {
                 )
             }
 
-            val stack = buildList {
-                for (i in 0 until stackArray.length()) {
-                    add(decodeSupplement(stackArray.getJSONObject(i)))
-                }
-            }
+            val stack = decodeStackArray(stackArray)
 
             val historyArray = root.optJSONArray("history") ?: JSONArray()
             val history = buildList {
@@ -159,6 +165,15 @@ object OAKBackupJson {
         }
     }
 
+    private fun decodeStackArray(array: JSONArray): List<OAKBackupSupplementDTO> {
+        return buildList {
+            for (i in 0 until array.length()) {
+                val obj = array.optJSONObject(i) ?: continue
+                add(decodeSupplement(obj))
+            }
+        }
+    }
+
     private fun encodeSupplement(dto: OAKBackupSupplementDTO): JSONObject {
         val obj = JSONObject()
         obj.put("id", dto.id)
@@ -171,14 +186,13 @@ object OAKBackupJson {
     }
 
     private fun decodeSupplement(obj: JSONObject): OAKBackupSupplementDTO {
-        val cycleObj = obj.getJSONObject("cycle")
         return OAKBackupSupplementDTO(
             id = obj.optString("id", java.util.UUID.randomUUID().toString()),
-            name = obj.getString("name"),
+            name = obj.optString("name", ""),
             dailyDose = obj.optString("dailyDose", ""),
             intakeTime = obj.optString("intakeTime", "08:00"),
-            startDate = obj.getString("startDate"),
-            cycle = decodeCycle(cycleObj)
+            startDate = obj.optString("startDate", "1970-01-01"),
+            cycle = decodeCycle(obj.optJSONObject("cycle") ?: JSONObject())
         )
     }
 
