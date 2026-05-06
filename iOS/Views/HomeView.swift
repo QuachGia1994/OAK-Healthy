@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Màn hình chính Dashboard trên iOS.
 public struct HomeView: View {
@@ -149,7 +150,7 @@ public struct HomeView: View {
                     }
                     .scrollContentBackground(.hidden)
                     .listStyle(.plain)
-                    .navigationTitle(navigationTitle)
+                    .navigationTitle("today_intake_title".localized)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Menu {
@@ -162,7 +163,7 @@ public struct HomeView: View {
                                     isShowingAddClientSheet = true
                                 }
                             } label: {
-                                Text(navigationTitle)
+                                Text(clientTitle)
                                     .font(.headline)
                             }
                         }
@@ -245,6 +246,10 @@ public struct HomeView: View {
     private var navigationTitle: String {
         activeClient?.name ?? "dashboard_title".localized
     }
+    
+    private var clientTitle: String {
+        activeClient?.name ?? "dashboard_title".localized
+    }
 }
 
 private struct AddClientSheet: View {
@@ -308,6 +313,7 @@ private struct ActiveSupplementRow: View {
             }
             Spacer()
             Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 onToggle(supplement, modelContext)
             } label: {
                 Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")

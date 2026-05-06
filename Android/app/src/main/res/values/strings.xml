@@ -72,6 +72,7 @@
     <string name="example_off_days">e.g., 7 days</string>
     <string name="suggested">Suggested: %1$s</string>
     <string name="my_list_title">My List</string>
+    <string name="manage_stack">Manage Stack</string>
 
     <string name="history_title">History</string>
     <string name="intake_frequency_last_7">Intake Frequency (Last 7 days)</string>

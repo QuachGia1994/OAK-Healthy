@@ -56,6 +56,7 @@
     <string name="example_off_days">Ví dụ: 7 ngày</string>
     <string name="suggested">Gợi ý: %1$s</string>
     <string name="my_list_title">Danh sách của tôi</string>
+    <string name="manage_stack">Quản lý Stack</string>
 
     <string name="history_title">Lịch sử</string>
     <string name="intake_frequency_last_7">Tần suất uống (7 ngày qua)</string>

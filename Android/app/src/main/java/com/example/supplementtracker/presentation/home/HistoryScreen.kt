@@ -2,9 +2,11 @@ package com.example.supplementtracker.presentation.home
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.stickyHeader
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
@@ -28,9 +30,11 @@ import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.ceil
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,12 +76,11 @@ fun HistoryScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HistoryContent(state: HistoryUiState.Success) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val shape = RoundedCornerShape(28.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -89,11 +92,9 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp)
-                    .shadow(12.dp, shape),
+                    .padding(top = 12.dp),
                 shape = shape,
                 colors = CardDefaults.cardColors(containerColor = containerColor),
-                border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 PremiumBarChart(data = state.chartData)
@@ -107,8 +108,36 @@ private fun HistoryContent(state: HistoryUiState.Success) {
         if (state.records.isEmpty()) {
             item { Text(stringResource(R.string.no_logs_yet), color = Color.Gray) }
         } else {
-            items(state.records) { record ->
-                HistoryRecordItem(record)
+            val grouped = state.records
+                .groupBy { record ->
+                    LocalDateTime
+                        .ofInstant(Instant.ofEpochMilli(record.date), ZoneId.systemDefault())
+                        .toLocalDate()
+                }
+                .toSortedMap(compareByDescending { it })
+            
+            grouped.forEach { (date, records) ->
+                stickyHeader {
+                    Surface(
+                        color = containerColor,
+                        shape = RoundedCornerShape(28.dp),
+                        tonalElevation = 0.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    ) {
+                        Text(
+                            text = historySectionTitle(date),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+                
+                items(records.sortedByDescending { it.date }) { record ->
+                    HistoryRecordItem(record)
+                }
             }
         }
     }
@@ -217,27 +246,28 @@ private fun chooseStep(maxCount: Int): Int {
 
 @Composable
 private fun HistoryRecordItem(record: IntakeRecord) {
-    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
     val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(record.date), ZoneId.systemDefault())
+    val timeText = dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+    val displayTime = if (timeText == "00:00" && !record.intakeTime.isNullOrBlank()) record.intakeTime else timeText
 
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val shape = RoundedCornerShape(28.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(10.dp, shape),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = displayTime,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                modifier = Modifier.width(56.dp)
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(record.supplementName ?: "N/A", style = MaterialTheme.typography.bodyLarge)
-                Text(dateTime.format(formatter), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
             Icon(
                 imageVector = Icons.Default.CheckCircle,
@@ -246,4 +276,16 @@ private fun HistoryRecordItem(record: IntakeRecord) {
             )
         }
     }
+}
+
+private fun historySectionTitle(date: LocalDate): String {
+    val locale = Locale.getDefault()
+    val isVietnamese = locale.language == "vi"
+    val today = LocalDate.now()
+    
+    if (date == today) return if (isVietnamese) "Hôm nay" else "Today"
+    if (date == today.minusDays(1)) return if (isVietnamese) "Hôm qua" else "Yesterday"
+    
+    val formatter = DateTimeFormatter.ofPattern("d MMMM, yyyy", locale)
+    return date.format(formatter)
 }

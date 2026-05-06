@@ -96,7 +96,7 @@ class HomeViewModel(
         viewModelScope.launch {
             val startOfDay = getStartOfDay()
             if (isChecked) {
-                repository.logIntake(supplementId, startOfDay)
+                repository.logIntake(supplementId, System.currentTimeMillis())
                 return@launch
             }
             repository.removeIntake(supplementId, startOfDay)

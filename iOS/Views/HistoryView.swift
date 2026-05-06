@@ -62,8 +62,22 @@ public struct HistoryView: View {
                                 Text("no_logs_yet".localized)
                                     .foregroundStyle(.secondary)
                             } else {
-                                ForEach(records) { record in
-                                    HistoryRow(record: record)
+                                LazyVStack(alignment: .leading, spacing: 12) {
+                                    ForEach(groupedRecords, id: \.date) { section in
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text(sectionTitle(for: section.date))
+                                                .font(.headline)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .background(.secondary.opacity(0.12))
+                                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            
+                                            ForEach(section.records) { record in
+                                                HistoryRow(record: record)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -90,6 +104,40 @@ public struct HistoryView: View {
             : [Color(.systemGroupedBackground), Color(.systemBackground)]
         return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
+    
+    private var groupedRecords: [(date: Date, records: [IntakeRecord])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: records) { record in
+            calendar.startOfDay(for: record.date)
+        }
+        
+        return grouped
+            .map { (date: $0.key, records: $0.value.sorted { $0.date > $1.date }) }
+            .sorted { $0.date > $1.date }
+    }
+    
+    private func sectionTitle(for date: Date) -> String {
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(date) {
+            return isVietnamese ? "Hôm nay" : "Today"
+        }
+        
+        if calendar.isDateInYesterday(date) {
+            return isVietnamese ? "Hôm qua" : "Yesterday"
+        }
+        
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: isVietnamese ? "vi_VN" : "en_US")
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter.string(from: date)
+    }
+    
+    private var isVietnamese: Bool {
+        guard let preferredLanguage = Locale.preferredLanguages.first else { return false }
+        return preferredLanguage.hasPrefix("vi")
+    }
 }
 
 /// Dòng hiển thị chi tiết nhật ký.
@@ -98,14 +146,14 @@ private struct HistoryRow: View {
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading) {
-                Text(record.supplement?.name ?? "not_available".localized)
-                    .font(.body)
-                    .fontWeight(.medium)
-                Text(record.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(record.date.formatted(date: .omitted, time: .shortened))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            
+            Text(record.supplement?.name ?? "not_available".localized)
+                .font(.body)
+                .fontWeight(.medium)
             Spacer()
             Image(systemName: "checkmark.seal.fill")
                 .foregroundStyle(.green)

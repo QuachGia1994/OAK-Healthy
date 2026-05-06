@@ -5,7 +5,9 @@ import android.content.Intent
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -29,7 +31,10 @@ import java.time.LocalDate
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -69,7 +74,8 @@ fun SettingsScreen(
     homeViewModel: HomeViewModel,
     activeClientManager: ActiveClientManager,
     appTheme: AppTheme,
-    onThemeChange: (AppTheme) -> Unit
+    onThemeChange: (AppTheme) -> Unit,
+    onNavigateToStackManager: () -> Unit
 ) {
     val context = LocalContext.current
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
@@ -85,6 +91,7 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareChooserTitle = stringResource(R.string.share_stack)
+    var isGuideExpanded by remember { mutableStateOf(false) }
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
     } else {
@@ -204,18 +211,21 @@ fun SettingsScreen(
                         )
                     }
 
-                    items(items = allSupplements) { supplement ->
-                        InfoCard(
-                            title = supplement.name,
-                            content = getCycleSummary(supplement)
+                    item {
+                        InfoCardNavigationRow(
+                            title = stringResource(R.string.manage_stack),
+                            subtitle = "${allSupplements.size}",
+                            onClick = onNavigateToStackManager
                         )
                     }
                 }
 
                 item {
-                    InfoCard(
+                    ExpandableInfoCard(
                         title = stringResource(R.string.settings_guide_title),
-                        content = stringResource(R.string.settings_guide_content)
+                        content = stringResource(R.string.settings_guide_content),
+                        expanded = isGuideExpanded,
+                        onToggle = { isGuideExpanded = !isGuideExpanded }
                     )
                 }
 
@@ -469,18 +479,13 @@ private fun AppearanceCard(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val shape = RoundedCornerShape(32.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(if (isDark) 12.dp else 2.dp, shape),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -522,7 +527,6 @@ private fun AppThemeSegmentedControl(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .shadow(if (selected) 2.dp else 0.dp, pillShape)
                     .background(if (selected) selectedColor else Color.Transparent, pillShape)
             ) {
                 TextButton(
@@ -561,18 +565,13 @@ private fun getCycleSummary(supplement: UserSupplement): String {
 
 @Composable
 private fun InfoCard(title: String, content: String) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val shape = RoundedCornerShape(32.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(if (isDark) 10.dp else 2.dp, shape),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -593,6 +592,149 @@ private fun InfoCard(title: String, content: String) {
 }
 
 @Composable
+private fun ExpandableInfoCard(
+    title: String,
+    content: String,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    val shape = RoundedCornerShape(32.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Column {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.2
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoCardNavigationRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(32.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val subtitleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            Text(text = subtitle, color = subtitleColor)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MyStackListScreen(
+    homeViewModel: HomeViewModel,
+    activeClientManager: ActiveClientManager,
+    onBack: () -> Unit
+) {
+    val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val backgroundBrush = if (isDark) {
+        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    }
+
+    val supplements = remember(uiState, currentClientId) {
+        if (currentClientId == null) return@remember emptyList<UserSupplement>()
+        val success = uiState as? HomeUiState.Success ?: return@remember emptyList()
+        (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
+            .distinctBy { it.id }
+            .sortedBy { it.name }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundBrush)
+    ) {
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    title = { Text(stringResource(R.string.my_list_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(items = supplements, key = { it.id }) { supplement ->
+                    InfoCard(
+                        title = supplement.name,
+                        content = getCycleSummary(supplement)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ClientManagementCard(
     clients: List<ClientProfile>,
     currentClientId: UUID?,
@@ -601,18 +743,13 @@ private fun ClientManagementCard(
     onEdit: (ClientProfile) -> Unit,
     onDelete: (ClientProfile) -> Unit
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(16.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val shape = RoundedCornerShape(32.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(if (isDark) 12.dp else 2.dp, shape),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -682,18 +819,13 @@ private fun ClientManagementCard(
 
 @Composable
 private fun LogoCard() {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(20.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val shape = RoundedCornerShape(32.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(if (isDark) 14.dp else 2.dp, shape),
+        modifier = Modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

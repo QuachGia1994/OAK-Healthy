@@ -206,15 +206,18 @@ public struct SettingsView: View {
     @ViewBuilder
     private var supplementListSection: some View {
         Section {
-            if supplementsForActiveClient.isEmpty {
-                Text("no_supplements_yet".localized)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(supplementsForActiveClient) { supplement in
-                    SupplementRow(
-                        name: supplement.name,
-                        cycleSummary: getCycleSummary(for: supplement)
-                    )
+            NavigationLink {
+                MyStackListView(
+                    title: "my_list_title".localized,
+                    supplements: supplementsForActiveClient,
+                    cycleSummary: getCycleSummary
+                )
+            } label: {
+                HStack {
+                    Text("manage_stack".localized)
+                    Spacer()
+                    Text("\(supplementsForActiveClient.count)")
+                        .foregroundStyle(.secondary)
                 }
             }
         } header: {
@@ -226,15 +229,15 @@ public struct SettingsView: View {
     @ViewBuilder
     private var userGuideSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 8) {
-                GuideRow(number: "1", text: "settings_guide_1".localized)
-                GuideRow(number: "2", text: "settings_guide_2".localized)
-                GuideRow(number: "3", text: "settings_guide_3".localized)
-                GuideRow(number: "4", text: "settings_guide_4".localized)
+            DisclosureGroup("user_guide_title".localized) {
+                VStack(alignment: .leading, spacing: 8) {
+                    GuideRow(number: "1", text: "settings_guide_1".localized)
+                    GuideRow(number: "2", text: "settings_guide_2".localized)
+                    GuideRow(number: "3", text: "settings_guide_3".localized)
+                    GuideRow(number: "4", text: "settings_guide_4".localized)
+                }
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 4)
-        } header: {
-            Text("user_guide_title".localized)
         }
         .listRowBackground(glassRowBackground)
     }
@@ -441,6 +444,30 @@ private struct SupplementRow: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct MyStackListView: View {
+    let title: String
+    let supplements: [UserSupplement]
+    let cycleSummary: (UserSupplement) -> String
+    
+    var body: some View {
+        List {
+            if supplements.isEmpty {
+                Text("no_supplements_yet".localized)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(supplements) { supplement in
+                    SupplementRow(
+                        name: supplement.name,
+                        cycleSummary: cycleSummary(supplement)
+                    )
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .navigationTitle(title)
     }
 }
 

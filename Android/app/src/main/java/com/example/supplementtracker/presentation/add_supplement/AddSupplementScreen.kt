@@ -100,17 +100,14 @@ fun AddSupplementScreen(
 
             // Hiển thị gợi ý
             if (state.suggestions.isNotEmpty()) {
-                val shape = RoundedCornerShape(16.dp)
-                val containerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White
-                val borderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color(0x14000000)
+                val shape = RoundedCornerShape(32.dp)
+                val containerColor = MaterialTheme.colorScheme.surfaceVariant
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .shadow(if (isDark) 12.dp else 2.dp, shape),
+                        .padding(vertical = 8.dp),
                     shape = shape,
                     colors = CardDefaults.cardColors(containerColor = containerColor),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     state.suggestions.forEach { suggestion ->
@@ -141,18 +138,15 @@ fun AddSupplementScreen(
             // Section: Lịch trình & Chu kỳ
             Text(stringResource(R.string.schedule_cycle_title), style = MaterialTheme.typography.titleMedium)
             
-            val timeShape = RoundedCornerShape(16.dp)
-            val timeContainerColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White
-            val timeBorderColor = if (isDark) Color.White.copy(alpha = 0.18f) else Color(0x14000000)
+            val timeShape = RoundedCornerShape(32.dp)
+            val timeContainerColor = MaterialTheme.colorScheme.surfaceVariant
             Card(
                 onClick = { timePickerDialog.show() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .shadow(if (isDark) 10.dp else 2.dp, timeShape),
+                    .padding(vertical = 8.dp),
                 shape = timeShape,
                 colors = CardDefaults.cardColors(containerColor = timeContainerColor),
-                border = androidx.compose.foundation.BorderStroke(1.dp, timeBorderColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -40,6 +40,8 @@ import java.time.format.DateTimeFormatter
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.service.UpdateService
@@ -238,7 +240,7 @@ private fun HomeContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Section: Active Today
@@ -387,20 +389,17 @@ private fun ActiveSupplementCard(
     onToggleIntake: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val haptic = LocalHapticFeedback.current
+    val shape = RoundedCornerShape(28.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
         modifier = modifier
-            .fillMaxWidth()
-            .shadow(if (isDark) 12.dp else 2.dp, shape),
+            .fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         ),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -418,6 +417,9 @@ private fun ActiveSupplementCard(
                 IconToggleButton(
                     checked = item.isTaken,
                     onCheckedChange = { checked ->
+                        if (checked) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
                         onToggleIntake(item.supplement.id.toString(), checked)
                     }
                 ) {
@@ -444,18 +446,14 @@ private fun ActiveSupplementCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RestingSupplementCard(info: RestingSupplementInfo) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shape = RoundedCornerShape(12.dp)
-    val containerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
-    val borderColor = Color.White.copy(alpha = 0.20f)
+    val shape = RoundedCornerShape(28.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .shadow(if (isDark) 10.dp else 2.dp, shape),
+            .fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(

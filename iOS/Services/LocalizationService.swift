@@ -48,6 +48,7 @@ public struct LocalizationService: Sendable {
         "appearance_dark": ("Dark", "Tối"),
         "appearance_system": ("System", "Hệ thống"),
         "my_list_title": ("My List", "Danh sách của tôi"),
+        "manage_stack": ("Manage Stack", "Quản lý Stack"),
         "no_supplements_yet": ("No supplements yet.", "Chưa có thực phẩm bổ sung."),
         "user_guide_title": ("User Guide", "Hướng dẫn sử dụng"),
         "settings_guide_1": ("1. Tap (+) to add a new supplement.", "1. Nhấn (+) để thêm thực phẩm bổ sung mới."),
