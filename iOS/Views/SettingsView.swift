@@ -24,7 +24,7 @@ public struct SettingsView: View {
     public let activeClientManager: ActiveClientManager
 
     private static var allowedBackupContentTypes: [UTType] {
-        [.item, .content, .data, .json]
+        [.item]
     }
     
     public init(activeClientManager: ActiveClientManager) {
@@ -62,6 +62,16 @@ public struct SettingsView: View {
                 try? modelContext.save()
             }
         }
+        .alert("error_title".localized, isPresented: $isShowingError) {
+            Button("ok".localized) {}
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        .alert("Thông báo Nhập dữ liệu", isPresented: $showImportErrorAlert) {
+            Button("OK") {}
+        } message: {
+            Text(importErrorMessage)
+        }
         .fileImporter(
             isPresented: $isShowingImportPicker,
             allowedContentTypes: Self.allowedBackupContentTypes,
@@ -74,25 +84,27 @@ public struct SettingsView: View {
                     return
                 }
                 guard let url = urls.first else { return }
-                
+
+                print("SUCCESS: File selected at \(url.absoluteString)")
                 let didAccess = url.startAccessingSecurityScopedResource()
+                print("SECURITY SCOPE: \(didAccess ? "granted" : "not_granted")")
                 defer {
                     if didAccess { url.stopAccessingSecurityScopedResource() }
                 }
-                
+
                 guard url.pathExtension.lowercased() == "json" else {
                     importErrorMessage = "Invalid file type selected. Must be a .json file."
                     showImportErrorAlert = true
                     return
                 }
-                
+
                 do {
                     let data = try Data(contentsOf: url)
                     guard let client = clients.first(where: { $0.id == clientId }) else {
                         showError(message: "missing_active_client".localized)
                         return
                     }
-                    
+
                     try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
                     refreshSharePayloads()
                     importErrorMessage = "Nhập dữ liệu thành công!"
@@ -118,19 +130,10 @@ public struct SettingsView: View {
                     showImportErrorAlert = true
                 }
             case .failure(let error):
+                print("FILE PICKER ERROR: \(error.localizedDescription)")
                 importErrorMessage = "Lỗi chọn file: \(error.localizedDescription)"
                 showImportErrorAlert = true
             }
-        }
-        .alert("error_title".localized, isPresented: $isShowingError) {
-            Button("ok".localized) {}
-        } message: {
-            Text(errorMessage ?? "")
-        }
-        .alert("Thông báo Nhập dữ liệu", isPresented: $showImportErrorAlert) {
-            Button("OK") {}
-        } message: {
-            Text(importErrorMessage)
         }
     }
     
