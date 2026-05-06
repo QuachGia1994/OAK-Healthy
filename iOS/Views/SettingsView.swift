@@ -22,7 +22,7 @@ public struct SettingsView: View {
     public let activeClientManager: ActiveClientManager
 
     private static var allowedBackupContentTypes: [UTType] {
-        var types: [UTType] = [.json, .plainText, .data]
+        var types: [UTType] = [.json, .plainText, .data, .item]
         if let mimeType = UTType(mimeType: "application/json"), !types.contains(mimeType) {
             types.append(mimeType)
         }
