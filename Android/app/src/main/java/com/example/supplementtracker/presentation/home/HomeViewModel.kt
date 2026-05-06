@@ -34,6 +34,7 @@ import com.example.supplementtracker.domain.export.OAKBackupSchema
 import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.R
+import java.util.Locale
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
@@ -201,15 +202,16 @@ class HomeViewModel(
                 )
                 
                 repository.saveSupplement(imported)
-                importedSupplementIds.add(imported.id.toString())
+                importedSupplementIds.add(imported.id.toString().lowercase(Locale.ROOT))
             }
 
             decoded.history.forEach { record ->
-                if (!importedSupplementIds.contains(record.supplementId)) return@forEach
+                val normalizedSupplementId = record.supplementId.lowercase(Locale.ROOT)
+                if (!importedSupplementIds.contains(normalizedSupplementId)) return@forEach
                 repository.insertIntakeRecord(
                     com.example.supplementtracker.domain.repository.IntakeRecord(
                         id = record.id,
-                        supplementId = record.supplementId,
+                        supplementId = normalizedSupplementId,
                         date = record.dateEpochMs,
                         status = record.status
                     )

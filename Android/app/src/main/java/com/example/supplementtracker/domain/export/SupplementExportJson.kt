@@ -206,9 +206,11 @@ object OAKBackupJson {
     }
 
     private fun decodeHistory(obj: JSONObject): OAKBackupHistoryDTO {
+        val supplementId = obj.optString("supplementId", "")
+        if (supplementId.isBlank()) error("Missing supplementId")
         return OAKBackupHistoryDTO(
             id = obj.optString("id", java.util.UUID.randomUUID().toString()),
-            supplementId = obj.getString("supplementId"),
+            supplementId = supplementId,
             dateEpochMs = obj.optLong("dateEpochMs", 0L),
             status = obj.optString("status", "Taken")
         )
