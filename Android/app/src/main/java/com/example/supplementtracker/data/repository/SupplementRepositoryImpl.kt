@@ -102,6 +102,17 @@ class SupplementRepositoryImpl(
         )
     }
 
+    override suspend fun insertIntakeRecord(record: IntakeRecord) = withContext(Dispatchers.IO) {
+        dao.insertIntakeRecord(
+            IntakeRecordEntity(
+                id = record.id,
+                supplementId = record.supplementId,
+                date = record.date,
+                status = record.status
+            )
+        )
+    }
+
     override suspend fun removeIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {
         val startOfDay = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endOfDay = LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -122,6 +133,28 @@ class SupplementRepositoryImpl(
                 )
             }
         }
+    }
+
+    override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = withContext(Dispatchers.IO) {
+        dao.getAllRecordsByClient(clientId).map { record ->
+            IntakeRecord(
+                id = record.id,
+                supplementId = record.supplementId,
+                date = record.date,
+                status = record.status,
+                supplementName = record.supplementName,
+                dailyDose = record.dailyDose,
+                intakeTime = record.intakeTime
+            )
+        }
+    }
+
+    override suspend fun deleteAllSupplementsByClient(clientId: String) = withContext(Dispatchers.IO) {
+        dao.deleteAllSupplementsByClient(clientId)
+    }
+
+    override suspend fun deleteAllIntakeRecordsByClient(clientId: String) = withContext(Dispatchers.IO) {
+        dao.deleteAllIntakeRecordsByClient(clientId)
     }
 }
 

@@ -33,8 +33,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -122,7 +122,7 @@ fun SettingsScreen(
         val json = context.contentResolver.openInputStream(uri)?.use { input ->
             input.readBytes().toString(Charsets.UTF_8)
         } ?: return@rememberLauncherForActivityResult
-        homeViewModel.importSupplementsFromJson(json)
+        homeViewModel.importBackupFromJson(json)
     }
 
     LaunchedEffect(dataTransferMessage) {
@@ -262,27 +262,14 @@ fun SettingsScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = {
-                                    val dto = SupplementExportFileDTO(
-                                        schemaVersion = SupplementExportSchema.VERSION,
-                                        exportedAtEpochMs = System.currentTimeMillis(),
-                                        supplements = allSupplements.map { supplement ->
-                                            SupplementExportSupplementDTO(
-                                                name = supplement.name,
-                                                dailyDose = supplement.dailyDose,
-                                                intakeTime = supplement.intakeTime,
-                                                startDate = supplement.startDate.toString(),
-                                                category = null,
-                                                cycle = SupplementExportCycleDTO(
-                                                    isContinuous = supplement.cycleConfig.isContinuous,
-                                                    daysOn = supplement.cycleConfig.daysOn,
-                                                    daysOff = supplement.cycleConfig.daysOff,
-                                                    durationMonths = supplement.cycleConfig.durationMonths
-                                                )
-                                            )
+                                    coroutineScope.launch {
+                                        val json = homeViewModel.buildBackupJson().getOrElse { error ->
+                                            Toast.makeText(context, error.message ?: "Export failed", Toast.LENGTH_LONG).show()
+                                            return@launch
                                         }
-                                    )
-                                    pendingExportJson = SupplementExportJson.encode(dto)
-                                    createJsonDocument.launch("OAKHealthy_Stack.json")
+                                        pendingExportJson = json
+                                        createJsonDocument.launch("OAKHealthy_Backup.json")
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -622,7 +609,7 @@ private fun ExpandableInfoCard(
                     modifier = Modifier.weight(1f)
                 )
                 Icon(
-                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = null
                 )
             }

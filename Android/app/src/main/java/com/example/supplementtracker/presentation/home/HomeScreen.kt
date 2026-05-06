@@ -39,6 +39,7 @@ import java.time.format.DateTimeFormatter
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -389,7 +390,9 @@ private fun ActiveSupplementCard(
     onToggleIntake: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    var showConfirmDialog by remember(item.supplement.id) { mutableStateOf(false) }
     val shape = RoundedCornerShape(28.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
@@ -414,13 +417,13 @@ private fun ActiveSupplementCard(
                         Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
-                IconToggleButton(
-                    checked = item.isTaken,
-                    onCheckedChange = { checked ->
-                        if (checked) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                IconButton(
+                    onClick = {
+                        if (item.isTaken) {
+                            Toast.makeText(context, "Không thể hoàn tác lịch sử uống", Toast.LENGTH_SHORT).show()
+                            return@IconButton
                         }
-                        onToggleIntake(item.supplement.id.toString(), checked)
+                        showConfirmDialog = true
                     }
                 ) {
                     Icon(
@@ -440,6 +443,30 @@ private fun ActiveSupplementCard(
                 )
             }
         }
+    }
+    
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("Xác nhận uống") },
+            text = { Text("Bạn đã uống chất này? Hành động này sẽ được ghi vào Lịch sử và không thể hoàn tác.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmDialog = false
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToggleIntake(item.supplement.id.toString(), true)
+                    }
+                ) {
+                    Text("Đã uống")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
     }
 }
 

@@ -285,6 +285,7 @@ private struct ActiveSupplementRow: View {
     let supplement: UserSupplement
     let onToggle: (UserSupplement, ModelContext) -> Void
     let isTaken: Bool
+    @State private var showConfirm = false
     
     var body: some View {
         HStack {
@@ -313,8 +314,8 @@ private struct ActiveSupplementRow: View {
             }
             Spacer()
             Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                onToggle(supplement, modelContext)
+                guard !isTaken else { return }
+                showConfirm = true
             } label: {
                 Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isTaken ? .green : .gray)
@@ -325,6 +326,15 @@ private struct ActiveSupplementRow: View {
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
+        .alert("Xác nhận uống?", isPresented: $showConfirm) {
+            Button("Hủy", role: .cancel) {}
+            Button("Đã uống") {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                onToggle(supplement, modelContext)
+            }
+        } message: {
+            Text("Hành động này sẽ được ghi vào Lịch sử và không thể hoàn tác.")
+        }
     }
 }
 

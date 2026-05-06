@@ -55,7 +55,7 @@ object SupplementExportJson {
             dailyDose = obj.optString("dailyDose", ""),
             intakeTime = obj.optString("intakeTime", "08:00"),
             startDate = obj.getString("startDate"),
-            category = obj.optString("category", null),
+            category = obj.optString("category", "").ifBlank { null },
             cycle = decodeCycle(cycleObj)
         )
     }
@@ -79,3 +79,142 @@ object SupplementExportJson {
     }
 }
 
+object OAKBackupJson {
+    fun encode(data: OAKBackupDataDTO): String {
+        val root = JSONObject()
+        root.put("version", data.version)
+        val stackArray = JSONArray()
+        data.stack.forEach { dto ->
+            stackArray.put(encodeSupplement(dto))
+        }
+        root.put("stack", stackArray)
+
+        val historyArray = JSONArray()
+        data.history.forEach { dto ->
+            historyArray.put(encodeHistory(dto))
+        }
+        root.put("history", historyArray)
+
+        return root.toString(2)
+    }
+
+    fun decodeCompat(json: String): Result<OAKBackupDataDTO> {
+        return runCatching {
+            val root = runCatching { JSONObject(json) }.getOrNull()
+            if (root == null) {
+                val legacy = SupplementExportJson.decode(json).getOrThrow()
+                return@runCatching OAKBackupDataDTO(
+                    version = OAKBackupSchema.VERSION,
+                    stack = legacy.supplements.map { legacyDto ->
+                        OAKBackupSupplementDTO(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = legacyDto.name,
+                            dailyDose = legacyDto.dailyDose,
+                            intakeTime = legacyDto.intakeTime,
+                            startDate = legacyDto.startDate,
+                            cycle = legacyDto.cycle
+                        )
+                    },
+                    history = emptyList()
+                )
+            }
+
+            val stackArray = root.optJSONArray("stack")
+            if (stackArray == null) {
+                val legacy = SupplementExportJson.decode(json).getOrThrow()
+                return@runCatching OAKBackupDataDTO(
+                    version = OAKBackupSchema.VERSION,
+                    stack = legacy.supplements.map { legacyDto ->
+                        OAKBackupSupplementDTO(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = legacyDto.name,
+                            dailyDose = legacyDto.dailyDose,
+                            intakeTime = legacyDto.intakeTime,
+                            startDate = legacyDto.startDate,
+                            cycle = legacyDto.cycle
+                        )
+                    },
+                    history = emptyList()
+                )
+            }
+
+            val stack = buildList {
+                for (i in 0 until stackArray.length()) {
+                    add(decodeSupplement(stackArray.getJSONObject(i)))
+                }
+            }
+
+            val historyArray = root.optJSONArray("history") ?: JSONArray()
+            val history = buildList {
+                for (i in 0 until historyArray.length()) {
+                    add(decodeHistory(historyArray.getJSONObject(i)))
+                }
+            }
+
+            OAKBackupDataDTO(
+                version = root.optString("version", OAKBackupSchema.VERSION),
+                stack = stack,
+                history = history
+            )
+        }
+    }
+
+    private fun encodeSupplement(dto: OAKBackupSupplementDTO): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", dto.id)
+        obj.put("name", dto.name)
+        obj.put("dailyDose", dto.dailyDose)
+        obj.put("intakeTime", dto.intakeTime)
+        obj.put("startDate", dto.startDate)
+        obj.put("cycle", encodeCycle(dto.cycle))
+        return obj
+    }
+
+    private fun decodeSupplement(obj: JSONObject): OAKBackupSupplementDTO {
+        val cycleObj = obj.getJSONObject("cycle")
+        return OAKBackupSupplementDTO(
+            id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+            name = obj.getString("name"),
+            dailyDose = obj.optString("dailyDose", ""),
+            intakeTime = obj.optString("intakeTime", "08:00"),
+            startDate = obj.getString("startDate"),
+            cycle = decodeCycle(cycleObj)
+        )
+    }
+
+    private fun encodeHistory(dto: OAKBackupHistoryDTO): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", dto.id)
+        obj.put("supplementId", dto.supplementId)
+        obj.put("dateEpochMs", dto.dateEpochMs)
+        obj.put("status", dto.status)
+        return obj
+    }
+
+    private fun decodeHistory(obj: JSONObject): OAKBackupHistoryDTO {
+        return OAKBackupHistoryDTO(
+            id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+            supplementId = obj.getString("supplementId"),
+            dateEpochMs = obj.optLong("dateEpochMs", 0L),
+            status = obj.optString("status", "Taken")
+        )
+    }
+
+    private fun encodeCycle(dto: SupplementExportCycleDTO): JSONObject {
+        val obj = JSONObject()
+        obj.put("isContinuous", dto.isContinuous)
+        obj.put("daysOn", dto.daysOn)
+        obj.put("daysOff", dto.daysOff)
+        obj.put("durationMonths", dto.durationMonths)
+        return obj
+    }
+
+    private fun decodeCycle(obj: JSONObject): SupplementExportCycleDTO {
+        return SupplementExportCycleDTO(
+            isContinuous = obj.optBoolean("isContinuous", false),
+            daysOn = obj.optInt("daysOn", 1),
+            daysOff = obj.optInt("daysOff", 0),
+            durationMonths = obj.optInt("durationMonths", -1).takeIf { it >= 0 }
+        )
+    }
+}

@@ -35,14 +35,10 @@ public final class HomeViewModel {
         // Kiểm tra xem đã có bản ghi trong ngày hôm nay chưa
         let todayRecords = supplement.intakeRecords.filter { calendar.isDate($0.date, inSameDayAs: today) }
         
-        if let existingRecord = todayRecords.first {
-            // Nếu đã có -> Xóa (Untick)
-            context.delete(existingRecord)
-        } else {
-            // Nếu chưa có -> Thêm mới (Tick)
-            let newRecord = IntakeRecord(date: today, status: "Taken", supplement: supplement)
-            context.insert(newRecord)
-        }
+        guard todayRecords.first == nil else { return }
+        
+        let newRecord = IntakeRecord(date: today, status: "Taken", supplement: supplement)
+        context.insert(newRecord)
         
         try? context.save()
     }

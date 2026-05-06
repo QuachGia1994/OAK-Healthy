@@ -24,8 +24,12 @@ interface SupplementRepository {
 
     // Intake Records
     suspend fun logIntake(supplementId: String, date: Long)
+    suspend fun insertIntakeRecord(record: IntakeRecord)
     suspend fun removeIntake(supplementId: String, date: Long)
     fun getRecordsByDateRange(clientId: String, startDate: Long, endDate: Long): Flow<List<IntakeRecord>>
+    suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord>
+    suspend fun deleteAllSupplementsByClient(clientId: String)
+    suspend fun deleteAllIntakeRecordsByClient(clientId: String)
 }
 
 data class IntakeRecord(

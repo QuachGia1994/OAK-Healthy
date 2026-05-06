@@ -8,6 +8,7 @@ public struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var allSupplements: [UserSupplement]
+    @Query(sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]) private var allRecords: [IntakeRecord]
     @AppStorage("appTheme") private var appTheme: String = "system"
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
@@ -25,7 +26,7 @@ public struct SettingsView: View {
     }
     
     public var body: some View {
-        let refreshId = "\(activeClientManager.currentClientId?.uuidString ?? "nil")-\(supplementsForActiveClient.count)-\(colorScheme == .dark ? "d" : "l")"
+        let refreshId = "\(activeClientManager.currentClientId?.uuidString ?? "nil")-\(supplementsForActiveClient.count)-\(recordsForActiveClient.count)-\(colorScheme == .dark ? "d" : "l")"
         NavigationStack {
             ZStack {
                 backgroundGradient.ignoresSafeArea()
@@ -71,12 +72,11 @@ public struct SettingsView: View {
                     if didAccess { url.stopAccessingSecurityScopedResource() }
                 }
                 let data = try Data(contentsOf: url)
-                let file = try SupplementExportCodec.decode(data: data)
                 guard let client = clients.first(where: { $0.id == clientId }) else {
                     showError(message: "missing_active_client".localized)
                     return
                 }
-                try SupplementExportCodec.importFile(file, client: client, context: modelContext)
+                try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
                 refreshSharePayloads()
             } catch SupplementExportError.invalidJSON {
                 showError(message: "invalid_json".localized)
@@ -362,8 +362,11 @@ public struct SettingsView: View {
             return
         }
         do {
-            let json = try SupplementExportCodec.encode(supplements: supplementsForActiveClient)
-            exportJSONURL = try writeTempFile(named: "OAKHealthy_Stack.json", data: json)
+            let json = try SupplementExportCodec.encodeBackup(
+                supplements: supplementsForActiveClient,
+                records: recordsForActiveClient
+            )
+            exportJSONURL = try writeTempFile(named: "OAKHealthy_Backup.json", data: json)
         } catch {
             exportJSONURL = nil
             showError(message: "export_failed".localized)
@@ -385,6 +388,11 @@ public struct SettingsView: View {
     private var supplementsForActiveClient: [UserSupplement] {
         guard let currentClientId = activeClientManager.currentClientId else { return [] }
         return allSupplements.filter { $0.client?.id == currentClientId }
+    }
+    
+    private var recordsForActiveClient: [IntakeRecord] {
+        guard let currentClientId = activeClientManager.currentClientId else { return [] }
+        return allRecords.filter { $0.supplement?.client?.id == currentClientId }
     }
     
     private func writeTempFile(named fileName: String, data: Data) throws -> URL {

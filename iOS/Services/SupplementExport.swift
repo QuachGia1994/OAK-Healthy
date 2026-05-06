@@ -26,6 +26,47 @@ struct SupplementExportCycle: Codable, Sendable {
     var durationMonths: Int?
 }
 
+struct OAKBackupData: Codable, Sendable {
+    var version: String
+    var stack: [OAKBackupSupplement]
+    var history: [OAKBackupHistory]
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case stack
+        case history
+    }
+
+    init(version: String, stack: [OAKBackupSupplement], history: [OAKBackupHistory]) {
+        self.version = version
+        self.stack = stack
+        self.history = history
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.1"
+        self.stack = try container.decode([OAKBackupSupplement].self, forKey: .stack)
+        self.history = try container.decodeIfPresent([OAKBackupHistory].self, forKey: .history) ?? []
+    }
+}
+
+struct OAKBackupSupplement: Codable, Sendable {
+    var id: String
+    var name: String
+    var dailyDose: String
+    var intakeTime: String
+    var startDate: String
+    var cycle: SupplementExportCycle
+}
+
+struct OAKBackupHistory: Codable, Sendable {
+    var id: String
+    var supplementId: String
+    var dateEpochMs: Int64
+    var status: String
+}
+
 enum SupplementExportError: Error {
     case invalidSchema
     case invalidJSON
@@ -36,6 +77,118 @@ enum SupplementExportError: Error {
 
 @MainActor
 struct SupplementExportCodec {
+    static func encodeBackup(
+        supplements: [UserSupplement],
+        records: [IntakeRecord]
+    ) throws -> Data {
+        let file = OAKBackupData(
+            version: "1.1",
+            stack: supplements.map { supplement in
+                OAKBackupSupplement(
+                    id: supplement.id.uuidString,
+                    name: supplement.name,
+                    dailyDose: supplement.dailyDose,
+                    intakeTime: supplement.intakeTime,
+                    startDate: Self.dayString(from: supplement.startDate),
+                    cycle: SupplementExportCycle(
+                        isContinuous: supplement.cycleConfig.isContinuous,
+                        daysOn: supplement.cycleConfig.daysOn,
+                        daysOff: supplement.cycleConfig.daysOff,
+                        durationMonths: supplement.cycleConfig.durationMonths
+                    )
+                )
+            },
+            history: records.compactMap { record in
+                guard let supplementId = record.supplement?.id else { return nil }
+                return OAKBackupHistory(
+                    id: record.id.uuidString,
+                    supplementId: supplementId.uuidString,
+                    dateEpochMs: Int64(record.date.timeIntervalSince1970 * 1000),
+                    status: record.status
+                )
+            }
+        )
+        return try JSONEncoder().encode(file)
+    }
+    
+    static func decodeBackupCompat(data: Data) throws -> OAKBackupData {
+        if let decoded = try? JSONDecoder().decode(OAKBackupData.self, from: data) {
+            return decoded
+        }
+        
+        let legacy = try decode(data: data)
+        let converted = OAKBackupData(
+            version: "1.1",
+            stack: legacy.supplements.map { dto in
+                OAKBackupSupplement(
+                    id: UUID().uuidString,
+                    name: dto.name,
+                    dailyDose: dto.dailyDose,
+                    intakeTime: dto.intakeTime,
+                    startDate: dto.startDate,
+                    cycle: dto.cycle
+                )
+            },
+            history: []
+        )
+        return converted
+    }
+    
+    static func importBackup(
+        data: Data,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws {
+        let backup = try decodeBackupCompat(data: data)
+        try importBackupData(backup, client: client, context: context)
+    }
+    
+    static func importBackupData(
+        _ backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws {
+        let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
+        let supplementsForClient = allSupplements.filter { $0.client?.id == client.id }
+        
+        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let recordsForClient = allRecords.filter { $0.supplement?.client?.id == client.id }
+        
+        for record in recordsForClient {
+            context.delete(record)
+        }
+        for supplement in supplementsForClient {
+            context.delete(supplement)
+        }
+        
+        var supplementById: [UUID: UserSupplement] = [:]
+        for dto in backup.stack {
+            let id = UUID(uuidString: dto.id) ?? UUID()
+            let supplement = UserSupplement(
+                id: id,
+                name: dto.name,
+                startDate: try dayDate(from: dto.startDate),
+                cycleConfig: cycleConfig(from: dto.cycle),
+                dailyDose: dto.dailyDose,
+                intakeTime: dto.intakeTime,
+                client: client
+            )
+            context.insert(supplement)
+            supplementById[id] = supplement
+        }
+        
+        for dto in backup.history {
+            let recordId = UUID(uuidString: dto.id) ?? UUID()
+            let supplementId = UUID(uuidString: dto.supplementId)
+            guard let supplementId, let supplement = supplementById[supplementId] else { continue }
+            let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+            let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
+            context.insert(record)
+        }
+        
+        try context.save()
+    }
+    
     static func encode(supplements: [UserSupplement]) throws -> Data {
         let file = SupplementExportFile(
             schemaVersion: 1,

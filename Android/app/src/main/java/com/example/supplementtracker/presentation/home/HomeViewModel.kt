@@ -27,6 +27,11 @@ import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.domain.export.SupplementExportJson
 import com.example.supplementtracker.domain.export.SupplementExportSchema
+import com.example.supplementtracker.domain.export.OAKBackupDataDTO
+import com.example.supplementtracker.domain.export.OAKBackupHistoryDTO
+import com.example.supplementtracker.domain.export.OAKBackupJson
+import com.example.supplementtracker.domain.export.OAKBackupSchema
+import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.R
 
@@ -68,6 +73,50 @@ class HomeViewModel(
     fun clearDataTransferMessage() {
         _dataTransferMessage.value = null
     }
+    
+    suspend fun buildBackupJson(): Result<String> {
+        return runCatching {
+            val clientId = activeClientManager.currentClientId.value
+                ?: error(context.getString(R.string.missing_active_client))
+            val clientIdString = clientId.toString()
+
+            val supplements = repository.getAllSupplements(clientIdString).first()
+            val history = repository.getAllRecordsByClient(clientIdString)
+
+            val stack = supplements.map { supplement ->
+                OAKBackupSupplementDTO(
+                    id = supplement.id.toString(),
+                    name = supplement.name,
+                    dailyDose = supplement.dailyDose,
+                    intakeTime = supplement.intakeTime,
+                    startDate = supplement.startDate.toString(),
+                    cycle = com.example.supplementtracker.domain.export.SupplementExportCycleDTO(
+                        isContinuous = supplement.cycleConfig.isContinuous,
+                        daysOn = supplement.cycleConfig.daysOn,
+                        daysOff = supplement.cycleConfig.daysOff,
+                        durationMonths = supplement.cycleConfig.durationMonths
+                    )
+                )
+            }
+
+            val records = history.map { record ->
+                OAKBackupHistoryDTO(
+                    id = record.id,
+                    supplementId = record.supplementId,
+                    dateEpochMs = record.date,
+                    status = record.status
+                )
+            }
+
+            OAKBackupJson.encode(
+                OAKBackupDataDTO(
+                    version = OAKBackupSchema.VERSION,
+                    stack = stack,
+                    history = records
+                )
+            )
+        }
+    }
 
     private fun getStartOfDay() = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     private fun getEndOfDay() = LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -94,12 +143,10 @@ class HomeViewModel(
 
     fun toggleIntake(supplementId: String, isChecked: Boolean) {
         viewModelScope.launch {
-            val startOfDay = getStartOfDay()
             if (isChecked) {
                 repository.logIntake(supplementId, System.currentTimeMillis())
                 return@launch
             }
-            repository.removeIntake(supplementId, startOfDay)
         }
     }
 
@@ -116,7 +163,7 @@ class HomeViewModel(
         }
     }
     
-    fun importSupplementsFromJson(json: String) {
+    fun importBackupFromJson(json: String) {
         viewModelScope.launch {
             val clientId = activeClientManager.currentClientId.value
             if (clientId == null) {
@@ -124,21 +171,17 @@ class HomeViewModel(
                 return@launch
             }
             
-            val decoded = SupplementExportJson.decode(json).getOrElse {
+            val decoded = OAKBackupJson.decodeCompat(json).getOrElse {
                 _dataTransferMessage.value = context.getString(R.string.invalid_json)
                 return@launch
             }
-            
-            if (decoded.schemaVersion != SupplementExportSchema.VERSION) {
-                _dataTransferMessage.value = context.getString(R.string.invalid_json)
-                return@launch
-            }
-            
-            val existing = repository.getAllSupplements(clientId.toString()).first()
-            val byName = existing.associateBy { it.name.trim().lowercase() }
-            
-            decoded.supplements.forEach { dto ->
-                val key = dto.name.trim().lowercase()
+
+            val clientIdString = clientId.toString()
+            repository.deleteAllIntakeRecordsByClient(clientIdString)
+            repository.deleteAllSupplementsByClient(clientIdString)
+
+            val importedSupplementIds = HashSet<String>(decoded.stack.size)
+            decoded.stack.forEach { dto ->
                 val cycle = CycleConfig(
                     daysOn = dto.cycle.daysOn,
                     daysOff = dto.cycle.daysOff,
@@ -147,13 +190,8 @@ class HomeViewModel(
                 )
                 val startDate = runCatching { LocalDate.parse(dto.startDate) }.getOrElse { LocalDate.now() }
                 
-                val updated = byName[key]?.copy(
-                    name = dto.name,
-                    startDate = startDate,
-                    cycleConfig = cycle,
-                    dailyDose = dto.dailyDose,
-                    intakeTime = dto.intakeTime
-                ) ?: UserSupplement(
+                val imported = UserSupplement(
+                    id = runCatching { java.util.UUID.fromString(dto.id) }.getOrElse { java.util.UUID.randomUUID() },
                     clientId = clientId,
                     name = dto.name,
                     startDate = startDate,
@@ -162,11 +200,20 @@ class HomeViewModel(
                     intakeTime = dto.intakeTime
                 )
                 
-                if (byName.containsKey(key)) {
-                    repository.updateSupplement(updated)
-                } else {
-                    repository.saveSupplement(updated)
-                }
+                repository.saveSupplement(imported)
+                importedSupplementIds.add(imported.id.toString())
+            }
+
+            decoded.history.forEach { record ->
+                if (!importedSupplementIds.contains(record.supplementId)) return@forEach
+                repository.insertIntakeRecord(
+                    com.example.supplementtracker.domain.repository.IntakeRecord(
+                        id = record.id,
+                        supplementId = record.supplementId,
+                        date = record.dateEpochMs,
+                        status = record.status
+                    )
+                )
             }
             
             refresh()
