@@ -18,21 +18,13 @@ public struct SettingsView: View {
     @State private var shareStackPNGURL: URL?
     @State private var errorMessage: String?
     @State private var isShowingError = false
+    @State private var importErrorMessage: String = ""
+    @State private var showImportErrorAlert: Bool = false
     
     public let activeClientManager: ActiveClientManager
 
     private static var allowedBackupContentTypes: [UTType] {
-        var types: [UTType] = [.json, .plainText, .text, .data, .item]
-        if let mimeType = UTType(mimeType: "application/json"), !types.contains(mimeType) {
-            types.append(mimeType)
-        }
-        if let mimeType = UTType(mimeType: "text/json"), !types.contains(mimeType) {
-            types.append(mimeType)
-        }
-        if let extType = UTType(filenameExtension: "json"), !types.contains(extType) {
-            types.append(extType)
-        }
-        return types
+        [.item, .content, .data, .json]
     }
     
     public init(activeClientManager: ActiveClientManager) {
@@ -75,37 +67,64 @@ public struct SettingsView: View {
             allowedContentTypes: Self.allowedBackupContentTypes,
             allowsMultipleSelection: false
         ) { result in
-            do {
+            switch result {
+            case .success(let urls):
                 guard let clientId = activeClientManager.currentClientId else {
                     showError(message: "missing_active_client".localized)
                     return
                 }
-                guard let url = try result.get().first else { return }
+                guard let url = urls.first else { return }
+                
                 let didAccess = url.startAccessingSecurityScopedResource()
                 defer {
                     if didAccess { url.stopAccessingSecurityScopedResource() }
                 }
+                
                 guard url.pathExtension.lowercased() == "json" else {
-                    showError(message: "invalid_json".localized)
+                    importErrorMessage = "Invalid file type selected. Must be a .json file."
+                    showImportErrorAlert = true
                     return
                 }
-                let data = try Data(contentsOf: url)
-                guard let client = clients.first(where: { $0.id == clientId }) else {
-                    showError(message: "missing_active_client".localized)
-                    return
+                
+                do {
+                    let data = try Data(contentsOf: url)
+                    guard let client = clients.first(where: { $0.id == clientId }) else {
+                        showError(message: "missing_active_client".localized)
+                        return
+                    }
+                    
+                    try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+                    refreshSharePayloads()
+                } catch let DecodingError.dataCorrupted(context) {
+                    importErrorMessage = "Dữ liệu hỏng: \(context.debugDescription)"
+                    showImportErrorAlert = true
+                } catch let DecodingError.keyNotFound(key, context) {
+                    importErrorMessage = "Thiếu trường dữ liệu '\(key.stringValue)': \(context.debugDescription)"
+                    showImportErrorAlert = true
+                } catch let DecodingError.typeMismatch(type, context) {
+                    importErrorMessage = "Sai kiểu dữ liệu '\(type)': \(context.debugDescription)"
+                    showImportErrorAlert = true
+                } catch let DecodingError.valueNotFound(type, context) {
+                    importErrorMessage = "Thiếu giá trị '\(type)': \(context.debugDescription)"
+                    showImportErrorAlert = true
+                } catch {
+                    importErrorMessage = "Lỗi đọc/nhập file: \(error.localizedDescription)"
+                    showImportErrorAlert = true
                 }
-                try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
-                refreshSharePayloads()
-            } catch SupplementExportError.invalidJSON {
-                showError(message: "invalid_json".localized)
-            } catch {
-                showError(message: "import_failed".localized)
+            case .failure(let error):
+                importErrorMessage = "Lỗi chọn file: \(error.localizedDescription)"
+                showImportErrorAlert = true
             }
         }
         .alert("error_title".localized, isPresented: $isShowingError) {
             Button("ok".localized) {}
         } message: {
             Text(errorMessage ?? "")
+        }
+        .alert("Lỗi Nhập Dữ Liệu", isPresented: $showImportErrorAlert) {
+            Button("OK") {}
+        } message: {
+            Text(importErrorMessage)
         }
     }
     
