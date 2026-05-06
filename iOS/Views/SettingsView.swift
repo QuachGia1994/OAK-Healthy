@@ -85,6 +85,10 @@ public struct SettingsView: View {
                 defer {
                     if didAccess { url.stopAccessingSecurityScopedResource() }
                 }
+                guard url.pathExtension.lowercased() == "json" else {
+                    showError(message: "invalid_json".localized)
+                    return
+                }
                 let data = try Data(contentsOf: url)
                 guard let client = clients.first(where: { $0.id == clientId }) else {
                     showError(message: "missing_active_client".localized)
