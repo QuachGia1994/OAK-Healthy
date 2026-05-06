@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.home
 
+import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -80,6 +81,7 @@ fun SettingsScreen(
     val hostView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val localViewModelStoreOwner = LocalViewModelStoreOwner.current
+    val compositionContext = rememberCompositionContext()
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareChooserTitle = stringResource(R.string.share_stack)
@@ -290,8 +292,14 @@ fun SettingsScreen(
 
                             OutlinedButton(
                                 onClick = {
-                                    coroutineScope.launch {
+                                    coroutineScope.launch(Dispatchers.Main) {
                                         try {
+                                            val activity = context as? Activity
+                                            if (activity == null) {
+                                                Toast.makeText(context, "Lỗi chia sẻ: Missing Activity", Toast.LENGTH_LONG).show()
+                                                return@launch
+                                            }
+                                            
                                             val shareItems = allSupplements
                                                 .sortedBy { it.intakeTime }
                                                 .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
@@ -309,10 +317,12 @@ fun SettingsScreen(
                                             }
 
                                             val bitmap = StackShareImageGenerator.generate(
+                                                activity = activity,
                                                 context = context,
                                                 lifecycleOwner = lifecycleOwner,
                                                 savedStateRegistryOwner = savedStateRegistryOwner,
                                                 viewModelStoreOwner = viewModelStoreOwner,
+                                                compositionContext = compositionContext,
                                                 items = shareItems,
                                                 isDark = isDark
                                             )

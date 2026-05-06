@@ -1,9 +1,9 @@
 package com.example.supplementtracker.presentation.share
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.view.Choreographer
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.background
@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -36,6 +37,7 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
 
 data class StackShareItem(
@@ -46,22 +48,34 @@ data class StackShareItem(
 
 object StackShareImageGenerator {
     suspend fun generate(
+        activity: Activity,
         context: Context,
         lifecycleOwner: LifecycleOwner,
         savedStateRegistryOwner: SavedStateRegistryOwner,
         viewModelStoreOwner: ViewModelStoreOwner,
+        compositionContext: CompositionContext,
         items: List<StackShareItem>,
         isDark: Boolean
     ): Bitmap {
-        val displayMetrics = context.resources.displayMetrics
-        val desiredWidth = (displayMetrics.density * 1080f).toInt()
+        val rootView = activity.window.decorView.findViewById<ViewGroup>(android.R.id.content)
+        val desiredWidth = context.resources.displayMetrics.widthPixels
 
-        val composeView = ComposeView(context)
-        composeView.layoutParams = ViewGroup.LayoutParams(desiredWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
-        composeView.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-        composeView.setViewTreeLifecycleOwner(lifecycleOwner)
-        composeView.setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
-        composeView.setViewTreeViewModelStoreOwner(viewModelStoreOwner)
+        val composeView = ComposeView(context).apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+            setViewTreeLifecycleOwner(lifecycleOwner)
+            setViewTreeSavedStateRegistryOwner(savedStateRegistryOwner)
+            setViewTreeViewModelStoreOwner(viewModelStoreOwner)
+            setParentCompositionContext(compositionContext)
+            alpha = 0f
+        }
+
+        rootView.addView(
+            composeView,
+            ViewGroup.LayoutParams(
+                desiredWidth,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
 
         composeView.setContent {
             StackShareCapture(
@@ -70,39 +84,40 @@ object StackShareImageGenerator {
             )
         }
 
-        try {
-            awaitNextFrame()
-            val widthSpec = View.MeasureSpec.makeMeasureSpec(desiredWidth, View.MeasureSpec.EXACTLY)
-            val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            composeView.measure(widthSpec, heightSpec)
-            check(composeView.measuredWidth > 0 && composeView.measuredHeight > 0) {
-                "Invalid measured size: ${composeView.measuredWidth}x${composeView.measuredHeight}"
-            }
-            composeView.layout(0, 0, composeView.measuredWidth, composeView.measuredHeight)
-            awaitNextFrame()
+        return suspendCancellableCoroutine { continuation ->
+            composeView.post {
+                try {
+                    val width = if (composeView.width > 0) composeView.width else desiredWidth
+                    if (composeView.height <= 0) {
+                        val widthSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+                        val heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                        composeView.measure(widthSpec, heightSpec)
+                        composeView.layout(0, 0, composeView.measuredWidth, composeView.measuredHeight)
+                    }
 
-            val bitmap = Bitmap.createBitmap(
-                composeView.measuredWidth,
-                composeView.measuredHeight,
-                Bitmap.Config.ARGB_8888
-            )
-            val canvas = Canvas(bitmap)
-            composeView.draw(canvas)
-            return bitmap
-        } finally {
-            composeView.disposeComposition()
-        }
-    }
+                    val height = if (composeView.height > 0) composeView.height else maxOf(composeView.measuredHeight, 2000)
+                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    val fallback = if (isDark) "#121212" else "#FFFFFF"
+                    canvas.drawColor(android.graphics.Color.parseColor(fallback))
+                    composeView.draw(canvas)
+                    rootView.removeView(composeView)
+                    composeView.disposeComposition()
 
-    private suspend fun awaitNextFrame() {
-        suspendCancellableCoroutine { continuation ->
-            Choreographer.getInstance().postFrameCallback {
-                if (continuation.isActive) {
-                    continuation.resume(Unit)
+                    if (continuation.isActive) {
+                        continuation.resume(bitmap)
+                    }
+                } catch (e: Exception) {
+                    rootView.removeView(composeView)
+                    composeView.disposeComposition()
+                    if (continuation.isActive) {
+                        continuation.resumeWithException(e)
+                    }
                 }
             }
         }
     }
+
 }
 
 @Composable
