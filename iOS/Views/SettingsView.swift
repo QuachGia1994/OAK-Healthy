@@ -20,6 +20,20 @@ public struct SettingsView: View {
     @State private var isShowingError = false
     
     public let activeClientManager: ActiveClientManager
+
+    private static var allowedBackupContentTypes: [UTType] {
+        var types: [UTType] = [.json]
+        if let mimeType = UTType(mimeType: "application/json"), !types.contains(mimeType) {
+            types.append(mimeType)
+        }
+        if let mimeType = UTType(mimeType: "text/json"), !types.contains(mimeType) {
+            types.append(mimeType)
+        }
+        if let extType = UTType(filenameExtension: "json"), !types.contains(extType) {
+            types.append(extType)
+        }
+        return types
+    }
     
     public init(activeClientManager: ActiveClientManager) {
         self.activeClientManager = activeClientManager
@@ -58,7 +72,7 @@ public struct SettingsView: View {
         }
         .fileImporter(
             isPresented: $isShowingImportPicker,
-            allowedContentTypes: [.json],
+            allowedContentTypes: Self.allowedBackupContentTypes,
             allowsMultipleSelection: false
         ) { result in
             do {
