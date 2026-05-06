@@ -95,6 +95,11 @@ public struct SettingsView: View {
                     
                     try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
                     refreshSharePayloads()
+                    importErrorMessage = "Nhập dữ liệu thành công!"
+                    showImportErrorAlert = true
+                } catch SupplementExportError.invalidJSON {
+                    importErrorMessage = "Dữ liệu JSON không hợp lệ."
+                    showImportErrorAlert = true
                 } catch let DecodingError.dataCorrupted(context) {
                     importErrorMessage = "Dữ liệu hỏng: \(context.debugDescription)"
                     showImportErrorAlert = true
@@ -108,7 +113,8 @@ public struct SettingsView: View {
                     importErrorMessage = "Thiếu giá trị '\(type)': \(context.debugDescription)"
                     showImportErrorAlert = true
                 } catch {
-                    importErrorMessage = "Lỗi đọc/nhập file: \(error.localizedDescription)"
+                    let accessNote = didAccess ? "securityScope=ok" : "securityScope=not_granted"
+                    importErrorMessage = "Lỗi đọc/nhập file (\(accessNote)): \(error.localizedDescription)"
                     showImportErrorAlert = true
                 }
             case .failure(let error):
@@ -121,7 +127,7 @@ public struct SettingsView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .alert("Lỗi Nhập Dữ Liệu", isPresented: $showImportErrorAlert) {
+        .alert("Thông báo Nhập dữ liệu", isPresented: $showImportErrorAlert) {
             Button("OK") {}
         } message: {
             Text(importErrorMessage)
