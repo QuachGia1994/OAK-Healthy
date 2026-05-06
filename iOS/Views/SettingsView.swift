@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UniformTypeIdentifiers
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
@@ -22,10 +21,6 @@ public struct SettingsView: View {
     @State private var showImportErrorAlert: Bool = false
     
     public let activeClientManager: ActiveClientManager
-
-    private static var allowedBackupContentTypes: [UTType] {
-        [.item]
-    }
     
     public init(activeClientManager: ActiveClientManager) {
         self.activeClientManager = activeClientManager
@@ -72,41 +67,32 @@ public struct SettingsView: View {
         } message: {
             Text(importErrorMessage)
         }
-        .fileImporter(
-            isPresented: $isShowingImportPicker,
-            allowedContentTypes: Self.allowedBackupContentTypes,
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let clientId = activeClientManager.currentClientId else {
-                    showError(message: "missing_active_client".localized)
-                    return
-                }
-                guard let url = urls.first else { return }
-
-                print("SUCCESS: File selected at \(url.absoluteString)")
-                let didAccess = url.startAccessingSecurityScopedResource()
-                print("SECURITY SCOPE: \(didAccess ? "granted" : "not_granted")")
-                defer {
-                    if didAccess { url.stopAccessingSecurityScopedResource() }
-                }
-
-                guard url.pathExtension.lowercased() == "json" else {
+        .sheet(isPresented: $isShowingImportPicker) {
+            DocumentPicker { selectedURL in
+                print("SUCCESS: UIKit Picker handed over the file: \(selectedURL)")
+                
+                guard selectedURL.pathExtension.lowercased() == "json" else {
                     importErrorMessage = "Invalid file type selected. Must be a .json file."
                     showImportErrorAlert = true
                     return
                 }
-
+                
+                guard let clientId = activeClientManager.currentClientId else {
+                    showError(message: "missing_active_client".localized)
+                    return
+                }
+                
                 do {
-                    let data = try Data(contentsOf: url)
+                    let data = try Data(contentsOf: selectedURL)
                     guard let client = clients.first(where: { $0.id == clientId }) else {
                         showError(message: "missing_active_client".localized)
                         return
                     }
-
+                    
                     try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
                     refreshSharePayloads()
+                    
+                    print("SUCCESS: JSON Decoded perfectly!")
                     importErrorMessage = "Nhập dữ liệu thành công!"
                     showImportErrorAlert = true
                 } catch SupplementExportError.invalidJSON {
@@ -125,14 +111,10 @@ public struct SettingsView: View {
                     importErrorMessage = "Thiếu giá trị '\(type)': \(context.debugDescription)"
                     showImportErrorAlert = true
                 } catch {
-                    let accessNote = didAccess ? "securityScope=ok" : "securityScope=not_granted"
-                    importErrorMessage = "Lỗi đọc/nhập file (\(accessNote)): \(error.localizedDescription)"
+                    print("DECODING ERROR: \(error)")
+                    importErrorMessage = "Lỗi đọc dữ liệu: \(error.localizedDescription)"
                     showImportErrorAlert = true
                 }
-            case .failure(let error):
-                print("FILE PICKER ERROR: \(error.localizedDescription)")
-                importErrorMessage = "Lỗi chọn file: \(error.localizedDescription)"
-                showImportErrorAlert = true
             }
         }
     }
