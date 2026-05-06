@@ -129,6 +129,24 @@ interface SupplementDao {
 
     @Query(
         """
+        SELECT
+            r.id AS id,
+            r.supplementId AS supplementId,
+            r.date AS date,
+            r.status AS status,
+            s.name AS supplementName,
+            s.dailyDose AS dailyDose,
+            s.intakeTime AS intakeTime
+        FROM intake_records r
+        INNER JOIN supplements s ON s.id = r.supplementId
+        WHERE s.clientId = :clientId
+        ORDER BY r.date DESC
+        """
+    )
+    fun observeAllRecordsByClient(clientId: String): Flow<List<IntakeRecordWithSupplementEntity>>
+
+    @Query(
+        """
         DELETE FROM intake_records
         WHERE supplementId IN (
             SELECT id FROM supplements WHERE clientId = :clientId

@@ -83,17 +83,17 @@ object OAKBackupJson {
     fun encode(data: OAKBackupDataDTO): String {
         val root = JSONObject()
         root.put("version", data.version)
-        val stackArray = JSONArray()
+        val supplementsArray = JSONArray()
         data.stack.forEach { dto ->
-            stackArray.put(encodeSupplement(dto))
+            supplementsArray.put(encodeSupplement(dto))
         }
-        root.put("stack", stackArray)
+        root.put("supplements", supplementsArray)
 
-        val historyArray = JSONArray()
+        val historyLogsArray = JSONArray()
         data.history.forEach { dto ->
-            historyArray.put(encodeHistory(dto))
+            historyLogsArray.put(encodeHistory(dto))
         }
-        root.put("history", historyArray)
+        root.put("historyLogs", historyLogsArray)
 
         return root.toString(2)
     }
@@ -129,7 +129,7 @@ object OAKBackupJson {
                 )
             }
 
-            val stackArray = root.optJSONArray("stack")
+            val stackArray = root.optJSONArray("supplements") ?: root.optJSONArray("stack")
             if (stackArray == null) {
                 val legacy = SupplementExportJson.decode(json).getOrThrow()
                 return@runCatching OAKBackupDataDTO(
@@ -150,7 +150,7 @@ object OAKBackupJson {
 
             val stack = decodeStackArray(stackArray)
 
-            val historyArray = root.optJSONArray("history") ?: JSONArray()
+            val historyArray = root.optJSONArray("historyLogs") ?: root.optJSONArray("history") ?: JSONArray()
             val history = buildList {
                 for (i in 0 until historyArray.length()) {
                     add(decodeHistory(historyArray.getJSONObject(i)))

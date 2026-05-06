@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
-import java.time.ZoneOffset
+import java.time.ZoneId
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import java.time.format.TextStyle
 import java.util.Locale
@@ -47,11 +47,8 @@ class HistoryViewModel(
     val uiState: StateFlow<HistoryUiState> = activeClientManager.currentClientId
         .flatMapLatest { clientId ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HistoryUiState.NoClient)
-            repository.getRecordsByDateRange(
-                clientId = id,
-                startDate = LocalDate.now().minusDays(7).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
-                endDate = System.currentTimeMillis()
-            ).map { records -> processHistory(records) }
+            repository.observeAllRecordsByClient(id)
+                .map { records -> processHistory(records) }
         }
         .stateIn(
             scope = viewModelScope,
@@ -60,19 +57,21 @@ class HistoryViewModel(
         )
 
     private fun processHistory(records: List<IntakeRecord>): HistoryUiState {
-        val today = LocalDate.now()
+        val zoneId = ZoneId.systemDefault()
+        val today = LocalDate.now(zoneId)
         val chartData = mutableListOf<HistoryChartData>()
         
         for (i in 6 downTo 0) {
             val date = today.minusDays(i.toLong())
-            val startOfDay = date.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
-            val endOfDay = date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli()
+            val startOfDay = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
             
             val count = records.filter { it.date in startOfDay until endOfDay }.count()
             chartData.add(HistoryChartData(label = dayLabel(date), count = count))
         }
 
-        return HistoryUiState.Success(chartData, records)
+        val orderedRecords = records.sortedByDescending { it.date }
+        return HistoryUiState.Success(chartData, orderedRecords)
     }
 
     private fun dayLabel(date: LocalDate): String {

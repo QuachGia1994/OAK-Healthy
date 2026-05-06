@@ -40,6 +40,11 @@ struct OAKBackupData: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case version
+        case stack = "supplements"
+        case history = "historyLogs"
+    }
+
+    enum LegacyCodingKeys: String, CodingKey {
         case stack
         case history
     }
@@ -52,9 +57,31 @@ struct OAKBackupData: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
+
         self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.1"
-        self.stack = try container.decode([OAKBackupSupplement].self, forKey: .stack)
-        self.history = try container.decodeIfPresent([OAKBackupHistory].self, forKey: .history) ?? []
+
+        if let supplements = try container.decodeIfPresent([OAKBackupSupplement].self, forKey: .stack) {
+            self.stack = supplements
+        } else if let legacyStack = try legacyContainer.decodeIfPresent([OAKBackupSupplement].self, forKey: .stack) {
+            self.stack = legacyStack
+        } else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.stack,
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Missing supplements/stack"
+                )
+            )
+        }
+
+        if let historyLogs = try container.decodeIfPresent([OAKBackupHistory].self, forKey: .history) {
+            self.history = historyLogs
+        } else if let legacyHistory = try legacyContainer.decodeIfPresent([OAKBackupHistory].self, forKey: .history) {
+            self.history = legacyHistory
+        } else {
+            self.history = []
+        }
     }
 }
 

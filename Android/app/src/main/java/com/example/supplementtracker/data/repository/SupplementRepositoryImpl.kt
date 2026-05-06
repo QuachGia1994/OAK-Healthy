@@ -135,6 +135,22 @@ class SupplementRepositoryImpl(
         }
     }
 
+    override fun observeAllRecordsByClient(clientId: String): Flow<List<IntakeRecord>> {
+        return dao.observeAllRecordsByClient(clientId).map { records ->
+            records.map { record ->
+                IntakeRecord(
+                    id = record.id,
+                    supplementId = record.supplementId,
+                    date = record.date,
+                    status = record.status,
+                    supplementName = record.supplementName,
+                    dailyDose = record.dailyDose,
+                    intakeTime = record.intakeTime
+                )
+            }
+        }
+    }
+
     override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = withContext(Dispatchers.IO) {
         dao.getAllRecordsByClient(clientId).map { record ->
             IntakeRecord(
