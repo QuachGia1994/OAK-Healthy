@@ -55,9 +55,11 @@ import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.lifecycle.findViewTreeLifecycleOwner
-import androidx.lifecycle.findViewTreeViewModelStoreOwner
-import androidx.savedstate.ViewTreeSavedStateRegistryOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +78,8 @@ fun SettingsScreen(
     val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val hostView = LocalView.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val localViewModelStoreOwner = LocalViewModelStoreOwner.current
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareChooserTitle = stringResource(R.string.share_stack)
@@ -292,19 +296,13 @@ fun SettingsScreen(
                                                 .sortedBy { it.intakeTime }
                                                 .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
 
-                                            val lifecycleOwner = hostView.findViewTreeLifecycleOwner()
-                                            if (lifecycleOwner == null) {
-                                                Toast.makeText(context, "Lỗi chia sẻ: Missing LifecycleOwner", Toast.LENGTH_LONG).show()
-                                                return@launch
-                                            }
-
-                                            val savedStateRegistryOwner = ViewTreeSavedStateRegistryOwner.get(hostView)
+                                            val savedStateRegistryOwner = hostView.findViewTreeSavedStateRegistryOwner()
                                             if (savedStateRegistryOwner == null) {
                                                 Toast.makeText(context, "Lỗi chia sẻ: Missing SavedStateRegistryOwner", Toast.LENGTH_LONG).show()
                                                 return@launch
                                             }
 
-                                            val viewModelStoreOwner = hostView.findViewTreeViewModelStoreOwner()
+                                            val viewModelStoreOwner = localViewModelStoreOwner
                                             if (viewModelStoreOwner == null) {
                                                 Toast.makeText(context, "Lỗi chia sẻ: Missing ViewModelStoreOwner", Toast.LENGTH_LONG).show()
                                                 return@launch
