@@ -58,6 +58,7 @@ import kotlinx.coroutines.withContext
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import androidx.savedstate.ViewTreeSavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
