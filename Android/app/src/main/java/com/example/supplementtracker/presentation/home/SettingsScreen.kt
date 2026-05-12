@@ -34,7 +34,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -372,6 +371,7 @@ fun SettingsScreen(
 
                         val currentBinId = hostedBinId
                         if (currentBinId != null) {
+                            val binIdToCopy = currentBinId.trim()
                             Spacer(modifier = Modifier.height(12.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -389,14 +389,14 @@ fun SettingsScreen(
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
-                                IconButton(
+                                TextButton(
                                     onClick = {
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("binId", currentBinId))
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("binId", binIdToCopy))
                                         Toast.makeText(context, "Đã sao chép", Toast.LENGTH_SHORT).show()
                                     }
                                 ) {
-                                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null)
+                                    Text("Copy")
                                 }
                             }
                         }
