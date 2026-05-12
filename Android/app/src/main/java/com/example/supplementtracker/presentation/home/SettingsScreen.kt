@@ -265,7 +265,8 @@ fun SettingsScreen(
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            if (hostedBinId != null) {
+                            val currentBinId = hostedBinId
+                            if (currentBinId != null) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
@@ -275,14 +276,14 @@ fun SettingsScreen(
                                         modifier = Modifier.padding(end = 8.dp)
                                     )
                                     Text(
-                                        text = hostedBinId,
+                                        text = currentBinId,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.weight(1f)
                                     )
                                     IconButton(
                                         onClick = {
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("binId", hostedBinId))
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("binId", currentBinId))
                                             Toast.makeText(context, "Đã sao chép", Toast.LENGTH_SHORT).show()
                                         }
                                     ) {
