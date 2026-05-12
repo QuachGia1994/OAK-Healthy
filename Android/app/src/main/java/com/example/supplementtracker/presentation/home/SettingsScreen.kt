@@ -95,7 +95,6 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareStackTitle = stringResource(R.string.share_stack)
-    val exportDataTitle = stringResource(R.string.export_data)
     var isGuideExpanded by remember { mutableStateOf(false) }
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
@@ -313,41 +312,6 @@ fun SettingsScreen(
                                         Log.e("ShareStack", "Error sharing stack", e)
                                         Toast.makeText(context, "Lỗi chia sẻ: ${e.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
                                     }
-                                }
-                            }
-                        )
-
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                        SettingsRow(
-                            title = exportDataTitle,
-                            onClick = {
-                                coroutineScope.launch(Dispatchers.Main) {
-                                    val json = homeViewModel.buildBackupJson().getOrElse { error ->
-                                        Toast.makeText(context, "Xuất dữ liệu thất bại: ${error.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
-                                        return@launch
-                                    }
-
-                                    val exportFile = withContext(Dispatchers.IO) {
-                                        val cachePath = File(context.cacheDir, "shared_exports")
-                                        cachePath.mkdirs()
-                                        val target = File(cachePath, "oak_backup_${System.currentTimeMillis()}.json")
-                                        target.writeText(json, Charsets.UTF_8)
-                                        target
-                                    }
-
-                                    val uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        exportFile
-                                    )
-
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "application/json"
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, exportDataTitle))
                                 }
                             }
                         )
