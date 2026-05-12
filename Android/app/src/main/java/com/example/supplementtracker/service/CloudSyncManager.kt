@@ -19,7 +19,7 @@ class CloudSyncManager {
                     connectTimeout = 8_000
                     readTimeout = 12_000
                     setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("X-Access-Key", key)
+                    setRequestProperty("X-Master-Key", key)
                 }
                 connection.outputStream.use { it.write(jsonString.toByteArray(Charsets.UTF_8)) }
                 val code = connection.responseCode
@@ -46,7 +46,7 @@ class CloudSyncManager {
                     connectTimeout = 8_000
                     readTimeout = 12_000
                     setRequestProperty("Accept", "application/json")
-                    setRequestProperty("X-Access-Key", key)
+                    setRequestProperty("X-Master-Key", key)
                 }
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
