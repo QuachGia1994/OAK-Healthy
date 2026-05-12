@@ -1,12 +1,30 @@
 import Foundation
 
-public enum CloudSyncError: Error, Sendable {
+public enum CloudSyncError: Error, Sendable, LocalizedError {
     case invalidBinId
     case invalidResponse
     case missingAccessKey
     case serverError(statusCode: Int, body: String)
     case networkError(message: String)
     case decodingError(message: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidBinId:
+            return "Mã liên kết không hợp lệ."
+        case .invalidResponse:
+            return "Phản hồi máy chủ không hợp lệ."
+        case .missingAccessKey:
+            return "Thiếu API Key (JSONBIN_API_KEY) từ xcconfig."
+        case .serverError(let statusCode, let body):
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            return "Lỗi máy chủ (\(statusCode)): \(trimmed.isEmpty ? "Unknown server error" : trimmed)"
+        case .networkError(let message):
+            return "Lỗi mạng: \(message)"
+        case .decodingError(let message):
+            return "Lỗi dữ liệu: \(message)"
+        }
+    }
 }
 
 public actor CloudSyncManager {
@@ -17,14 +35,18 @@ public actor CloudSyncManager {
     public func uploadBackup(
         jsonData: Data
     ) async throws(CloudSyncError) -> String {
-        let key = jsonbinApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { throw CloudSyncError.missingAccessKey }
+        guard
+            let apiKey = Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String,
+            !apiKey.isEmpty
+        else {
+            throw .networkError(message: "API Key is missing or empty in Info.plist")
+        }
         
         var request = URLRequest(url: Self.baseURL)
         request.httpMethod = "POST"
         request.httpBody = jsonData
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(key, forHTTPHeaderField: "X-Access-Key")
+        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
         
         let (data, http) = try await fetch(request: request)
         guard (200...299).contains(http.statusCode) else {
@@ -42,8 +64,12 @@ public actor CloudSyncManager {
     public func downloadBackup(
         binId: String
     ) async throws(CloudSyncError) -> Data {
-        let key = jsonbinApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { throw CloudSyncError.missingAccessKey }
+        guard
+            let apiKey = Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String,
+            !apiKey.isEmpty
+        else {
+            throw .networkError(message: "API Key is missing or empty in Info.plist")
+        }
         
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
@@ -52,7 +78,7 @@ public actor CloudSyncManager {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(key, forHTTPHeaderField: "X-Access-Key")
+        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
         
         let (data, http) = try await fetch(request: request)
         guard (200...299).contains(http.statusCode) else {
