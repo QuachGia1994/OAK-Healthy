@@ -4,6 +4,14 @@ plugins {
     id 'kotlin-kapt'
 }
 
+def properties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    properties.load(localPropertiesFile.newDataInputStream())
+}
+def jsonbinApiKeyRaw = properties.getProperty('JSONBIN_API_KEY', '')
+def jsonbinApiKeyEscaped = jsonbinApiKeyRaw.replace('\\', '\\\\').replace('"', '\\"')
+
 android {
     namespace 'com.example.supplementtracker'
     compileSdk 34
@@ -14,6 +22,7 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "JSONBIN_API_KEY", "\"${jsonbinApiKeyEscaped}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -37,6 +46,7 @@ android {
     }
     buildFeatures {
         compose true
+        buildConfig true
     }
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.4'

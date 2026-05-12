@@ -1,5 +1,6 @@
 package com.example.supplementtracker.service
 
+import com.example.supplementtracker.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -7,9 +8,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class CloudSyncManager {
-    suspend fun uploadBackup(jsonString: String, accessKey: String): Result<String> {
-        val key = accessKey.trim()
-        if (key.isEmpty() || key == PLACEHOLDER_ACCESS_KEY) return Result.failure(IllegalArgumentException("Missing access key"))
+    suspend fun uploadBackup(jsonString: String): Result<String> {
+        val key = BuildConfig.JSONBIN_API_KEY.trim()
+        if (key.isEmpty()) return Result.failure(IllegalArgumentException("Missing access key"))
         return withContext(Dispatchers.IO) {
             runCatching {
                 val connection = (URL(BASE_URL).openConnection() as HttpURLConnection).apply {
@@ -31,10 +32,10 @@ class CloudSyncManager {
         }
     }
 
-    suspend fun downloadBackup(binId: String, accessKey: String): Result<String> {
-        val key = accessKey.trim()
+    suspend fun downloadBackup(binId: String): Result<String> {
+        val key = BuildConfig.JSONBIN_API_KEY.trim()
         val id = binId.trim()
-        if (key.isEmpty() || key == PLACEHOLDER_ACCESS_KEY) return Result.failure(IllegalArgumentException("Missing access key"))
+        if (key.isEmpty()) return Result.failure(IllegalArgumentException("Missing access key"))
         if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
         return withContext(Dispatchers.IO) {
             runCatching {
@@ -62,7 +63,5 @@ class CloudSyncManager {
 
     companion object {
         const val BASE_URL = "https://api.jsonbin.io/v3/b"
-        const val PLACEHOLDER_ACCESS_KEY = "<YOUR_JSONBIN_ACCESS_KEY>"
     }
 }
-

@@ -228,7 +228,7 @@ class HomeViewModel(
         }
     }
 
-    fun hostData(accessKey: String) {
+    fun hostData() {
         viewModelScope.launch {
             _cloudSyncLoading.value = true
             _hostedBinId.value = null
@@ -237,7 +237,7 @@ class HomeViewModel(
                 _dataTransferMessage.value = error.message ?: "Export failed"
                 return@launch
             }
-            val result = CloudSyncManager().uploadBackup(json, accessKey)
+            val result = CloudSyncManager().uploadBackup(json)
             _cloudSyncLoading.value = false
             result.onSuccess {
                 _hostedBinId.value = it
@@ -248,10 +248,10 @@ class HomeViewModel(
         }
     }
 
-    fun receiveData(binId: String, accessKey: String) {
+    fun receiveData(binId: String) {
         viewModelScope.launch {
             _cloudSyncLoading.value = true
-            val json = CloudSyncManager().downloadBackup(binId, accessKey).getOrElse { error ->
+            val json = CloudSyncManager().downloadBackup(binId).getOrElse { error ->
                 _cloudSyncLoading.value = false
                 _dataTransferMessage.value = "Mã không hợp lệ / lỗi tải: ${error.message ?: "Unknown"}"
                 return@launch

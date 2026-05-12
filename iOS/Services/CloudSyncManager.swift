@@ -9,16 +9,14 @@ public enum CloudSyncError: Error, Sendable {
 
 public actor CloudSyncManager {
     public static let baseURL = URL(string: "https://api.jsonbin.io/v3/b")!
-    public static let placeholderAccessKey = "<YOUR_JSONBIN_ACCESS_KEY>"
     
     public init() {}
     
     public func uploadBackup(
-        jsonData: Data,
-        accessKey: String
+        jsonData: Data
     ) async throws(CloudSyncError) -> String {
-        let key = accessKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty, key != Self.placeholderAccessKey else { throw CloudSyncError.missingAccessKey }
+        let key = jsonbinApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw CloudSyncError.missingAccessKey }
         
         var request = URLRequest(url: Self.baseURL)
         request.httpMethod = "POST"
@@ -41,11 +39,10 @@ public actor CloudSyncManager {
     }
     
     public func downloadBackup(
-        binId: String,
-        accessKey: String
+        binId: String
     ) async throws(CloudSyncError) -> Data {
-        let key = accessKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty, key != Self.placeholderAccessKey else { throw CloudSyncError.missingAccessKey }
+        let key = jsonbinApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw CloudSyncError.missingAccessKey }
         
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
@@ -67,5 +64,9 @@ public actor CloudSyncManager {
         let record = obj?["record"]
         guard let record else { throw CloudSyncError.invalidResponse }
         return try JSONSerialization.data(withJSONObject: record, options: [])
+    }
+
+    private var jsonbinApiKey: String {
+        Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String ?? ""
     }
 }

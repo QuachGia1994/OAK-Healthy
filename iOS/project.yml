@@ -31,6 +31,9 @@ targets:
         STRIP_INSTALLED_PRODUCT: YES
         STRIP_SWIFT_SYMBOLS: YES
         DEPLOYMENT_POSTPROCESSING: YES
+      configs:
+        Debug: Secrets.xcconfig
+        Release: Secrets.xcconfig
     info:
       path: Info.plist
       properties:
@@ -39,6 +42,7 @@ targets:
           - en
           - vi
         NSUserNotificationsUsageDescription: "OAK Healthy cần quyền gửi thông báo để nhắc nhở bạn uống đúng giờ."
+        JSONBIN_API_KEY: "$(JSONBIN_API_KEY)"
         UIApplicationSceneManifest:
           UISceneConfigurations: {}
         UILaunchScreen: {}

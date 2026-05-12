@@ -18,7 +18,6 @@ public struct SettingsView: View {
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
     @State private var isCloudSyncLoading: Bool = false
-    @AppStorage("jsonbinAccessKey") private var jsonbinAccessKey: String = CloudSyncManager.placeholderAccessKey
     @State private var hostedBinId: String = ""
     @State private var downloadBinId: String = ""
     
@@ -105,10 +104,6 @@ public struct SettingsView: View {
     @ViewBuilder
     private var multiDeviceSyncSection: some View {
         Section {
-            SecureField("JSONBin Access Key", text: $jsonbinAccessKey)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-
             Button("Phát dữ liệu") {
                 Task { await hostData() }
             }
@@ -386,7 +381,7 @@ public struct SettingsView: View {
                 supplements: supplementsForActiveClient,
                 records: recordsForActiveClient
             )
-            let id = try await CloudSyncManager().uploadBackup(jsonData: backup, accessKey: jsonbinAccessKey)
+            let id = try await CloudSyncManager().uploadBackup(jsonData: backup)
             hostedBinId = id
             importErrorMessage = "Phát dữ liệu thành công!"
         } catch {
@@ -404,7 +399,7 @@ public struct SettingsView: View {
         defer { isCloudSyncLoading = false }
 
         do {
-            let data = try await CloudSyncManager().downloadBackup(binId: downloadBinId, accessKey: jsonbinAccessKey)
+            let data = try await CloudSyncManager().downloadBackup(binId: downloadBinId)
             guard let client = clients.first(where: { $0.id == clientId }) else {
                 showError(message: "missing_active_client".localized)
                 return

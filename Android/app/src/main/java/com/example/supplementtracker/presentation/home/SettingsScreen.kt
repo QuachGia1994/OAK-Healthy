@@ -102,8 +102,6 @@ fun SettingsScreen(
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
-    val syncPrefs = remember { context.getSharedPreferences("oak_sync_prefs", android.content.Context.MODE_PRIVATE) }
-    var jsonbinAccessKey by remember { mutableStateOf(syncPrefs.getString("jsonbin_access_key", "") ?: "") }
     var downloadBinId by remember { mutableStateOf("") }
 
     LaunchedEffect(dataTransferMessage) {
@@ -248,22 +246,9 @@ fun SettingsScreen(
 
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            OutlinedTextField(
-                                value = jsonbinAccessKey,
-                                onValueChange = {
-                                    jsonbinAccessKey = it
-                                    syncPrefs.edit().putString("jsonbin_access_key", it).apply()
-                                },
-                                label = { Text("JSONBin Access Key") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
                             OutlinedButton(
                                 onClick = {
-                                    homeViewModel.hostData(jsonbinAccessKey)
+                                    homeViewModel.hostData()
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -296,7 +281,7 @@ fun SettingsScreen(
 
                             OutlinedButton(
                                 onClick = {
-                                    homeViewModel.receiveData(downloadBinId, jsonbinAccessKey)
+                                    homeViewModel.receiveData(downloadBinId)
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
