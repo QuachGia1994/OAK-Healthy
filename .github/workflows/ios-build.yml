@@ -22,6 +22,11 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Create Secrets.xcconfig
+        run: |
+          mkdir -p iOS
+          printf "JSONBIN_API_KEY=%s\n" "${{ secrets.JSONBIN_API_KEY }}" > iOS/Secrets.xcconfig
+
       - name: Generate Xcode Project
         run: |
           cd iOS

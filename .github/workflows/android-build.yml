@@ -27,6 +27,16 @@ jobs:
         with:
           gradle-version: 8.7
 
+      - name: Create local.properties
+        run: |
+          mkdir -p Android
+          if [ -n "${ANDROID_SDK_ROOT}" ]; then
+            printf "sdk.dir=%s\n" "${ANDROID_SDK_ROOT}" > Android/local.properties
+          else
+            : > Android/local.properties
+          fi
+          printf "JSONBIN_API_KEY=%s\n" "${{ secrets.JSONBIN_API_KEY }}" >> Android/local.properties
+
       - name: Build APK
         run: gradle assembleDebug
         working-directory: ./Android
