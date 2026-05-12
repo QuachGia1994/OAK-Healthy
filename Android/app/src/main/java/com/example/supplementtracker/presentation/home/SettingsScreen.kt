@@ -95,6 +95,8 @@ fun SettingsScreen(
     val compositionContext = rememberCompositionContext()
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val shareStackTitle = stringResource(R.string.share_stack)
+    val exportDataTitle = stringResource(R.string.export_data)
     var isGuideExpanded by remember { mutableStateOf(false) }
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
@@ -248,7 +250,7 @@ fun SettingsScreen(
                 item {
                     SettingsSection(title = stringResource(R.string.data_tools)) {
                         SettingsRow(
-                            title = stringResource(R.string.share_stack),
+                            title = shareStackTitle,
                             onClick = {
                                 coroutineScope.launch(Dispatchers.Main) {
                                     try {
@@ -307,7 +309,7 @@ fun SettingsScreen(
                                             putExtra(Intent.EXTRA_STREAM, uri)
                                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         }
-                                        context.startActivity(Intent.createChooser(intent, stringResource(R.string.share_stack)))
+                                        context.startActivity(Intent.createChooser(intent, shareStackTitle))
                                     } catch (e: Exception) {
                                         Log.e("ShareStack", "Error sharing stack", e)
                                         Toast.makeText(context, "Lỗi chia sẻ: ${e.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
@@ -319,7 +321,7 @@ fun SettingsScreen(
                         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                         SettingsRow(
-                            title = stringResource(R.string.export_data),
+                            title = exportDataTitle,
                             onClick = {
                                 coroutineScope.launch(Dispatchers.Main) {
                                     val json = homeViewModel.buildBackupJson().getOrElse { error ->
@@ -346,7 +348,7 @@ fun SettingsScreen(
                                         putExtra(Intent.EXTRA_STREAM, uri)
                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                     }
-                                    context.startActivity(Intent.createChooser(intent, stringResource(R.string.export_data)))
+                                    context.startActivity(Intent.createChooser(intent, exportDataTitle))
                                 }
                             }
                         )
