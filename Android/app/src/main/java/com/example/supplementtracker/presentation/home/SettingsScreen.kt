@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
@@ -93,7 +95,6 @@ fun SettingsScreen(
     val compositionContext = rememberCompositionContext()
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val shareChooserTitle = stringResource(R.string.share_stack)
     var isGuideExpanded by remember { mutableStateOf(false) }
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
@@ -106,6 +107,14 @@ fun SettingsScreen(
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
     var downloadBinId by remember { mutableStateOf("") }
+
+    val allSupplements = remember(uiState, currentClientId) {
+        if (currentClientId == null) return@remember emptyList<UserSupplement>()
+        val success = uiState as? HomeUiState.Success ?: return@remember emptyList()
+        (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
+            .distinctBy { it.id }
+            .sortedBy { it.name }
+    }
 
     LaunchedEffect(dataTransferMessage) {
         val message = dataTransferMessage ?: return@LaunchedEffect
@@ -133,270 +142,352 @@ fun SettingsScreen(
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
-                    LogoCard()
-                }
-
-                item {
-                    ClientManagementCard(
-                        clients = clients,
-                        currentClientId = currentClientId,
-                        onSelect = { activeClientManager.setCurrentClientId(it) },
-                        onAdd = { isAddClientDialogVisible = true },
-                        onEdit = {
-                            editingClient = it
-                            clientNameInput = it.name
-                            isEditClientDialogVisible = true
-                        },
-                        onDelete = { client ->
-                            val deletingActive = client.id == currentClientId
-                            homeViewModel.deleteClient(client)
-                            if (deletingActive) {
-                                activeClientManager.setCurrentClientId(null)
-                            }
-                        }
-                    )
-                }
-
-                item {
-                    AppearanceCard(
-                        appTheme = appTheme,
-                        onThemeChange = onThemeChange
-                    )
-                }
-
-                item {
-                    Text(
-                        text = stringResource(R.string.app_information_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.fillMaxWidth(),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                if (uiState is HomeUiState.Success) {
-                    val successState = uiState as HomeUiState.Success
-                    val allSupplements = (successState.activeSupplements.values.flatten().map { it.supplement } +
-                        successState.restingSupplements.map { it.supplement })
-                        .distinctBy { it.id }
-                        .sortedBy { it.name }
-
-                    item {
-                        Text(
-                            text = stringResource(R.string.my_list_title),
-                            style = MaterialTheme.typography.titleLarge,
+                    SettingsSection(title = "Quản lý học viên") {
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    item {
-                        InfoCardNavigationRow(
-                            title = stringResource(R.string.manage_stack),
-                            subtitle = "${allSupplements.size}",
-                            onClick = onNavigateToStackManager
-                        )
-                    }
-                }
-
-                item {
-                    ExpandableInfoCard(
-                        title = stringResource(R.string.settings_guide_title),
-                        content = stringResource(R.string.settings_guide_content),
-                        expanded = isGuideExpanded,
-                        onToggle = { isGuideExpanded = !isGuideExpanded }
-                    )
-                }
-
-                item {
-                    InfoCard(
-                        title = stringResource(R.string.settings_intro_title),
-                        content = stringResource(R.string.settings_intro_content)
-                    )
-                }
-
-                item {
-                    InfoCard(
-                        title = stringResource(R.string.settings_copyright_title),
-                        content = """
-                            ${stringResource(R.string.settings_app_version)}
-                            ${stringResource(R.string.settings_author)}
-                            ${stringResource(R.string.settings_copyright)}
-                        """.trimIndent()
-                    )
-                }
-
-                item {
-                    if (currentClientId != null) {
-                        val allSupplements = when (uiState) {
-                            is HomeUiState.Success -> {
-                                val successState = uiState as HomeUiState.Success
-                                (successState.activeSupplements.values.flatten().map { it.supplement } +
-                                    successState.restingSupplements.map { it.supplement })
-                                    .distinctBy { it.id }
-                            }
-                            else -> emptyList()
-                        }
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Text(
-                                text = "Đồng bộ đa thiết bị",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Image(
+                                imageVector = ImageVector.vectorResource(R.drawable.ic_oak_logo),
+                                contentDescription = null,
+                                modifier = Modifier.size(96.dp)
                             )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = stringResource(R.string.settings_dedication),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontStyle = FontStyle.Italic
+                            )
+                        }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Divider(modifier = Modifier.padding(vertical = 12.dp))
 
+                        if (clients.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.add_client_to_start),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        } else {
+                            clients.forEach { client ->
+                                key(client.id) {
+                                    var isMenuExpanded by remember { mutableStateOf(false) }
+                                    val isActive = client.id == currentClientId
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(text = client.name, modifier = Modifier.weight(1f))
+                                        if (isActive) {
+                                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                                        }
+
+                                        IconButton(onClick = { isMenuExpanded = true }) {
+                                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = null)
+                                        }
+
+                                        DropdownMenu(
+                                            expanded = isMenuExpanded,
+                                            onDismissRequest = { isMenuExpanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.select)) },
+                                                onClick = {
+                                                    activeClientManager.setCurrentClientId(client.id)
+                                                    isMenuExpanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.edit)) },
+                                                onClick = {
+                                                    editingClient = client
+                                                    clientNameInput = client.name
+                                                    isEditClientDialogVisible = true
+                                                    isMenuExpanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.delete)) },
+                                                onClick = {
+                                                    val deletingActive = client.id == currentClientId
+                                                    homeViewModel.deleteClient(client)
+                                                    if (deletingActive) activeClientManager.setCurrentClientId(null)
+                                                    isMenuExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        TextButton(
+                            onClick = { isAddClientDialogVisible = true },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text(stringResource(R.string.add_a_client))
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSection(title = stringResource(R.string.appearance_title)) {
+                        AppThemeSegmentedControl(
+                            appTheme = appTheme,
+                            onThemeChange = onThemeChange
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSection(title = stringResource(R.string.data_tools)) {
+                        SettingsRow(
+                            title = stringResource(R.string.share_stack),
+                            onClick = {
+                                coroutineScope.launch(Dispatchers.Main) {
+                                    try {
+                                        val activity = context as? Activity
+                                        if (activity == null) {
+                                            Toast.makeText(context, "Lỗi chia sẻ: Missing Activity", Toast.LENGTH_LONG).show()
+                                            return@launch
+                                        }
+
+                                        val shareItems = allSupplements
+                                            .sortedBy { it.intakeTime }
+                                            .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
+
+                                        val savedStateRegistryOwner = hostView.findViewTreeSavedStateRegistryOwner()
+                                        if (savedStateRegistryOwner == null) {
+                                            Toast.makeText(context, "Lỗi chia sẻ: Missing SavedStateRegistryOwner", Toast.LENGTH_LONG).show()
+                                            return@launch
+                                        }
+
+                                        val viewModelStoreOwner = localViewModelStoreOwner
+                                        if (viewModelStoreOwner == null) {
+                                            Toast.makeText(context, "Lỗi chia sẻ: Missing ViewModelStoreOwner", Toast.LENGTH_LONG).show()
+                                            return@launch
+                                        }
+
+                                        val bitmap = StackShareImageGenerator.generate(
+                                            activity = activity,
+                                            context = context,
+                                            lifecycleOwner = lifecycleOwner,
+                                            savedStateRegistryOwner = savedStateRegistryOwner,
+                                            viewModelStoreOwner = viewModelStoreOwner,
+                                            compositionContext = compositionContext,
+                                            items = shareItems,
+                                            isDark = isDark
+                                        )
+
+                                        val imageFile = withContext(Dispatchers.IO) {
+                                            val cachePath = File(context.cacheDir, "shared_images")
+                                            cachePath.mkdirs()
+                                            val target = File(cachePath, "oak_stack_${System.currentTimeMillis()}.png")
+                                            FileOutputStream(target).use { stream ->
+                                                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                                                stream.flush()
+                                            }
+                                            target
+                                        }
+
+                                        val uri = FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            imageFile
+                                        )
+
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "image/png"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, stringResource(R.string.share_stack)))
+                                    } catch (e: Exception) {
+                                        Log.e("ShareStack", "Error sharing stack", e)
+                                        Toast.makeText(context, "Lỗi chia sẻ: ${e.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        )
+
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                        SettingsRow(
+                            title = stringResource(R.string.export_data),
+                            onClick = {
+                                coroutineScope.launch(Dispatchers.Main) {
+                                    val json = homeViewModel.buildBackupJson().getOrElse { error ->
+                                        Toast.makeText(context, "Xuất dữ liệu thất bại: ${error.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
+                                        return@launch
+                                    }
+
+                                    val exportFile = withContext(Dispatchers.IO) {
+                                        val cachePath = File(context.cacheDir, "shared_exports")
+                                        cachePath.mkdirs()
+                                        val target = File(cachePath, "oak_backup_${System.currentTimeMillis()}.json")
+                                        target.writeText(json, Charsets.UTF_8)
+                                        target
+                                    }
+
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        exportFile
+                                    )
+
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/json"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(intent, stringResource(R.string.export_data)))
+                                }
+                            }
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSection(title = "Đồng bộ đa thiết bị") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(
-                                onClick = {
-                                    homeViewModel.hostData()
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                                onClick = { homeViewModel.hostData() },
+                                enabled = !cloudSyncLoading
                             ) {
                                 if (cloudSyncLoading) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                    Spacer(modifier = Modifier.width(10.dp))
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
                                 }
                                 Text("Phát dữ liệu")
                             }
+                        }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            val currentBinId = hostedBinId
-                            if (currentBinId != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Mã liên kết của bạn:",
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                    Text(
-                                        text = currentBinId,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clickable {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                clipboard.setPrimaryClip(ClipData.newPlainText("binId", currentBinId))
-                                                Toast.makeText(context, "Đã sao chép", Toast.LENGTH_SHORT).show()
-                                            }
-                                            .padding(vertical = 8.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                            }
-
-                            OutlinedTextField(
-                                value = downloadBinId,
-                                onValueChange = { downloadBinId = it },
-                                label = { Text("Nhập mã liên kết") },
+                        val currentBinId = hostedBinId
+                        if (currentBinId != null) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            OutlinedButton(
-                                onClick = {
-                                    homeViewModel.receiveData(downloadBinId)
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (cloudSyncLoading) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                }
-                                Text("Tải về")
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            OutlinedButton(
-                                onClick = {
-                                    coroutineScope.launch(Dispatchers.Main) {
-                                        try {
-                                            val activity = context as? Activity
-                                            if (activity == null) {
-                                                Toast.makeText(context, "Lỗi chia sẻ: Missing Activity", Toast.LENGTH_LONG).show()
-                                                return@launch
-                                            }
-                                            
-                                            val shareItems = allSupplements
-                                                .sortedBy { it.intakeTime }
-                                                .map { StackShareItem(name = it.name, dose = it.dailyDose, time = it.intakeTime) }
-
-                                            val savedStateRegistryOwner = hostView.findViewTreeSavedStateRegistryOwner()
-                                            if (savedStateRegistryOwner == null) {
-                                                Toast.makeText(context, "Lỗi chia sẻ: Missing SavedStateRegistryOwner", Toast.LENGTH_LONG).show()
-                                                return@launch
-                                            }
-
-                                            val viewModelStoreOwner = localViewModelStoreOwner
-                                            if (viewModelStoreOwner == null) {
-                                                Toast.makeText(context, "Lỗi chia sẻ: Missing ViewModelStoreOwner", Toast.LENGTH_LONG).show()
-                                                return@launch
-                                            }
-
-                                            val bitmap = StackShareImageGenerator.generate(
-                                                activity = activity,
-                                                context = context,
-                                                lifecycleOwner = lifecycleOwner,
-                                                savedStateRegistryOwner = savedStateRegistryOwner,
-                                                viewModelStoreOwner = viewModelStoreOwner,
-                                                compositionContext = compositionContext,
-                                                items = shareItems,
-                                                isDark = isDark
-                                            )
-
-                                            val imageFile = withContext(Dispatchers.IO) {
-                                                val cachePath = File(context.cacheDir, "shared_images")
-                                                cachePath.mkdirs()
-                                                val target = File(cachePath, "oak_stack_${System.currentTimeMillis()}.png")
-                                                FileOutputStream(target).use { stream ->
-                                                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-                                                    stream.flush()
-                                                }
-                                                target
-                                            }
-
-                                            val uri = FileProvider.getUriForFile(
-                                                context,
-                                                "${context.packageName}.fileprovider",
-                                                imageFile
-                                            )
-
-                                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                                type = "image/png"
-                                                putExtra(Intent.EXTRA_STREAM, uri)
-                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            }
-                                            context.startActivity(Intent.createChooser(intent, "Share Stack via"))
-                                        } catch (e: Exception) {
-                                            Log.e("ShareStack", "Error sharing stack", e)
-                                            e.printStackTrace()
-                                            Toast.makeText(context, "Lỗi chia sẻ: ${e.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
-                                        }
+                                Text(
+                                    text = "Mã liên kết của bạn:",
+                                    modifier = Modifier.padding(end = 8.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = currentBinId,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("binId", currentBinId))
+                                        Toast.makeText(context, "Đã sao chép", Toast.LENGTH_SHORT).show()
                                     }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(stringResource(R.string.share_stack))
+                                ) {
+                                    Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null)
+                                }
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = downloadBinId,
+                            onValueChange = { downloadBinId = it },
+                            label = { Text("Nhập mã liên kết") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedButton(
+                            onClick = { homeViewModel.receiveData(downloadBinId) },
+                            enabled = !cloudSyncLoading
+                        ) {
+                            if (cloudSyncLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text("Tải về")
                         }
                     }
                 }
 
                 item {
-                    TextButton(onClick = { isFactoryResetDialogVisible = true }) {
-                        Text(
-                            text = stringResource(R.string.factory_reset),
-                            color = Color(0xFFD32F2F),
-                            fontWeight = FontWeight.SemiBold
+                    SettingsSection(title = stringResource(R.string.my_list_title)) {
+                        SettingsRow(
+                            title = stringResource(R.string.manage_stack),
+                            trailing = "${allSupplements.size}",
+                            onClick = onNavigateToStackManager.takeIf { currentClientId != null }
                         )
+
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                        SettingsRow(
+                            title = stringResource(R.string.settings_guide_title),
+                            trailing = if (isGuideExpanded) "−" else "+",
+                            onClick = { isGuideExpanded = !isGuideExpanded }
+                        )
+
+                        AnimatedVisibility(visible = isGuideExpanded) {
+                            Text(
+                                text = stringResource(R.string.settings_guide_content),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    SettingsSection(title = "Giới thiệu & Bản quyền") {
+                        Text(
+                            text = stringResource(R.string.settings_intro_content),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Divider(modifier = Modifier.padding(vertical = 12.dp))
+
+                        Text(
+                            text = stringResource(R.string.settings_app_version),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_author),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_copyright),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                item {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        TextButton(onClick = { isFactoryResetDialogVisible = true }) {
+                            Text(
+                                text = stringResource(R.string.factory_reset),
+                                color = Color(0xFFD32F2F),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -485,6 +576,58 @@ fun SettingsScreen(
                     }) { Text("Cancel") }
                 }
             )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (title != null) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                content = content
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsRow(
+    title: String,
+    trailing: String? = null,
+    onClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = title, style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.weight(1f))
+        if (trailing != null) {
+            Text(text = trailing, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
