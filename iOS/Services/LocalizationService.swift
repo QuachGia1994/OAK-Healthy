@@ -104,8 +104,6 @@ public struct LocalizationService: Sendable {
         "suggested_format": ("Suggested: %@", "Gợi ý: %@"),
         "notification_title": ("Time to take it! 🌿", "Đến giờ uống rồi! 🌿"),
         "notification_body_format": ("You need to take %1$@ - Dose: %2$@. Wishing you a productive work/trading session!", "Bạn cần nạp %1$@ - Liều lượng: %2$@. Chúc bạn một phiên giao dịch/làm việc hiệu quả!"),
-        "calendar_event_title_format": ("Take %@", "Uống %@"),
-        "calendar_event_notes_format": ("Dose: %@", "Liều lượng: %@"),
         "chart_axis_day": ("Day", "Ngày"),
         "chart_axis_count": ("Count", "Số lần")
     ]

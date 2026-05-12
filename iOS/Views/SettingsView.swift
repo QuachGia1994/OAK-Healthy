@@ -12,13 +12,15 @@ public struct SettingsView: View {
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
-    @State private var isShowingImportPicker = false
-    @State private var exportJSONURL: URL?
     @State private var shareStackPNGURL: URL?
     @State private var errorMessage: String?
     @State private var isShowingError = false
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
+    @State private var isCloudSyncLoading: Bool = false
+    @AppStorage("jsonbinAccessKey") private var jsonbinAccessKey: String = CloudSyncManager.placeholderAccessKey
+    @State private var hostedBinId: String = ""
+    @State private var downloadBinId: String = ""
     
     public let activeClientManager: ActiveClientManager
     
@@ -67,56 +69,6 @@ public struct SettingsView: View {
         } message: {
             Text(importErrorMessage)
         }
-        .sheet(isPresented: $isShowingImportPicker) {
-            DocumentPicker { selectedURL in
-                print("SUCCESS: UIKit Picker handed over the file: \(selectedURL)")
-                
-                guard selectedURL.pathExtension.lowercased() == "json" else {
-                    importErrorMessage = "Invalid file type selected. Must be a .json file."
-                    showImportErrorAlert = true
-                    return
-                }
-                
-                guard let clientId = activeClientManager.currentClientId else {
-                    showError(message: "missing_active_client".localized)
-                    return
-                }
-                
-                do {
-                    let data = try Data(contentsOf: selectedURL)
-                    guard let client = clients.first(where: { $0.id == clientId }) else {
-                        showError(message: "missing_active_client".localized)
-                        return
-                    }
-                    
-                    try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
-                    refreshSharePayloads()
-                    
-                    print("SUCCESS: JSON Decoded perfectly!")
-                    importErrorMessage = "Nhập dữ liệu thành công!"
-                    showImportErrorAlert = true
-                } catch SupplementExportError.invalidJSON {
-                    importErrorMessage = "Dữ liệu JSON không hợp lệ."
-                    showImportErrorAlert = true
-                } catch let DecodingError.dataCorrupted(context) {
-                    importErrorMessage = "Dữ liệu hỏng: \(context.debugDescription)"
-                    showImportErrorAlert = true
-                } catch let DecodingError.keyNotFound(key, context) {
-                    importErrorMessage = "Thiếu trường dữ liệu '\(key.stringValue)': \(context.debugDescription)"
-                    showImportErrorAlert = true
-                } catch let DecodingError.typeMismatch(type, context) {
-                    importErrorMessage = "Sai kiểu dữ liệu '\(type)': \(context.debugDescription)"
-                    showImportErrorAlert = true
-                } catch let DecodingError.valueNotFound(type, context) {
-                    importErrorMessage = "Thiếu giá trị '\(type)': \(context.debugDescription)"
-                    showImportErrorAlert = true
-                } catch {
-                    print("DECODING ERROR: \(error)")
-                    importErrorMessage = "Lỗi đọc dữ liệu: \(error.localizedDescription)"
-                    showImportErrorAlert = true
-                }
-            }
-        }
     }
     
     private var settingsList: some View {
@@ -125,6 +77,7 @@ public struct SettingsView: View {
             appHeaderSection
             themeSelectionSection
             dataTransferSection
+            multiDeviceSyncSection
             supplementListSection
             userGuideSection
             aboutSection
@@ -138,20 +91,6 @@ public struct SettingsView: View {
     @ViewBuilder
     private var dataTransferSection: some View {
         Section {
-            if let exportJSONURL {
-                ShareLink(item: exportJSONURL) {
-                    Label("export_data".localized, systemImage: "square.and.arrow.up")
-                }
-            } else {
-                Button("export_data".localized) {
-                    refreshSharePayloads()
-                }
-            }
-            
-            Button("import_data".localized) {
-                isShowingImportPicker = true
-            }
-            
             if let shareStackPNGURL {
                 ShareLink(item: shareStackPNGURL) {
                     Label("share_stack".localized, systemImage: "square.and.arrow.up")
@@ -159,6 +98,43 @@ public struct SettingsView: View {
             }
         } header: {
             Text("data_tools".localized)
+        }
+        .listRowBackground(glassRowBackground)
+    }
+
+    @ViewBuilder
+    private var multiDeviceSyncSection: some View {
+        Section {
+            SecureField("JSONBin Access Key", text: $jsonbinAccessKey)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+
+            Button("Phát dữ liệu") {
+                Task { await hostData() }
+            }
+            .disabled(isCloudSyncLoading)
+            
+            if isCloudSyncLoading {
+                ProgressView()
+            }
+            
+            if !hostedBinId.isEmpty {
+                Text("Mã liên kết của bạn: \(hostedBinId)")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .textSelection(.enabled)
+            }
+            
+            TextField("Nhập mã liên kết", text: $downloadBinId)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            
+            Button("Tải về") {
+                Task { await receiveData() }
+            }
+            .disabled(isCloudSyncLoading)
+        } header: {
+            Text("Đồng bộ đa thiết bị")
         }
         .listRowBackground(glassRowBackground)
     }
@@ -385,19 +361,8 @@ public struct SettingsView: View {
     
     private func refreshSharePayloads() {
         guard activeClientManager.currentClientId != nil else {
-            exportJSONURL = nil
             shareStackPNGURL = nil
             return
-        }
-        do {
-            let json = try SupplementExportCodec.encodeBackup(
-                supplements: supplementsForActiveClient,
-                records: recordsForActiveClient
-            )
-            exportJSONURL = try writeTempFile(named: "OAKHealthy_Backup.json", data: json)
-        } catch {
-            exportJSONURL = nil
-            showError(message: "export_failed".localized)
         }
         
         do {
@@ -406,6 +371,51 @@ public struct SettingsView: View {
         } catch {
             shareStackPNGURL = nil
         }
+    }
+
+    private func hostData() async {
+        guard let clientId = activeClientManager.currentClientId else {
+            showError(message: "missing_active_client".localized)
+            return
+        }
+        isCloudSyncLoading = true
+        defer { isCloudSyncLoading = false }
+
+        do {
+            let backup = try SupplementExportCodec.encodeBackup(
+                supplements: supplementsForActiveClient,
+                records: recordsForActiveClient
+            )
+            let id = try await CloudSyncManager().uploadBackup(jsonData: backup, accessKey: jsonbinAccessKey)
+            hostedBinId = id
+            importErrorMessage = "Phát dữ liệu thành công!"
+        } catch {
+            importErrorMessage = "Phát dữ liệu thất bại: \(error.localizedDescription)"
+        }
+        showImportErrorAlert = true
+    }
+
+    private func receiveData() async {
+        guard let clientId = activeClientManager.currentClientId else {
+            showError(message: "missing_active_client".localized)
+            return
+        }
+        isCloudSyncLoading = true
+        defer { isCloudSyncLoading = false }
+
+        do {
+            let data = try await CloudSyncManager().downloadBackup(binId: downloadBinId, accessKey: jsonbinAccessKey)
+            guard let client = clients.first(where: { $0.id == clientId }) else {
+                showError(message: "missing_active_client".localized)
+                return
+            }
+            try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+            refreshSharePayloads()
+            importErrorMessage = "Tải & khôi phục thành công!"
+        } catch {
+            importErrorMessage = "Tải thất bại: \(error.localizedDescription)"
+        }
+        showImportErrorAlert = true
     }
     
     private func showError(message: String) {

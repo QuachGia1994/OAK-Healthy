@@ -38,7 +38,6 @@ targets:
         CFBundleLocalizations:
           - en
           - vi
-        NSCalendarsFullAccessUsageDescription: "OAK Healthy needs access to your calendar to sync your supplement cycle."
         NSUserNotificationsUsageDescription: "OAK Healthy cần quyền gửi thông báo để nhắc nhở bạn uống đúng giờ."
         UIApplicationSceneManifest:
           UISceneConfigurations: {}

@@ -3,8 +3,6 @@ package com.example.supplementtracker.presentation.home
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -83,6 +81,8 @@ fun SettingsScreen(
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
+    val cloudSyncLoading by homeViewModel.cloudSyncLoading.collectAsStateWithLifecycle()
+    val hostedBinId by homeViewModel.hostedBinId.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val hostView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -102,28 +102,9 @@ fun SettingsScreen(
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
-    var pendingExportJson by remember { mutableStateOf<String?>(null) }
-
-    val createJsonDocument = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        val json = pendingExportJson ?: return@rememberLauncherForActivityResult
-        if (uri == null) return@rememberLauncherForActivityResult
-        context.contentResolver.openOutputStream(uri)?.use { output ->
-            output.write(json.toByteArray(Charsets.UTF_8))
-        }
-        pendingExportJson = null
-    }
-
-    val openJsonDocument = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val json = context.contentResolver.openInputStream(uri)?.use { input ->
-            input.readBytes().toString(Charsets.UTF_8)
-        } ?: return@rememberLauncherForActivityResult
-        homeViewModel.importBackupFromJson(json)
-    }
+    val syncPrefs = remember { context.getSharedPreferences("oak_sync_prefs", android.content.Context.MODE_PRIVATE) }
+    var jsonbinAccessKey by remember { mutableStateOf(syncPrefs.getString("jsonbin_access_key", "") ?: "") }
+    var downloadBinId by remember { mutableStateOf("") }
 
     LaunchedEffect(dataTransferMessage) {
         val message = dataTransferMessage ?: return@LaunchedEffect
@@ -258,31 +239,72 @@ fun SettingsScreen(
                             }
                             else -> emptyList()
                         }
-
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            Button(
+                            Text(
+                                text = "Đồng bộ đa thiết bị",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = jsonbinAccessKey,
+                                onValueChange = {
+                                    jsonbinAccessKey = it
+                                    syncPrefs.edit().putString("jsonbin_access_key", it).apply()
+                                },
+                                label = { Text("JSONBin Access Key") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedButton(
                                 onClick = {
-                                    coroutineScope.launch {
-                                        val json = homeViewModel.buildBackupJson().getOrElse { error ->
-                                            Toast.makeText(context, error.message ?: "Export failed", Toast.LENGTH_LONG).show()
-                                            return@launch
-                                        }
-                                        pendingExportJson = json
-                                        createJsonDocument.launch("OAKHealthy_Backup.json")
-                                    }
+                                    homeViewModel.hostData(jsonbinAccessKey)
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(stringResource(R.string.export_data))
+                                if (cloudSyncLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                }
+                                Text("Phát dữ liệu")
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
+                            if (hostedBinId != null) {
+                                Text(
+                                    text = "Mã liên kết của bạn: $hostedBinId",
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+
+                            OutlinedTextField(
+                                value = downloadBinId,
+                                onValueChange = { downloadBinId = it },
+                                label = { Text("Nhập mã liên kết") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
                             OutlinedButton(
-                                onClick = { openJsonDocument.launch(arrayOf("application/json")) },
+                                onClick = {
+                                    homeViewModel.receiveData(downloadBinId, jsonbinAccessKey)
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(stringResource(R.string.import_data))
+                                if (cloudSyncLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                }
+                                Text("Tải về")
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))

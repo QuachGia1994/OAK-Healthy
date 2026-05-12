@@ -22,7 +22,6 @@ public final class AddSupplementViewModel {
     // MARK: - Dependencies
     private let suggestService: any AutoSuggestService
     private let notificationService: any NotificationManaging
-    private let calendarService: any CalendarManaging
     private let modelContext: ModelContext
     private var editingSupplement: UserSupplement?
     private let activeClient: ClientProfile?
@@ -32,15 +31,13 @@ public final class AddSupplementViewModel {
         editingSupplement: UserSupplement? = nil,
         activeClient: ClientProfile? = nil,
         suggestService: any AutoSuggestService = SupplementAutoSuggester(),
-        notificationService: any NotificationManaging = NotificationService(),
-        calendarService: any CalendarManaging = CalendarService()
+        notificationService: any NotificationManaging = NotificationService()
     ) {
         self.modelContext = modelContext
         self.editingSupplement = editingSupplement
         self.activeClient = activeClient ?? editingSupplement?.client
         self.suggestService = suggestService
         self.notificationService = notificationService
-        self.calendarService = calendarService
         
         if let supplement = editingSupplement {
             name = supplement.name
@@ -68,7 +65,7 @@ public final class AddSupplementViewModel {
     
     // MARK: - Actions
 
-    /// Lưu thực phẩm bổ sung và thiết lập thông báo/lịch.
+    /// Lưu thực phẩm bổ sung và thiết lập thông báo.
     public func saveSupplement() async -> UserSupplement? {
         let supplement: UserSupplement
         if let existing = editingSupplement {
@@ -88,13 +85,8 @@ public final class AddSupplementViewModel {
         do {
             try modelContext.save()
             
-            // 1. Xin quyền & Lên lịch thông báo
             try await notificationService.requestAuthorization()
             try await notificationService.scheduleReminders(for: supplement)
-            
-            // 2. Xin quyền & Đồng bộ lịch
-            try await calendarService.requestAccess()
-            try await calendarService.syncCycleToCalendar(for: supplement)
             
             return supplement
         } catch {

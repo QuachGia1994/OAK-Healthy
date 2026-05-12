@@ -35,6 +35,7 @@ import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.R
 import java.util.Locale
+import com.example.supplementtracker.service.CloudSyncManager
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
@@ -49,6 +50,10 @@ class HomeViewModel(
     private val _refreshTrigger = MutableStateFlow(0)
     private val _dataTransferMessage = MutableStateFlow<String?>(null)
     val dataTransferMessage: StateFlow<String?> = _dataTransferMessage
+    private val _cloudSyncLoading = MutableStateFlow(false)
+    val cloudSyncLoading: StateFlow<Boolean> = _cloudSyncLoading
+    private val _hostedBinId = MutableStateFlow<String?>(null)
+    val hostedBinId: StateFlow<String?> = _hostedBinId
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
 
@@ -220,6 +225,39 @@ class HomeViewModel(
             
             refresh()
             _dataTransferMessage.value = context.getString(R.string.import_success)
+        }
+    }
+
+    fun hostData(accessKey: String) {
+        viewModelScope.launch {
+            _cloudSyncLoading.value = true
+            _hostedBinId.value = null
+            val json = buildBackupJson().getOrElse { error ->
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = error.message ?: "Export failed"
+                return@launch
+            }
+            val result = CloudSyncManager().uploadBackup(json, accessKey)
+            _cloudSyncLoading.value = false
+            result.onSuccess {
+                _hostedBinId.value = it
+                _dataTransferMessage.value = "Phát dữ liệu thành công!"
+            }.onFailure {
+                _dataTransferMessage.value = "Phát dữ liệu thất bại: ${it.message ?: "Unknown"}"
+            }
+        }
+    }
+
+    fun receiveData(binId: String, accessKey: String) {
+        viewModelScope.launch {
+            _cloudSyncLoading.value = true
+            val json = CloudSyncManager().downloadBackup(binId, accessKey).getOrElse { error ->
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = "Mã không hợp lệ / lỗi tải: ${error.message ?: "Unknown"}"
+                return@launch
+            }
+            _cloudSyncLoading.value = false
+            importBackupFromJson(json)
         }
     }
 
