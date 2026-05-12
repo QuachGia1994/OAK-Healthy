@@ -500,8 +500,9 @@ private struct MyStackListView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(supplements) { supplement in
+                    let time = supplement.intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)
                     SupplementRow(
-                        name: supplement.name,
+                        name: time.isEmpty ? supplement.name : "\(supplement.name) (\(time))",
                         cycleSummary: cycleSummary(supplement)
                     )
                 }

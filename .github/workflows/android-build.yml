@@ -28,6 +28,8 @@ jobs:
           gradle-version: 8.7
 
       - name: Create local.properties
+        env:
+          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
         run: |
           mkdir -p Android
           if [ -n "${ANDROID_SDK_ROOT}" ]; then
@@ -35,7 +37,7 @@ jobs:
           else
             : > Android/local.properties
           fi
-          printf "JSONBIN_API_KEY=%s\n" "${{ secrets.JSONBIN_API_KEY }}" >> Android/local.properties
+          printf "JSONBIN_API_KEY=%s\n" "$JSONBIN_KEY" >> Android/local.properties
 
       - name: Build APK
         run: gradle assembleDebug

@@ -718,8 +718,10 @@ fun MyStackListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(items = supplements, key = { it.id }) { supplement ->
+                    val time = supplement.intakeTime.trim()
+                    val title = if (time.isEmpty()) supplement.name else "${supplement.name} ($time)"
                     InfoCard(
-                        title = supplement.name,
+                        title = title,
                         content = getCycleSummary(supplement)
                     )
                 }
