@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
@@ -20,6 +21,7 @@ public struct SettingsView: View {
     @State private var isCloudSyncLoading: Bool = false
     @State private var hostedBinId: String = ""
     @State private var downloadBinId: String = ""
+    @State private var isShowingCopyBinIdAlert: Bool = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -68,6 +70,11 @@ public struct SettingsView: View {
         } message: {
             Text(importErrorMessage)
         }
+        .alert("Đã sao chép", isPresented: $isShowingCopyBinIdAlert) {
+            Button("OK") {}
+        } message: {
+            Text("Mã liên kết đã được sao chép.")
+        }
     }
     
     private var settingsList: some View {
@@ -114,10 +121,23 @@ public struct SettingsView: View {
             }
             
             if !hostedBinId.isEmpty {
-                Text("Mã liên kết của bạn: \(hostedBinId)")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .textSelection(.enabled)
+                HStack(alignment: .center, spacing: 8) {
+                    Text("Mã liên kết của bạn:")
+                        .foregroundStyle(.secondary)
+                    
+                    Text(hostedBinId)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .textSelection(.enabled)
+                    
+                    Button {
+                        UIPasteboard.general.string = hostedBinId
+                        isShowingCopyBinIdAlert = true
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.borderless)
+                }
             }
             
             TextField("Nhập mã liên kết", text: $downloadBinId)
