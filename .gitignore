@@ -11,3 +11,4 @@ Android/**/.externalNativeBuild/
 Android/**/build/
 **/.DS_Store
 **/node_modules/
+**/*.xcconfig
