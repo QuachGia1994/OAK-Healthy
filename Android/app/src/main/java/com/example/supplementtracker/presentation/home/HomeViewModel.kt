@@ -231,7 +231,17 @@ class HomeViewModel(
     fun hostData() {
         viewModelScope.launch {
             _cloudSyncLoading.value = true
+            val oldBinId = _hostedBinId.value
             _hostedBinId.value = null
+            if (oldBinId != null) {
+                val deleteResult = CloudSyncManager().deleteBackup(oldBinId)
+                deleteResult.onFailure { error ->
+                    _cloudSyncLoading.value = false
+                    _hostedBinId.value = oldBinId
+                    _dataTransferMessage.value = "Thu hồi mã cũ thất bại: ${error.message ?: "Unknown"}"
+                    return@launch
+                }
+            }
             val json = buildBackupJson().getOrElse { error ->
                 _cloudSyncLoading.value = false
                 _dataTransferMessage.value = error.message ?: "Export failed"
@@ -244,6 +254,24 @@ class HomeViewModel(
                 _dataTransferMessage.value = "Phát dữ liệu thành công!"
             }.onFailure {
                 _dataTransferMessage.value = "Phát dữ liệu thất bại: ${it.message ?: "Unknown"}"
+            }
+        }
+    }
+    
+    fun revokeHostedBin() {
+        viewModelScope.launch {
+            val binId = _hostedBinId.value ?: run {
+                _dataTransferMessage.value = "Không có mã để thu hồi."
+                return@launch
+            }
+            _cloudSyncLoading.value = true
+            val deleteResult = CloudSyncManager().deleteBackup(binId)
+            _cloudSyncLoading.value = false
+            deleteResult.onSuccess {
+                _hostedBinId.value = null
+                _dataTransferMessage.value = "Đã vô hiệu hóa mã."
+            }.onFailure {
+                _dataTransferMessage.value = "Thu hồi mã thất bại: ${it.message ?: "Unknown"}"
             }
         }
     }

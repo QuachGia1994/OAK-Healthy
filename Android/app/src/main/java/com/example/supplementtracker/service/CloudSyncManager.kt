@@ -60,6 +60,30 @@ class CloudSyncManager {
             }
         }
     }
+    
+    suspend fun deleteBackup(binId: String): Result<Unit> {
+        val key = BuildConfig.JSONBIN_API_KEY.trim()
+        val id = binId.trim()
+        if (key.isEmpty()) return Result.failure(IllegalArgumentException("Missing access key"))
+        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val url = URL("$BASE_URL/$id")
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "DELETE"
+                    doInput = true
+                    connectTimeout = 8_000
+                    readTimeout = 12_000
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("X-Master-Key", key)
+                }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) error("Server error ($code): $body")
+            }
+        }
+    }
 
     companion object {
         const val BASE_URL = "https://api.jsonbin.io/v3/b"

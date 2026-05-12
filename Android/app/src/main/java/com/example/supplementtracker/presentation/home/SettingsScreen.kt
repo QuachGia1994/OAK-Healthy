@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
@@ -96,6 +98,7 @@ fun SettingsScreen(
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareStackTitle = stringResource(R.string.share_stack)
     var isGuideExpanded by remember { mutableStateOf(false) }
+    var isBinIdVisible by remember { mutableStateOf(false) }
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
     } else {
@@ -120,6 +123,10 @@ fun SettingsScreen(
         val message = dataTransferMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         homeViewModel.clearDataTransferMessage()
+    }
+    
+    LaunchedEffect(hostedBinId) {
+        isBinIdVisible = false
     }
 
     Box(
@@ -322,7 +329,10 @@ fun SettingsScreen(
                     SettingsSection(title = "Đồng bộ đa thiết bị") {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(
-                                onClick = { homeViewModel.hostData() },
+                                onClick = {
+                                    isBinIdVisible = false
+                                    homeViewModel.hostData()
+                                },
                                 enabled = !cloudSyncLoading
                             ) {
                                 if (cloudSyncLoading) {
@@ -336,6 +346,7 @@ fun SettingsScreen(
                         val currentBinId = hostedBinId
                         if (currentBinId != null) {
                             val binIdToCopy = currentBinId.trim()
+                            val maskedBinId = remember { "•".repeat(24) }
                             Spacer(modifier = Modifier.height(12.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -347,12 +358,18 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = currentBinId,
+                                    text = if (isBinIdVisible) binIdToCopy else maskedBinId,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
+                                IconButton(onClick = { isBinIdVisible = !isBinIdVisible }) {
+                                    Icon(
+                                        imageVector = if (isBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = null
+                                    )
+                                }
                                 TextButton(
                                     onClick = {
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -362,6 +379,21 @@ fun SettingsScreen(
                                 ) {
                                     Text("Copy")
                                 }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            TextButton(
+                                onClick = {
+                                    isBinIdVisible = false
+                                    homeViewModel.revokeHostedBin()
+                                }
+                            ) {
+                                Text(
+                                    text = "Thu hồi mã",
+                                    color = Color(0xFFD32F2F),
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
 

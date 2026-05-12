@@ -22,6 +22,8 @@ public struct SettingsView: View {
     @State private var hostedBinId: String = ""
     @State private var downloadBinId: String = ""
     @State private var isShowingCopyBinIdAlert: Bool = false
+    @State private var isBinIdVisible: Bool = false
+    @State private var isRevokingBinId: Bool = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -126,10 +128,16 @@ public struct SettingsView: View {
                     Text("Mã liên kết của bạn:")
                         .foregroundStyle(.secondary)
                     
-                    Text(binId)
+                    Text(isBinIdVisible ? binId : String(repeating: "•", count: 24))
                         .font(.title3)
                         .fontWeight(.bold)
                         .textSelection(.enabled)
+                    
+                    Button(action: { isBinIdVisible.toggle() }) {
+                        Image(systemName: isBinIdVisible ? "eye.slash" : "eye")
+                            .foregroundStyle(.gray)
+                    }
+                    .buttonStyle(.borderless)
                     
                     Button {
                         UIPasteboard.general.string = binId
@@ -139,6 +147,17 @@ public struct SettingsView: View {
                     }
                     .buttonStyle(.borderless)
                 }
+                
+                Button(role: .destructive) {
+                    Task { await revokeHostedBin() }
+                } label: {
+                    if isRevokingBinId {
+                        ProgressView()
+                    } else {
+                        Text("Thu hồi mã")
+                    }
+                }
+                .disabled(isCloudSyncLoading || isRevokingBinId)
             }
             
             TextField("Nhập mã liên kết", text: $downloadBinId)
@@ -396,6 +415,18 @@ public struct SettingsView: View {
         }
         isCloudSyncLoading = true
         defer { isCloudSyncLoading = false }
+        let oldBinId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
+        isBinIdVisible = false
+        if !oldBinId.isEmpty {
+            do {
+                try await CloudSyncManager().deleteBackup(binId: oldBinId)
+                hostedBinId = ""
+            } catch {
+                importErrorMessage = "Thu hồi mã cũ thất bại: \(error.localizedDescription)"
+                showImportErrorAlert = true
+                return
+            }
+        }
 
         do {
             let backup = try SupplementExportCodec.encodeBackup(
@@ -407,6 +438,24 @@ public struct SettingsView: View {
             importErrorMessage = "Phát dữ liệu thành công!"
         } catch {
             importErrorMessage = "Phát dữ liệu thất bại: \(error.localizedDescription)"
+        }
+        showImportErrorAlert = true
+    }
+    
+    private func revokeHostedBin() async {
+        let binId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !binId.isEmpty else { return }
+        
+        isRevokingBinId = true
+        defer { isRevokingBinId = false }
+        
+        do {
+            try await CloudSyncManager().deleteBackup(binId: binId)
+            hostedBinId = ""
+            isBinIdVisible = false
+            importErrorMessage = "Đã vô hiệu hóa mã."
+        } catch {
+            importErrorMessage = "Thu hồi mã thất bại: \(error.localizedDescription)"
         }
         showImportErrorAlert = true
     }

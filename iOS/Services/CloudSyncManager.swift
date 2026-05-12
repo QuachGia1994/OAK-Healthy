@@ -91,6 +91,32 @@ public actor CloudSyncManager {
         guard let record else { throw CloudSyncError.invalidResponse }
         return try encodeJSONObject(record)
     }
+    
+    public func deleteBackup(
+        binId: String
+    ) async throws(CloudSyncError) {
+        guard
+            let apiKey = Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String,
+            !apiKey.isEmpty
+        else {
+            throw .networkError(message: "API Key is missing or empty in Info.plist")
+        }
+        
+        let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
+        
+        let url = Self.baseURL.appendingPathComponent(id)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
+        
+        let (data, http) = try await fetch(request: request)
+        guard (200...299).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
+        }
+    }
 
     private var jsonbinApiKey: String {
         Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String ?? ""
