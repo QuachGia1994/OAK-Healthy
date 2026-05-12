@@ -8,6 +8,9 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
+    configFiles:
+      Debug: Secrets.xcconfig
+      Release: Secrets.xcconfig
     sources:
       - path: SupplementTrackerApp.swift
       - path: Assets.xcassets
@@ -31,9 +34,6 @@ targets:
         STRIP_INSTALLED_PRODUCT: YES
         STRIP_SWIFT_SYMBOLS: YES
         DEPLOYMENT_POSTPROCESSING: YES
-      configs:
-        Debug: Secrets.xcconfig
-        Release: Secrets.xcconfig
     info:
       path: Info.plist
       properties:
