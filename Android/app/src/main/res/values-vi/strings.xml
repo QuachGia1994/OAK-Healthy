@@ -92,6 +92,7 @@
     <string name="export_data">Xuất dữ liệu</string>
     <string name="import_data">Nhập dữ liệu</string>
     <string name="share_stack">Chia sẻ danh sách</string>
+    <string name="data_tools">Dữ liệu</string>
     <string name="missing_active_client">Vui lòng chọn học viên trước.</string>
     <string name="invalid_json">File JSON không hợp lệ.</string>
     <string name="import_success">Đã nhập dữ liệu.</string>

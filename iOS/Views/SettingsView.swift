@@ -121,17 +121,18 @@ public struct SettingsView: View {
             }
             
             if !hostedBinId.isEmpty {
+                let binId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
                 HStack(alignment: .center, spacing: 8) {
                     Text("Mã liên kết của bạn:")
                         .foregroundStyle(.secondary)
                     
-                    Text(hostedBinId)
+                    Text(binId)
                         .font(.title3)
                         .fontWeight(.bold)
                         .textSelection(.enabled)
                     
                     Button {
-                        UIPasteboard.general.string = hostedBinId
+                        UIPasteboard.general.string = binId
                         isShowingCopyBinIdAlert = true
                     } label: {
                         Image(systemName: "doc.on.doc")
