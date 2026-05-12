@@ -22,10 +22,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.domain.model.IntakeTime
 
+import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /**
  * Màn hình thêm mới chất bổ sung (Jetpack Compose).
@@ -43,6 +46,7 @@ fun AddSupplementScreen(
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val backgroundColor = Color(0xFFF2F2F7)
     val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy/MM/dd") }
 
     val timePickerDialog = TimePickerDialog(
         context,
@@ -140,6 +144,37 @@ fun AddSupplementScreen(
             
             val timeShape = RoundedCornerShape(32.dp)
             val timeContainerColor = MaterialTheme.colorScheme.surfaceVariant
+            val currentStartDate = state.startDate
+            val startDateText = remember(currentStartDate) { currentStartDate.format(dateFormatter) }
+            Card(
+                onClick = {
+                    val initialYear = currentStartDate.year
+                    val initialMonth = currentStartDate.monthValue - 1
+                    val initialDay = currentStartDate.dayOfMonth
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            viewModel.onStartDateChange(LocalDate.of(year, month + 1, dayOfMonth))
+                        },
+                        initialYear,
+                        initialMonth,
+                        initialDay
+                    ).show()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                shape = timeShape,
+                colors = CardDefaults.cardColors(containerColor = timeContainerColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ngày bắt đầu: $startDateText")
+                }
+            }
+
             Card(
                 onClick = { timePickerDialog.show() },
                 modifier = Modifier

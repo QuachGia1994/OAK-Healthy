@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /**
  * ViewModel xử lý logic UI cho màn hình thêm chất.
@@ -88,6 +89,10 @@ class AddSupplementViewModel(
 
     fun onTimeChange(time: String) {
         _state.update { it.copy(intakeTime = time) }
+    }
+
+    fun onStartDateChange(date: LocalDate) {
+        _state.update { it.copy(startDate = date) }
     }
 
     fun onDailyDoseChange(dose: String) {
