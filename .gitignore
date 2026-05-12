@@ -12,3 +12,6 @@ Android/**/build/
 **/.DS_Store
 **/node_modules/
 **/*.xcconfig
+**/__pycache__/
+**/*.pyc
+backups/

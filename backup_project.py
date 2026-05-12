@@ -21,7 +21,7 @@ def _normalize_rel(path: Path) -> str:
 
 def _is_excluded_dir(rel_dir: str, exclude_dirs: tuple[str, ...]) -> bool:
     rel_dir = rel_dir.strip("/")
-    return rel_dir in exclude_dirs
+    return any(rel_dir == ex or rel_dir.startswith(f"{ex}/") for ex in exclude_dirs)
 
 
 def _matches_any_glob(rel_path: str, globs: tuple[str, ...]) -> bool:
@@ -32,6 +32,11 @@ def create_backup(config: BackupConfig) -> tuple[int, int]:
     config.output_zip.parent.mkdir(parents=True, exist_ok=True)
     if config.output_zip.exists():
         config.output_zip.unlink()
+
+    try:
+        output_zip_rel = _normalize_rel(config.output_zip.relative_to(config.root))
+    except ValueError:
+        output_zip_rel = ""
 
     total_files = 0
     zipped_files = 0
@@ -47,7 +52,7 @@ def create_backup(config: BackupConfig) -> tuple[int, int]:
                 rel_subdir_str = _normalize_rel(rel_subdir)
                 if _is_excluded_dir(rel_subdir_str, config.exclude_dirs):
                     continue
-                if _matches_any_glob(rel_subdir_str, config.exclude_globs):
+                if _matches_any_glob(rel_subdir_str, config.exclude_globs) or _matches_any_glob(f"{rel_subdir_str}/", config.exclude_globs):
                     continue
                 pruned.append(d)
             dirnames[:] = pruned
@@ -57,7 +62,7 @@ def create_backup(config: BackupConfig) -> tuple[int, int]:
                 abs_path = current_root_path / filename
                 rel_path = _normalize_rel(abs_path.relative_to(config.root))
 
-                if rel_path == _normalize_rel(config.output_zip.relative_to(config.root)):
+                if output_zip_rel and rel_path == output_zip_rel:
                     continue
                 if _matches_any_glob(rel_path, config.exclude_globs):
                     continue
@@ -77,6 +82,8 @@ def main() -> int:
         default="",
         help="Optional output file name. If empty, uses <folder>_backup_<timestamp>.zip",
     )
+    parser.add_argument("--exclude-dir", action="append", default=[], help="Additional excluded directories (relative to root). Can be repeated.")
+    parser.add_argument("--exclude-glob", action="append", default=[], help="Additional excluded glob patterns (posix-style). Can be repeated.")
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
@@ -103,7 +110,7 @@ def main() -> int:
         "Android/.idea",
         "iOS/build",
         "iOS/DerivedData",
-    )
+    ) + tuple(args.exclude_dir)
     exclude_globs = (
         "*.zip",
         "*.pyc",
@@ -114,12 +121,14 @@ def main() -> int:
         "Android/**/.gradle/**",
         "Android/**/.kotlin/**",
         "Android/**/.idea/**",
+        "iOS/Secrets.xcconfig",
+        "iOS/**/Secrets.xcconfig",
         "iOS/**/DerivedData/**",
         "iOS/**/build/**",
         "**/node_modules/**",
         "**/__pycache__/**",
         "**/.pytest_cache/**",
-    )
+    ) + tuple(args.exclude_glob)
 
     zipped, total = create_backup(
         BackupConfig(
@@ -137,4 +146,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
