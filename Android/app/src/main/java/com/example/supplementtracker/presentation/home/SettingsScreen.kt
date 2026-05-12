@@ -34,7 +34,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -278,20 +277,15 @@ fun SettingsScreen(
                                     Text(
                                         text = currentBinId,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("binId", currentBinId))
+                                                Toast.makeText(context, "Đã sao chép", Toast.LENGTH_SHORT).show()
+                                            }
+                                            .padding(vertical = 8.dp)
                                     )
-                                    IconButton(
-                                        onClick = {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("binId", currentBinId))
-                                            Toast.makeText(context, "Đã sao chép", Toast.LENGTH_SHORT).show()
-                                        }
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ContentCopy,
-                                            contentDescription = "Copy bin id"
-                                        )
-                                    }
                                 }
                                 Spacer(modifier = Modifier.height(10.dp))
                             }
