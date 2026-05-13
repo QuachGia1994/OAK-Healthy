@@ -59,36 +59,16 @@ public struct NotificationService: NotificationManaging {
     /// Chỉ nhắc nhở vào những ngày "On".
     @MainActor
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
-        let isNotificationEnabledByUser = UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser")
-        guard isNotificationEnabledByUser else { return }
-        Task.detached(priority: .utility) {
-            await NotificationShadowLogStore.shared.append(time: supplement.intakeTime)
-        }
-        
+        guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
+        let intakeTime = supplement.intakeTime
+        await NotificationShadowLogStore.shared.append(time: intakeTime)
         let calendar = Calendar.current
-        
-        // Parse intakeTime (HH:mm)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        guard let timeDate = formatter.date(from: supplement.intakeTime) else { return }
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
-        
-        for dayOffset in 0..<7 {
-            guard let checkDate = calendar.date(byAdding: .day, value: dayOffset, to: .now),
-                  let triggerDate = calendar.date(bySettingHour: timeComponents.hour ?? 8, 
-                                                minute: timeComponents.minute ?? 0, 
-                                                second: 0, 
-                                                of: checkDate) else { continue }
-            
-            guard triggerDate > .now else { continue }
-            
-            // Chỉ lên lịch nếu ngày đó là "On"
+        guard let timeComponents = intakeTimeComponents(from: intakeTime, calendar: calendar) else { return }
+        for triggerDate in upcomingTriggerDates(calendar: calendar, timeComponents: timeComponents) {
             let status = try? cycleCalculator.determineStatus(for: supplement.startDate, 
                                                            config: supplement.cycleConfig, 
                                                            at: triggerDate)
-            
             guard status == .on else { continue }
-            
             try await createNotificationRequest(for: supplement, at: triggerDate)
         }
     }
@@ -96,9 +76,7 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func cancelReminders(for supplement: UserSupplement) async {
         center.removeAllPendingNotificationRequests()
-        Task.detached(priority: .utility) {
-            await NotificationShadowLogStore.shared.clear()
-        }
+        await NotificationShadowLogStore.shared.clear()
     }
     
     @MainActor
@@ -107,6 +85,27 @@ public struct NotificationService: NotificationManaging {
     }
     
     // MARK: - Private Helpers
+    
+    private func intakeTimeComponents(from time: String, calendar: Calendar) -> DateComponents? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        guard let timeDate = formatter.date(from: time) else { return nil }
+        return calendar.dateComponents([.hour, .minute], from: timeDate)
+    }
+    
+    private func upcomingTriggerDates(
+        calendar: Calendar,
+        timeComponents: DateComponents
+    ) -> [Date] {
+        (0..<7).compactMap { dayOffset in
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: .now) else { return nil }
+            let hour = timeComponents.hour ?? 8
+            let minute = timeComponents.minute ?? 0
+            let date = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)
+            guard let date, date > .now else { return nil }
+            return date
+        }
+    }
     
     @MainActor
     private func createNotificationRequest(for supplement: UserSupplement, at date: Date) async throws(NotificationError) {
