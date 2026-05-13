@@ -11,6 +11,7 @@ public struct SettingsView: View {
     @Query(sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]) private var allRecords: [IntakeRecord]
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
+    @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
@@ -130,6 +131,17 @@ public struct SettingsView: View {
     @ViewBuilder
     private var multiDeviceSyncSection: some View {
         Section {
+            Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
+                .onChange(of: isAutoSyncEnabled) {
+                    Task {
+                        if isAutoSyncEnabled {
+                            await CloudSyncManager.shared.startAutoSync()
+                            return
+                        }
+                        await CloudSyncManager.shared.stopAutoSync()
+                    }
+                }
+            
             Button("Phát dữ liệu") {
                 Task { await hostData() }
             }

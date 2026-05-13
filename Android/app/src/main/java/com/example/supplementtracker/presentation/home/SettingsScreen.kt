@@ -93,6 +93,10 @@ fun SettingsScreen(
     onNavigateToNotificationDebug: () -> Unit
 ) {
     val context = LocalContext.current
+    val settingsPrefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
+    var isAutoSyncEnabled by remember {
+        mutableStateOf(settingsPrefs.getBoolean("isAutoSyncEnabled", false))
+    }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
@@ -138,6 +142,15 @@ fun SettingsScreen(
     
     LaunchedEffect(hostedBinId) {
         isBinIdVisible = false
+    }
+    
+    LaunchedEffect(isAutoSyncEnabled) {
+        settingsPrefs.edit().putBoolean("isAutoSyncEnabled", isAutoSyncEnabled).apply()
+        if (isAutoSyncEnabled) {
+            homeViewModel.startAutoSync()
+            return@LaunchedEffect
+        }
+        homeViewModel.stopAutoSync()
     }
 
     Box(
@@ -343,6 +356,18 @@ fun SettingsScreen(
 
                 item {
                     SettingsSection(title = "Đồng bộ đa thiết bị") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Tự động đồng bộ", style = MaterialTheme.typography.bodyLarge)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = isAutoSyncEnabled,
+                                onCheckedChange = { isAutoSyncEnabled = it }
+                            )
+                        }
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedButton(
                                 onClick = {

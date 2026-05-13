@@ -32,7 +32,25 @@ public actor CloudSyncManager {
         URL(string: "https://api.jsonbin.io/v3/b") ?? URL(fileURLWithPath: "/")
     }()
     
+    public static let shared = CloudSyncManager()
+    
+    private var autoSyncTask: Task<Void, Never>?
+    
     public init() {}
+    
+    public func startAutoSync() {
+        guard autoSyncTask == nil else { return }
+        autoSyncTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .minutes(15))
+            }
+        }
+    }
+    
+    public func stopAutoSync() {
+        autoSyncTask?.cancel()
+        autoSyncTask = nil
+    }
     
     public func uploadBackup(
         jsonData: Data

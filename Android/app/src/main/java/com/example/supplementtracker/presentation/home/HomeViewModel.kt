@@ -37,6 +37,9 @@ import com.example.supplementtracker.R
 import java.util.Locale
 import com.example.supplementtracker.service.CloudSyncManager
 import com.example.supplementtracker.service.NotificationSchedulerImpl
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
@@ -55,6 +58,7 @@ class HomeViewModel(
     val cloudSyncLoading: StateFlow<Boolean> = _cloudSyncLoading
     private val _hostedBinId = MutableStateFlow<String?>(null)
     val hostedBinId: StateFlow<String?> = _hostedBinId
+    private var autoSyncJob: Job? = null
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
 
@@ -275,6 +279,23 @@ class HomeViewModel(
                 _dataTransferMessage.value = "Thu hồi mã thất bại: ${it.message ?: "Unknown"}"
             }
         }
+    }
+    
+    fun startAutoSync() {
+        if (autoSyncJob != null) return
+        autoSyncJob = viewModelScope.launch {
+            while (isActive) {
+                if (!_cloudSyncLoading.value) {
+                    hostData()
+                }
+                delay(15 * 60 * 1000L)
+            }
+        }
+    }
+    
+    fun stopAutoSync() {
+        autoSyncJob?.cancel()
+        autoSyncJob = null
     }
     
     fun refreshNotificationSchedules() {
