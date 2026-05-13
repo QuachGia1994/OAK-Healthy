@@ -29,7 +29,7 @@ struct SupplementTrackerApp: App {
     
     @ViewBuilder
     private var mainContentView: some View {
-        if let modelContainer, let activeClientManager {
+        if let modelContainer, let activeClientManager, let notificationService {
             MainTabContainerView(
                 selectedTab: $selectedTab,
                 preferredColorScheme: preferredColorScheme,
@@ -127,7 +127,7 @@ private struct MainTabContainerView: View {
     let preferredColorScheme: ColorScheme?
     let modelContainer: ModelContainer
     let activeClientManager: ActiveClientManager
-    let notificationService: NotificationService?
+    let notificationService: NotificationService
     let isAppReady: Bool
     let handleScenePhaseChange: (ScenePhase) -> Void
     
@@ -165,7 +165,7 @@ struct MainTabView: View {
     @Binding var selectedTab: Int
     let activeClientManager: ActiveClientManager
     let isAppReady: Bool
-    let notificationService: NotificationService?
+    let notificationService: NotificationService
     
     var body: some View {
         TabView(selection: $selectedTab) {

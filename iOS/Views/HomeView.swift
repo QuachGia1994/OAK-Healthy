@@ -17,10 +17,16 @@ public struct HomeView: View {
     
     public let activeClientManager: ActiveClientManager
     public let isAppReady: Bool
-    public let notificationService: NotificationService?
+    public let notificationService: NotificationService
     
-    public init(activeClientManager: ActiveClientManager) {
+    public init(
+        activeClientManager: ActiveClientManager,
+        isAppReady: Bool,
+        notificationService: NotificationService
+    ) {
         self.activeClientManager = activeClientManager
+        self.isAppReady = isAppReady
+        self.notificationService = notificationService
         if let id = activeClientManager.currentClientId {
             _supplements = Query(
                 filter: #Predicate<UserSupplement> { $0.client?.id == id },
@@ -244,10 +250,9 @@ public struct HomeView: View {
     
     private func refreshNotificationSchedules() async {
         guard !supplements.isEmpty else { return }
-        guard let service = notificationService else { return }
         for supplement in supplements {
-            await service.cancelReminders(for: supplement)
-            try? await service.scheduleReminders(for: supplement)
+            await notificationService.cancelReminders(for: supplement)
+            try? await notificationService.scheduleReminders(for: supplement)
         }
     }
     
