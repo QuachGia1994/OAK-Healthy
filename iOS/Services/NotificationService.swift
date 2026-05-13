@@ -30,15 +30,9 @@ public struct NotificationService: NotificationManaging {
     /// Yêu cầu quyền gửi thông báo từ người dùng.
     @MainActor
     public func requestAuthorization() async throws(NotificationError) {
-        do {
-            try? await Task.sleep(for: .seconds(1))
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-            guard granted else { throw NotificationError.authorizationDenied }
-        } catch let error as NotificationError {
-            throw error
-        } catch {
-            throw NotificationError.unknown(error)
-        }
+        try? await Task.sleep(for: .seconds(1))
+        // let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+        // guard granted else { throw NotificationError.authorizationDenied }
     }
     
     /// Lên lịch nhắc nhở cho thực phẩm bổ sung.

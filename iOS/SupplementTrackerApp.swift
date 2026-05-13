@@ -4,18 +4,19 @@ import SwiftData
 
 @main
 struct SupplementTrackerApp: App {
-    @State private var selectedTab = 0
     @AppStorage("appTheme") private var appTheme: String = "system"
-    @State private var activeClientManager: ActiveClientManager?
-    @State private var notificationDelegate: NotificationDelegate?
-    @State private var notificationService: NotificationService?
-    @State private var modelContainer: ModelContainer?
-    @State private var bootstrapErrorMessage: String?
-    @State private var isAppReady: Bool = false
+    @State private var selectedTab: Int = 0
+    @State private var isAppLaunched: Bool = false
+    @State private var dependencies: AppDependencyContainer?
     
     var body: some Scene {
         WindowGroup {
-            mainContentView
+            RootLaunchView(
+                selectedTab: $selectedTab,
+                preferredColorScheme: preferredColorScheme,
+                isAppLaunched: $isAppLaunched,
+                dependencies: $dependencies
+            )
         }
     }
     
@@ -26,126 +27,29 @@ struct SupplementTrackerApp: App {
         default: return nil
         }
     }
-    
-    @ViewBuilder
-    private var mainContentView: some View {
-        if let modelContainer, let activeClientManager, let notificationService {
-            MainTabContainerView(
-                selectedTab: $selectedTab,
-                preferredColorScheme: preferredColorScheme,
-                modelContainer: modelContainer,
-                activeClientManager: activeClientManager,
-                notificationService: notificationService,
-                isAppReady: isAppReady,
-                handleScenePhaseChange: handleScenePhaseChange(_:)
-            )
-        } else if let message = bootstrapErrorMessage {
-            BootstrapErrorView(message: message) {
-                bootstrapErrorMessage = nil
-            } bootstrap: {
-                await bootstrapAppServices()
-            }
-        } else {
-            BootstrapLoadingView {
-                await bootstrapAppServices()
-            }
-        }
-    }
-    
-    private func bootstrapAppServices() async {
-        guard bootstrapErrorMessage == nil else { return }
-        guard activeClientManager == nil || modelContainer == nil else { return }
-        try? await Task.sleep(for: .seconds(1.5))
-        if modelContainer == nil {
-            modelContainer = await makeModelContainer()
-            if modelContainer == nil {
-                bootstrapErrorMessage = "Vui lòng cài lại app hoặc xoá dữ liệu app và thử lại."
-                return
-            }
-        }
-        if activeClientManager == nil {
-            activeClientManager = ActiveClientManager()
-        }
-        if notificationDelegate == nil {
-            let delegate = NotificationDelegate()
-            notificationDelegate = delegate
-            UNUserNotificationCenter.current().delegate = delegate
-        }
-        if notificationService == nil {
-            notificationService = NotificationService()
-        }
-        isAppReady = true
-    }
-    
-    private func makeModelContainer() async -> ModelContainer? {
-        let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
-        if let container = try? ModelContainer(for: schema) { return container }
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try? ModelContainer(for: schema, configurations: config)
-    }
-    
-    private func handleScenePhaseChange(_ phase: ScenePhase) {
-        guard isAppReady else { return }
-        guard phase == .active else { return }
-        NotificationCenter.default.post(name: .oakAppBecameActive, object: nil)
-    }
 }
 
-private struct BootstrapLoadingView: View {
-    let bootstrap: () async -> Void
-    
-    var body: some View {
-        Color.clear
-            .task { await bootstrap() }
-    }
-}
-
-private struct BootstrapErrorView: View {
-    let message: String
-    let retry: () -> Void
-    let bootstrap: () async -> Void
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("Không thể khởi tạo dữ liệu cục bộ.")
-                .font(.headline)
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            Button("Thử lại") { retry() }
-        }
-        .padding(24)
-        .task { await bootstrap() }
-    }
-}
-
-private struct MainTabContainerView: View {
-    @Environment(\.scenePhase) private var scenePhase
+private struct RootLaunchView: View {
     @Binding var selectedTab: Int
     let preferredColorScheme: ColorScheme?
-    let modelContainer: ModelContainer
-    let activeClientManager: ActiveClientManager
-    let notificationService: NotificationService
-    let isAppReady: Bool
-    let handleScenePhaseChange: (ScenePhase) -> Void
+    @Binding var isAppLaunched: Bool
+    @Binding var dependencies: AppDependencyContainer?
     
     var body: some View {
-        MainTabView(
-            selectedTab: $selectedTab,
-            activeClientManager: activeClientManager,
-            isAppReady: isAppReady,
-            notificationService: notificationService
-        )
+        if isAppLaunched, let dependencies {
+            MainTabView(
+                selectedTab: $selectedTab,
+                activeClientManager: dependencies.activeClientManager,
+                notificationService: dependencies.notificationService
+            )
             .preferredColorScheme(preferredColorScheme)
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
-                selectedTab = 0
+            .modelContainer(dependencies.modelContainer)
+        } else {
+            SafeBootView { container in
+                dependencies = container
+                isAppLaunched = true
             }
-            .onChange(of: scenePhase) { _, newPhase in
-                handleScenePhaseChange(newPhase)
-            }
-            .modelContainer(modelContainer)
+        }
     }
 }
 
@@ -161,17 +65,83 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     }
 }
 
+struct AppDependencyContainer {
+    let modelContainer: ModelContainer
+    let activeClientManager: ActiveClientManager
+    let notificationService: NotificationService
+    let notificationDelegate: NotificationDelegate
+}
+
+private struct SafeBootView: View {
+    let onReady: (AppDependencyContainer) -> Void
+    @State private var errorMessage: String?
+    @State private var hasBootstrapped: Bool = false
+    
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(.systemGroupedBackground), Color(.systemBackground)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                OAKLogoView()
+                    .frame(width: 140, height: 140)
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                } else {
+                    ProgressView()
+                }
+            }
+        }
+        .task {
+            guard !hasBootstrapped else { return }
+            hasBootstrapped = true
+            await bootstrap()
+        }
+    }
+    
+    private func bootstrap() async {
+        try? await Task.sleep(for: .seconds(2))
+        let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
+        guard let container = try? ModelContainer(for: schema) else {
+            errorMessage = "Không thể khởi tạo dữ liệu. Vui lòng cài lại app."
+            return
+        }
+        
+        let manager = ActiveClientManager()
+        manager.loadFromStorage()
+        
+        let delegate = NotificationDelegate()
+        UNUserNotificationCenter.current().delegate = delegate
+        
+        let notificationService = NotificationService()
+        onReady(
+            AppDependencyContainer(
+                modelContainer: container,
+                activeClientManager: manager,
+                notificationService: notificationService,
+                notificationDelegate: delegate
+            )
+        )
+    }
+}
+
 struct MainTabView: View {
     @Binding var selectedTab: Int
     let activeClientManager: ActiveClientManager
-    let isAppReady: Bool
     let notificationService: NotificationService
     
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView(
                 activeClientManager: activeClientManager,
-                isAppReady: isAppReady,
                 notificationService: notificationService
             )
                 .id(activeClientManager.currentClientId)
@@ -197,8 +167,4 @@ struct MainTabView: View {
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
     }
-}
-
-extension Notification.Name {
-    static let oakAppBecameActive = Notification.Name("oakAppBecameActive")
 }

@@ -16,16 +16,13 @@ public struct HomeView: View {
     @State private var isShowingAddClientSheet = false
     
     public let activeClientManager: ActiveClientManager
-    public let isAppReady: Bool
     public let notificationService: NotificationService
     
     public init(
         activeClientManager: ActiveClientManager,
-        isAppReady: Bool,
         notificationService: NotificationService
     ) {
         self.activeClientManager = activeClientManager
-        self.isAppReady = isAppReady
         self.notificationService = notificationService
         if let id = activeClientManager.currentClientId {
             _supplements = Query(
@@ -211,8 +208,8 @@ public struct HomeView: View {
                             Text(notes)
                         }
                     }
-                    .task(id: isAppReady) {
-                        guard isAppReady else { return }
+                    .task {
+                        try? await Task.sleep(for: .seconds(1))
                         await updateService.checkForUpdates()
                     }
                     .onAppear {
@@ -229,13 +226,9 @@ public struct HomeView: View {
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
         }
-        .task(id: "\(isAppReady)-\(supplements.count)") {
-            guard isAppReady else { return }
+        .task(id: supplements.count) {
+            try? await Task.sleep(for: .seconds(1))
             await refreshNotificationSchedules()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .oakAppBecameActive)) { _ in
-            guard isAppReady else { return }
-            Task { await refreshNotificationSchedules() }
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
             AddClientSheet { name in
@@ -395,6 +388,6 @@ private struct RestingSupplementRow: View {
 }
 
 #Preview {
-    HomeView(activeClientManager: ActiveClientManager(), isAppReady: true, notificationService: NotificationService())
+    HomeView(activeClientManager: ActiveClientManager(), notificationService: NotificationService())
         .modelContainer(for: [ClientProfile.self, UserSupplement.self, IntakeRecord.self], inMemory: true)
 }

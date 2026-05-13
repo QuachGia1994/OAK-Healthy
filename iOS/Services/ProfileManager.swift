@@ -8,6 +8,10 @@ public final class ActiveClientManager {
     public var currentClientId: UUID?
 
     public init() {
+        currentClientId = nil
+    }
+    
+    public func loadFromStorage() {
         currentClientId = loadClientId()
     }
     
