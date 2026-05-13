@@ -75,46 +75,44 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func cancelReminders(for supplement: UserSupplement) async {
         let prefix = "\(supplement.id.uuidString)-"
-        let requests = await pendingRequests()
-        let identifiers = requests
-            .map(\.identifier)
-            .filter { $0.hasPrefix(prefix) }
-        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        let identifiers = await pendingRequestIdentifiers()
+        let identifiersToRemove = identifiers.filter { $0.hasPrefix(prefix) }
+        center.removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
     }
     
     @MainActor
-    public func pendingRequests() async -> [UNNotificationRequest] {
+    public func pendingRequestsSummary() async -> String {
         await withCheckedContinuation { continuation in
             center.getPendingNotificationRequests { requests in
-                continuation.resume(returning: requests)
+                let calendar = Calendar.current
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                
+                let lines = requests.map { request -> String in
+                    let triggerDate: String
+                    if let trigger = request.trigger as? UNCalendarNotificationTrigger,
+                       let date = calendar.date(from: trigger.dateComponents) {
+                        triggerDate = formatter.string(from: date)
+                    } else {
+                        triggerDate = "unknown"
+                    }
+                    
+                    let name = request.content.userInfo["supplementName"] as? String ?? "unknown"
+                    let intakeTime = request.content.userInfo["intakeTime"] as? String ?? "unknown"
+                    return "\(name) | \(intakeTime) | \(triggerDate) | \(request.identifier)"
+                }
+                continuation.resume(returning: lines.sorted().joined(separator: "\n"))
             }
         }
     }
     
     @MainActor
-    public func pendingRequestsSummary() async -> String {
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        
-        let requests = await pendingRequests()
-        let lines: [String] = requests
-            .sorted { $0.identifier < $1.identifier }
-            .map { request in
-                let triggerDate: String
-                if let trigger = request.trigger as? UNCalendarNotificationTrigger,
-                   let date = calendar.date(from: trigger.dateComponents) {
-                    triggerDate = formatter.string(from: date)
-                } else {
-                    triggerDate = "unknown"
-                }
-                
-                let name = request.content.userInfo["supplementName"] as? String ?? "unknown"
-                let intakeTime = request.content.userInfo["intakeTime"] as? String ?? "unknown"
-                return "\(name) | \(intakeTime) | \(triggerDate) | \(request.identifier)"
+    public func pendingRequestIdentifiers() async -> [String] {
+        await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests.map(\.identifier))
             }
-        
-        return lines.joined(separator: "\n")
+        }
     }
     
     // MARK: - Private Helpers

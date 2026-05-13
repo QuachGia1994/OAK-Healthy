@@ -425,7 +425,7 @@ public struct SettingsView: View {
     }
 
     private func hostData() async {
-        guard let clientId = activeClientManager.currentClientId else {
+        guard activeClientManager.currentClientId != nil else {
             showError(message: "missing_active_client".localized)
             return
         }
