@@ -10,16 +10,16 @@ public enum NotificationError: Error, Sendable {
 
 actor NotificationShadowLogStore {
     static let shared = NotificationShadowLogStore()
-    private let key = "notificationShadowLogTimes"
+    private let key = "notificationShadowLogEntries"
     
     func read() -> [String] {
         UserDefaults.standard.stringArray(forKey: key) ?? []
     }
     
-    func append(time: String) {
+    func append(entry: String) {
         var items = read()
-        guard !items.contains(time) else { return }
-        items.append(time)
+        guard !items.contains(entry) else { return }
+        items.append(entry)
         UserDefaults.standard.set(items, forKey: key)
     }
     
@@ -62,10 +62,8 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
-        let intakeTime = supplement.intakeTime
-        await NotificationShadowLogStore.shared.append(time: intakeTime)
         let calendar = Calendar.current
-        guard let timeComponents = intakeTimeComponents(from: intakeTime, calendar: calendar) else { return }
+        guard let timeComponents = intakeTimeComponents(from: supplement.intakeTime, calendar: calendar) else { return }
         for triggerDate in upcomingTriggerDates(calendar: calendar, timeComponents: timeComponents) {
             let status = try? cycleCalculator.determineStatus(for: supplement.startDate, 
                                                            config: supplement.cycleConfig, 
@@ -122,7 +120,7 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     private func createNotificationRequest(for supplement: UserSupplement, at date: Date) async throws(NotificationError) {
         let content = UNMutableNotificationContent()
-        content.title = "notification_title".localized
+        content.title = supplement.name
         content.body = String(
             format: "notification_body_format".localized,
             supplement.name,
@@ -141,11 +139,27 @@ public struct NotificationService: NotificationManaging {
         
         let identifier = "\(supplement.id.uuidString)-\(date.timeIntervalSince1970)"
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        await logShadowEntry(from: request)
         
         do {
             try await center.add(request)
         } catch {
             throw NotificationError.schedulingFailed
         }
+    }
+    
+    private func logShadowEntry(from request: UNNotificationRequest) async {
+        guard let trigger = request.trigger as? UNCalendarNotificationTrigger else { return }
+        let calendar = Calendar.current
+        guard let scheduled = calendar.date(from: trigger.dateComponents) else { return }
+        let formatted = shadowDateFormatter().string(from: scheduled)
+        let entry = "\(request.content.title) | \(formatted)"
+        await NotificationShadowLogStore.shared.append(entry: entry)
+    }
+    
+    private func shadowDateFormatter() -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
     }
 }

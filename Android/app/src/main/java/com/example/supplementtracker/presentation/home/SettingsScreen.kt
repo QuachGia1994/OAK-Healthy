@@ -49,6 +49,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
@@ -90,7 +92,8 @@ fun SettingsScreen(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit,
     onNavigateToStackManager: () -> Unit,
-    onNavigateToNotificationDebug: () -> Unit
+    onNavigateToNotificationDebug: () -> Unit,
+    onNavigateToUserGuide: () -> Unit
 ) {
     val context = LocalContext.current
     val settingsPrefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
@@ -112,7 +115,6 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareStackTitle = stringResource(R.string.share_stack)
-    var isGuideExpanded by remember { mutableStateOf(false) }
     var isBinIdVisible by remember { mutableStateOf(false) }
     val backgroundBrush = if (isDark) {
         Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
@@ -127,6 +129,7 @@ fun SettingsScreen(
     var downloadBinId by remember {
         mutableStateOf(settingsPrefs.getString("cloudSyncLinkedBinId", "").orEmpty())
     }
+    var isInputVisible by remember { mutableStateOf(false) }
 
     val allSupplements = remember(uiState, currentClientId) {
         if (currentClientId == null) return@remember emptyList<UserSupplement>()
@@ -451,7 +454,20 @@ fun SettingsScreen(
                             },
                             label = { Text("Nhập mã liên kết") },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            visualTransformation = if (isInputVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { isInputVisible = !isInputVisible }) {
+                                    Icon(
+                                        imageVector = if (isInputVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = null
+                                    )
+                                }
+                            }
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -481,18 +497,8 @@ fun SettingsScreen(
 
                         SettingsRow(
                             title = stringResource(R.string.settings_guide_title),
-                            trailing = if (isGuideExpanded) "−" else "+",
-                            onClick = { isGuideExpanded = !isGuideExpanded }
+                            onClick = onNavigateToUserGuide
                         )
-
-                        AnimatedVisibility(visible = isGuideExpanded) {
-                            Text(
-                                text = stringResource(R.string.settings_guide_content),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
                     }
                 }
 

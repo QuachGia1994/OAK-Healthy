@@ -7,7 +7,15 @@
     <string name="settings_title">Cài đặt</string>
     <string name="app_information_title">Thông tin ứng dụng</string>
     <string name="settings_guide_title">Hướng dẫn sử dụng</string>
-    <string name="settings_guide_content">1. Nhấn (+) để thêm thực phẩm bổ sung mới.\n2. Chọn từ gợi ý để tự động điền chu kỳ.\n3. Tích chọn vòng tròn ở Dashboard sau khi uống.\n4. Theo dõi chu kỳ On/Off và biểu đồ ở tab Lịch sử.</string>
+    <string name="settings_guide_content">1. Thiết lập Stack: Nhấn (+) để thêm chất. App tự động tính chu kỳ On/Off (uống/nghỉ) dựa trên ngày bắt đầu.\n2. Đồng bộ đa thiết bị: Bật \"Tự động đồng bộ\" để dữ liệu khớp nhau realtime giữa các máy. Sử dụng \"Mã liên kết\" cố định để không cần nhập lại nhiều lần.\n3. Bảo mật tối cao: Nhấn biểu tượng \"Con mắt\" để ẩn mã khi quay màn hình hoặc ở nơi công cộng. Dùng nút \"Thu hồi mã\" để xóa vĩnh viễn dữ liệu trên Cloud khi không còn nhu cầu sync.\n4. Chẩn đoán thông báo: Nếu lỡ mốc giờ, vào \"Kiểm tra danh sách\" để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt \"Tối ưu hóa pin\" (Android) hoặc \"Không làm phiền\" (iOS).</string>
+    <string name="user_guide_1_title">Mục 1: Thiết lập Stack</string>
+    <string name="user_guide_1_body">Nhấn (+) để thêm chất. App tự động tính chu kỳ On/Off (uống/nghỉ) dựa trên ngày bắt đầu.</string>
+    <string name="user_guide_2_title">Mục 2: Đồng bộ đa thiết bị</string>
+    <string name="user_guide_2_body">Bật “Tự động đồng bộ” để dữ liệu khớp nhau realtime giữa các máy. Sử dụng “Mã liên kết” cố định để không cần nhập lại nhiều lần.</string>
+    <string name="user_guide_3_title">Mục 3: Bảo mật tối cao</string>
+    <string name="user_guide_3_body">Nhấn biểu tượng “Con mắt” để ẩn mã khi quay màn hình hoặc ở nơi công cộng. Dùng nút “Thu hồi mã” để xóa vĩnh viễn dữ liệu trên Cloud khi không còn nhu cầu sync.</string>
+    <string name="user_guide_4_title">Mục 4: Chẩn đoán thông báo</string>
+    <string name="user_guide_4_body">Nếu lỡ mốc giờ, vào “Kiểm tra danh sách” để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt “Tối ưu hóa pin” (Android) hoặc “Không làm phiền” (iOS).</string>
 
     <string name="settings_intro_title">Giới thiệu</string>
     <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>

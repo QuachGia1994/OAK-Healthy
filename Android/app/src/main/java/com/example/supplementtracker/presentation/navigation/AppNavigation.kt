@@ -30,6 +30,7 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.home.MyStackListScreen
 import com.example.supplementtracker.presentation.home.NotificationDebugScreen
 import com.example.supplementtracker.presentation.home.SettingsScreen
+import com.example.supplementtracker.presentation.home.UserGuideScreen
 
 enum class AppTheme {
     LIGHT,
@@ -43,6 +44,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = null) })
     data object MyStack : Screen("my_stack", R.string.manage_stack, { })
     data object NotificationDebug : Screen("notification_debug", R.string.app_name, { })
+    data object UserGuide : Screen("user_guide", R.string.settings_guide_title, { })
     data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
     data object EditSupplement : Screen("edit_supplement/{id}", R.string.app_name, { })
 }
@@ -117,7 +119,8 @@ fun AppNavigation(
                     appTheme = appTheme,
                     onThemeChange = onThemeChange,
                     onNavigateToStackManager = { navController.navigate(Screen.MyStack.route) },
-                    onNavigateToNotificationDebug = { navController.navigate(Screen.NotificationDebug.route) }
+                    onNavigateToNotificationDebug = { navController.navigate(Screen.NotificationDebug.route) },
+                    onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) }
                 )
             }
             composable(Screen.MyStack.route) {
@@ -129,6 +132,11 @@ fun AppNavigation(
             }
             composable(Screen.NotificationDebug.route) {
                 NotificationDebugScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.UserGuide.route) {
+                UserGuideScreen(
                     onBack = { navController.popBackStack() }
                 )
             }

@@ -12,6 +12,7 @@ public struct SettingsView: View {
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
+    @State private var isInputCodeVisible: Bool = false
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
@@ -189,9 +190,20 @@ public struct SettingsView: View {
                 .disabled(isCloudSyncLoading || isRevokingBinId)
             }
             
-            TextField("Nhập mã liên kết", text: $downloadBinId)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            HStack(spacing: 8) {
+                if isInputCodeVisible {
+                    TextField("Nhập mã liên kết", text: $downloadBinId)
+                } else {
+                    SecureField("Nhập mã liên kết", text: $downloadBinId)
+                }
+                Button(action: { isInputCodeVisible.toggle() }) {
+                    Image(systemName: isInputCodeVisible ? "eye.slash" : "eye")
+                        .foregroundStyle(.gray)
+                }
+                .buttonStyle(.borderless)
+            }
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             
             Button("Tải về") {
                 Task { await receiveData() }
@@ -297,14 +309,8 @@ public struct SettingsView: View {
     @ViewBuilder
     private var userGuideSection: some View {
         Section {
-            DisclosureGroup("user_guide_title".localized) {
-                VStack(alignment: .leading, spacing: 8) {
-                    GuideRow(number: "1", text: "settings_guide_1".localized)
-                    GuideRow(number: "2", text: "settings_guide_2".localized)
-                    GuideRow(number: "3", text: "settings_guide_3".localized)
-                    GuideRow(number: "4", text: "settings_guide_4".localized)
-                }
-                .padding(.vertical, 8)
+            NavigationLink("user_guide_title".localized) {
+                UserGuideView()
             }
         }
         .listRowBackground(glassRowBackground)
