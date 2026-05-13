@@ -85,7 +85,6 @@ public final class AddSupplementViewModel {
         do {
             try modelContext.save()
             
-            try await notificationService.requestAuthorization()
             try await notificationService.scheduleReminders(for: supplement)
             
             return supplement

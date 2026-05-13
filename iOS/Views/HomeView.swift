@@ -14,6 +14,8 @@ public struct HomeView: View {
     @State private var isShowingAddSheet = false
     @State private var editingSupplement: UserSupplement?
     @State private var isShowingAddClientSheet = false
+    @AppStorage("hasShownSafeModeAlert") private var hasShownSafeModeAlert = false
+    @State private var isShowingSafeModeAlert = false
     
     public let activeClientManager: ActiveClientManager
     public let notificationService: NotificationService
@@ -208,12 +210,22 @@ public struct HomeView: View {
                             Text(notes)
                         }
                     }
+                    .alert("Chế độ an toàn", isPresented: $isShowingSafeModeAlert) {
+                        Button("Đã hiểu", role: .cancel) {
+                            hasShownSafeModeAlert = true
+                        }
+                    } message: {
+                        Text("App đang chạy ở chế độ an toàn. Vui lòng bật thủ công Thông báo và Đồng bộ trong Cài đặt để tránh xung đột chứng chỉ.")
+                    }
                     .task {
                         try? await Task.sleep(for: .seconds(1))
                         await updateService.checkForUpdates()
                     }
                     .onAppear {
                         viewModel.processSupplements(supplements)
+                        if !hasShownSafeModeAlert {
+                            isShowingSafeModeAlert = true
+                        }
                     }
                     .onChange(of: supplements) {
                         viewModel.processSupplements(supplements)

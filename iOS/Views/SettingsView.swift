@@ -10,6 +10,7 @@ public struct SettingsView: View {
     @Query(sort: \UserSupplement.name) private var allSupplements: [UserSupplement]
     @Query(sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]) private var allRecords: [IntakeRecord]
     @AppStorage("appTheme") private var appTheme: String = "system"
+    @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
@@ -106,6 +107,16 @@ public struct SettingsView: View {
     @ViewBuilder
     private var dataTransferSection: some View {
         Section {
+            Toggle("Cho phép gửi thông báo", isOn: $isNotificationEnabledByUser)
+                .onChange(of: isNotificationEnabledByUser) {
+                    if isNotificationEnabledByUser {
+                        Task {
+                            let center = UNUserNotificationCenter.current()
+                            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+                        }
+                    }
+                }
+            
             if let shareStackPNGURL {
                 ShareLink(item: shareStackPNGURL) {
                     Label("share_stack".localized, systemImage: "square.and.arrow.up")

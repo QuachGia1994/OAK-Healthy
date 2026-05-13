@@ -68,23 +68,31 @@ public final class HomeViewModel {
         var active: [String: [UserSupplement]] = [:]
         var resting: [RestingSupplementInfo] = []
         
-        for supplement in supplements {
-            let status = try? cycleEngine.determineStatus(
-                for: supplement.startDate,
-                config: supplement.cycleConfig,
-                at: today
-            )
-            
-            if status == .on {
-                active[supplement.intakeTime, default: []].append(supplement)
-            } else if status == .off {
-                let daysRemaining = calculateDaysRemaining(for: supplement, at: today)
-                resting.append(RestingSupplementInfo(supplement: supplement, daysRemaining: daysRemaining))
+        // Defensive Data Loading: Try to safely read data
+        let safeRead: () throws -> Void = {
+            for supplement in supplements {
+                let status = try? self.cycleEngine.determineStatus(
+                    for: supplement.startDate,
+                    config: supplement.cycleConfig,
+                    at: today
+                )
+                
+                if status == .on {
+                    active[supplement.intakeTime, default: []].append(supplement)
+                } else if status == .off {
+                    let daysRemaining = self.calculateDaysRemaining(for: supplement, at: today)
+                    resting.append(RestingSupplementInfo(supplement: supplement, daysRemaining: daysRemaining))
+                }
             }
         }
         
-        self.activeSupplements = active
-        self.restingSupplements = resting
+        if (try? safeRead()) != nil {
+            self.activeSupplements = active
+            self.restingSupplements = resting
+        } else {
+            self.activeSupplements = [:]
+            self.restingSupplements = []
+        }
     }
     
     private func calculateDaysRemaining(for supplement: UserSupplement, at today: Date) -> Int {

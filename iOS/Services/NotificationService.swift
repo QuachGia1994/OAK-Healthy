@@ -39,6 +39,9 @@ public struct NotificationService: NotificationManaging {
     /// Chỉ nhắc nhở vào những ngày "On".
     @MainActor
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
+        let isNotificationEnabledByUser = UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser")
+        guard isNotificationEnabledByUser else { return }
+        
         let calendar = Calendar.current
         
         // Parse intakeTime (HH:mm)
