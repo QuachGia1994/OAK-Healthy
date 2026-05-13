@@ -13,34 +13,7 @@ struct SupplementTrackerApp: App {
     
     var body: some Scene {
         WindowGroup {
-            Group {
-                if let modelContainer, let activeClientManager {
-                    MainTabView(selectedTab: $selectedTab, activeClientManager: activeClientManager)
-                        .preferredColorScheme(preferredColorScheme)
-                        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
-                            selectedTab = 0
-                        }
-                        .modelContainer(modelContainer)
-                } else if let bootstrapErrorMessage {
-                    VStack(spacing: 12) {
-                        Text("Không thể khởi tạo dữ liệu cục bộ.")
-                            .font(.headline)
-                        Text(bootstrapErrorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
-                        Button("Thử lại") {
-                            bootstrapErrorMessage = nil
-                        }
-                    }
-                    .padding(24)
-                    .task { await bootstrapAppServices() }
-                } else {
-                    Color.clear
-                        .task { await bootstrapAppServices() }
-                }
-            }
+            mainContentView
         }
     }
     
@@ -49,6 +22,28 @@ struct SupplementTrackerApp: App {
         case "light": return .light
         case "dark": return .dark
         default: return nil
+        }
+    }
+    
+    @ViewBuilder
+    private var mainContentView: some View {
+        if let modelContainer, let activeClientManager {
+            MainTabContainerView(
+                selectedTab: $selectedTab,
+                preferredColorScheme: preferredColorScheme,
+                modelContainer: modelContainer,
+                activeClientManager: activeClientManager
+            )
+        } else if let message = bootstrapErrorMessage {
+            BootstrapErrorView(message: message) {
+                bootstrapErrorMessage = nil
+            } bootstrap: {
+                await bootstrapAppServices()
+            }
+        } else {
+            BootstrapLoadingView {
+                await bootstrapAppServices()
+            }
         }
     }
     
@@ -78,6 +73,52 @@ struct SupplementTrackerApp: App {
         if let container = try? ModelContainer(for: schema) { return container }
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try? ModelContainer(for: schema, configurations: config)
+    }
+}
+
+private struct BootstrapLoadingView: View {
+    let bootstrap: () async -> Void
+    
+    var body: some View {
+        Color.clear
+            .task { await bootstrap() }
+    }
+}
+
+private struct BootstrapErrorView: View {
+    let message: String
+    let retry: () -> Void
+    let bootstrap: () async -> Void
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("Không thể khởi tạo dữ liệu cục bộ.")
+                .font(.headline)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            Button("Thử lại") { retry() }
+        }
+        .padding(24)
+        .task { await bootstrap() }
+    }
+}
+
+private struct MainTabContainerView: View {
+    @Binding var selectedTab: Int
+    let preferredColorScheme: ColorScheme?
+    let modelContainer: ModelContainer
+    let activeClientManager: ActiveClientManager
+    
+    var body: some View {
+        MainTabView(selectedTab: $selectedTab, activeClientManager: activeClientManager)
+            .preferredColorScheme(preferredColorScheme)
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
+                selectedTab = 0
+            }
+            .modelContainer(modelContainer)
     }
 }
 
