@@ -42,7 +42,7 @@ public actor CloudSyncManager {
         guard autoSyncTask == nil else { return }
         autoSyncTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: .minutes(15))
+                try? await Task.sleep(for: .seconds(15 * 60))
             }
         }
     }
