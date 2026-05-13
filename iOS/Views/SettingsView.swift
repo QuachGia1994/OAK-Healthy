@@ -25,8 +25,6 @@ public struct SettingsView: View {
     @State private var isShowingCopyBinIdAlert: Bool = false
     @State private var isBinIdVisible: Bool = false
     @State private var isRevokingBinId: Bool = false
-    @State private var isShowingNotificationDebugAlert: Bool = false
-    @State private var notificationDebugText: String = ""
     
     public let activeClientManager: ActiveClientManager
     
@@ -80,11 +78,6 @@ public struct SettingsView: View {
         } message: {
             Text("Mã liên kết đã được sao chép.")
         }
-        .alert("Danh sách thông báo", isPresented: $isShowingNotificationDebugAlert) {
-            Button("OK") {}
-        } message: {
-            Text(notificationDebugText)
-        }
     }
     
     private var settingsList: some View {
@@ -123,13 +116,8 @@ public struct SettingsView: View {
                 }
             }
             
-            Button("Kiểm tra danh sách thông báo") {
-                Task {
-                    let summary = await NotificationService().pendingRequestsSummary()
-                    notificationDebugText = summary.isEmpty ? "Không có thông báo nào đang được lên lịch." : summary
-                    print(notificationDebugText)
-                    isShowingNotificationDebugAlert = true
-                }
+            NavigationLink("Kiểm tra danh sách thông báo") {
+                NotificationDebugScreen()
             }
         } header: {
             Text("data_tools".localized)
@@ -667,5 +655,50 @@ private struct ClientEditorSheet: View {
                 }
             }
         }
+    }
+}
+
+private struct NotificationDebugScreen: View {
+    @State private var isLoading = true
+    @State private var times: [String] = []
+    
+    var body: some View {
+        Group {
+            if isLoading {
+                ProgressView()
+            } else {
+                NotificationDebugView(times: times)
+            }
+        }
+        .navigationTitle("Danh sách mốc giờ app đã gửi lệnh cho iOS")
+        .task {
+            guard isLoading else { return }
+            times = await NotificationService().shadowScheduledTimes()
+            isLoading = false
+        }
+    }
+}
+
+private struct NotificationDebugView: View {
+    let times: [String]
+    
+    var body: some View {
+        List {
+            Section {
+                Text("Danh sách mốc giờ app đã gửi lệnh cho iOS. Điều này giúp người dùng biết app đã làm việc, còn việc iOS có thực hiện hay không là do quyền của chứng chỉ.")
+                    .foregroundStyle(.secondary)
+            }
+            
+            if times.isEmpty {
+                Text("Chưa có mốc giờ nào được ghi nhận.")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(times, id: \.self) { time in
+                    Text(time)
+                        .font(.headline)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
     }
 }

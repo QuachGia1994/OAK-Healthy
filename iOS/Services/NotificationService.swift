@@ -8,6 +8,26 @@ public enum NotificationError: Error, Sendable {
     case unknown(Error)
 }
 
+actor NotificationShadowLogStore {
+    static let shared = NotificationShadowLogStore()
+    private let key = "notificationShadowLogTimes"
+    
+    func read() -> [String] {
+        UserDefaults.standard.stringArray(forKey: key) ?? []
+    }
+    
+    func append(time: String) {
+        var items = read()
+        guard !items.contains(time) else { return }
+        items.append(time)
+        UserDefaults.standard.set(items, forKey: key)
+    }
+    
+    func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
 /// Giao thức quản lý thông báo nhắc nhở.
 public protocol NotificationManaging: Sendable {
     @MainActor func requestAuthorization() async throws(NotificationError)
@@ -41,6 +61,9 @@ public struct NotificationService: NotificationManaging {
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
         let isNotificationEnabledByUser = UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser")
         guard isNotificationEnabledByUser else { return }
+        Task.detached(priority: .utility) {
+            await NotificationShadowLogStore.shared.append(time: supplement.intakeTime)
+        }
         
         let calendar = Calendar.current
         
@@ -72,45 +95,15 @@ public struct NotificationService: NotificationManaging {
     
     @MainActor
     public func cancelReminders(for supplement: UserSupplement) async {
-        let prefix = "\(supplement.id.uuidString)-"
-        let identifiers = await pendingRequestIdentifiers()
-        let identifiersToRemove = identifiers.filter { $0.hasPrefix(prefix) }
-        center.removePendingNotificationRequests(withIdentifiers: identifiersToRemove)
-    }
-    
-    @MainActor
-    public func pendingRequestsSummary() async -> String {
-        await withCheckedContinuation { continuation in
-            center.getPendingNotificationRequests { requests in
-                let calendar = Calendar.current
-                let formatter = DateFormatter()
-                formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                
-                let lines = requests.map { request -> String in
-                    let triggerDate: String
-                    if let trigger = request.trigger as? UNCalendarNotificationTrigger,
-                       let date = calendar.date(from: trigger.dateComponents) {
-                        triggerDate = formatter.string(from: date)
-                    } else {
-                        triggerDate = "unknown"
-                    }
-                    
-                    let name = request.content.userInfo["supplementName"] as? String ?? "unknown"
-                    let intakeTime = request.content.userInfo["intakeTime"] as? String ?? "unknown"
-                    return "\(name) | \(intakeTime) | \(triggerDate) | \(request.identifier)"
-                }
-                continuation.resume(returning: lines.sorted().joined(separator: "\n"))
-            }
+        center.removeAllPendingNotificationRequests()
+        Task.detached(priority: .utility) {
+            await NotificationShadowLogStore.shared.clear()
         }
     }
     
     @MainActor
-    public func pendingRequestIdentifiers() async -> [String] {
-        await withCheckedContinuation { continuation in
-            center.getPendingNotificationRequests { requests in
-                continuation.resume(returning: requests.map(\.identifier))
-            }
-        }
+    public func shadowScheduledTimes() async -> [String] {
+        await NotificationShadowLogStore.shared.read()
     }
     
     // MARK: - Private Helpers
