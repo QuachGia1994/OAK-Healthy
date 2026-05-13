@@ -1,6 +1,7 @@
 import argparse
 import fnmatch
 import os
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -73,6 +74,41 @@ def create_backup(config: BackupConfig) -> tuple[int, int]:
     return zipped_files, total_files
 
 
+def _run_git(cwd: Path, args: list[str]) -> tuple[int, str]:
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        text=True,
+        capture_output=True,
+    )
+    output = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode, output.strip()
+
+
+def git_commit_and_push(root: Path, message: str, remote: str, branch: str) -> None:
+    if not (root / ".git").exists():
+        print("Skip Git sync: .git folder not found.")
+        return
+
+    code, out = _run_git(root, ["status", "--porcelain"])
+    if code != 0:
+        print("Git status failed.")
+        print(out)
+        return
+
+    if not out.strip():
+        print("Git sync: no changes to commit.")
+        return
+
+    for step in (["add", "-A"], ["commit", "-m", message], ["push", remote, branch]):
+        code, out = _run_git(root, step)
+        if code != 0:
+            print(f"Git command failed: git {' '.join(step)}")
+            print(out)
+            return
+    print(f"Git sync done: pushed to {remote}/{branch}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="backup_project")
     parser.add_argument("--root", default=".", help="Project root folder to backup (default: current directory).")
@@ -84,6 +120,10 @@ def main() -> int:
     )
     parser.add_argument("--exclude-dir", action="append", default=[], help="Additional excluded directories (relative to root). Can be repeated.")
     parser.add_argument("--exclude-glob", action="append", default=[], help="Additional excluded glob patterns (posix-style). Can be repeated.")
+    parser.add_argument("--git-sync", action="store_true", help="After creating backup, auto git add/commit/push.")
+    parser.add_argument("--git-remote", default="origin", help="Git remote name (default: origin).")
+    parser.add_argument("--git-branch", default="main", help="Git branch name (default: main).")
+    parser.add_argument("--git-message", default="", help="Git commit message. If empty, uses a timestamped message.")
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
@@ -141,6 +181,10 @@ def main() -> int:
 
     print(f"Backup created: {output_zip}")
     print(f"Files zipped: {zipped}/{total}")
+    
+    if args.git_sync:
+        msg = args.git_message.strip() or f"chore(backup): {stamp}"
+        git_commit_and_push(root=root, message=msg, remote=args.git_remote, branch=args.git_branch)
     return 0
 
 
