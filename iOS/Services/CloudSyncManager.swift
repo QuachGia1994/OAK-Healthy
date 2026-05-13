@@ -37,8 +37,7 @@ public actor CloudSyncManager {
     public func uploadBackup(
         jsonData: Data
     ) async throws(CloudSyncError) -> String {
-        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apiKey.isEmpty else { throw .missingAccessKey }
+        let apiKey = try requireApiKey()
         
         var request = URLRequest(url: Self.baseURL)
         request.httpMethod = "POST"
@@ -62,8 +61,7 @@ public actor CloudSyncManager {
     public func downloadBackup(
         binId: String
     ) async throws(CloudSyncError) -> Data {
-        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apiKey.isEmpty else { throw .missingAccessKey }
+        let apiKey = try requireApiKey()
         
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
@@ -89,8 +87,7 @@ public actor CloudSyncManager {
     public func deleteBackup(
         binId: String
     ) async throws(CloudSyncError) {
-        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !apiKey.isEmpty else { throw .missingAccessKey }
+        let apiKey = try requireApiKey()
         
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
@@ -110,6 +107,15 @@ public actor CloudSyncManager {
 
     private var apiKey: String {
         Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String ?? ""
+    }
+    
+    private func requireApiKey() throws(CloudSyncError) -> String {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            print("CloudSync disabled: JSONBIN_API_KEY is missing/empty in Info.plist")
+            throw .missingAccessKey
+        }
+        return trimmed
     }
 
     private func fetch(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {

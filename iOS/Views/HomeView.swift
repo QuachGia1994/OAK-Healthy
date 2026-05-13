@@ -236,15 +236,10 @@ public struct HomeView: View {
     
     private func refreshNotificationSchedules() async {
         guard !supplements.isEmpty else { return }
-        do {
-            try await NotificationService().requestAuthorization()
-        } catch {
-            return
-        }
-        
+        let service = NotificationService()
         for supplement in supplements {
-            await NotificationService().cancelReminders(for: supplement)
-            try? await NotificationService().scheduleReminders(for: supplement)
+            await service.cancelReminders(for: supplement)
+            try? await service.scheduleReminders(for: supplement)
         }
     }
     
