@@ -28,19 +28,17 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
 }
 
 public actor CloudSyncManager {
-    public static let baseURL = URL(string: "https://api.jsonbin.io/v3/b")!
+    public static let baseURL: URL = {
+        URL(string: "https://api.jsonbin.io/v3/b") ?? URL(fileURLWithPath: "/")
+    }()
     
     public init() {}
     
     public func uploadBackup(
         jsonData: Data
     ) async throws(CloudSyncError) -> String {
-        guard
-            let apiKey = Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String,
-            !apiKey.isEmpty
-        else {
-            throw .networkError(message: "API Key is missing or empty in Info.plist")
-        }
+        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else { throw .missingAccessKey }
         
         var request = URLRequest(url: Self.baseURL)
         request.httpMethod = "POST"
@@ -64,12 +62,8 @@ public actor CloudSyncManager {
     public func downloadBackup(
         binId: String
     ) async throws(CloudSyncError) -> Data {
-        guard
-            let apiKey = Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String,
-            !apiKey.isEmpty
-        else {
-            throw .networkError(message: "API Key is missing or empty in Info.plist")
-        }
+        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else { throw .missingAccessKey }
         
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
@@ -95,12 +89,8 @@ public actor CloudSyncManager {
     public func deleteBackup(
         binId: String
     ) async throws(CloudSyncError) {
-        guard
-            let apiKey = Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String,
-            !apiKey.isEmpty
-        else {
-            throw .networkError(message: "API Key is missing or empty in Info.plist")
-        }
+        let apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else { throw .missingAccessKey }
         
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
@@ -118,7 +108,7 @@ public actor CloudSyncManager {
         }
     }
 
-    private var jsonbinApiKey: String {
+    private var apiKey: String {
         Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String ?? ""
     }
 
