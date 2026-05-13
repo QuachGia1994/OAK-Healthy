@@ -35,6 +35,7 @@ import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
     private var timeZoneReceiver: TimeZoneChangeReceiver? = null
+    private lateinit var homeViewModel: HomeViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,7 +56,7 @@ class MainActivity : ComponentActivity() {
         val activeClientManager = ActiveClientManager(applicationContext, repository)
         
         // Khởi tạo ViewModels
-        val homeViewModel = HomeViewModel(
+        homeViewModel = HomeViewModel(
             context = applicationContext,
             repository = repository,
             activeClientManager = activeClientManager
@@ -73,6 +74,8 @@ class MainActivity : ComponentActivity() {
             homeViewModel.refresh()
         }
         registerReceiver(timeZoneReceiver, IntentFilter(Intent.ACTION_TIMEZONE_CHANGED))
+        
+        homeViewModel.refreshNotificationSchedules()
 
         setContent {
             var appTheme by rememberSaveable { mutableStateOf(AppTheme.SYSTEM) }
@@ -94,6 +97,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        homeViewModel.refreshNotificationSchedules()
     }
 
     override fun onDestroy() {

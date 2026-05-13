@@ -36,6 +36,7 @@ import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.R
 import java.util.Locale
 import com.example.supplementtracker.service.CloudSyncManager
+import com.example.supplementtracker.service.NotificationSchedulerImpl
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
@@ -273,6 +274,17 @@ class HomeViewModel(
             }.onFailure {
                 _dataTransferMessage.value = "Thu hồi mã thất bại: ${it.message ?: "Unknown"}"
             }
+        }
+    }
+    
+    fun refreshNotificationSchedules() {
+        viewModelScope.launch {
+            val clients = repository.observeClients().first()
+            val supplements = clients.flatMap { client ->
+                repository.getAllSupplements(client.id.toString()).first()
+            }
+            val scheduler = NotificationSchedulerImpl(context)
+            supplements.forEach { scheduler.schedule(it) }
         }
     }
 

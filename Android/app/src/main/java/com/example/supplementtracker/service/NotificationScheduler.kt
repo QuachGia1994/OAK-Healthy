@@ -4,9 +4,11 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import com.example.supplementtracker.domain.model.IntakeTime
+import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.model.UserSupplement
+import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import com.example.supplementtracker.receiver.NotificationReceiver
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -25,56 +27,84 @@ interface NotificationScheduler {
 class NotificationSchedulerImpl(private val context: Context) : NotificationScheduler {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    private val cycleUseCase = CalculateCycleUseCase()
 
     override fun schedule(supplement: UserSupplement) {
-        val intent = Intent(context, NotificationReceiver::class.java).apply {
+        cancelLegacy(supplement)
+        
+        val time = parseTime(supplement.intakeTime)
+        val now = LocalDateTime.now()
+        val today = LocalDate.now()
+
+        for (dayOffset in 0..6) {
+            val date = today.plusDays(dayOffset.toLong())
+            val scheduledTime = LocalDateTime.of(date, time)
+            if (scheduledTime.isBefore(now)) continue
+            
+            val status = cycleUseCase(
+                startDate = supplement.startDate,
+                config = supplement.cycleConfig,
+                currentDate = date
+            )
+            
+            val requestCode = requestCode(supplement, date)
+            if (status == CycleStatus.ON) {
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    requestCode,
+                    buildIntent(supplement),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    scheduledTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    pendingIntent
+                )
+            } else {
+                cancelByRequestCode(requestCode)
+            }
+        }
+    }
+
+    override fun cancel(supplement: UserSupplement) {
+        cancelLegacy(supplement)
+        val today = LocalDate.now()
+        for (dayOffset in 0..6) {
+            val date = today.plusDays(dayOffset.toLong())
+            cancelByRequestCode(requestCode(supplement, date))
+        }
+    }
+
+    private fun buildIntent(supplement: UserSupplement): Intent {
+        return Intent(context, NotificationReceiver::class.java).apply {
             putExtra("SUPPLEMENT_NAME", supplement.name)
             putExtra("DAILY_DOSE", supplement.dailyDose)
             putExtra("SUPPLEMENT_ID", supplement.id.toString())
         }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            supplement.id.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val triggerTime = getTriggerTime(supplement.intakeTime)
-        
-        // Sử dụng setExactAndAllowWhileIdle để đảm bảo chuông reo đúng giờ ngay cả khi máy sleep
-        alarmManager.setExactAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            triggerTime,
-            pendingIntent
-        )
     }
 
-    override fun cancel(supplement: UserSupplement) {
-        val intent = Intent(context, NotificationReceiver::class.java)
+    private fun cancelByRequestCode(requestCode: Int) {
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            supplement.id.hashCode(),
-            intent,
+            requestCode,
+            Intent(context, NotificationReceiver::class.java),
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-        )
-        if (pendingIntent != null) {
-            alarmManager.cancel(pendingIntent)
-        }
+        ) ?: return
+        alarmManager.cancel(pendingIntent)
     }
 
-    private fun getTriggerTime(intakeTime: String): Long {
+    private fun requestCode(supplement: UserSupplement, date: LocalDate): Int {
+        return "${supplement.id}-${date.toEpochDay()}".hashCode()
+    }
+
+    private fun cancelLegacy(supplement: UserSupplement) {
+        cancelByRequestCode(supplement.id.hashCode())
+    }
+
+    private fun parseTime(intakeTime: String): LocalTime {
         val parts = intakeTime.split(":")
         val hour = parts.getOrNull(0)?.toIntOrNull() ?: 8
         val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
-        
-        val time = LocalTime.of(hour, minute)
-
-        var scheduledTime = LocalDateTime.of(java.time.LocalDate.now(), time)
-        if (scheduledTime.isBefore(LocalDateTime.now())) {
-            scheduledTime = scheduledTime.plusDays(1)
-        }
-
-        return scheduledTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return LocalTime.of(hour, minute)
     }
 }

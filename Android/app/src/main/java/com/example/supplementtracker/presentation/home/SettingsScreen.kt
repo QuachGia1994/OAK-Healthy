@@ -1,11 +1,16 @@
 package com.example.supplementtracker.presentation.home
 
 import android.app.Activity
+import android.app.AlarmManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -474,6 +479,87 @@ fun SettingsScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+                
+                item {
+                    val packageName = context.packageName
+                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                    val isIgnoringBatteryOptimizations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        powerManager.isIgnoringBatteryOptimizations(packageName)
+                    } else {
+                        true
+                    }
+                    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                    val canScheduleExactAlarms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        alarmManager.canScheduleExactAlarms()
+                    } else {
+                        true
+                    }
+                    
+                    SettingsSection(title = "Thông báo") {
+                        if (!canScheduleExactAlarms) {
+                            Text(
+                                text = "Để nhận thông báo chính xác 100%, vui lòng bật Báo thức chính xác (Exact alarm) cho OAK Healthy.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SettingsRow(
+                                title = "Bật Báo thức chính xác",
+                                trailing = "Chưa bật",
+                                onClick = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        runCatching {
+                                            val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                                .setData(Uri.parse("package:$packageName"))
+                                            context.startActivity(intent)
+                                        }
+                                    }
+                                }
+                            )
+                        } else {
+                            SettingsRow(
+                                title = "Báo thức chính xác",
+                                trailing = "Đã bật",
+                                onClick = null
+                            )
+                        }
+                        
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        
+                        if (!isIgnoringBatteryOptimizations) {
+                            Text(
+                                text = "Để nhận thông báo chính xác 100%, vui lòng tắt Tối ưu hóa pin cho OAK Healthy.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SettingsRow(
+                                title = "Tắt Tối ưu hóa pin",
+                                trailing = "Đang bật",
+                                onClick = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                        val uri = Uri.parse("package:$packageName")
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(uri)
+                                            )
+                                        }.onFailure {
+                                            runCatching {
+                                                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        } else {
+                            SettingsRow(
+                                title = "Tối ưu hóa pin",
+                                trailing = "Đã tắt",
+                                onClick = null
+                            )
+                        }
                     }
                 }
 

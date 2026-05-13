@@ -52,13 +52,14 @@ public struct NotificationService: NotificationManaging {
         guard let timeDate = formatter.date(from: supplement.intakeTime) else { return }
         let timeComponents = calendar.dateComponents([.hour, .minute], from: timeDate)
         
-        // Lên lịch cho 30 ngày tới (iOS giới hạn 64 thông báo local)
-        for dayOffset in 0..<30 {
+        for dayOffset in 0..<7 {
             guard let checkDate = calendar.date(byAdding: .day, value: dayOffset, to: .now),
                   let triggerDate = calendar.date(bySettingHour: timeComponents.hour ?? 8, 
                                                 minute: timeComponents.minute ?? 0, 
                                                 second: 0, 
                                                 of: checkDate) else { continue }
+            
+            guard triggerDate > .now else { continue }
             
             // Chỉ lên lịch nếu ngày đó là "On"
             let status = try? cycleCalculator.determineStatus(for: supplement.startDate, 
@@ -73,7 +74,47 @@ public struct NotificationService: NotificationManaging {
     
     @MainActor
     public func cancelReminders(for supplement: UserSupplement) async {
-        center.removePendingNotificationRequests(withIdentifiers: [supplement.id.uuidString])
+        let prefix = "\(supplement.id.uuidString)-"
+        let requests = await pendingRequests()
+        let identifiers = requests
+            .map(\.identifier)
+            .filter { $0.hasPrefix(prefix) }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+    
+    @MainActor
+    public func pendingRequests() async -> [UNNotificationRequest] {
+        await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests)
+            }
+        }
+    }
+    
+    @MainActor
+    public func pendingRequestsSummary() async -> String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        
+        let requests = await pendingRequests()
+        let lines: [String] = requests
+            .sorted { $0.identifier < $1.identifier }
+            .map { request in
+                let triggerDate: String
+                if let trigger = request.trigger as? UNCalendarNotificationTrigger,
+                   let date = calendar.date(from: trigger.dateComponents) {
+                    triggerDate = formatter.string(from: date)
+                } else {
+                    triggerDate = "unknown"
+                }
+                
+                let name = request.content.userInfo["supplementName"] as? String ?? "unknown"
+                let intakeTime = request.content.userInfo["intakeTime"] as? String ?? "unknown"
+                return "\(name) | \(intakeTime) | \(triggerDate) | \(request.identifier)"
+            }
+        
+        return lines.joined(separator: "\n")
     }
     
     // MARK: - Private Helpers
@@ -88,7 +129,12 @@ public struct NotificationService: NotificationManaging {
             supplement.dailyDose
         )
         content.sound = .default
-        content.userInfo = ["supplementID": supplement.id.uuidString]
+        content.userInfo = [
+            "supplementID": supplement.id.uuidString,
+            "supplementName": supplement.name,
+            "intakeTime": supplement.intakeTime,
+            "dailyDose": supplement.dailyDose
+        ]
         
         let triggerComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)

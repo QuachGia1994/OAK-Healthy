@@ -220,6 +220,9 @@ public struct HomeView: View {
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
         }
+        .task(id: supplements.count) {
+            await refreshNotificationSchedules()
+        }
         .sheet(isPresented: $isShowingAddClientSheet) {
             AddClientSheet { name in
                 guard !name.isEmpty else { return }
@@ -228,6 +231,20 @@ public struct HomeView: View {
                 try? modelContext.save()
                 activeClientManager.setCurrentClientId(created.id)
             }
+        }
+    }
+    
+    private func refreshNotificationSchedules() async {
+        guard !supplements.isEmpty else { return }
+        do {
+            try await NotificationService().requestAuthorization()
+        } catch {
+            return
+        }
+        
+        for supplement in supplements {
+            await NotificationService().cancelReminders(for: supplement)
+            try? await NotificationService().scheduleReminders(for: supplement)
         }
     }
     

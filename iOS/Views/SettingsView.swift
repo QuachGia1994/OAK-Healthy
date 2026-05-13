@@ -24,6 +24,8 @@ public struct SettingsView: View {
     @State private var isShowingCopyBinIdAlert: Bool = false
     @State private var isBinIdVisible: Bool = false
     @State private var isRevokingBinId: Bool = false
+    @State private var isShowingNotificationDebugAlert: Bool = false
+    @State private var notificationDebugText: String = ""
     
     public let activeClientManager: ActiveClientManager
     
@@ -77,6 +79,11 @@ public struct SettingsView: View {
         } message: {
             Text("Mã liên kết đã được sao chép.")
         }
+        .alert("Danh sách thông báo", isPresented: $isShowingNotificationDebugAlert) {
+            Button("OK") {}
+        } message: {
+            Text(notificationDebugText)
+        }
     }
     
     private var settingsList: some View {
@@ -102,6 +109,15 @@ public struct SettingsView: View {
             if let shareStackPNGURL {
                 ShareLink(item: shareStackPNGURL) {
                     Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                }
+            }
+            
+            Button("Kiểm tra danh sách thông báo") {
+                Task {
+                    let summary = await NotificationService().pendingRequestsSummary()
+                    notificationDebugText = summary.isEmpty ? "Không có thông báo nào đang được lên lịch." : summary
+                    print(notificationDebugText)
+                    isShowingNotificationDebugAlert = true
                 }
             }
         } header: {

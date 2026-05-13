@@ -34,19 +34,7 @@ class CycleCheckWorker(
 
             // 2. Kiểm tra chu kỳ cho từng chất
             for (supplement in supplements) {
-                val status = calculateCycleUseCase(
-                    startDate = supplement.startDate,
-                    config = supplement.cycleConfig,
-                    currentDate = today
-                )
-
-                // 3. Nếu là "On", lên lịch nhắc nhở cho hôm nay
-                if (status == CycleStatus.ON) {
-                    scheduler.schedule(supplement)
-                } else {
-                    // Nếu là "Off", hủy nhắc nhở nếu có
-                    scheduler.cancel(supplement)
-                }
+                scheduler.schedule(supplement)
             }
 
             Result.success()
