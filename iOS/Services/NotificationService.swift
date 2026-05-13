@@ -40,6 +40,8 @@ public protocol NotificationManaging: Sendable {
 @MainActor
 public struct NotificationService: NotificationManaging {
     
+    public static let shared = NotificationService()
+    
     private let center = UNUserNotificationCenter.current()
     private let cycleCalculator: any CycleCalculating
     
@@ -82,6 +84,16 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func shadowScheduledTimes() async -> [String] {
         await NotificationShadowLogStore.shared.read()
+    }
+    
+    @MainActor
+    public func scheduleAll(supplements: [UserSupplement]) async {
+        guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
+        center.removeAllPendingNotificationRequests()
+        await NotificationShadowLogStore.shared.clear()
+        for supplement in supplements {
+            try? await scheduleReminders(for: supplement)
+        }
     }
     
     // MARK: - Private Helpers

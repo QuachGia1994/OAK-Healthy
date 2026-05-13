@@ -105,7 +105,9 @@ public struct SettingsView: View {
                     if isNotificationEnabledByUser {
                         Task {
                             let center = UNUserNotificationCenter.current()
-                            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+                            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+                            guard granted else { return }
+                            await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
                         }
                     }
                 }
@@ -690,7 +692,7 @@ private struct NotificationDebugView: View {
             }
             
             if times.isEmpty {
-                Text("Chưa có mốc giờ nào được ghi nhận.")
+                Text("Chưa có mốc giờ nào. Vui lòng bật 'Cho phép gửi thông báo' để kích hoạt.")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(times, id: \.self) { time in

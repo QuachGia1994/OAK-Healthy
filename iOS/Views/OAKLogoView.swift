@@ -35,6 +35,9 @@ public struct OAKLogoView: View {
             Text("OAK Healthy")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(primaryColor)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .minimumScaleFactor(0.5)
         }
     }
 }
