@@ -41,6 +41,13 @@ public final class HomeViewModel {
         context.insert(newRecord)
         
         try? context.save()
+        
+        Task {
+            await CloudSyncAutoSync.uploadIfEnabled(
+                modelContext: context,
+                clientId: supplement.client?.id
+            )
+        }
     }
     
     /// Kiểm tra xem một chất đã được uống hôm nay chưa.

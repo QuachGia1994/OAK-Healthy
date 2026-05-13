@@ -31,6 +31,31 @@ class CloudSyncManager {
             }
         }
     }
+    
+    suspend fun upsertBackup(binId: String, jsonString: String): Result<Unit> {
+        val key = BuildConfig.JSONBIN_API_KEY.trim()
+        val id = binId.trim()
+        if (key.isEmpty()) return Result.failure(IllegalArgumentException("Missing access key"))
+        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val url = URL("$BASE_URL/$id")
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PUT"
+                    doOutput = true
+                    connectTimeout = 8_000
+                    readTimeout = 12_000
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("X-Master-Key", key)
+                }
+                connection.outputStream.use { it.write(jsonString.toByteArray(Charsets.UTF_8)) }
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) error("Server error ($code): $body")
+            }
+        }
+    }
 
     suspend fun downloadBackup(binId: String): Result<String> {
         val key = BuildConfig.JSONBIN_API_KEY.trim()

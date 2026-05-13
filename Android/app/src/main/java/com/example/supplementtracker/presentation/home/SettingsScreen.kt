@@ -124,7 +124,9 @@ fun SettingsScreen(
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
-    var downloadBinId by remember { mutableStateOf("") }
+    var downloadBinId by remember {
+        mutableStateOf(settingsPrefs.getString("cloudSyncLinkedBinId", "").orEmpty())
+    }
 
     val allSupplements = remember(uiState, currentClientId) {
         if (currentClientId == null) return@remember emptyList<UserSupplement>()
@@ -142,6 +144,7 @@ fun SettingsScreen(
     
     LaunchedEffect(hostedBinId) {
         isBinIdVisible = false
+        settingsPrefs.edit().putString("cloudSyncHostedBinId", hostedBinId ?: "").apply()
     }
     
     LaunchedEffect(isAutoSyncEnabled) {
@@ -442,7 +445,10 @@ fun SettingsScreen(
 
                         OutlinedTextField(
                             value = downloadBinId,
-                            onValueChange = { downloadBinId = it },
+                            onValueChange = {
+                                downloadBinId = it
+                                settingsPrefs.edit().putString("cloudSyncLinkedBinId", it.trim()).apply()
+                            },
                             label = { Text("Nhập mã liên kết") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true

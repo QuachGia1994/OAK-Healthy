@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 public enum CloudSyncError: Error, Sendable, LocalizedError {
     case invalidBinId
@@ -50,6 +51,28 @@ public actor CloudSyncManager {
     public func stopAutoSync() {
         autoSyncTask?.cancel()
         autoSyncTask = nil
+    }
+    
+    public func upsertBackup(
+        binId: String,
+        jsonData: Data
+    ) async throws(CloudSyncError) {
+        let apiKey = try requireApiKey()
+        let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
+        
+        let url = Self.baseURL.appendingPathComponent(id)
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.httpBody = jsonData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
+        
+        let (data, http) = try await fetch(request: request)
+        guard (200...299).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
+        }
     }
     
     public func uploadBackup(
@@ -162,5 +185,42 @@ public actor CloudSyncManager {
         } catch {
             throw CloudSyncError.decodingError(message: error.localizedDescription)
         }
+    }
+}
+
+@MainActor
+enum CloudSyncAutoSync {
+    static func uploadIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
+        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return }
+        guard let binId = activeBinId() else { return }
+        guard let clientId else { return }
+        print("☁️ Auto-Sync: Starting upload...")
+        let backup = try? makeBackup(modelContext: modelContext, clientId: clientId)
+        guard let backup else { return }
+        try? await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: backup)
+    }
+    
+    static func downloadAndMergeIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
+        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return }
+        guard let binId = activeBinId() else { return }
+        guard let clientId else { return }
+        print("☁️ Auto-Sync: Starting download...")
+        guard let data = try? await CloudSyncManager.shared.downloadBackup(binId: binId) else { return }
+        let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
+        guard let client else { return }
+        try? SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+    }
+    
+    private static func activeBinId() -> String? {
+        let hosted = UserDefaults.standard.string(forKey: "cloudSyncHostedBinId") ?? ""
+        let linked = UserDefaults.standard.string(forKey: "cloudSyncLinkedBinId") ?? ""
+        let trimmed = (hosted.isEmpty ? linked : hosted).trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+    
+    private static func makeBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
+        let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>()).filter { $0.client?.id == clientId }
+        let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>()).filter { $0.supplement?.client?.id == clientId }
+        return try SupplementExportCodec.encodeBackup(supplements: supplements, records: records)
     }
 }

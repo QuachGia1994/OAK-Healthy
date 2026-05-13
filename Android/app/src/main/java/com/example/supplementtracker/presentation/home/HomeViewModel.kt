@@ -40,6 +40,7 @@ import com.example.supplementtracker.service.NotificationSchedulerImpl
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import android.util.Log
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
@@ -156,6 +157,11 @@ class HomeViewModel(
         viewModelScope.launch {
             if (isChecked) {
                 repository.logIntake(supplementId, System.currentTimeMillis())
+                val binId = activeAutoSyncBinId()
+                if (binId != null) {
+                    Log.d("AutoSync", "☁️ Auto-Sync: Starting upload...")
+                    uploadToBin(binId)
+                }
                 return@launch
             }
         }
@@ -296,6 +302,23 @@ class HomeViewModel(
     fun stopAutoSync() {
         autoSyncJob?.cancel()
         autoSyncJob = null
+    }
+    
+    private fun activeAutoSyncBinId(): String? {
+        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
+        if (!enabled) return null
+        val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
+        val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
+        val id = if (hosted.isNotEmpty()) hosted else linked
+        return id.takeIf { it.isNotEmpty() }
+    }
+    
+    private suspend fun uploadToBin(binId: String) {
+        val json = buildBackupJson().getOrElse { return }
+        CloudSyncManager().upsertBackup(binId, json).onFailure { error ->
+            Log.d("AutoSync", "☁️ Auto-Sync: Upload failed: ${error.message ?: "Unknown"}")
+        }
     }
     
     fun refreshNotificationSchedules() {

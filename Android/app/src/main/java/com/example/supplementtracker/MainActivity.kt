@@ -32,6 +32,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
     private var timeZoneReceiver: TimeZoneChangeReceiver? = null
@@ -102,6 +103,18 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeViewModel.refreshNotificationSchedules()
+        
+        val prefs = applicationContext.getSharedPreferences("oak_settings", MODE_PRIVATE)
+        val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
+        if (!enabled) return
+        
+        val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
+        val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
+        val binId = if (hosted.isNotEmpty()) hosted else linked
+        if (binId.isEmpty()) return
+        
+        Log.d("AutoSync", "☁️ Auto-Sync: Starting download...")
+        homeViewModel.receiveData(binId)
     }
 
     override fun onDestroy() {

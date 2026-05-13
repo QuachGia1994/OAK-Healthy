@@ -21,8 +21,8 @@ public struct SettingsView: View {
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
     @State private var isCloudSyncLoading: Bool = false
-    @State private var hostedBinId: String = ""
-    @State private var downloadBinId: String = ""
+    @AppStorage("cloudSyncHostedBinId") private var hostedBinId: String = ""
+    @AppStorage("cloudSyncLinkedBinId") private var downloadBinId: String = ""
     @State private var isShowingCopyBinIdAlert: Bool = false
     @State private var isBinIdVisible: Bool = false
     @State private var isRevokingBinId: Bool = false

@@ -134,6 +134,8 @@ private struct SafeBootView: View {
 }
 
 struct MainTabView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedTab: Int
     let activeClientManager: ActiveClientManager
     let notificationService: NotificationService
@@ -166,5 +168,15 @@ struct MainTabView: View {
         }
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                await CloudSyncAutoSync.downloadAndMergeIfEnabled(
+                    modelContext: modelContext,
+                    clientId: activeClientManager.currentClientId
+                )
+            }
+        }
     }
 }
