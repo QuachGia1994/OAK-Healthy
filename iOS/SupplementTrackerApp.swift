@@ -8,8 +8,10 @@ struct SupplementTrackerApp: App {
     @AppStorage("appTheme") private var appTheme: String = "system"
     @State private var activeClientManager: ActiveClientManager?
     @State private var notificationDelegate: NotificationDelegate?
+    @State private var notificationService: NotificationService?
     @State private var modelContainer: ModelContainer?
     @State private var bootstrapErrorMessage: String?
+    @State private var isAppReady: Bool = false
     
     var body: some Scene {
         WindowGroup {
@@ -32,7 +34,10 @@ struct SupplementTrackerApp: App {
                 selectedTab: $selectedTab,
                 preferredColorScheme: preferredColorScheme,
                 modelContainer: modelContainer,
-                activeClientManager: activeClientManager
+                activeClientManager: activeClientManager,
+                notificationService: notificationService,
+                isAppReady: isAppReady,
+                handleScenePhaseChange: handleScenePhaseChange(_:)
             )
         } else if let message = bootstrapErrorMessage {
             BootstrapErrorView(message: message) {
@@ -50,7 +55,7 @@ struct SupplementTrackerApp: App {
     private func bootstrapAppServices() async {
         guard bootstrapErrorMessage == nil else { return }
         guard activeClientManager == nil || modelContainer == nil else { return }
-        try? await Task.sleep(for: .seconds(1))
+        try? await Task.sleep(for: .seconds(1.5))
         if modelContainer == nil {
             modelContainer = await makeModelContainer()
             if modelContainer == nil {
@@ -66,6 +71,10 @@ struct SupplementTrackerApp: App {
             notificationDelegate = delegate
             UNUserNotificationCenter.current().delegate = delegate
         }
+        if notificationService == nil {
+            notificationService = NotificationService()
+        }
+        isAppReady = true
     }
     
     private func makeModelContainer() async -> ModelContainer? {
@@ -73,6 +82,12 @@ struct SupplementTrackerApp: App {
         if let container = try? ModelContainer(for: schema) { return container }
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try? ModelContainer(for: schema, configurations: config)
+    }
+    
+    private func handleScenePhaseChange(_ phase: ScenePhase) {
+        guard isAppReady else { return }
+        guard phase == .active else { return }
+        NotificationCenter.default.post(name: .oakAppBecameActive, object: nil)
     }
 }
 
@@ -107,16 +122,28 @@ private struct BootstrapErrorView: View {
 }
 
 private struct MainTabContainerView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedTab: Int
     let preferredColorScheme: ColorScheme?
     let modelContainer: ModelContainer
     let activeClientManager: ActiveClientManager
+    let notificationService: NotificationService?
+    let isAppReady: Bool
+    let handleScenePhaseChange: (ScenePhase) -> Void
     
     var body: some View {
-        MainTabView(selectedTab: $selectedTab, activeClientManager: activeClientManager)
+        MainTabView(
+            selectedTab: $selectedTab,
+            activeClientManager: activeClientManager,
+            isAppReady: isAppReady,
+            notificationService: notificationService
+        )
             .preferredColorScheme(preferredColorScheme)
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
                 selectedTab = 0
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                handleScenePhaseChange(newPhase)
             }
             .modelContainer(modelContainer)
     }
@@ -137,10 +164,16 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 struct MainTabView: View {
     @Binding var selectedTab: Int
     let activeClientManager: ActiveClientManager
+    let isAppReady: Bool
+    let notificationService: NotificationService?
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView(activeClientManager: activeClientManager)
+            HomeView(
+                activeClientManager: activeClientManager,
+                isAppReady: isAppReady,
+                notificationService: notificationService
+            )
                 .id(activeClientManager.currentClientId)
                 .tabItem {
                     Label("tab_home".localized, systemImage: "house.fill")
@@ -164,4 +197,8 @@ struct MainTabView: View {
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
     }
+}
+
+extension Notification.Name {
+    static let oakAppBecameActive = Notification.Name("oakAppBecameActive")
 }
