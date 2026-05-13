@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.home.MyStackListScreen
+import com.example.supplementtracker.presentation.home.NotificationDebugScreen
 import com.example.supplementtracker.presentation.home.SettingsScreen
 
 enum class AppTheme {
@@ -41,6 +42,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object History : Screen("history", R.string.nav_history, { Icon(Icons.Default.DateRange, contentDescription = null) })
     data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = null) })
     data object MyStack : Screen("my_stack", R.string.manage_stack, { })
+    data object NotificationDebug : Screen("notification_debug", R.string.app_name, { })
     data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
     data object EditSupplement : Screen("edit_supplement/{id}", R.string.app_name, { })
 }
@@ -114,13 +116,19 @@ fun AppNavigation(
                     activeClientManager = activeClientManager,
                     appTheme = appTheme,
                     onThemeChange = onThemeChange,
-                    onNavigateToStackManager = { navController.navigate(Screen.MyStack.route) }
+                    onNavigateToStackManager = { navController.navigate(Screen.MyStack.route) },
+                    onNavigateToNotificationDebug = { navController.navigate(Screen.NotificationDebug.route) }
                 )
             }
             composable(Screen.MyStack.route) {
                 MyStackListScreen(
                     homeViewModel = homeViewModel,
                     activeClientManager = activeClientManager,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.NotificationDebug.route) {
+                NotificationDebugScreen(
                     onBack = { navController.popBackStack() }
                 )
             }

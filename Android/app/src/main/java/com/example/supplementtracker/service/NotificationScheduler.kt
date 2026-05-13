@@ -13,6 +13,50 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
+data class ScheduledAlarmInfo(
+    val requestCode: Int,
+    val title: String,
+    val scheduledAtMillis: Long
+)
+
+object NotificationDebugStore {
+    private const val prefsName = "oak_notification_debug"
+    private const val keyEntries = "scheduled_entries"
+
+    fun recordScheduled(context: Context, info: ScheduledAlarmInfo) {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val current = prefs.getStringSet(keyEntries, emptySet()).orEmpty()
+        val updated = current
+            .filterNot { it.startsWith("${info.requestCode}|") }
+            .toMutableSet()
+        updated.add("${info.requestCode}|${info.title}|${info.scheduledAtMillis}")
+        prefs.edit().putStringSet(keyEntries, updated).apply()
+    }
+
+    fun recordCancelled(context: Context, requestCode: Int) {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val current = prefs.getStringSet(keyEntries, emptySet()).orEmpty()
+        val updated = current.filterNot { it.startsWith("$requestCode|") }.toSet()
+        prefs.edit().putStringSet(keyEntries, updated).apply()
+    }
+
+    fun getUpcoming(context: Context, nowMillis: Long = System.currentTimeMillis()): List<ScheduledAlarmInfo> {
+        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val entries = prefs.getStringSet(keyEntries, emptySet()).orEmpty()
+        return entries.mapNotNull { parse(it) }
+            .filter { it.scheduledAtMillis >= nowMillis }
+            .sortedBy { it.scheduledAtMillis }
+    }
+
+    private fun parse(raw: String): ScheduledAlarmInfo? {
+        val parts = raw.split("|")
+        val requestCode = parts.getOrNull(0)?.toIntOrNull() ?: return null
+        val title = parts.getOrNull(1) ?: return null
+        val millis = parts.getOrNull(2)?.toLongOrNull() ?: return null
+        return ScheduledAlarmInfo(requestCode = requestCode, title = title, scheduledAtMillis = millis)
+    }
+}
+
 /**
  * Interface quản lý việc lên lịch thông báo.
  */
@@ -49,6 +93,7 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
             
             val requestCode = requestCode(supplement, date)
             if (status == CycleStatus.ON) {
+                val scheduledAtMillis = scheduledTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                 val pendingIntent = PendingIntent.getBroadcast(
                     context,
                     requestCode,
@@ -57,8 +102,16 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
                 )
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
-                    scheduledTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    scheduledAtMillis,
                     pendingIntent
+                )
+                NotificationDebugStore.recordScheduled(
+                    context = context,
+                    info = ScheduledAlarmInfo(
+                        requestCode = requestCode,
+                        title = supplement.name,
+                        scheduledAtMillis = scheduledAtMillis
+                    )
                 )
             } else {
                 cancelByRequestCode(requestCode)
@@ -84,6 +137,7 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
     }
 
     private fun cancelByRequestCode(requestCode: Int) {
+        NotificationDebugStore.recordCancelled(context, requestCode)
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
