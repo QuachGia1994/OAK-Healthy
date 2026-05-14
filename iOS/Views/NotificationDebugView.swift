@@ -38,7 +38,7 @@ public struct NotificationDebugView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(groupedKeys, id: \.self) { day in
-                    Section(dayHeader(day)) {
+                    Section(header: Text(dayHeader(day))) {
                         ForEach(grouped[day] ?? []) { item in
                             NotificationRow(entry: item)
                         }
@@ -59,11 +59,11 @@ public struct NotificationDebugView: View {
         grouped.keys.sorted()
     }
     
-    private func dayHeader(_ day: Date) -> Text {
+    private func dayHeader(_ day: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "vi_VN")
         formatter.dateFormat = "EEEE, dd/MM/yyyy"
-        return Text(formatter.string(from: day))
+        return formatter.string(from: day)
     }
 }
 
@@ -126,4 +126,3 @@ public struct NotificationDebugEntry: Identifiable, Hashable {
         return formatter.date(from: raw.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
-
