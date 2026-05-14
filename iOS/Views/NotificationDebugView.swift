@@ -1,5 +1,4 @@
 import SwiftUI
-import UserNotifications
 
 public struct NotificationDebugScreen: View {
     @State private var isLoading = true
@@ -18,8 +17,8 @@ public struct NotificationDebugScreen: View {
         .navigationTitle("Danh sách thông báo")
         .task {
             guard isLoading else { return }
-            let requests = await NotificationService().pendingRequests()
-            entries = NotificationDebugEntry.parseMany(requests)
+            let items = await NotificationService().pendingRequestSnapshots()
+            entries = NotificationDebugEntry.parseMany(items)
             isLoading = false
         }
     }
@@ -130,21 +129,20 @@ public struct NotificationDebugEntry: Identifiable, Hashable {
     public let cycleText: String
     public let scheduledAt: Date
     
-    static func parseMany(_ requests: [UNNotificationRequest]) -> [NotificationDebugEntry] {
-        requests.compactMap(parseOne).sorted { $0.scheduledAt < $1.scheduledAt }
+    static func parseMany(_ items: [PendingNotificationSnapshot]) -> [NotificationDebugEntry] {
+        items.compactMap(parseOne).sorted { $0.scheduledAt < $1.scheduledAt }
     }
     
-    private static func parseOne(_ request: UNNotificationRequest) -> NotificationDebugEntry? {
-        guard let trigger = request.trigger as? UNCalendarNotificationTrigger else { return nil }
-        let calendar = Calendar.current
-        guard let scheduled = calendar.date(from: trigger.dateComponents) else { return nil }
-        
-        let name = request.content.title.trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func parseOne(_ item: PendingNotificationSnapshot) -> NotificationDebugEntry? {
+        let name = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return nil }
-        let info = request.content.userInfo
-        let dose = (info["dosage"] as? String) ?? (info["dailyDose"] as? String) ?? ""
-        let cycleText = (info["cycle"] as? String) ?? (info["cycleText"] as? String) ?? ""
-        return NotificationDebugEntry(id: request.identifier, name: name, dose: dose, cycleText: cycleText, scheduledAt: scheduled)
+        return NotificationDebugEntry(
+            id: item.id,
+            name: name,
+            dose: item.dosage,
+            cycleText: item.cycle,
+            scheduledAt: item.scheduledAt
+        )
     }
     
     static func parseMany(_ raw: [String]) -> [NotificationDebugEntry] {

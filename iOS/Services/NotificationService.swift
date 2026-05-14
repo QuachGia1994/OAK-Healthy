@@ -8,6 +8,22 @@ public enum NotificationError: Error, Sendable {
     case unknown(Error)
 }
 
+public struct PendingNotificationSnapshot: Sendable, Hashable {
+    public let id: String
+    public let title: String
+    public let scheduledAt: Date
+    public let dosage: String
+    public let cycle: String
+    
+    public init(id: String, title: String, scheduledAt: Date, dosage: String, cycle: String) {
+        self.id = id
+        self.title = title
+        self.scheduledAt = scheduledAt
+        self.dosage = dosage
+        self.cycle = cycle
+    }
+}
+
 actor NotificationShadowLogStore {
     static let shared = NotificationShadowLogStore()
     private let key = "notificationShadowLogEntries"
@@ -152,12 +168,26 @@ public struct NotificationService: NotificationManaging {
             throw NotificationError.schedulingFailed
         }
     }
-
+    
     @MainActor
-    public func pendingRequests() async -> [UNNotificationRequest] {
-        await withCheckedContinuation { continuation in
-            center.getPendingNotificationRequests { continuation.resume(returning: $0) }
-        }
+    public func pendingRequestSnapshots() async -> [PendingNotificationSnapshot] {
+        let requests = await center.pendingNotificationRequests()
+        return requests.compactMap { snapshot(from: $0) }.sorted { $0.scheduledAt < $1.scheduledAt }
+    }
+    
+    private func snapshot(from request: UNNotificationRequest) -> PendingNotificationSnapshot? {
+        guard let scheduledAt = scheduledDate(from: request.trigger) else { return nil }
+        let title = request.content.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+        let info = request.content.userInfo
+        let dosage = (info["dosage"] as? String) ?? (info["dailyDose"] as? String) ?? ""
+        let cycle = (info["cycle"] as? String) ?? (info["cycleText"] as? String) ?? ""
+        return PendingNotificationSnapshot(id: request.identifier, title: title, scheduledAt: scheduledAt, dosage: dosage, cycle: cycle)
+    }
+    
+    private func scheduledDate(from trigger: UNNotificationTrigger?) -> Date? {
+        guard let trigger = trigger as? UNCalendarNotificationTrigger else { return nil }
+        return Calendar.current.date(from: trigger.dateComponents)
     }
     
     private func logShadowEntry(from request: UNNotificationRequest) async {
