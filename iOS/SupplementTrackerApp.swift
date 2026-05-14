@@ -110,8 +110,8 @@ private struct SafeBootView: View {
     private func bootstrap() async {
         try? await Task.sleep(for: .seconds(2))
         let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
-        guard let container = try? ModelContainer(for: schema) else {
-            errorMessage = "Không thể khởi tạo dữ liệu. Vui lòng cài lại app."
+        guard let container = makeModelContainer(schema: schema) else {
+            errorMessage = "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."
             return
         }
         
@@ -130,6 +130,43 @@ private struct SafeBootView: View {
                 notificationDelegate: delegate
             )
         )
+    }
+    
+    private func makeModelContainer(schema: Schema) -> ModelContainer? {
+        guard let storeURL = persistentStoreURL() else { return try? ModelContainer(for: schema) }
+        let configuration = ModelConfiguration(schema: schema, url: storeURL)
+        
+        do {
+            return try ModelContainer(for: schema, configurations: configuration)
+        } catch {
+            print("SwiftData init failed: \(error.localizedDescription)")
+            resetPersistentStore(at: storeURL)
+            return try? ModelContainer(for: schema, configurations: configuration)
+        }
+    }
+    
+    private func persistentStoreURL() -> URL? {
+        do {
+            let base = try FileManager.default.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+            return base.appendingPathComponent("OAKHealthy.store")
+        } catch {
+            print("AppSupport directory error: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    private func resetPersistentStore(at url: URL) {
+        let fileManager = FileManager.default
+        let candidates = [url, URL(fileURLWithPath: url.path + "-shm"), URL(fileURLWithPath: url.path + "-wal")]
+        for file in candidates {
+            guard fileManager.fileExists(atPath: file.path) else { continue }
+            try? fileManager.removeItem(at: file)
+        }
     }
 }
 
