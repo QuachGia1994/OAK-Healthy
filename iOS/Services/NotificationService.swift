@@ -153,7 +153,8 @@ public struct NotificationService: NotificationManaging {
         let calendar = Calendar.current
         guard let scheduled = calendar.date(from: trigger.dateComponents) else { return }
         let formatted = shadowDateFormatter().string(from: scheduled)
-        let entry = "\(request.content.title) | \(formatted)"
+        let dose = (request.content.userInfo["dailyDose"] as? String) ?? ""
+        let entry = "\(request.content.title)||\(dose)||\(formatted)"
         await NotificationShadowLogStore.shared.append(entry: entry)
     }
     

@@ -5,12 +5,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,10 +77,10 @@ private fun UserGuideContent(modifier: Modifier = Modifier) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { GuideCard(stringResource(R.string.user_guide_1_title), stringResource(R.string.user_guide_1_body)) }
-        item { GuideCard(stringResource(R.string.user_guide_2_title), stringResource(R.string.user_guide_2_body)) }
-        item { GuideCard(stringResource(R.string.user_guide_3_title), stringResource(R.string.user_guide_3_body)) }
-        item { GuideCard(stringResource(R.string.user_guide_4_title), stringResource(R.string.user_guide_4_body)) }
+        item { GuideCard(Icons.Default.AddCircle, stringResource(R.string.user_guide_1_title), stringResource(R.string.user_guide_1_body)) }
+        item { GuideCard(Icons.Default.Sync, stringResource(R.string.user_guide_2_title), stringResource(R.string.user_guide_2_body)) }
+        item { GuideCard(Icons.Default.Visibility, stringResource(R.string.user_guide_3_title), stringResource(R.string.user_guide_3_body)) }
+        item { GuideCard(Icons.Default.Notifications, stringResource(R.string.user_guide_4_title), stringResource(R.string.user_guide_4_body)) }
     }
 }
 
@@ -89,13 +95,17 @@ private fun guideBackgroundBrush(): Brush {
 }
 
 @Composable
-private fun GuideCard(title: String, body: String) {
+private fun GuideCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.size(10.dp))
+                Text(text = title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
             Spacer(modifier = Modifier.padding(top = 8.dp))
             Text(text = body, style = MaterialTheme.typography.bodyMedium)
         }

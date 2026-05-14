@@ -78,11 +78,6 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.example.supplementtracker.service.NotificationDebugStore
-import com.example.supplementtracker.service.ScheduledAlarmInfo
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1020,120 +1015,6 @@ fun MyStackListScreen(
                         title = title,
                         content = getCycleSummary(supplement)
                     )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun NotificationDebugScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val packageName = context.packageName
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-    }
-
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-    val isIgnoringBatteryOptimizations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        powerManager.isIgnoringBatteryOptimizations(packageName)
-    } else {
-        true
-    }
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val canScheduleExactAlarms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        alarmManager.canScheduleExactAlarms()
-    } else {
-        true
-    }
-
-    var upcoming by remember { mutableStateOf(emptyList<ScheduledAlarmInfo>()) }
-    val formatter = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm") }
-
-    fun reload() {
-        upcoming = NotificationDebugStore.getUpcoming(context)
-    }
-
-    LaunchedEffect(Unit) { reload() }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-    ) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text("Danh sách thông báo") },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
-                        }
-                    }
-                )
-            }
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    InfoCard(
-                        title = "Exact Alarms",
-                        content = if (canScheduleExactAlarms) "Đã bật" else "Chưa bật"
-                    )
-                }
-                item {
-                    InfoCard(
-                        title = "Battery Optimization",
-                        content = if (isIgnoringBatteryOptimizations) "Đã bỏ tối ưu" else "Đang bị tối ưu"
-                    )
-                }
-                if (!isIgnoringBatteryOptimizations) {
-                    item {
-                        OutlinedButton(
-                            onClick = {
-                                runCatching {
-                                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                }
-                            }
-                        ) {
-                            Text("Mở cài đặt Battery Optimization")
-                        }
-                    }
-                }
-                item {
-                    OutlinedButton(onClick = { reload() }) { Text("Làm mới danh sách") }
-                }
-                if (upcoming.isEmpty()) {
-                    item {
-                        InfoCard(
-                            title = "Thông báo",
-                            content = "Không có thông báo nào đang được lên lịch."
-                        )
-                    }
-                } else {
-                    items(items = upcoming, key = { it.requestCode }) { item ->
-                        val dateTime = Instant.ofEpochMilli(item.scheduledAtMillis)
-                            .atZone(ZoneId.systemDefault())
-                            .toLocalDateTime()
-                        InfoCard(
-                            title = item.title,
-                            content = dateTime.format(formatter)
-                        )
-                    }
                 }
             }
         }

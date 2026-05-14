@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.home.MyStackListScreen
-import com.example.supplementtracker.presentation.home.NotificationDebugScreen
+import com.example.supplementtracker.presentation.home.NotificationCheckScreen
 import com.example.supplementtracker.presentation.home.SettingsScreen
 import com.example.supplementtracker.presentation.home.UserGuideScreen
 
@@ -131,7 +131,7 @@ fun AppNavigation(
                 )
             }
             composable(Screen.NotificationDebug.route) {
-                NotificationDebugScreen(
+                NotificationCheckScreen(
                     onBack = { navController.popBackStack() }
                 )
             }
