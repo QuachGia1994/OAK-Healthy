@@ -128,11 +128,14 @@ public struct NotificationService: NotificationManaging {
         )
         content.sound = .default
         let cycleText = cycleText(for: supplement, at: date)
+        let dosage = supplement.dailyDose
         content.userInfo = [
             "supplementID": supplement.id.uuidString,
             "supplementName": supplement.name,
             "intakeTime": supplement.intakeTime,
-            "dailyDose": supplement.dailyDose,
+            "dosage": dosage,
+            "cycle": cycleText,
+            "dailyDose": dosage,
             "cycleText": cycleText
         ]
         
@@ -147,6 +150,13 @@ public struct NotificationService: NotificationManaging {
             try await center.add(request)
         } catch {
             throw NotificationError.schedulingFailed
+        }
+    }
+
+    @MainActor
+    public func pendingRequests() async -> [UNNotificationRequest] {
+        await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { continuation.resume(returning: $0) }
         }
     }
     
