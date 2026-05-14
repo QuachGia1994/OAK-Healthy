@@ -72,19 +72,22 @@ private struct NotificationRow: View {
     
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "pills.fill")
-                .foregroundStyle(.blue)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.name)
-                    .font(.headline)
-                Text(entry.dose)
+            Image(systemName: iconName)
+                .foregroundStyle(.tint)
+                .font(.title3)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(entry.name)
+                        .font(.headline)
+                    Spacer()
+                    Text(timeText)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                Text(detailText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
-            Text(timeText)
-                .font(.subheadline)
-                .fontWeight(.semibold)
         }
         .padding(.vertical, 4)
     }
@@ -94,12 +97,36 @@ private struct NotificationRow: View {
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: entry.scheduledAt)
     }
+    
+    private var iconName: String {
+        iconFor(substanceName: entry.name)
+    }
+    
+    private var detailText: String {
+        let dose = entry.dose.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cycle = entry.cycleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let doseText = dose.isEmpty ? "Liều lượng: —" : "Liều lượng: \(dose)"
+        guard !cycle.isEmpty else { return doseText }
+        return "\(doseText) • \(cycle)"
+    }
+    
+    private func iconFor(substanceName: String) -> String {
+        let name = substanceName.lowercased()
+        if name.contains("caffeine") { return "bolt.fill" }
+        if name.contains("creatine") { return "dumbbell.fill" }
+        if name.contains("omega") { return "drop.fill" }
+        if name.contains("vitamin d3") || name.contains("d3") { return "sun.max.fill" }
+        if name.contains("magnesium") || name.contains("zinc") || name.contains("coq10") { return "pills.fill" }
+        if name.contains("nac") { return "leaf.fill" }
+        return "cross.case.fill"
+    }
 }
 
 public struct NotificationDebugEntry: Identifiable, Hashable {
     public let id: String
     public let name: String
     public let dose: String
+    public let cycleText: String
     public let scheduledAt: Date
     
     static func parseMany(_ raw: [String]) -> [NotificationDebugEntry] {
@@ -108,16 +135,23 @@ public struct NotificationDebugEntry: Identifiable, Hashable {
     
     private static func parseOne(_ raw: String) -> NotificationDebugEntry? {
         let parts = raw.components(separatedBy: "||")
+        if parts.count >= 4, let date = parseDate(parts[3]) {
+            let name = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let dose = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            let cycleText = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            return NotificationDebugEntry(id: raw, name: name, dose: dose, cycleText: cycleText, scheduledAt: date)
+        }
+        
         if parts.count >= 3, let date = parseDate(parts[2]) {
             let name = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
             let dose = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            return NotificationDebugEntry(id: raw, name: name, dose: dose, scheduledAt: date)
+            return NotificationDebugEntry(id: raw, name: name, dose: dose, cycleText: "", scheduledAt: date)
         }
         
         let legacy = raw.components(separatedBy: " | ")
         guard legacy.count >= 2, let date = parseDate(legacy[1]) else { return nil }
         let name = legacy[0].trimmingCharacters(in: .whitespacesAndNewlines)
-        return NotificationDebugEntry(id: raw, name: name, dose: "", scheduledAt: date)
+        return NotificationDebugEntry(id: raw, name: name, dose: "", cycleText: "", scheduledAt: date)
     }
     
     private static func parseDate(_ raw: String) -> Date? {
