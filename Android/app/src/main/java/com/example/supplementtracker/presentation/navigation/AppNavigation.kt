@@ -5,8 +5,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -31,6 +34,7 @@ import com.example.supplementtracker.presentation.home.MyStackListScreen
 import com.example.supplementtracker.presentation.home.NotificationCheckScreen
 import com.example.supplementtracker.presentation.home.SettingsScreen
 import com.example.supplementtracker.presentation.home.UserGuideScreen
+import com.example.supplementtracker.presentation.startup.StartupScreen
 
 enum class AppTheme {
     LIGHT,
@@ -39,6 +43,7 @@ enum class AppTheme {
 }
 
 sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable () -> Unit) {
+    data object Startup : Screen("startup", R.string.app_name, { })
     data object Home : Screen("home", R.string.nav_home, { Icon(Icons.Default.Home, contentDescription = null) })
     data object History : Screen("history", R.string.nav_history, { Icon(Icons.Default.DateRange, contentDescription = null) })
     data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = null) })
@@ -56,8 +61,16 @@ fun AppNavigation(
     addSupplementViewModel: AddSupplementViewModel,
     activeClientManager: ActiveClientManager,
     appTheme: AppTheme,
-    onThemeChange: (AppTheme) -> Unit
+    onThemeChange: (AppTheme) -> Unit,
+    onFirstFrame: () -> Unit = {}
 ) {
+    val didReportFirstFrame = remember { mutableStateOf(false) }
+    SideEffect {
+        if (didReportFirstFrame.value) return@SideEffect
+        didReportFirstFrame.value = true
+        onFirstFrame()
+    }
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -98,7 +111,17 @@ fun AppNavigation(
             }
         }
     ) { innerPadding ->
-        NavHost(navController = navController, startDestination = Screen.Home.route, modifier = Modifier.padding(innerPadding)) {
+        NavHost(navController = navController, startDestination = Screen.Startup.route, modifier = Modifier.padding(innerPadding)) {
+            composable(Screen.Startup.route) {
+                StartupScreen(
+                    onNavigateToHome = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Startup.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable(Screen.Home.route) {
                 HomeScreen(
                     viewModel = homeViewModel,

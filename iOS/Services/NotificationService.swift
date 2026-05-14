@@ -127,11 +127,13 @@ public struct NotificationService: NotificationManaging {
             supplement.dailyDose
         )
         content.sound = .default
+        let cycleText = cycleText(for: supplement, at: date)
         content.userInfo = [
             "supplementID": supplement.id.uuidString,
             "supplementName": supplement.name,
             "intakeTime": supplement.intakeTime,
-            "dailyDose": supplement.dailyDose
+            "dailyDose": supplement.dailyDose,
+            "cycleText": cycleText
         ]
         
         let triggerComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
@@ -154,7 +156,8 @@ public struct NotificationService: NotificationManaging {
         guard let scheduled = calendar.date(from: trigger.dateComponents) else { return }
         let formatted = shadowDateFormatter().string(from: scheduled)
         let dose = (request.content.userInfo["dailyDose"] as? String) ?? ""
-        let entry = "\(request.content.title)||\(dose)||\(formatted)"
+        let cycleText = (request.content.userInfo["cycleText"] as? String) ?? ""
+        let entry = "\(request.content.title)||\(dose)||\(cycleText)||\(formatted)"
         await NotificationShadowLogStore.shared.append(entry: entry)
     }
     
@@ -162,5 +165,23 @@ public struct NotificationService: NotificationManaging {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter
+    }
+    
+    private func cycleText(for supplement: UserSupplement, at date: Date) -> String {
+        let config = supplement.cycleConfig
+        guard !config.isContinuous else { return "Liên tục" }
+        let total = config.daysOn + config.daysOff
+        guard total > 0 else { return "" }
+        
+        let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: supplement.startDate)
+        let currentDay = calendar.startOfDay(for: date)
+        let elapsed = calendar.dateComponents([.day], from: startDay, to: currentDay).day ?? 0
+        let dayInCycle = (elapsed % total) + 1
+        
+        if dayInCycle <= config.daysOn { return "Ngày \(dayInCycle)/\(config.daysOn)" }
+        let dayInOff = dayInCycle - config.daysOn
+        let offTotal = max(config.daysOff, 1)
+        return "Nghỉ \(dayInOff)/\(offTotal)"
     }
 }

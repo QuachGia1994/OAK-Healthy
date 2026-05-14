@@ -3,6 +3,7 @@ package com.example.supplementtracker
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,8 +38,12 @@ import android.util.Log
 class MainActivity : ComponentActivity() {
     private var timeZoneReceiver: TimeZoneChangeReceiver? = null
     private lateinit var homeViewModel: HomeViewModel
+    @Volatile private var keepSplashOnScreen = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }
+
         super.onCreate(savedInstanceState)
         
         requestNotificationPermission()
@@ -93,7 +98,8 @@ class MainActivity : ComponentActivity() {
                         addSupplementViewModel = addSupplementViewModel,
                         activeClientManager = activeClientManager,
                         appTheme = appTheme,
-                        onThemeChange = { appTheme = it }
+                        onThemeChange = { appTheme = it },
+                        onFirstFrame = { keepSplashOnScreen = false }
                     )
                 }
             }
