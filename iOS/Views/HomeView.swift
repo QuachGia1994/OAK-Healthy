@@ -70,8 +70,16 @@ public struct HomeView: View {
                                 ForEach(items) { supplement in
                                     ActiveSupplementRow(
                                         supplement: supplement,
-                                        onToggle: viewModel.toggleIntake,
-                                        isTaken: viewModel.isTakenToday(supplement)
+                                        timeString: time,
+                                        onToggle: { supplement, timeString, context in
+                                            viewModel.toggleIntake(
+                                                for: supplement,
+                                                timeString: timeString,
+                                                context: context,
+                                                notificationService: notificationService
+                                            )
+                                        },
+                                        isTaken: viewModel.isTakenToday(supplement, timeString: time)
                                     )
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
@@ -289,7 +297,8 @@ private struct AddClientSheet: View {
 private struct ActiveSupplementRow: View {
     @Environment(\.modelContext) private var modelContext
     let supplement: UserSupplement
-    let onToggle: (UserSupplement, ModelContext) -> Void
+    let timeString: String
+    let onToggle: (UserSupplement, String, ModelContext) -> Void
     let isTaken: Bool
     @State private var showConfirm = false
     
@@ -301,7 +310,7 @@ private struct ActiveSupplementRow: View {
                 HStack {
                     Image(systemName: "clock")
                         .font(.caption2)
-                    Text(supplement.intakeTime)
+                    Text(timeString)
                         .font(.caption2)
                     Text("•")
                     Text(String(format: "dose_format".localized, supplement.dailyDose))
@@ -336,7 +345,7 @@ private struct ActiveSupplementRow: View {
             Button("Hủy", role: .cancel) {}
             Button("Đã uống") {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                onToggle(supplement, modelContext)
+                onToggle(supplement, timeString, modelContext)
             }
         } message: {
             Text("Hành động này sẽ được ghi vào Lịch sử và không thể hoàn tác.")

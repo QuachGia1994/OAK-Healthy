@@ -152,6 +152,8 @@ public final class IntakeRecord: Identifiable {
     public var date: Date
     /// Trạng thái (mặc định là "Taken").
     public var status: String
+    /// Khung giờ uống (HH:mm). Rỗng nếu dữ liệu cũ chưa có.
+    public var intakeTime: String
     /// Liên kết ngược tới chất bổ sung.
     public var supplement: UserSupplement?
     
@@ -165,11 +167,13 @@ public final class IntakeRecord: Identifiable {
         id: UUID = UUID(), 
         date: Date = .now, 
         status: String = "Taken", 
+        intakeTime: String = "",
         supplement: UserSupplement? = nil
     ) {
         self.id = id
         self.date = date
         self.status = status
+        self.intakeTime = intakeTime
         self.supplement = supplement
     }
 }

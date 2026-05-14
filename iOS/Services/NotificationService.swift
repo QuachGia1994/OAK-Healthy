@@ -79,20 +79,27 @@ public struct NotificationService: NotificationManaging {
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
         let calendar = Calendar.current
-        guard let timeComponents = intakeTimeComponents(from: supplement.intakeTime, calendar: calendar) else { return }
-        for triggerDate in upcomingTriggerDates(calendar: calendar, timeComponents: timeComponents) {
-            let status = try? cycleCalculator.determineStatus(for: supplement.startDate, 
-                                                           config: supplement.cycleConfig, 
-                                                           at: triggerDate)
-            guard status == .on else { continue }
-            try await createNotificationRequest(for: supplement, at: triggerDate)
+        for timeString in intakeTimes(from: supplement.intakeTime) {
+            guard let timeComponents = intakeTimeComponents(from: timeString, calendar: calendar) else { continue }
+            for triggerDate in upcomingTriggerDates(calendar: calendar, timeComponents: timeComponents) {
+                let status = try? cycleCalculator.determineStatus(
+                    for: supplement.startDate,
+                    config: supplement.cycleConfig,
+                    at: triggerDate
+                )
+                guard status == .on else { continue }
+                try await createNotificationRequest(for: supplement, at: triggerDate, timeString: timeString)
+            }
         }
     }
     
     @MainActor
     public func cancelReminders(for supplement: UserSupplement) async {
-        center.removeAllPendingNotificationRequests()
-        await NotificationShadowLogStore.shared.clear()
+        let prefix = "\(supplement.id.uuidString)-"
+        let requests = await center.pendingNotificationRequests()
+        let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
+        guard !ids.isEmpty else { return }
+        center.removePendingNotificationRequests(withIdentifiers: ids)
     }
     
     @MainActor
@@ -134,31 +141,22 @@ public struct NotificationService: NotificationManaging {
     }
     
     @MainActor
-    private func createNotificationRequest(for supplement: UserSupplement, at date: Date) async throws(NotificationError) {
-        let content = UNMutableNotificationContent()
-        content.title = supplement.name
-        content.body = String(
-            format: "notification_body_format".localized,
-            supplement.name,
-            supplement.dailyDose
-        )
-        content.sound = .default
-        let cycleText = cycleText(for: supplement, at: date)
-        let dosage = supplement.dailyDose
-        content.userInfo = [
-            "supplementID": supplement.id.uuidString,
-            "supplementName": supplement.name,
-            "intakeTime": supplement.intakeTime,
-            "dosage": dosage,
-            "cycle": cycleText,
-            "dailyDose": dosage,
-            "cycleText": cycleText
-        ]
-        
+    public func cancelReminder(for supplement: UserSupplement, timeString: String, day: Date = .now) async {
+        let identifier = requestIdentifier(supplementId: supplement.id, timeString: timeString, day: day)
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+    
+    @MainActor
+    private func createNotificationRequest(
+        for supplement: UserSupplement,
+        at date: Date,
+        timeString: String
+    ) async throws(NotificationError) {
+        let content = notificationContent(for: supplement, timeString: timeString, scheduledAt: date)
         let triggerComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
         
-        let identifier = "\(supplement.id.uuidString)-\(date.timeIntervalSince1970)"
+        let identifier = requestIdentifier(supplementId: supplement.id, timeString: timeString, day: date)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         await logShadowEntry(from: request)
         
@@ -167,6 +165,41 @@ public struct NotificationService: NotificationManaging {
         } catch {
             throw NotificationError.schedulingFailed
         }
+    }
+    
+    private func notificationContent(
+        for supplement: UserSupplement,
+        timeString: String,
+        scheduledAt date: Date
+    ) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = supplement.name
+        content.body = String(
+            format: "notification_body_format".localized,
+            supplement.name,
+            supplement.dailyDose
+        )
+        content.sound = .default
+        let cycle = cycleText(for: supplement, at: date)
+        content.userInfo = notificationUserInfo(for: supplement, timeString: timeString, cycle: cycle)
+        return content
+    }
+    
+    private func notificationUserInfo(
+        for supplement: UserSupplement,
+        timeString: String,
+        cycle: String
+    ) -> [AnyHashable: Any] {
+        let dosage = supplement.dailyDose
+        return [
+            "supplementID": supplement.id.uuidString,
+            "supplementName": supplement.name,
+            "intakeTime": timeString,
+            "dosage": dosage,
+            "cycle": cycle,
+            "dailyDose": dosage,
+            "cycleText": cycle
+        ]
     }
     
     @MainActor
@@ -205,6 +238,26 @@ public struct NotificationService: NotificationManaging {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter
+    }
+    
+    private func requestIdentifier(supplementId: UUID, timeString: String, day: Date) -> String {
+        let dayKey = dayKeyString(day)
+        let safeTime = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(supplementId.uuidString)-\(safeTime)-\(dayKey)"
+    }
+    
+    private func dayKeyString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        return formatter.string(from: date)
+    }
+    
+    private func intakeTimes(from raw: String) -> [String] {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let parts = trimmed.split(whereSeparator: { ",;|".contains($0) })
+        let times = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return times.isEmpty ? [trimmed] : times
     }
     
     private func cycleText(for supplement: UserSupplement, at date: Date) -> String {
