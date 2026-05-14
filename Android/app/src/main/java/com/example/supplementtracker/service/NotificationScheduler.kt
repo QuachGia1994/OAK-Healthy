@@ -16,6 +16,8 @@ import java.time.ZoneId
 data class ScheduledAlarmInfo(
     val requestCode: Int,
     val title: String,
+    val dose: String,
+    val cycleText: String,
     val scheduledAtMillis: Long
 )
 
@@ -29,7 +31,7 @@ object NotificationDebugStore {
         val updated = current
             .filterNot { it.startsWith("${info.requestCode}|") }
             .toMutableSet()
-        updated.add("${info.requestCode}|${info.title}|${info.scheduledAtMillis}")
+        updated.add("${info.requestCode}|${info.title}|${info.dose}|${info.cycleText}|${info.scheduledAtMillis}")
         prefs.edit().putStringSet(keyEntries, updated).apply()
     }
 
@@ -52,8 +54,10 @@ object NotificationDebugStore {
         val parts = raw.split("|")
         val requestCode = parts.getOrNull(0)?.toIntOrNull() ?: return null
         val title = parts.getOrNull(1) ?: return null
-        val millis = parts.getOrNull(2)?.toLongOrNull() ?: return null
-        return ScheduledAlarmInfo(requestCode = requestCode, title = title, scheduledAtMillis = millis)
+        val dose = parts.getOrNull(2).orEmpty()
+        val cycleText = parts.getOrNull(3).orEmpty()
+        val millis = parts.getOrNull(4)?.toLongOrNull() ?: parts.getOrNull(2)?.toLongOrNull() ?: return null
+        return ScheduledAlarmInfo(requestCode = requestCode, title = title, dose = dose, cycleText = cycleText, scheduledAtMillis = millis)
     }
 }
 
@@ -110,6 +114,8 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
                     info = ScheduledAlarmInfo(
                         requestCode = requestCode,
                         title = supplement.name,
+                        dose = supplement.dailyDose,
+                        cycleText = cycleLabel(supplement, date),
                         scheduledAtMillis = scheduledAtMillis
                     )
                 )
@@ -160,5 +166,18 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         val hour = parts.getOrNull(0)?.toIntOrNull() ?: 8
         val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
         return LocalTime.of(hour, minute)
+    }
+
+    private fun cycleLabel(supplement: UserSupplement, date: LocalDate): String {
+        val config = supplement.cycleConfig
+        if (config.isContinuous) return "Liên tục"
+        val total = config.daysOn + config.daysOff
+        if (total <= 0) return ""
+        val elapsed = java.time.temporal.ChronoUnit.DAYS.between(supplement.startDate, date).toInt()
+        val dayInCycle = (elapsed % total) + 1
+        if (dayInCycle <= config.daysOn) return "Ngày $dayInCycle/${config.daysOn}"
+        val dayInOff = dayInCycle - config.daysOn
+        val offTotal = if (config.daysOff <= 0) 1 else config.daysOff
+        return "Nghỉ $dayInOff/$offTotal"
     }
 }
