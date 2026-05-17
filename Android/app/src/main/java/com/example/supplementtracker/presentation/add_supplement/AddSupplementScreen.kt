@@ -175,7 +175,7 @@ fun AddSupplementScreen(
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Ngày bắt đầu: $startDateText")
+                    Text(stringResource(R.string.start_date_format, startDateText))
                 }
             }
 

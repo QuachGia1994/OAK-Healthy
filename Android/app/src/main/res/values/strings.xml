@@ -72,6 +72,7 @@
     <string name="daily_dose_hint">Daily dose</string>
     <string name="schedule_cycle_title">Schedule &amp; Cycle</string>
     <string name="intake_time">Intake time: %1$s</string>
+    <string name="start_date_format">Start date: %1$s</string>
     <string name="repeat_weekly">Repeat by weekdays</string>
     <string name="repeat_on_weekdays">Repeat on</string>
     <string name="repeat_every_weeks">Every (weeks)</string>
