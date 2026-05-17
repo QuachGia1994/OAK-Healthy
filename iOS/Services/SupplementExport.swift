@@ -474,7 +474,7 @@ struct SupplementExportCodec {
             guard let anchorDate = try? dayDate(from: anchorString) else { return nil }
             return WeeklyRecurrenceConfig(weekdaysMask: mask, intervalWeeks: interval, anchorDate: anchorDate)
         }()
-        CycleConfig(
+        return CycleConfig(
             daysOn: dto.daysOn,
             daysOff: dto.daysOff,
             isContinuous: dto.isContinuous,
