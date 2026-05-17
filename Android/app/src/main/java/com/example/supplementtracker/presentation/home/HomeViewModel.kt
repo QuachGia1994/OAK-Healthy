@@ -242,27 +242,28 @@ class HomeViewModel(
     fun hostData() {
         viewModelScope.launch {
             _cloudSyncLoading.value = true
-            val oldBinId = _hostedBinId.value
-            _hostedBinId.value = null
-            if (oldBinId != null) {
-                val deleteResult = CloudSyncManager().deleteBackup(oldBinId)
-                deleteResult.onFailure { error ->
-                    _cloudSyncLoading.value = false
-                    _hostedBinId.value = oldBinId
-                    _dataTransferMessage.value = "Thu hồi mã cũ thất bại: ${error.message ?: "Unknown"}"
-                    return@launch
-                }
-                context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
-                    .edit().remove("cloudSyncHostedBinId").apply()
-            }
+            val oldBinId = _hostedBinId.value?.trim().orEmpty()
             val json = buildBackupJson().getOrElse { error ->
                 _cloudSyncLoading.value = false
                 _dataTransferMessage.value = error.message ?: "Export failed"
                 return@launch
             }
-            val result = CloudSyncManager().uploadBackup(json)
+
+            if (oldBinId.isNotEmpty()) {
+                val upsert = CloudSyncManager().upsertBackup(oldBinId, json)
+                _cloudSyncLoading.value = false
+                upsert.onSuccess {
+                    _hostedBinId.value = oldBinId
+                    _dataTransferMessage.value = "Đã cập nhật dữ liệu lên mã hiện tại!"
+                }.onFailure {
+                    _dataTransferMessage.value = "Phát dữ liệu thất bại: ${it.message ?: "Unknown"}"
+                }
+                return@launch
+            }
+
+            val created = CloudSyncManager().uploadBackup(json)
             _cloudSyncLoading.value = false
-            result.onSuccess {
+            created.onSuccess {
                 _hostedBinId.value = it
                 _dataTransferMessage.value = "Phát dữ liệu thành công!"
             }.onFailure {
@@ -295,10 +296,23 @@ class HomeViewModel(
         if (autoSyncJob != null) return
         autoSyncJob = viewModelScope.launch {
             while (isActive) {
-                if (!_cloudSyncLoading.value) {
-                    hostData()
+                val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+                val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
+                val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
+
+                if (hosted.isNotEmpty()) {
+                    if (!_cloudSyncLoading.value) uploadToBin(hosted)
+                    delay(30_000L)
+                    continue
                 }
-                delay(15 * 60 * 1000L)
+
+                if (linked.isNotEmpty()) {
+                    silentDownloadAndMerge(linked)
+                    delay(30_000L)
+                    continue
+                }
+
+                delay(30_000L)
             }
         }
     }
