@@ -2,6 +2,14 @@ import SwiftUI
 import SwiftData
 @preconcurrency import UserNotifications
 
+private enum BootKeys {
+    static let stage = "oakBootStage"
+    static let timestampEpoch = "oakBootTimestampEpoch"
+    static let uiReady = "ui_ready"
+    static let bootStarted = "boot_started"
+    static let containerReady = "container_ready"
+}
+
 @main
 struct SupplementTrackerApp: App {
     @AppStorage("appTheme") private var appTheme: String = "system"
@@ -44,6 +52,10 @@ private struct RootLaunchView: View {
             )
             .preferredColorScheme(preferredColorScheme)
             .modelContainer(dependencies.modelContainer)
+            .task {
+                UserDefaults.standard.set(BootKeys.uiReady, forKey: BootKeys.stage)
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+            }
         } else {
             SafeBootView { container in
                 dependencies = container
@@ -110,11 +122,16 @@ private struct SafeBootView: View {
     @MainActor
     private func bootstrap() async {
         try? await Task.sleep(for: .seconds(2))
+        attemptCrashRecoveryIfNeeded()
+        UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
         let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
         guard let container = makeModelContainer(schema: schema) else {
             errorMessage = "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."
             return
         }
+        UserDefaults.standard.set(BootKeys.containerReady, forKey: BootKeys.stage)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
         
         let manager = ActiveClientManager()
         manager.loadFromStorage()
@@ -183,6 +200,19 @@ private struct SafeBootView: View {
             manager.setCurrentClientId(clients.first?.id)
             return
         }
+    }
+    
+    @MainActor
+    private func attemptCrashRecoveryIfNeeded() {
+        let lastStage = UserDefaults.standard.string(forKey: BootKeys.stage) ?? ""
+        guard !lastStage.isEmpty, lastStage != BootKeys.uiReady else { return }
+        let lastEpoch = UserDefaults.standard.double(forKey: BootKeys.timestampEpoch)
+        guard lastEpoch > 0 else { return }
+        let elapsed = Date().timeIntervalSince1970 - lastEpoch
+        guard elapsed < 600 else { return }
+        UserDefaults.standard.removeObject(forKey: "activeClientId")
+        guard let url = persistentStoreURL() else { return }
+        resetPersistentStore(at: url)
     }
 }
 
