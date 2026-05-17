@@ -196,6 +196,15 @@ struct SupplementExportCodec {
         let backup = try decodeBackupCompat(data: data)
         try importBackupData(backup, client: client, context: context)
     }
+
+    static func mergeBackup(
+        data: Data,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws {
+        let backup = try decodeBackupCompat(data: data)
+        try mergeBackupData(backup, client: client, context: context)
+    }
     
     static func importBackupData(
         _ backup: OAKBackupData,
@@ -241,6 +250,89 @@ struct SupplementExportCodec {
         }
         
         try context.save()
+    }
+
+    static func mergeBackupData(
+        _ backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws {
+        let existingSupplements = try supplementsById(clientId: client.id, context: context)
+        let existingRecords = try recordsById(clientId: client.id, context: context)
+        let supplementById = try upsertSupplements(backup: backup, client: client, existing: existingSupplements, context: context)
+        upsertRecords(backup: backup, supplementById: supplementById, existing: existingRecords, context: context)
+        try context.save()
+    }
+
+    private static func supplementsById(
+        clientId: UUID,
+        context: ModelContext
+    ) throws -> [UUID: UserSupplement] {
+        let all = try context.fetch(FetchDescriptor<UserSupplement>())
+        return Dictionary(uniqueKeysWithValues: all.compactMap { s in
+            guard s.client?.id == clientId else { return nil }
+            return (s.id, s)
+        })
+    }
+
+    private static func recordsById(
+        clientId: UUID,
+        context: ModelContext
+    ) throws -> [UUID: IntakeRecord] {
+        let all = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let filtered = all.filter { $0.supplement?.client?.id == clientId }
+        return Dictionary(uniqueKeysWithValues: filtered.map { ($0.id, $0) })
+    }
+
+    private static func upsertSupplements(
+        backup: OAKBackupData,
+        client: ClientProfile,
+        existing: [UUID: UserSupplement],
+        context: ModelContext
+    ) throws -> [UUID: UserSupplement] {
+        var result = existing
+        for dto in backup.stack {
+            let id = UUID(uuidString: dto.id) ?? UUID()
+            let target = result[id] ?? UserSupplement(
+                id: id,
+                name: dto.name,
+                startDate: try dayDate(from: dto.startDate),
+                cycleConfig: cycleConfig(from: dto.cycle),
+                dailyDose: dto.dailyDose,
+                intakeTime: dto.intakeTime,
+                client: client
+            )
+            if result[id] == nil { context.insert(target) }
+            target.name = dto.name
+            target.startDate = try dayDate(from: dto.startDate)
+            target.cycleConfig = cycleConfig(from: dto.cycle)
+            target.dailyDose = dto.dailyDose
+            target.intakeTime = dto.intakeTime
+            target.client = client
+            result[id] = target
+        }
+        return result
+    }
+
+    private static func upsertRecords(
+        backup: OAKBackupData,
+        supplementById: [UUID: UserSupplement],
+        existing: [UUID: IntakeRecord],
+        context: ModelContext
+    ) {
+        for dto in backup.history {
+            let recordId = UUID(uuidString: dto.id) ?? UUID()
+            if let found = existing[recordId] {
+                found.status = dto.status
+                found.date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                continue
+            }
+            let supplementId = UUID(uuidString: dto.supplementId)
+            guard let supplementId, let supplement = supplementById[supplementId] else { continue }
+            let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+            let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
+            context.insert(record)
+        }
     }
     
     static func encode(supplements: [UserSupplement]) throws -> Data {

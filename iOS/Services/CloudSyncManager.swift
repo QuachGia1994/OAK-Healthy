@@ -257,7 +257,7 @@ enum CloudSyncAutoSync {
             print("☁️ Auto-Sync: Client not found in local DB")
             return
         }
-        try? SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+        try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
         print("☁️ Auto-Sync: Download & merge completed")
     }
     

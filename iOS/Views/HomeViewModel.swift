@@ -40,7 +40,7 @@ public final class HomeViewModel {
         let time = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !time.isEmpty else { return }
         let isAlreadyTaken = supplement.intakeRecords.contains {
-            calendar.isDate($0.date, inSameDayAs: today) && $0.intakeTime == time
+            calendar.isDate($0.date, inSameDayAs: today) && ($0.intakeTime.isEmpty || $0.intakeTime == time)
         }
         guard !isAlreadyTaken else { return }
 
@@ -65,7 +65,7 @@ public final class HomeViewModel {
         let time = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !time.isEmpty else { return false }
         return supplement.intakeRecords.contains {
-            calendar.isDate($0.date, inSameDayAs: today) && $0.intakeTime == time
+            calendar.isDate($0.date, inSameDayAs: today) && ($0.intakeTime.isEmpty || $0.intakeTime == time)
         }
     }
     
