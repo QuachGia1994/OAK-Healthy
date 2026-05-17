@@ -293,25 +293,46 @@ struct SupplementExportCodec {
         var result = existing
         for dto in backup.stack {
             let id = UUID(uuidString: dto.id) ?? UUID()
-            let target = result[id] ?? UserSupplement(
-                id: id,
-                name: dto.name,
-                startDate: try dayDate(from: dto.startDate),
-                cycleConfig: cycleConfig(from: dto.cycle),
-                dailyDose: dto.dailyDose,
-                intakeTime: dto.intakeTime,
-                client: client
-            )
-            if result[id] == nil { context.insert(target) }
-            target.name = dto.name
-            target.startDate = try dayDate(from: dto.startDate)
-            target.cycleConfig = cycleConfig(from: dto.cycle)
-            target.dailyDose = dto.dailyDose
-            target.intakeTime = dto.intakeTime
-            target.client = client
-            result[id] = target
+            if let target = result[id] {
+                try apply(dto: dto, to: target, client: client)
+                result[id] = target
+                continue
+            }
+            
+            let created = try makeSupplement(dto: dto, id: id, client: client)
+            context.insert(created)
+            result[id] = created
         }
         return result
+    }
+    
+    private static func makeSupplement(
+        dto: OAKBackupSupplement,
+        id: UUID,
+        client: ClientProfile
+    ) throws -> UserSupplement {
+        UserSupplement(
+            id: id,
+            name: dto.name,
+            startDate: try dayDate(from: dto.startDate),
+            cycleConfig: cycleConfig(from: dto.cycle),
+            dailyDose: dto.dailyDose,
+            intakeTime: dto.intakeTime,
+            client: client
+        )
+    }
+    
+    private static func apply(
+        dto: OAKBackupSupplement,
+        to supplement: UserSupplement,
+        client: ClientProfile
+    ) throws {
+        supplement.name = dto.name
+        supplement.startDate = try dayDate(from: dto.startDate)
+        supplement.cycleConfig = cycleConfig(from: dto.cycle)
+        supplement.dailyDose = dto.dailyDose
+        supplement.intakeTime = dto.intakeTime
+        supplement.client = client
     }
 
     private static func upsertRecords(
