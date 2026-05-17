@@ -107,6 +107,7 @@ private struct SafeBootView: View {
         }
     }
     
+    @MainActor
     private func bootstrap() async {
         try? await Task.sleep(for: .seconds(2))
         let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
@@ -117,6 +118,7 @@ private struct SafeBootView: View {
         
         let manager = ActiveClientManager()
         manager.loadFromStorage()
+        validateActiveClient(manager: manager, container: container)
         
         let delegate = NotificationDelegate()
         UNUserNotificationCenter.current().delegate = delegate
@@ -132,6 +134,7 @@ private struct SafeBootView: View {
         )
     }
     
+    @MainActor
     private func makeModelContainer(schema: Schema) -> ModelContainer? {
         guard let storeURL = persistentStoreURL() else { return try? ModelContainer(for: schema) }
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
@@ -145,6 +148,7 @@ private struct SafeBootView: View {
         }
     }
     
+    @MainActor
     private func persistentStoreURL() -> URL? {
         do {
             let base = try FileManager.default.url(
@@ -160,12 +164,24 @@ private struct SafeBootView: View {
         }
     }
     
+    @MainActor
     private func resetPersistentStore(at url: URL) {
         let fileManager = FileManager.default
         let candidates = [url, URL(fileURLWithPath: url.path + "-shm"), URL(fileURLWithPath: url.path + "-wal")]
         for file in candidates {
             guard fileManager.fileExists(atPath: file.path) else { continue }
             try? fileManager.removeItem(at: file)
+        }
+    }
+    
+    @MainActor
+    private func validateActiveClient(manager: ActiveClientManager, container: ModelContainer) {
+        guard let stored = manager.currentClientId else { return }
+        let context = ModelContext(container)
+        let clients = (try? context.fetch(FetchDescriptor<ClientProfile>())) ?? []
+        guard clients.contains(where: { $0.id == stored }) else {
+            manager.setCurrentClientId(clients.first?.id)
+            return
         }
     }
 }
