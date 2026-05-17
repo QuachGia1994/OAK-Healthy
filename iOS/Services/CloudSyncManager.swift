@@ -124,6 +124,30 @@ public actor CloudSyncManager {
         guard let record else { throw CloudSyncError.invalidResponse }
         return try encodeJSONObject(record)
     }
+
+    public func downloadBackupIfChanged(
+        binId: String
+    ) async throws(CloudSyncError) -> Data? {
+        let apiKey = try requireApiKey()
+        let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
+        
+        let url = Self.baseURL.appendingPathComponent(id).appendingPathComponent("latest")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
+        if let etag = storedEtag(binId: id) { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
+        
+        let (data, http) = try await fetchAny(request: request)
+        if http.statusCode == 304 { return nil }
+        guard (200...299).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
+        }
+        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
+        return try recordData(from: data)
+    }
     
     public func deleteBackup(
         binId: String
@@ -170,6 +194,18 @@ public actor CloudSyncManager {
             throw CloudSyncError.networkError(message: error.localizedDescription)
         }
     }
+    
+    private func fetchAny(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
+            return (data, http)
+        } catch let error as CloudSyncError {
+            throw error
+        } catch {
+            throw CloudSyncError.networkError(message: error.localizedDescription)
+        }
+    }
 
     private func decodeJSONObject(_ data: Data) throws(CloudSyncError) -> Any {
         do {
@@ -186,11 +222,38 @@ public actor CloudSyncManager {
             throw CloudSyncError.decodingError(message: error.localizedDescription)
         }
     }
+    
+    private func recordData(from data: Data) throws(CloudSyncError) -> Data {
+        let obj = try decodeJSONObject(data) as? [String: Any]
+        let record = obj?["record"]
+        guard let record else { throw CloudSyncError.invalidResponse }
+        return try encodeJSONObject(record)
+    }
+    
+    private func responseEtag(http: HTTPURLResponse) -> String? {
+        let raw = http.value(forHTTPHeaderField: "ETag") ?? http.value(forHTTPHeaderField: "Etag")
+        let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+    
+    private func storedEtag(binId: String) -> String? {
+        let key = "cloudSyncEtag_\(binId)"
+        let raw = UserDefaults.standard.string(forKey: key) ?? ""
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+    
+    private func saveEtag(_ etag: String, binId: String) {
+        let trimmed = etag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        UserDefaults.standard.set(trimmed, forKey: "cloudSyncEtag_\(binId)")
+    }
 }
 
 @MainActor
 enum CloudSyncAutoSync {
     private static var realtimeTask: Task<Void, Never>?
+    private static let lastActivityKey = "cloudSyncLastActivityEpoch"
     
     static func startRealtimeSync(
         modelContext: ModelContext,
@@ -216,7 +279,7 @@ enum CloudSyncAutoSync {
                 modelContext: modelContext,
                 clientId: activeClientManager.currentClientId
             )
-            try? await Task.sleep(for: .seconds(10))
+            try? await Task.sleep(for: pollInterval())
         }
     }
     
@@ -227,6 +290,7 @@ enum CloudSyncAutoSync {
             return
         }
         guard let clientId else { return }
+        markActivity()
         print("☁️ Auto-Sync: Uploading to bin \(binId)...")
         let backup = try? makeBackup(modelContext: modelContext, clientId: clientId)
         guard let backup else { return }
@@ -248,8 +312,13 @@ enum CloudSyncAutoSync {
             return
         }
         print("☁️ Auto-Sync: Downloading from bin \(binId)...")
-        guard let data = try? await CloudSyncManager.shared.downloadBackup(binId: binId) else {
+        let result = try? await CloudSyncManager.shared.downloadBackupIfChanged(binId: binId)
+        guard let result else {
             print("☁️ Auto-Sync: Download failed")
+            return
+        }
+        guard let data = result else {
+            print("☁️ Auto-Sync: Not modified")
             return
         }
         let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
@@ -258,7 +327,19 @@ enum CloudSyncAutoSync {
             return
         }
         try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+        markActivity()
         print("☁️ Auto-Sync: Download & merge completed")
+    }
+    
+    private static func markActivity() {
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastActivityKey)
+    }
+    
+    private static func pollInterval() -> Duration {
+        let raw = UserDefaults.standard.double(forKey: lastActivityKey)
+        guard raw > 0 else { return .seconds(60) }
+        let elapsed = Date().timeIntervalSince1970 - raw
+        return elapsed < 60 ? .seconds(10) : .seconds(60)
     }
     
     private static func activeBinId() -> String? {

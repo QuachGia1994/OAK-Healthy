@@ -27,6 +27,7 @@ public struct SettingsView: View {
     @State private var isShowingCopyBinIdAlert: Bool = false
     @State private var isBinIdVisible: Bool = false
     @State private var isRevokingBinId: Bool = false
+    @State private var isShowingRevokeConfirm: Bool = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -180,7 +181,7 @@ public struct SettingsView: View {
                 }
                 
                 Button(role: .destructive) {
-                    Task { await revokeHostedBin() }
+                    isShowingRevokeConfirm = true
                 } label: {
                     if isRevokingBinId {
                         ProgressView()
@@ -189,6 +190,16 @@ public struct SettingsView: View {
                     }
                 }
                 .disabled(isCloudSyncLoading || isRevokingBinId)
+                .confirmationDialog(
+                    "Bạn chắc chắn muốn thu hồi mã? Thiết bị khác sẽ không còn sync được với mã hiện tại.",
+                    isPresented: $isShowingRevokeConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Thu hồi mã", role: .destructive) {
+                        Task { await revokeHostedBin() }
+                    }
+                    Button("Hủy", role: .cancel) {}
+                }
             }
             
             HStack(spacing: 8) {

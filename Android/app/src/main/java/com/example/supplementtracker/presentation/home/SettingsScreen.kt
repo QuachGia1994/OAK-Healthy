@@ -125,6 +125,7 @@ fun SettingsScreen(
         mutableStateOf(settingsPrefs.getString("cloudSyncLinkedBinId", "").orEmpty())
     }
     var isInputVisible by remember { mutableStateOf(false) }
+    var isRevokeConfirmVisible by remember { mutableStateOf(false) }
 
     val allSupplements = remember(uiState, currentClientId) {
         if (currentClientId == null) return@remember emptyList<UserSupplement>()
@@ -428,13 +429,30 @@ fun SettingsScreen(
                             TextButton(
                                 onClick = {
                                     isBinIdVisible = false
-                                    homeViewModel.revokeHostedBin()
+                                    isRevokeConfirmVisible = true
                                 }
                             ) {
                                 Text(
                                     text = "Thu hồi mã",
                                     color = Color(0xFFD32F2F),
                                     fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            
+                            if (isRevokeConfirmVisible) {
+                                AlertDialog(
+                                    onDismissRequest = { isRevokeConfirmVisible = false },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            isRevokeConfirmVisible = false
+                                            homeViewModel.revokeHostedBin()
+                                        }) { Text("Thu hồi") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { isRevokeConfirmVisible = false }) { Text("Hủy") }
+                                    },
+                                    title = { Text("Xác nhận") },
+                                    text = { Text("Bạn chắc chắn muốn thu hồi mã? Thiết bị khác sẽ không còn sync được với mã hiện tại.") }
                                 )
                             }
                         }

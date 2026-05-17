@@ -7,6 +7,8 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
+data class CloudDownload(val json: String?, val etag: String?)
+
 class CloudSyncManager {
     suspend fun uploadBackup(jsonString: String): Result<String> {
         val key = BuildConfig.JSONBIN_API_KEY.trim()
@@ -82,6 +84,37 @@ class CloudSyncManager {
                     is JSONObject -> record.toString()
                     else -> record.toString()
                 }
+            }
+        }
+    }
+
+    suspend fun downloadBackupIfChanged(binId: String, etag: String?): Result<CloudDownload> {
+        val key = BuildConfig.JSONBIN_API_KEY.trim()
+        val id = binId.trim()
+        val tag = etag.orEmpty().trim()
+        if (key.isEmpty()) return Result.failure(IllegalArgumentException("Missing access key"))
+        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val url = URL("$BASE_URL/$id/latest")
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    doInput = true
+                    connectTimeout = 8_000
+                    readTimeout = 12_000
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("X-Master-Key", key)
+                    if (tag.isNotEmpty()) setRequestProperty("If-None-Match", tag)
+                }
+                val code = connection.responseCode
+                val newEtag = connection.getHeaderField("ETag")?.trim()
+                if (code == 304) return@runCatching CloudDownload(null, newEtag ?: tag)
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) error("Server error ($code): $body")
+                val record = JSONObject(body).get("record")
+                val json = if (record is JSONObject) record.toString() else record.toString()
+                CloudDownload(json, newEtag ?: tag)
             }
         }
     }

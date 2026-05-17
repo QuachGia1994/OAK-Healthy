@@ -299,20 +299,21 @@ class HomeViewModel(
                 val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
                 val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
                 val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
+                val delayMs = autoSyncDelayMs(prefs)
 
                 if (hosted.isNotEmpty()) {
                     if (!_cloudSyncLoading.value) uploadToBin(hosted)
-                    delay(30_000L)
+                    delay(delayMs)
                     continue
                 }
 
                 if (linked.isNotEmpty()) {
                     silentDownloadAndMerge(linked)
-                    delay(30_000L)
+                    delay(delayMs)
                     continue
                 }
 
-                delay(30_000L)
+                delay(delayMs)
             }
         }
     }
@@ -334,7 +335,9 @@ class HomeViewModel(
     
     private suspend fun uploadToBin(binId: String) {
         val json = buildBackupJson().getOrElse { return }
-        CloudSyncManager().upsertBackup(binId, json).onFailure { error ->
+        CloudSyncManager().upsertBackup(binId, json).onSuccess {
+            markSyncActivity()
+        }.onFailure { error ->
             Log.d("AutoSync", "☁️ Auto-Sync: Upload failed: ${error.message ?: "Unknown"}")
         }
     }
@@ -366,7 +369,10 @@ class HomeViewModel(
     fun silentDownloadAndMerge(binId: String) {
         viewModelScope.launch {
             Log.d("AutoSync", "☁️ Auto-Sync: Silent download from $binId...")
-            val json = CloudSyncManager().downloadBackup(binId).getOrElse { error ->
+            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            val etagKey = "cloudSyncEtag_${binId.trim()}"
+            val etag = prefs.getString(etagKey, "").orEmpty().trim()
+            val result = CloudSyncManager().downloadBackupIfChanged(binId, etag).getOrElse { error ->
                 val msg = error.message.orEmpty()
                 Log.d("AutoSync", "☁️ Auto-Sync: Silent download failed: $msg")
                 if (msg.contains("404") || msg.contains("not found", ignoreCase = true)) {
@@ -374,9 +380,25 @@ class HomeViewModel(
                 }
                 return@launch
             }
+            val newEtag = result.etag.orEmpty().trim()
+            if (newEtag.isNotEmpty()) prefs.edit().putString(etagKey, newEtag).apply()
+            val json = result.json ?: return@launch
             importBackupFromJson(json)
+            markSyncActivity()
             Log.d("AutoSync", "☁️ Auto-Sync: Silent download & merge completed")
         }
+    }
+
+    private fun markSyncActivity() {
+        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        prefs.edit().putLong("cloudSyncLastActivityEpochMs", System.currentTimeMillis()).apply()
+    }
+
+    private fun autoSyncDelayMs(prefs: android.content.SharedPreferences): Long {
+        val last = prefs.getLong("cloudSyncLastActivityEpochMs", 0L)
+        if (last <= 0L) return 60_000L
+        val elapsed = System.currentTimeMillis() - last
+        return if (elapsed < 60_000L) 15_000L else 60_000L
     }
 
     private fun clearStaleBinId(binId: String) {
