@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ClientProfileEntity::class, SupplementEntity::class, IntakeRecordEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class SupplementDatabase : RoomDatabase() {
@@ -98,6 +98,14 @@ abstract class SupplementDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_intake_records_supplementId ON intake_records(supplementId)")
 
                 db.execSQL("PRAGMA foreign_keys=ON")
+            }
+        }
+        
+        val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE supplements ADD COLUMN weeklyWeekdaysMask INTEGER")
+                db.execSQL("ALTER TABLE supplements ADD COLUMN weeklyIntervalWeeks INTEGER")
+                db.execSQL("ALTER TABLE supplements ADD COLUMN weeklyAnchorDate TEXT")
             }
         }
     }

@@ -35,11 +35,18 @@ enum class IntakeTime(val label: String) {
 /**
  * Cấu hình chu kỳ (On/Off).
  */
+data class WeeklyRecurrenceConfig(
+    val weekdaysMask: Int,
+    val intervalWeeks: Int,
+    val anchorDate: LocalDate
+)
+
 data class CycleConfig(
     val daysOn: Int,
     val daysOff: Int,
     val isContinuous: Boolean = false,
-    val durationMonths: Int? = null
+    val durationMonths: Int? = null,
+    val weeklyRecurrence: WeeklyRecurrenceConfig? = null
 ) {
     companion object {
         val Continuous = CycleConfig(1, 0, true)

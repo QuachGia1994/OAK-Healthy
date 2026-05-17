@@ -78,10 +78,12 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
-        let calendar = Calendar.current
+        let calendar = isoWeekCalendar()
+        let horizonDays = schedulingHorizonDays(for: supplement)
         for timeString in intakeTimes(from: supplement.intakeTime) {
             guard let timeComponents = intakeTimeComponents(from: timeString, calendar: calendar) else { continue }
-            for triggerDate in upcomingTriggerDates(calendar: calendar, timeComponents: timeComponents) {
+            for triggerDate in upcomingTriggerDates(calendar: calendar, timeComponents: timeComponents, horizonDays: horizonDays) {
+                guard matchesWeeklyRecurrenceIfNeeded(supplement: supplement, date: triggerDate, calendar: calendar) else { continue }
                 let status = try? cycleCalculator.determineStatus(
                     for: supplement.startDate,
                     config: supplement.cycleConfig,
@@ -128,9 +130,11 @@ public struct NotificationService: NotificationManaging {
     
     private func upcomingTriggerDates(
         calendar: Calendar,
-        timeComponents: DateComponents
+        timeComponents: DateComponents,
+        horizonDays: Int
     ) -> [Date] {
-        (0..<7).compactMap { dayOffset in
+        let maxDays = max(1, min(56, horizonDays))
+        return (0..<maxDays).compactMap { dayOffset in
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: .now) else { return nil }
             let hour = timeComponents.hour ?? 8
             let minute = timeComponents.minute ?? 0
@@ -276,5 +280,56 @@ public struct NotificationService: NotificationManaging {
         let dayInOff = dayInCycle - config.daysOn
         let offTotal = max(config.daysOff, 1)
         return "Nghỉ \(dayInOff)/\(offTotal)"
+    }
+    
+    private func schedulingHorizonDays(for supplement: UserSupplement) -> Int {
+        guard let weekly = supplement.cycleConfig.weeklyRecurrence else { return 7 }
+        let interval = max(1, weekly.intervalWeeks)
+        return min(56, max(7, interval * 7))
+    }
+    
+    private func matchesWeeklyRecurrenceIfNeeded(
+        supplement: UserSupplement,
+        date: Date,
+        calendar: Calendar
+    ) -> Bool {
+        guard let weekly = supplement.cycleConfig.weeklyRecurrence else { return true }
+        guard let weekdayBit = weekdayBitIndex(for: date, calendar: calendar) else { return true }
+        guard (weekly.weekdaysMask & (1 << weekdayBit)) != 0 else { return false }
+        let interval = max(1, weekly.intervalWeeks)
+        let anchorWeekStart = startOfISOWeek(for: weekly.anchorDate, calendar: calendar)
+        let dateWeekStart = startOfISOWeek(for: date, calendar: calendar)
+        let days = calendar.dateComponents([.day], from: anchorWeekStart, to: dateWeekStart).day ?? 0
+        let weeks = days / 7
+        let mod = ((weeks % interval) + interval) % interval
+        return mod == 0
+    }
+    
+    private func weekdayBitIndex(for date: Date, calendar: Calendar) -> Int? {
+        let weekday = calendar.component(.weekday, from: date)
+        return switch weekday {
+        case 2: 0
+        case 3: 1
+        case 4: 2
+        case 5: 3
+        case 6: 4
+        case 7: 5
+        case 1: 6
+        default: nil
+        }
+    }
+    
+    private func startOfISOWeek(for date: Date, calendar: Calendar) -> Date {
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return calendar.date(from: components) ?? calendar.startOfDay(for: date)
+    }
+    
+    private func isoWeekCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.firstWeekday = 2
+        calendar.minimumDaysInFirstWeek = 4
+        calendar.timeZone = .current
+        return calendar
     }
 }

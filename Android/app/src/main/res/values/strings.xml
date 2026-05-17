@@ -40,6 +40,7 @@
     <string name="supplement_note_omega_3">Take after a fatty meal for best absorption.</string>
     <string name="supplement_note_coq10">Supports cellular energy. Take after a meal.</string>
     <string name="supplement_note_creatine">Supports strength and performance. Take daily.</string>
+    <string name="supplement_note_nac">Suggested: take near bedtime (about 30–60 minutes before sleep). If you are sensitive, avoid taking too late.</string>
     <string name="supplement_note_zinc">Avoid taking on an empty stomach.</string>
 
     <string name="appearance_title">Appearance</string>
@@ -71,6 +72,10 @@
     <string name="daily_dose_hint">Daily dose</string>
     <string name="schedule_cycle_title">Schedule &amp; Cycle</string>
     <string name="intake_time">Intake time: %1$s</string>
+    <string name="repeat_weekly">Repeat by weekdays</string>
+    <string name="repeat_on_weekdays">Repeat on</string>
+    <string name="repeat_every_weeks">Every (weeks)</string>
+    <string name="every_x_weeks_format">Every %1$d week(s)</string>
     <string name="continuous">Continuous</string>
     <string name="on_days">On Days</string>
     <string name="off_days">Off Days</string>

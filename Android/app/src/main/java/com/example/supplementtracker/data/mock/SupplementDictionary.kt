@@ -68,6 +68,13 @@ object SupplementDictionary {
             defaultCycle = CycleConfig.Continuous
         ),
         Entry(
+            name = "NAC",
+            adviceResId = R.string.supplement_note_nac,
+            preferredTime = "22:00",
+            preferredDose = null,
+            defaultCycle = CycleConfig.Continuous
+        ),
+        Entry(
             name = "Magnesium",
             adviceResId = R.string.supplement_note_magnesium,
             preferredTime = "21:00",

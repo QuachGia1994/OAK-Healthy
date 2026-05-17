@@ -40,7 +40,7 @@ class NotificationReceiver : BroadcastReceiver() {
                 SupplementDatabase::class.java,
                 SupplementDatabase.DATABASE_NAME
             )
-                .addMigrations(SupplementDatabase.MIGRATION_2_3)
+                .addMigrations(SupplementDatabase.MIGRATION_2_3, SupplementDatabase.MIGRATION_3_4)
                 .fallbackToDestructiveMigration()
                 .build()
             

@@ -9,6 +9,7 @@ import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.Resource
 import com.example.supplementtracker.domain.model.SupplementReference
 import com.example.supplementtracker.domain.model.UserSupplement
+import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
 import com.example.supplementtracker.domain.usecase.SearchSupplementUseCase
@@ -82,6 +83,9 @@ class AddSupplementViewModel(
                 isContinuous = reference.defaultCycle.isContinuous,
                 daysOn = reference.defaultCycle.daysOn.toString(),
                 daysOff = reference.defaultCycle.daysOff.toString(),
+                isWeeklyRecurrenceEnabled = false,
+                weekdaysMask = 127,
+                intervalWeeks = "1",
                 suggestions = emptyList()
             )
         }
@@ -103,6 +107,29 @@ class AddSupplementViewModel(
         _state.update { it.copy(isContinuous = continuous) }
     }
 
+    fun onWeeklyRecurrenceToggle(enabled: Boolean) {
+        _state.update {
+            it.copy(
+                isWeeklyRecurrenceEnabled = enabled,
+                weekdaysMask = if (enabled) it.weekdaysMask else it.weekdaysMask,
+                intervalWeeks = if (enabled) it.intervalWeeks else it.intervalWeeks
+            )
+        }
+    }
+    
+    fun toggleWeekday(bitIndex: Int) {
+        if (bitIndex !in 0..6) return
+        _state.update {
+            val bit = 1 shl bitIndex
+            val next = if ((it.weekdaysMask and bit) != 0) it.weekdaysMask and bit.inv() else it.weekdaysMask or bit
+            it.copy(weekdaysMask = if (next == 0) bit else next)
+        }
+    }
+    
+    fun onIntervalWeeksChange(value: String) {
+        _state.update { it.copy(intervalWeeks = value) }
+    }
+    
     fun onDurationChange(duration: String) {
         _state.update { it.copy(durationMonths = duration) }
     }
@@ -122,6 +149,7 @@ class AddSupplementViewModel(
     fun loadSupplementForEdit(supplementId: String) {
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
+            val weekly = supplement.cycleConfig.weeklyRecurrence
             _state.update {
                 it.copy(
                     editingSupplementId = supplement.id.toString(),
@@ -133,6 +161,9 @@ class AddSupplementViewModel(
                     daysOff = supplement.cycleConfig.daysOff.toString(),
                     durationMonths = supplement.cycleConfig.durationMonths?.toString() ?: "",
                     dailyDose = supplement.dailyDose,
+                    isWeeklyRecurrenceEnabled = weekly != null,
+                    weekdaysMask = weekly?.weekdaysMask ?: 127,
+                    intervalWeeks = weekly?.intervalWeeks?.toString() ?: "1",
                     suggestions = emptyList(),
                     error = null
                 )
@@ -174,12 +205,19 @@ class AddSupplementViewModel(
                     name = name,
                     startDate = currentState.startDate,
                     cycleConfig = if (currentState.isContinuous) {
-                        CycleConfig.Continuous
+                        CycleConfig(
+                            daysOn = 1,
+                            daysOff = 0,
+                            isContinuous = true,
+                            durationMonths = null,
+                            weeklyRecurrence = weeklyConfigIfNeeded(currentState)
+                        )
                     } else {
                         CycleConfig(
                             daysOn = daysOn ?: 1,
                             daysOff = daysOff ?: 0,
-                            durationMonths = currentState.durationMonths.toIntOrNull()
+                            durationMonths = currentState.durationMonths.toIntOrNull(),
+                            weeklyRecurrence = weeklyConfigIfNeeded(currentState)
                         )
                     },
                     dailyDose = currentState.dailyDose,
@@ -215,4 +253,15 @@ class AddSupplementViewModel(
     }
     
     // Các hàm update khác cho daysOn, daysOff, startDate...
+    
+    private fun weeklyConfigIfNeeded(state: AddSupplementState): WeeklyRecurrenceConfig? {
+        if (!state.isWeeklyRecurrenceEnabled) return null
+        val interval = state.intervalWeeks.toIntOrNull() ?: 1
+        val safeInterval = if (interval <= 0) 1 else interval
+        return WeeklyRecurrenceConfig(
+            weekdaysMask = state.weekdaysMask,
+            intervalWeeks = safeInterval,
+            anchorDate = state.startDate
+        )
+    }
 }

@@ -6,6 +6,7 @@ import com.example.supplementtracker.data.local.ClientProfileEntity
 import com.example.supplementtracker.data.mapper.toDomain
 import com.example.supplementtracker.data.mapper.toEntity
 import com.example.supplementtracker.domain.model.CycleConfig
+import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
 import com.example.supplementtracker.domain.model.ClientProfile
@@ -73,6 +74,12 @@ class SupplementRepositoryImpl(
     ): Flow<List<UserSupplementTakenToday>> {
         return dao.getSupplementsWithTakenToday(clientId, startOfDay, endOfDay).map { rows ->
             rows.map { row ->
+                val weekly = run {
+                    val mask = row.weeklyWeekdaysMask ?: return@run null
+                    val interval = row.weeklyIntervalWeeks ?: return@run null
+                    val anchor = row.weeklyAnchorDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@run null
+                    WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
+                }
                 val supplement = UserSupplement(
                     id = UUID.fromString(row.id),
                     clientId = UUID.fromString(row.clientId),
@@ -82,7 +89,8 @@ class SupplementRepositoryImpl(
                         daysOn = row.daysOn,
                         daysOff = row.daysOff,
                         isContinuous = row.isContinuous,
-                        durationMonths = row.durationMonths
+                        durationMonths = row.durationMonths,
+                        weeklyRecurrence = weekly
                     ),
                     dailyDose = row.dailyDose,
                     intakeTime = row.intakeTime

@@ -12,6 +12,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.time.temporal.WeekFields
 
 data class ScheduledAlarmInfo(
     val requestCode: Int,
@@ -83,11 +85,17 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         val time = parseTime(supplement.intakeTime)
         val now = LocalDateTime.now()
         val today = LocalDate.now()
+        val horizonDays = schedulingHorizonDays(supplement)
 
-        for (dayOffset in 0..6) {
+        for (dayOffset in 0 until horizonDays) {
             val date = today.plusDays(dayOffset.toLong())
             val scheduledTime = LocalDateTime.of(date, time)
             if (scheduledTime.isBefore(now)) continue
+            
+            if (!matchesWeeklyRecurrenceIfNeeded(supplement, date)) {
+                cancelByRequestCode(requestCode(supplement, date))
+                continue
+            }
             
             val status = cycleUseCase(
                 startDate = supplement.startDate,
@@ -128,7 +136,8 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
     override fun cancel(supplement: UserSupplement) {
         cancelLegacy(supplement)
         val today = LocalDate.now()
-        for (dayOffset in 0..6) {
+        val horizonDays = schedulingHorizonDays(supplement)
+        for (dayOffset in 0 until horizonDays) {
             val date = today.plusDays(dayOffset.toLong())
             cancelByRequestCode(requestCode(supplement, date))
         }
@@ -179,5 +188,40 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         val dayInOff = dayInCycle - config.daysOn
         val offTotal = if (config.daysOff <= 0) 1 else config.daysOff
         return "Nghỉ $dayInOff/$offTotal"
+    }
+    
+    private fun schedulingHorizonDays(supplement: UserSupplement): Int {
+        val weekly = supplement.cycleConfig.weeklyRecurrence ?: return 7
+        val interval = weekly.intervalWeeks.coerceAtLeast(1)
+        return (interval * 7).coerceIn(7, 56)
+    }
+    
+    private fun matchesWeeklyRecurrenceIfNeeded(supplement: UserSupplement, date: LocalDate): Boolean {
+        val weekly = supplement.cycleConfig.weeklyRecurrence ?: return true
+        val bitIndex = weekdayBitIndex(date) ?: return true
+        if ((weekly.weekdaysMask and (1 shl bitIndex)) == 0) return false
+        val interval = weekly.intervalWeeks.coerceAtLeast(1)
+        val anchorStart = startOfIsoWeek(weekly.anchorDate)
+        val dateStart = startOfIsoWeek(date)
+        val weeks = ChronoUnit.WEEKS.between(anchorStart, dateStart).toInt()
+        val mod = ((weeks % interval) + interval) % interval
+        return mod == 0
+    }
+    
+    private fun weekdayBitIndex(date: LocalDate): Int? {
+        return when (date.dayOfWeek) {
+            java.time.DayOfWeek.MONDAY -> 0
+            java.time.DayOfWeek.TUESDAY -> 1
+            java.time.DayOfWeek.WEDNESDAY -> 2
+            java.time.DayOfWeek.THURSDAY -> 3
+            java.time.DayOfWeek.FRIDAY -> 4
+            java.time.DayOfWeek.SATURDAY -> 5
+            java.time.DayOfWeek.SUNDAY -> 6
+        }
+    }
+    
+    private fun startOfIsoWeek(date: LocalDate): LocalDate {
+        val fields = WeekFields.ISO
+        return date.with(fields.dayOfWeek(), 1)
     }
 }

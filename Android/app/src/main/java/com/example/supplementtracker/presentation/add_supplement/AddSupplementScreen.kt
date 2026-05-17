@@ -2,9 +2,11 @@ package com.example.supplementtracker.presentation.add_supplement
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -80,6 +82,8 @@ fun AddSupplementScreen(
                                 (state.daysOn.toIntOrNull() ?: 0) > 0 &&
                                     (state.daysOff.toIntOrNull() ?: -1) >= 0
                                 )
+                            ) && (
+                            !state.isWeeklyRecurrenceEnabled || (state.intervalWeeks.toIntOrNull() ?: 0) > 0
                             )
                         Button(onClick = onSave, enabled = isFormValid) {
                             Text(stringResource(R.string.save))
@@ -200,6 +204,59 @@ fun AddSupplementScreen(
                 Switch(
                     checked = state.isContinuous,
                     onCheckedChange = viewModel::onContinuousToggle
+                )
+            }
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.repeat_weekly))
+                Spacer(modifier = Modifier.weight(1f))
+                Switch(
+                    checked = state.isWeeklyRecurrenceEnabled,
+                    onCheckedChange = viewModel::onWeeklyRecurrenceToggle
+                )
+            }
+            
+            if (state.isWeeklyRecurrenceEnabled) {
+                val labels = listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN")
+                val selectedDays = labels.mapIndexedNotNull { index, label ->
+                    if (((state.weekdaysMask shr index) and 1) == 1) label else null
+                }
+                val interval = (state.intervalWeeks.toIntOrNull() ?: 1).coerceAtLeast(1)
+                Text(
+                    text = stringResource(R.string.repeat_on_weekdays),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    labels.forEachIndexed { index, label ->
+                        val selected = ((state.weekdaysMask shr index) and 1) == 1
+                        FilterChip(
+                            selected = selected,
+                            onClick = { viewModel.toggleWeekday(index) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = state.intervalWeeks,
+                    onValueChange = viewModel::onIntervalWeeksChange,
+                    label = { Text(stringResource(R.string.repeat_every_weeks)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Text(
+                    text = "${selectedDays.joinToString(", ")} • ${stringResource(R.string.every_x_weeks_format, interval)}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 

@@ -2,7 +2,7 @@ package com.example.supplementtracker.data.mapper
 
 import com.example.supplementtracker.data.local.SupplementEntity
 import com.example.supplementtracker.domain.model.CycleConfig
-import com.example.supplementtracker.domain.model.IntakeTime
+import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import java.time.LocalDate
 import java.util.*
@@ -21,11 +21,20 @@ fun UserSupplement.toEntity(): SupplementEntity {
         isContinuous = cycleConfig.isContinuous,
         durationMonths = cycleConfig.durationMonths,
         dailyDose = dailyDose,
-        intakeTime = intakeTime
+        intakeTime = intakeTime,
+        weeklyWeekdaysMask = cycleConfig.weeklyRecurrence?.weekdaysMask,
+        weeklyIntervalWeeks = cycleConfig.weeklyRecurrence?.intervalWeeks,
+        weeklyAnchorDate = cycleConfig.weeklyRecurrence?.anchorDate?.toString()
     )
 }
 
 fun SupplementEntity.toDomain(): UserSupplement {
+    val weekly = run {
+        val mask = weeklyWeekdaysMask ?: return@run null
+        val interval = weeklyIntervalWeeks ?: return@run null
+        val anchor = weeklyAnchorDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@run null
+        WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
+    }
     return UserSupplement(
         id = UUID.fromString(id),
         clientId = UUID.fromString(clientId),
@@ -35,7 +44,8 @@ fun SupplementEntity.toDomain(): UserSupplement {
             daysOn = daysOn,
             daysOff = daysOff,
             isContinuous = isContinuous,
-            durationMonths = durationMonths
+            durationMonths = durationMonths,
+            weeklyRecurrence = weekly
         ),
         dailyDose = dailyDose,
         intakeTime = intakeTime

@@ -15,6 +15,9 @@ public final class AddSupplementViewModel {
     public var durationMonths: String = ""
     public var dailyDose: String = ""
     public var isContinuous: Bool = false
+    public var isWeeklyRecurrenceEnabled: Bool = false
+    public var weekdaysMask: Int = 127
+    public var intervalWeeks: String = "1"
     
     public var suggestions: [SupplementReference] = []
     public var isLoading: Bool = false
@@ -47,6 +50,11 @@ public final class AddSupplementViewModel {
             daysOn = String(supplement.cycleConfig.daysOn)
             daysOff = String(supplement.cycleConfig.daysOff)
             durationMonths = supplement.cycleConfig.durationMonths.map(String.init) ?? ""
+            if let weekly = supplement.cycleConfig.weeklyRecurrence {
+                isWeeklyRecurrenceEnabled = true
+                weekdaysMask = weekly.weekdaysMask
+                intervalWeeks = String(weekly.intervalWeeks)
+            }
             
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm"
@@ -132,7 +140,21 @@ public final class AddSupplementViewModel {
         isContinuous = reference.defaultCycle.isContinuous
         daysOn = String(reference.defaultCycle.daysOn)
         daysOff = String(reference.defaultCycle.daysOff)
+        isWeeklyRecurrenceEnabled = false
+        weekdaysMask = 127
+        intervalWeeks = "1"
         suggestions = []
+    }
+    
+    public func toggleWeekday(bitIndex: Int) {
+        guard bitIndex >= 0, bitIndex <= 6 else { return }
+        let bit = 1 << bitIndex
+        if (weekdaysMask & bit) != 0 {
+            weekdaysMask &= ~bit
+        } else {
+            weekdaysMask |= bit
+        }
+        if weekdaysMask == 0 { weekdaysMask = bit }
     }
     
     /// Tạo đối tượng UserSupplement hoàn chỉnh.
@@ -140,12 +162,15 @@ public final class AddSupplementViewModel {
         guard !name.isEmpty else { return nil }
         guard let activeClient else { return nil }
         
-        let config = isContinuous 
-            ? CycleConfig.continuous 
+        let weekly = makeWeeklyRecurrenceIfNeeded()
+        let config = isContinuous
+            ? CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, durationMonths: nil, weeklyRecurrence: weekly)
             : CycleConfig(
-                daysOn: Int(daysOn) ?? 1, 
+                daysOn: Int(daysOn) ?? 1,
                 daysOff: Int(daysOff) ?? 0,
-                durationMonths: Int(durationMonths)
+                isContinuous: false,
+                durationMonths: Int(durationMonths),
+                weeklyRecurrence: weekly
             )
         
         let formatter = DateFormatter()
@@ -161,5 +186,12 @@ public final class AddSupplementViewModel {
             intakeTime: timeString,
             client: activeClient
         )
+    }
+    
+    private func makeWeeklyRecurrenceIfNeeded() -> WeeklyRecurrenceConfig? {
+        guard isWeeklyRecurrenceEnabled else { return nil }
+        let interval = Int(intervalWeeks) ?? 1
+        let anchor = Calendar.current.startOfDay(for: startDate)
+        return WeeklyRecurrenceConfig(weekdaysMask: weekdaysMask, intervalWeeks: interval, anchorDate: anchor)
     }
 }

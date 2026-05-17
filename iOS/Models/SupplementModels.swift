@@ -21,6 +21,18 @@ public enum IntakeTime: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public struct WeeklyRecurrenceConfig: Codable, Sendable, Equatable {
+    public let weekdaysMask: Int
+    public let intervalWeeks: Int
+    public let anchorDate: Date
+    
+    public init(weekdaysMask: Int, intervalWeeks: Int, anchorDate: Date) {
+        self.weekdaysMask = weekdaysMask
+        self.intervalWeeks = max(1, intervalWeeks)
+        self.anchorDate = anchorDate
+    }
+}
+
 /// Cấu hình chu kỳ uống (Cycling On/Off).
 ///
 /// Chứa thông tin về số ngày uống (On) và số ngày nghỉ (Off).
@@ -33,6 +45,7 @@ public struct CycleConfig: Codable, Sendable, Equatable {
     public let isContinuous: Bool
     /// Tổng thời hạn tính bằng tháng (nil là vô thời hạn).
     public let durationMonths: Int?
+    public let weeklyRecurrence: WeeklyRecurrenceConfig?
     
     /// Khởi tạo cấu hình chu kỳ.
     /// - Parameters:
@@ -40,15 +53,22 @@ public struct CycleConfig: Codable, Sendable, Equatable {
     ///   - daysOff: Số ngày nghỉ.
     ///   - isContinuous: Có uống liên tục hay không.
     ///   - durationMonths: Tổng thời hạn.
-    public init(daysOn: Int, daysOff: Int, isContinuous: Bool = false, durationMonths: Int? = nil) {
+    public init(
+        daysOn: Int,
+        daysOff: Int,
+        isContinuous: Bool = false,
+        durationMonths: Int? = nil,
+        weeklyRecurrence: WeeklyRecurrenceConfig? = nil
+    ) {
         self.daysOn = daysOn
         self.daysOff = daysOff
         self.isContinuous = isContinuous
         self.durationMonths = durationMonths
+        self.weeklyRecurrence = weeklyRecurrence
     }
     
     /// Cấu hình mặc định cho việc uống liên tục.
-    public static let continuous = CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true)
+    public static let continuous = CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, weeklyRecurrence: nil)
 }
 
 /// Dữ liệu chất bổ sung của người dùng (SwiftData Model).

@@ -24,12 +24,18 @@ struct SupplementExportCycle: Codable, Sendable {
     var daysOn: Int
     var daysOff: Int
     var durationMonths: Int?
+    var weeklyWeekdaysMask: Int?
+    var weeklyIntervalWeeks: Int?
+    var weeklyAnchorDate: String?
 
     enum CodingKeys: String, CodingKey {
         case isContinuous
         case daysOn
         case daysOff
         case durationMonths
+        case weeklyWeekdaysMask
+        case weeklyIntervalWeeks
+        case weeklyAnchorDate
     }
 }
 
@@ -144,7 +150,10 @@ struct SupplementExportCodec {
                         isContinuous: supplement.cycleConfig.isContinuous,
                         daysOn: supplement.cycleConfig.daysOn,
                         daysOff: supplement.cycleConfig.daysOff,
-                        durationMonths: supplement.cycleConfig.durationMonths
+                        durationMonths: supplement.cycleConfig.durationMonths,
+                        weeklyWeekdaysMask: supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
+                        weeklyIntervalWeeks: supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
+                        weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) }
                     )
                 )
             },
@@ -371,7 +380,10 @@ struct SupplementExportCodec {
                         isContinuous: supplement.cycleConfig.isContinuous,
                         daysOn: supplement.cycleConfig.daysOn,
                         daysOff: supplement.cycleConfig.daysOff,
-                        durationMonths: supplement.cycleConfig.durationMonths
+                        durationMonths: supplement.cycleConfig.durationMonths,
+                        weeklyWeekdaysMask: supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
+                        weeklyIntervalWeeks: supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
+                        weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) }
                     )
                 )
             }
@@ -455,11 +467,19 @@ struct SupplementExportCodec {
     }
     
     private static func cycleConfig(from dto: SupplementExportCycle) -> CycleConfig {
+        let weekly: WeeklyRecurrenceConfig? = {
+            guard let mask = dto.weeklyWeekdaysMask else { return nil }
+            guard let interval = dto.weeklyIntervalWeeks else { return nil }
+            guard let anchorString = dto.weeklyAnchorDate else { return nil }
+            guard let anchorDate = try? dayDate(from: anchorString) else { return nil }
+            return WeeklyRecurrenceConfig(weekdaysMask: mask, intervalWeeks: interval, anchorDate: anchorDate)
+        }()
         CycleConfig(
             daysOn: dto.daysOn,
             daysOff: dto.daysOff,
             isContinuous: dto.isContinuous,
-            durationMonths: dto.durationMonths
+            durationMonths: dto.durationMonths,
+            weeklyRecurrence: weekly
         )
     }
     

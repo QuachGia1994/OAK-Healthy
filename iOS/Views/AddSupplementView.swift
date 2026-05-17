@@ -110,6 +110,7 @@ public struct AddSupplementView: View {
         Section {
             DatePicker("start_date".localized, selection: $viewModel.startDate, displayedComponents: .date)
             DatePicker("intake_time".localized, selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
+            weeklyRecurrenceControls
             Toggle("continuous".localized, isOn: $viewModel.isContinuous)
             
             if !viewModel.isContinuous {
@@ -149,6 +150,51 @@ public struct AddSupplementView: View {
         } header: {
             Text("schedule_cycle_title".localized)
         }
+    }
+    
+    private var weeklyRecurrenceControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle("repeat_weekly".localized, isOn: $viewModel.isWeeklyRecurrenceEnabled)
+            if viewModel.isWeeklyRecurrenceEnabled {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("repeat_on_weekdays".localized)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        ForEach(Array(weekdayLabels.enumerated()), id: \.offset) { index, label in
+                            let isSelected = (viewModel.weekdaysMask & (1 << index)) != 0
+                            Button(label) { viewModel.toggleWeekday(bitIndex: index) }
+                                .buttonStyle(isSelected ? .borderedProminent : .bordered)
+                                .tint(isSelected ? .accentColor : .gray.opacity(0.25))
+                        }
+                    }
+                    HStack {
+                        Text("repeat_every".localized)
+                        Spacer()
+                        TextField("1", text: $viewModel.intervalWeeks)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 80)
+                    }
+                    Text(weeklySummaryText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+    
+    private var weekdayLabels: [String] {
+        ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+    }
+    
+    private var weeklySummaryText: String {
+        let days = weekdayLabels.enumerated().compactMap { index, label in
+            (viewModel.weekdaysMask & (1 << index)) != 0 ? label : nil
+        }
+        let every = max(1, Int(viewModel.intervalWeeks) ?? 1)
+        let dayText = days.isEmpty ? "-" : days.joined(separator: ", ")
+        return "\(dayText) • \(String(format: "every_x_weeks_format".localized, every))"
     }
 }
 

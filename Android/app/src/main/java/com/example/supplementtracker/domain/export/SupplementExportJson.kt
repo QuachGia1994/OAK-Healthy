@@ -66,6 +66,9 @@ object SupplementExportJson {
         obj.put("daysOn", dto.daysOn)
         obj.put("daysOff", dto.daysOff)
         obj.put("durationMonths", dto.durationMonths)
+        obj.put("weeklyWeekdaysMask", dto.weeklyWeekdaysMask)
+        obj.put("weeklyIntervalWeeks", dto.weeklyIntervalWeeks)
+        obj.put("weeklyAnchorDate", dto.weeklyAnchorDate)
         return obj
     }
 
@@ -74,7 +77,10 @@ object SupplementExportJson {
             isContinuous = obj.optBoolean("isContinuous", false),
             daysOn = obj.optInt("daysOn", 1),
             daysOff = obj.optInt("daysOff", 0),
-            durationMonths = obj.optInt("durationMonths", -1).takeIf { it >= 0 }
+            durationMonths = obj.optInt("durationMonths", -1).takeIf { it >= 0 },
+            weeklyWeekdaysMask = obj.optInt("weeklyWeekdaysMask", -1).takeIf { it >= 0 },
+            weeklyIntervalWeeks = obj.optInt("weeklyIntervalWeeks", -1).takeIf { it >= 1 },
+            weeklyAnchorDate = obj.optString("weeklyAnchorDate", "").ifBlank { null }
         )
     }
 }
@@ -222,6 +228,9 @@ object OAKBackupJson {
         obj.put("daysOn", dto.daysOn)
         obj.put("daysOff", dto.daysOff)
         obj.put("durationMonths", dto.durationMonths)
+        obj.put("weeklyWeekdaysMask", dto.weeklyWeekdaysMask)
+        obj.put("weeklyIntervalWeeks", dto.weeklyIntervalWeeks)
+        obj.put("weeklyAnchorDate", dto.weeklyAnchorDate)
         return obj
     }
 
@@ -230,7 +239,10 @@ object OAKBackupJson {
             isContinuous = obj.optBoolean("isContinuous", false),
             daysOn = obj.optInt("daysOn", 1),
             daysOff = obj.optInt("daysOff", 0),
-            durationMonths = obj.optInt("durationMonths", -1).takeIf { it >= 0 }
+            durationMonths = obj.optInt("durationMonths", -1).takeIf { it >= 0 },
+            weeklyWeekdaysMask = obj.optInt("weeklyWeekdaysMask", -1).takeIf { it >= 0 },
+            weeklyIntervalWeeks = obj.optInt("weeklyIntervalWeeks", -1).takeIf { it >= 1 },
+            weeklyAnchorDate = obj.optString("weeklyAnchorDate", "").ifBlank { null }
         )
     }
 }

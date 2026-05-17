@@ -88,6 +88,9 @@ interface SupplementDao {
             s.durationMonths AS durationMonths,
             s.dailyDose AS dailyDose,
             s.intakeTime AS intakeTime,
+            s.weeklyWeekdaysMask AS weeklyWeekdaysMask,
+            s.weeklyIntervalWeeks AS weeklyIntervalWeeks,
+            s.weeklyAnchorDate AS weeklyAnchorDate,
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -180,5 +183,8 @@ data class SupplementWithTakenTodayEntity(
     val durationMonths: Int?,
     val dailyDose: String,
     val intakeTime: String,
+    val weeklyWeekdaysMask: Int?,
+    val weeklyIntervalWeeks: Int?,
+    val weeklyAnchorDate: String?,
     val isTakenToday: Boolean
 )

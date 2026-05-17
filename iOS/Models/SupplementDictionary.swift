@@ -56,6 +56,13 @@ public enum SupplementDictionary {
             defaultCycle: .continuous
         ),
         SupplementReference(
+            name: "NAC",
+            advice: "supplement_advice_nac",
+            preferredTime: "22:00",
+            preferredDose: nil,
+            defaultCycle: .continuous
+        ),
+        SupplementReference(
             name: "Magnesium",
             advice: "supplement_advice_magnesium",
             preferredTime: "21:00",

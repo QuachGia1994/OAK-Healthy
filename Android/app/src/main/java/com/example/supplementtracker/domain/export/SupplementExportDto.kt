@@ -19,7 +19,10 @@ data class SupplementExportCycleDTO(
     val isContinuous: Boolean,
     val daysOn: Int,
     val daysOff: Int,
-    val durationMonths: Int?
+    val durationMonths: Int?,
+    val weeklyWeekdaysMask: Int? = null,
+    val weeklyIntervalWeeks: Int? = null,
+    val weeklyAnchorDate: String? = null
 )
 
 object SupplementExportSchema {

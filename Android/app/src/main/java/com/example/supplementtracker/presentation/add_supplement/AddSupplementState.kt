@@ -17,6 +17,9 @@ data class AddSupplementState(
     val durationMonths: String = "",
     val dailyDose: String = "",
     val isContinuous: Boolean = false,
+    val isWeeklyRecurrenceEnabled: Boolean = false,
+    val weekdaysMask: Int = 127,
+    val intervalWeeks: String = "1",
     val suggestions: List<SupplementReference> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null

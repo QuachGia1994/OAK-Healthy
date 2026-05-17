@@ -84,6 +84,7 @@ public final class HomeViewModel {
     /// - Parameter supplements: Danh sách từ SwiftData.
     public func processSupplements(_ supplements: [UserSupplement]) {
         let today = Date.now
+        let calendar = isoWeekCalendar()
         var active: [String: [UserSupplement]] = [:]
         var resting: [RestingSupplementInfo] = []
         
@@ -94,7 +95,7 @@ public final class HomeViewModel {
                 at: today
             )
             
-            if status == .on {
+            if status == .on, matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: today, calendar: calendar) {
                 for time in intakeTimes(from: supplement.intakeTime) {
                     active[time, default: []].append(supplement)
                 }
@@ -127,5 +128,46 @@ public final class HomeViewModel {
         
         let dayInCycle = daysElapsed % totalCycleDays
         return totalCycleDays - dayInCycle
+    }
+    
+    private func matchesWeeklyRecurrenceIfNeeded(config: CycleConfig, date: Date, calendar: Calendar) -> Bool {
+        guard let weekly = config.weeklyRecurrence else { return true }
+        guard let weekdayBit = weekdayBitIndex(for: date, calendar: calendar) else { return true }
+        guard (weekly.weekdaysMask & (1 << weekdayBit)) != 0 else { return false }
+        let interval = max(1, weekly.intervalWeeks)
+        let anchorWeekStart = startOfISOWeek(for: weekly.anchorDate, calendar: calendar)
+        let dateWeekStart = startOfISOWeek(for: date, calendar: calendar)
+        let days = calendar.dateComponents([.day], from: anchorWeekStart, to: dateWeekStart).day ?? 0
+        let weeks = days / 7
+        let mod = ((weeks % interval) + interval) % interval
+        return mod == 0
+    }
+    
+    private func weekdayBitIndex(for date: Date, calendar: Calendar) -> Int? {
+        let weekday = calendar.component(.weekday, from: date)
+        return switch weekday {
+        case 2: 0
+        case 3: 1
+        case 4: 2
+        case 5: 3
+        case 6: 4
+        case 7: 5
+        case 1: 6
+        default: nil
+        }
+    }
+    
+    private func startOfISOWeek(for date: Date, calendar: Calendar) -> Date {
+        let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return calendar.date(from: components) ?? calendar.startOfDay(for: date)
+    }
+    
+    private func isoWeekCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.firstWeekday = 2
+        calendar.minimumDaysInFirstWeek = 4
+        calendar.timeZone = .current
+        return calendar
     }
 }

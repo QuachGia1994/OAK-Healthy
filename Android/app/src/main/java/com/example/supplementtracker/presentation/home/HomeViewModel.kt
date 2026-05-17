@@ -8,6 +8,7 @@ import com.example.supplementtracker.domain.model.IntakeTime
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
+import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import java.time.temporal.WeekFields
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.ZoneId
@@ -106,7 +108,10 @@ class HomeViewModel(
                         isContinuous = supplement.cycleConfig.isContinuous,
                         daysOn = supplement.cycleConfig.daysOn,
                         daysOff = supplement.cycleConfig.daysOff,
-                        durationMonths = supplement.cycleConfig.durationMonths
+                        durationMonths = supplement.cycleConfig.durationMonths,
+                        weeklyWeekdaysMask = supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
+                        weeklyIntervalWeeks = supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
+                        weeklyAnchorDate = supplement.cycleConfig.weeklyRecurrence?.anchorDate?.toString()
                     )
                 )
             }
@@ -138,7 +143,10 @@ class HomeViewModel(
     ): HomeUiState {
         val today = LocalDate.now()
         val activeItems = supplements
-            .filter { calculateCycleUseCase(it.supplement.startDate, it.supplement.cycleConfig, today) == CycleStatus.ON }
+            .filter {
+                calculateCycleUseCase(it.supplement.startDate, it.supplement.cycleConfig, today) == CycleStatus.ON &&
+                    matchesWeeklyRecurrenceIfNeeded(it.supplement, today)
+            }
             .map { taken ->
                 val advice = adviceByName[taken.supplement.name]
                 SupplementUiItem(taken.supplement, taken.isTakenToday, advice)
@@ -151,6 +159,27 @@ class HomeViewModel(
             .map { RestingSupplementInfo(it.supplement, calculateDaysRemaining(it.supplement, today)) }
 
         return HomeUiState.Success(activeItems, restingList)
+    }
+    
+    private fun matchesWeeklyRecurrenceIfNeeded(supplement: UserSupplement, date: LocalDate): Boolean {
+        val weekly = supplement.cycleConfig.weeklyRecurrence ?: return true
+        val bitIndex = when (date.dayOfWeek) {
+            java.time.DayOfWeek.MONDAY -> 0
+            java.time.DayOfWeek.TUESDAY -> 1
+            java.time.DayOfWeek.WEDNESDAY -> 2
+            java.time.DayOfWeek.THURSDAY -> 3
+            java.time.DayOfWeek.FRIDAY -> 4
+            java.time.DayOfWeek.SATURDAY -> 5
+            java.time.DayOfWeek.SUNDAY -> 6
+        }
+        if ((weekly.weekdaysMask and (1 shl bitIndex)) == 0) return false
+        val interval = weekly.intervalWeeks.coerceAtLeast(1)
+        val fields = WeekFields.ISO
+        val anchorStart = weekly.anchorDate.with(fields.dayOfWeek(), 1)
+        val dateStart = date.with(fields.dayOfWeek(), 1)
+        val weeks = ChronoUnit.WEEKS.between(anchorStart, dateStart).toInt()
+        val mod = ((weeks % interval) + interval) % interval
+        return mod == 0
     }
 
     fun toggleIntake(supplementId: String, isChecked: Boolean) {
@@ -199,11 +228,18 @@ class HomeViewModel(
 
             val importedSupplementIds = HashSet<String>(decoded.stack.size)
             decoded.stack.forEach { dto ->
+                val weekly = run {
+                    val mask = dto.cycle.weeklyWeekdaysMask ?: return@run null
+                    val interval = dto.cycle.weeklyIntervalWeeks ?: return@run null
+                    val anchor = dto.cycle.weeklyAnchorDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@run null
+                    WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
+                }
                 val cycle = CycleConfig(
                     daysOn = dto.cycle.daysOn,
                     daysOff = dto.cycle.daysOff,
                     isContinuous = dto.cycle.isContinuous,
-                    durationMonths = dto.cycle.durationMonths
+                    durationMonths = dto.cycle.durationMonths,
+                    weeklyRecurrence = weekly
                 )
                 val startDate = runCatching { LocalDate.parse(dto.startDate) }.getOrElse { LocalDate.now() }
                 
