@@ -363,6 +363,33 @@ class HomeViewModel(
         }
     }
 
+    fun silentDownloadAndMerge(binId: String) {
+        viewModelScope.launch {
+            Log.d("AutoSync", "☁️ Auto-Sync: Silent download from $binId...")
+            val json = CloudSyncManager().downloadBackup(binId).getOrElse { error ->
+                val msg = error.message.orEmpty()
+                Log.d("AutoSync", "☁️ Auto-Sync: Silent download failed: $msg")
+                if (msg.contains("404") || msg.contains("not found", ignoreCase = true)) {
+                    clearStaleBinId(binId)
+                }
+                return@launch
+            }
+            importBackupFromJson(json)
+            Log.d("AutoSync", "☁️ Auto-Sync: Silent download & merge completed")
+        }
+    }
+
+    private fun clearStaleBinId(binId: String) {
+        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
+        val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
+        val editor = prefs.edit()
+        if (hosted == binId) editor.putString("cloudSyncHostedBinId", "")
+        if (linked == binId) editor.putString("cloudSyncLinkedBinId", "")
+        editor.apply()
+        Log.d("AutoSync", "☁️ Auto-Sync: Cleared stale binId: $binId")
+    }
+
     fun createClient(profile: ClientProfile) {
         viewModelScope.launch {
             val newName = profile.name.trim()
