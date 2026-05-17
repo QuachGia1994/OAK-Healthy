@@ -206,14 +206,25 @@ struct MainTabView: View {
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase == .active else { return }
-            Task {
-                try? await Task.sleep(for: .seconds(1))
-                await CloudSyncAutoSync.downloadAndMergeIfEnabled(
-                    modelContext: modelContext,
-                    clientId: activeClientManager.currentClientId
-                )
+            guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else {
+                CloudSyncAutoSync.stopRealtimeSync()
+                return
             }
+            if newPhase == .active {
+                CloudSyncAutoSync.startRealtimeSync(
+                    modelContext: modelContext,
+                    activeClientManager: activeClientManager
+                )
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    await CloudSyncAutoSync.downloadAndMergeIfEnabled(
+                        modelContext: modelContext,
+                        clientId: activeClientManager.currentClientId
+                    )
+                }
+                return
+            }
+            CloudSyncAutoSync.stopRealtimeSync()
         }
     }
 }

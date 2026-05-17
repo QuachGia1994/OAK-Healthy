@@ -134,13 +134,14 @@ public struct SettingsView: View {
         Section {
             Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
                 .onChange(of: isAutoSyncEnabled) {
-                    Task {
-                        if isAutoSyncEnabled {
-                            await CloudSyncManager.shared.startAutoSync()
-                            return
-                        }
-                        await CloudSyncManager.shared.stopAutoSync()
+                    if isAutoSyncEnabled {
+                        CloudSyncAutoSync.startRealtimeSync(
+                            modelContext: modelContext,
+                            activeClientManager: activeClientManager
+                        )
+                        return
                     }
+                    CloudSyncAutoSync.stopRealtimeSync()
                 }
             
             Button("Phát dữ liệu") {
