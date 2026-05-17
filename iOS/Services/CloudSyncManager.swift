@@ -312,23 +312,23 @@ enum CloudSyncAutoSync {
             return
         }
         print("☁️ Auto-Sync: Downloading from bin \(binId)...")
-        let result = try? await CloudSyncManager.shared.downloadBackupIfChanged(binId: binId)
-        guard let result else {
+        do {
+            let result = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: binId)
+            guard let data = result else {
+                print("☁️ Auto-Sync: Not modified")
+                return
+            }
+            let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
+            guard let client else {
+                print("☁️ Auto-Sync: Client not found in local DB")
+                return
+            }
+            try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            markActivity()
+            print("☁️ Auto-Sync: Download & merge completed")
+        } catch {
             print("☁️ Auto-Sync: Download failed")
-            return
         }
-        guard let data = result else {
-            print("☁️ Auto-Sync: Not modified")
-            return
-        }
-        let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
-        guard let client else {
-            print("☁️ Auto-Sync: Client not found in local DB")
-            return
-        }
-        try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
-        markActivity()
-        print("☁️ Auto-Sync: Download & merge completed")
     }
     
     private static func markActivity() {
