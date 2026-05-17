@@ -252,6 +252,8 @@ class HomeViewModel(
                     _dataTransferMessage.value = "Thu hồi mã cũ thất bại: ${error.message ?: "Unknown"}"
                     return@launch
                 }
+                context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+                    .edit().remove("cloudSyncHostedBinId").apply()
             }
             val json = buildBackupJson().getOrElse { error ->
                 _cloudSyncLoading.value = false
@@ -280,6 +282,8 @@ class HomeViewModel(
             _cloudSyncLoading.value = false
             deleteResult.onSuccess {
                 _hostedBinId.value = null
+                context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+                    .edit().remove("cloudSyncHostedBinId").apply()
                 _dataTransferMessage.value = "Đã vô hiệu hóa mã."
             }.onFailure {
                 _dataTransferMessage.value = "Thu hồi mã thất bại: ${it.message ?: "Unknown"}"

@@ -105,6 +105,7 @@ class CloudSyncManager {
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                 val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code == 404) return@runCatching // Bin already gone, consider success
                 if (code !in 200..299) error("Server error ($code): $body")
             }
         }

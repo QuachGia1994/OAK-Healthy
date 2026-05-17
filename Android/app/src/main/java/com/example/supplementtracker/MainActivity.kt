@@ -119,8 +119,10 @@ class MainActivity : ComponentActivity() {
         val binId = if (hosted.isNotEmpty()) hosted else linked
         if (binId.isEmpty()) return
         
-        Log.d("AutoSync", "☁️ Auto-Sync: Starting download...")
-        homeViewModel.receiveData(binId)
+        // We don't auto-download on resume to avoid annoying 404 errors if the bin is gone.
+        // Auto-sync is handled via periodic upload in HomeViewModel.
+        // Log.d("AutoSync", "☁️ Auto-Sync: Starting download...")
+        // homeViewModel.receiveData(binId)
     }
 
     override fun onDestroy() {
