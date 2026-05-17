@@ -455,7 +455,7 @@ public struct SettingsView: View {
         isBinIdVisible = false
         if !oldBinId.isEmpty {
             do {
-                try await CloudSyncManager().deleteBackup(binId: oldBinId)
+                try await CloudSyncManager.shared.deleteBackup(binId: oldBinId)
                 hostedBinId = ""
             } catch {
                 importErrorMessage = "Thu hồi mã cũ thất bại: \(error.localizedDescription)"
@@ -469,7 +469,7 @@ public struct SettingsView: View {
                 supplements: supplementsForActiveClient,
                 records: recordsForActiveClient
             )
-            let id = try await CloudSyncManager().uploadBackup(jsonData: backup)
+            let id = try await CloudSyncManager.shared.uploadBackup(jsonData: backup)
             hostedBinId = id
             importErrorMessage = "Phát dữ liệu thành công!"
         } catch {
@@ -486,7 +486,7 @@ public struct SettingsView: View {
         defer { isRevokingBinId = false }
         
         do {
-            try await CloudSyncManager().deleteBackup(binId: binId)
+            try await CloudSyncManager.shared.deleteBackup(binId: binId)
             hostedBinId = ""
             isBinIdVisible = false
             importErrorMessage = "Đã vô hiệu hóa mã."
@@ -501,17 +501,23 @@ public struct SettingsView: View {
             showError(message: "missing_active_client".localized)
             return
         }
+        let binId = downloadBinId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !binId.isEmpty else {
+            showError(message: "Vui lòng nhập mã liên kết.")
+            return
+        }
         isCloudSyncLoading = true
         defer { isCloudSyncLoading = false }
 
         do {
-            let data = try await CloudSyncManager().downloadBackup(binId: downloadBinId)
+            let data = try await CloudSyncManager.shared.downloadBackup(binId: binId)
             guard let client = clients.first(where: { $0.id == clientId }) else {
                 showError(message: "missing_active_client".localized)
                 return
             }
             try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
             refreshSharePayloads()
+            UserDefaults.standard.set(binId, forKey: "cloudSyncLinkedBinId")
             importErrorMessage = "Tải & khôi phục thành công!"
         } catch {
             importErrorMessage = "Tải thất bại: \(error.localizedDescription)"

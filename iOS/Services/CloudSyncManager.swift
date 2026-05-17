@@ -222,23 +222,43 @@ enum CloudSyncAutoSync {
     
     static func uploadIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
         guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return }
-        guard let binId = activeBinId() else { return }
+        guard let binId = activeBinId() else {
+            print("☁️ Auto-Sync Upload: Skipped – no binId")
+            return
+        }
         guard let clientId else { return }
-        print("☁️ Auto-Sync: Starting upload...")
+        print("☁️ Auto-Sync: Uploading to bin \(binId)...")
         let backup = try? makeBackup(modelContext: modelContext, clientId: clientId)
         guard let backup else { return }
         try? await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: backup)
+        print("☁️ Auto-Sync: Upload completed")
     }
     
     static func downloadAndMergeIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
-        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return }
-        guard let binId = activeBinId() else { return }
-        guard let clientId else { return }
-        print("☁️ Auto-Sync: Starting download...")
-        guard let data = try? await CloudSyncManager.shared.downloadBackup(binId: binId) else { return }
+        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else {
+            print("☁️ Auto-Sync: Skipped – auto sync disabled")
+            return
+        }
+        guard let binId = activeBinId() else {
+            print("☁️ Auto-Sync: Skipped – no binId configured")
+            return
+        }
+        guard let clientId else {
+            print("☁️ Auto-Sync: Skipped – no active client")
+            return
+        }
+        print("☁️ Auto-Sync: Downloading from bin \(binId)...")
+        guard let data = try? await CloudSyncManager.shared.downloadBackup(binId: binId) else {
+            print("☁️ Auto-Sync: Download failed")
+            return
+        }
         let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
-        guard let client else { return }
+        guard let client else {
+            print("☁️ Auto-Sync: Client not found in local DB")
+            return
+        }
         try? SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+        print("☁️ Auto-Sync: Download & merge completed")
     }
     
     private static func activeBinId() -> String? {
