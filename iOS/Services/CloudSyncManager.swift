@@ -190,6 +190,36 @@ public actor CloudSyncManager {
 
 @MainActor
 enum CloudSyncAutoSync {
+    private static var realtimeTask: Task<Void, Never>?
+    
+    static func startRealtimeSync(
+        modelContext: ModelContext,
+        activeClientManager: ActiveClientManager
+    ) {
+        guard realtimeTask == nil else { return }
+        realtimeTask = Task { @MainActor in
+            await realtimeLoop(modelContext: modelContext, activeClientManager: activeClientManager)
+        }
+    }
+    
+    static func stopRealtimeSync() {
+        realtimeTask?.cancel()
+        realtimeTask = nil
+    }
+    
+    private static func realtimeLoop(
+        modelContext: ModelContext,
+        activeClientManager: ActiveClientManager
+    ) async {
+        while !Task.isCancelled {
+            await downloadAndMergeIfEnabled(
+                modelContext: modelContext,
+                clientId: activeClientManager.currentClientId
+            )
+            try? await Task.sleep(for: .seconds(10))
+        }
+    }
+    
     static func uploadIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
         guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return }
         guard let binId = activeBinId() else { return }
