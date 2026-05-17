@@ -34,6 +34,9 @@ import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.util.Log
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var timeZoneReceiver: TimeZoneChangeReceiver? = null
@@ -45,6 +48,10 @@ class MainActivity : ComponentActivity() {
         splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }
 
         super.onCreate(savedInstanceState)
+        lifecycleScope.launch {
+            delay(1_500)
+            keepSplashOnScreen = false
+        }
         
         requestNotificationPermission()
         
@@ -98,8 +105,7 @@ class MainActivity : ComponentActivity() {
                         addSupplementViewModel = addSupplementViewModel,
                         activeClientManager = activeClientManager,
                         appTheme = appTheme,
-                        onThemeChange = { appTheme = it },
-                        onFirstFrame = { keepSplashOnScreen = false }
+                        onThemeChange = { appTheme = it }
                     )
                 }
             }

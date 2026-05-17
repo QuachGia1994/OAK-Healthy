@@ -4,7 +4,7 @@
 
     <style name="Theme.SupplementTracker.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/oak_splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_oak_logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
         <item name="windowSplashScreenIconBackgroundColor">@color/oak_splash_background</item>
         <item name="postSplashScreenTheme">@style/Theme.SupplementTracker</item>
     </style>
