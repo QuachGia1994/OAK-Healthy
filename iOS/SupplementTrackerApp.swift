@@ -211,8 +211,8 @@ private struct SafeBootView: View {
         let elapsed = Date().timeIntervalSince1970 - lastEpoch
         guard elapsed < 600 else { return }
         UserDefaults.standard.removeObject(forKey: "activeClientId")
-        guard let url = persistentStoreURL() else { return }
-        resetPersistentStore(at: url)
+        UserDefaults.standard.removeObject(forKey: BootKeys.stage)
+        UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
     }
 }
 

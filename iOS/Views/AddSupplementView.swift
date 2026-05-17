@@ -160,11 +160,24 @@ public struct AddSupplementView: View {
                     Text("repeat_on_weekdays".localized)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
+                    LazyVGrid(
+                        columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7),
+                        spacing: 8
+                    ) {
                         ForEach(Array(weekdayLabels.enumerated()), id: \.offset) { index, label in
                             let isSelected = (viewModel.weekdaysMask & (1 << index)) != 0
-                            Button(label) { viewModel.toggleWeekday(bitIndex: index) }
-                                .buttonStyle(WeekdayChipButtonStyle(isSelected: isSelected))
+                            Button { viewModel.toggleWeekday(bitIndex: index) } label: {
+                                Text(label)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .foregroundStyle(isSelected ? Color.white : Color.primary)
+                            .background(
+                                Capsule()
+                                    .fill(isSelected ? Color.accentColor : Color.gray.opacity(0.18))
+                            )
                         }
                     }
                     HStack {
@@ -194,20 +207,6 @@ public struct AddSupplementView: View {
         let every = max(1, Int(viewModel.intervalWeeks) ?? 1)
         let dayText = days.isEmpty ? "-" : days.joined(separator: ", ")
         return "\(dayText) • \(String(format: "every_x_weeks_format".localized, every))"
-    }
-}
-
-private struct WeekdayChipButtonStyle: ButtonStyle {
-    let isSelected: Bool
-    
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
-            .background(isSelected ? Color.accentColor : Color.gray.opacity(0.18), in: Capsule())
-            .opacity(configuration.isPressed ? 0.75 : 1.0)
     }
 }
 
