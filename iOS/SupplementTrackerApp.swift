@@ -336,6 +336,15 @@ private struct SafeModeView: View {
             if !linked.isEmpty {
                 UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
             }
+            if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") {
+                let center = UNUserNotificationCenter.current()
+                let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+                if granted {
+                    let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
+                        .filter { $0.client?.id == client.id }
+                    await NotificationService.shared.scheduleAll(supplements: supplements)
+                }
+            }
             clearPendingImport(at: url)
             pendingImportMessage = "Áp dụng dữ liệu thành công. Hãy thoát chế độ an toàn để sử dụng app."
         } catch {

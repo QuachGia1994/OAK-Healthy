@@ -545,11 +545,27 @@ public struct SettingsView: View {
         do {
             let data = try await CloudSyncManager.shared.downloadBackup(binId: binId)
             shareStackPNGURL = nil
-            let clientName = clients.first(where: { $0.id == clientId })?.name ?? "Imported Client"
-            try stagePendingImport(data: data, clientId: clientId, clientName: clientName, linkedBinId: binId)
-            importErrorMessage = "Đã tải dữ liệu. Vui lòng tắt app và mở lại để áp dụng."
+            guard let client = clients.first(where: { $0.id == clientId }) ?? clients.first else {
+                showError(message: "missing_active_client".localized)
+                return
+            }
+            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            activeClientManager.setCurrentClientId(client.id)
+            isSafeModeEnabled = false
+            let linked = binId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !linked.isEmpty { downloadBinId = linked }
+            
+            if isNotificationEnabledByUser {
+                let center = UNUserNotificationCenter.current()
+                let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+                if granted {
+                    await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
+                }
+            }
+            
+            importErrorMessage = "Đã tải và áp dụng dữ liệu thành công."
         } catch {
-            importErrorMessage = "Tải thất bại: \(error.localizedDescription)"
+            importErrorMessage = "Tải/Áp dụng thất bại: \(error.localizedDescription)"
         }
         showImportErrorAlert = true
     }
