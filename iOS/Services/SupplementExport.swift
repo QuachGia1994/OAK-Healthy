@@ -306,7 +306,7 @@ struct SupplementExportCodec {
         var takenRecordIds = Set(recordOwners.keys)
         
         var supplementIdMap: [UUID: UUID] = [:]
-        var supplementsForClient = Dictionary(
+        var supplementsForClient: [UUID: UserSupplement] = Dictionary(
             uniqueKeysWithValues: allSupplements.compactMap { s in
                 guard s.client?.id == client.id else { return nil }
                 return (s.id, s)
@@ -335,7 +335,7 @@ struct SupplementExportCodec {
         
         try context.save()
         
-        var recordsForClient = Dictionary(
+        var recordsForClient: [UUID: IntakeRecord] = Dictionary(
             uniqueKeysWithValues: allRecords.compactMap { r in
                 guard r.supplement?.client?.id == client.id else { return nil }
                 return (r.id, r)
