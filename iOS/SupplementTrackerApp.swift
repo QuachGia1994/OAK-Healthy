@@ -6,6 +6,8 @@ private enum BootKeys {
     static let stage = "oakBootStage"
     static let timestampEpoch = "oakBootTimestampEpoch"
     static let uiReady = "ui_ready"
+    static let uiStable = "ui_stable"
+    static let exitingSafeMode = "exiting_safe_mode"
     static let bootStarted = "boot_started"
     static let containerReady = "container_ready"
 }
@@ -67,6 +69,9 @@ private struct RootLaunchView: View {
             .modelContainer(dependencies.modelContainer)
             .task {
                 UserDefaults.standard.set(BootKeys.uiReady, forKey: BootKeys.stage)
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+                try? await Task.sleep(for: .seconds(3))
+                UserDefaults.standard.set(BootKeys.uiStable, forKey: BootKeys.stage)
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
             }
         } else {
@@ -237,11 +242,12 @@ private struct SafeBootView: View {
     @MainActor
     private func attemptCrashRecoveryIfNeeded() {
         let lastStage = UserDefaults.standard.string(forKey: BootKeys.stage) ?? ""
-        guard !lastStage.isEmpty, lastStage != BootKeys.uiReady else { return }
+        guard !lastStage.isEmpty, lastStage != BootKeys.uiStable else { return }
         let lastEpoch = UserDefaults.standard.double(forKey: BootKeys.timestampEpoch)
         guard lastEpoch > 0 else { return }
         let elapsed = Date().timeIntervalSince1970 - lastEpoch
         guard elapsed < 600 else { return }
+        isSafeModeEnabled = true
         UserDefaults.standard.removeObject(forKey: "activeClientId")
         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
         UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
@@ -311,6 +317,8 @@ private struct SafeModeView: View {
                 Section {
                     Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
                     Button("Thoát chế độ an toàn") {
+                        UserDefaults.standard.set(BootKeys.exitingSafeMode, forKey: BootKeys.stage)
+                        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
                         isSafeModeEnabled = false
                     }
                 } header: {
@@ -318,6 +326,10 @@ private struct SafeModeView: View {
                 }
             }
             .navigationTitle("OAK Healthy")
+        }
+        .task {
+            isAutoSyncEnabled = false
+            CloudSyncAutoSync.stopRealtimeSync()
         }
     }
 }
