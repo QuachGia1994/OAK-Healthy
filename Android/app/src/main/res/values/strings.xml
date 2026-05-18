@@ -18,7 +18,7 @@
     <string name="user_guide_4_body">If you miss a reminder, open “Notification List” to confirm the app scheduled it. Make sure Battery Optimization (Android) or Focus/Do Not Disturb (iOS) isn’t blocking.</string>
     
     <string name="settings_intro_title">About</string>
-    <string name="settings_intro_content">OAK Healthy - A professional supplement cycle assistant for traders and athletes. Helps optimize performance and discipline.</string>
+    <string name="settings_intro_content">OAK Healthy - A professional supplement cycle assistant for Traders, Athletes, and Doctors monitoring patients. Helps optimize performance and discipline.</string>
     
     <string name="settings_copyright_title">Copyright &amp; Author</string>
     <string name="settings_app_version">App: OAK Healthy v1.0</string>

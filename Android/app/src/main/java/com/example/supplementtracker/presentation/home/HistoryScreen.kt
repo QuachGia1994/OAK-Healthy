@@ -81,8 +81,10 @@ fun HistoryScreen(
 private fun HistoryContent(state: HistoryUiState.Success) {
     val shape = RoundedCornerShape(28.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val listState = rememberLazyListState()
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -135,7 +137,8 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     }
                 }
                 
-                items(records.sortedByDescending { it.date }) { record ->
+                val sorted = records.sortedByDescending { it.date }
+                items(items = sorted, key = { it.id }) { record ->
                     HistoryRecordItem(record)
                 }
             }

@@ -18,7 +18,7 @@
     <string name="user_guide_4_body">Nếu lỡ mốc giờ, vào “Kiểm tra danh sách” để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt “Tối ưu hóa pin” (Android) hoặc “Không làm phiền” (iOS).</string>
 
     <string name="settings_intro_title">Giới thiệu</string>
-    <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>
+    <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader, Vận Động Viên và cả Bác Sĩ theo dõi bệnh nhân. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>
 
     <string name="settings_copyright_title">Bản quyền &amp; Tác giả</string>
     <string name="settings_app_version">Tên app: OAK Healthy v1.0</string>

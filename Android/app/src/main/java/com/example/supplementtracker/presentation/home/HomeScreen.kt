@@ -239,7 +239,9 @@ private fun HomeContent(
     onDelete: (UserSupplement) -> Unit,
     onEdit: (String) -> Unit
 ) {
+    val listState = rememberLazyListState()
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -252,8 +254,8 @@ private fun HomeContent(
         }
 
         state.activeSupplements.forEach { (time, items) ->
-            item { TimeGroupHeader(time) }
-            items(items, key = { it.supplement.id }) { item ->
+            item(key = "time_$time") { TimeGroupHeader(time) }
+            items(items = items, key = { it.supplement.id }) { item ->
                 DismissibleSupplementCard(
                     item = item,
                     onToggleIntake = onToggleIntake,
@@ -266,7 +268,7 @@ private fun HomeContent(
         // Section: Resting
         if (state.restingSupplements.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.resting_title)) }
-            items(state.restingSupplements) { info ->
+            items(items = state.restingSupplements, key = { it.supplement.id }) { info ->
                 RestingSupplementCard(info)
             }
         }
