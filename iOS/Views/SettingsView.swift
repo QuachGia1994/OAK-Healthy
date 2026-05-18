@@ -523,6 +523,7 @@ public struct SettingsView: View {
         showImportErrorAlert = true
     }
 
+    @MainActor
     private func receiveData() async {
         guard let clientId = activeClientManager.currentClientId else {
             showError(message: "missing_active_client".localized)

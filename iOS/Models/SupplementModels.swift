@@ -60,10 +60,23 @@ public struct CycleConfig: Codable, Sendable, Equatable {
         durationMonths: Int? = nil,
         weeklyRecurrence: WeeklyRecurrenceConfig? = nil
     ) {
-        self.daysOn = daysOn
-        self.daysOff = daysOff
-        self.isContinuous = isContinuous
-        self.durationMonths = durationMonths
+        if isContinuous {
+            self.daysOn = 1
+            self.daysOff = 0
+            self.isContinuous = true
+            self.durationMonths = durationMonths
+            self.weeklyRecurrence = weeklyRecurrence
+            return
+        }
+        
+        let safeDaysOn = max(1, min(3650, daysOn))
+        let safeDaysOff = max(0, min(3650, daysOff))
+        let safeDurationMonths = durationMonths.map { max(1, min(120, $0)) }
+        
+        self.daysOn = safeDaysOn
+        self.daysOff = safeDaysOff
+        self.isContinuous = false
+        self.durationMonths = safeDurationMonths
         self.weeklyRecurrence = weeklyRecurrence
     }
     
