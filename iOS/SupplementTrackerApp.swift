@@ -286,7 +286,7 @@ private struct SafeModeView: View {
                             ProgressView()
                         }
                         Button("Áp dụng dữ liệu đã tải") {
-                            applyPendingImport()
+                            Task { await applyPendingImport() }
                         }
                         .disabled(isApplyingImport)
                         .buttonStyle(.borderedProminent)
@@ -322,7 +322,7 @@ private struct SafeModeView: View {
     }
     
     @MainActor
-    private func applyPendingImport() {
+    private func applyPendingImport() async {
         guard !isApplyingImport else { return }
         guard let url = pendingImportURL() else { return }
         do {
