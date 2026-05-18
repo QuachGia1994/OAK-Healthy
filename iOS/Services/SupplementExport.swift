@@ -298,19 +298,26 @@ struct SupplementExportCodec {
         context: ModelContext
     ) throws {
         let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
-        let supplementOwners = Dictionary(uniqueKeysWithValues: allSupplements.map { ($0.id, $0.client?.id) })
+        let supplementOwners: [UUID: UUID?] = Dictionary(
+            allSupplements.map { ($0.id, $0.client?.id) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var takenSupplementIds = Set(supplementOwners.keys)
         
         let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordOwners = Dictionary(uniqueKeysWithValues: allRecords.map { ($0.id, $0.supplement?.client?.id) })
+        let recordOwners: [UUID: UUID?] = Dictionary(
+            allRecords.map { ($0.id, $0.supplement?.client?.id) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var takenRecordIds = Set(recordOwners.keys)
         
         var supplementIdMap: [UUID: UUID] = [:]
         var supplementsForClient: [UUID: UserSupplement] = Dictionary(
-            uniqueKeysWithValues: allSupplements.compactMap { s in
+            allSupplements.compactMap { s in
                 guard s.client?.id == client.id else { return nil }
                 return (s.id, s)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         
         for dto in backup.stack {
@@ -336,10 +343,11 @@ struct SupplementExportCodec {
         try context.save()
         
         var recordsForClient: [UUID: IntakeRecord] = Dictionary(
-            uniqueKeysWithValues: allRecords.compactMap { r in
+            allRecords.compactMap { r in
                 guard r.supplement?.client?.id == client.id else { return nil }
                 return (r.id, r)
-            }
+            },
+            uniquingKeysWith: { first, _ in first }
         )
         
         let history = Array(backup.history.suffix(5_000))
@@ -380,10 +388,11 @@ struct SupplementExportCodec {
         taken: inout Set<UUID>
     ) -> UUID {
         if let parsed = UUID(uuidString: rawUUIDString) {
-            if let owner = ownersById[parsed], owner != clientId {
+            if let existingOwner = ownersById[parsed] {
+                if existingOwner == clientId { return parsed }
                 return uniqueId(avoiding: &taken)
             }
-            if taken.contains(parsed) { return parsed }
+            if taken.contains(parsed) { return uniqueId(avoiding: &taken) }
             taken.insert(parsed)
             return parsed
         }
@@ -402,10 +411,10 @@ struct SupplementExportCodec {
         context: ModelContext
     ) throws -> [UUID: UserSupplement] {
         let all = try context.fetch(FetchDescriptor<UserSupplement>())
-        return Dictionary(uniqueKeysWithValues: all.compactMap { s in
+        return Dictionary(all.compactMap { s in
             guard s.client?.id == clientId else { return nil }
             return (s.id, s)
-        })
+        }, uniquingKeysWith: { first, _ in first })
     }
 
     private static func recordsById(
@@ -414,7 +423,7 @@ struct SupplementExportCodec {
     ) throws -> [UUID: IntakeRecord] {
         let all = try context.fetch(FetchDescriptor<IntakeRecord>())
         let filtered = all.filter { $0.supplement?.client?.id == clientId }
-        return Dictionary(uniqueKeysWithValues: filtered.map { ($0.id, $0) })
+        return Dictionary(filtered.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     private static func upsertSupplements(
