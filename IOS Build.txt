@@ -1,24 +1,24 @@
 Run bundle exec fastlane build
-[14:20:11]: WARNING: Support for your Ruby version (3.2.11) is going away. fastlane will soon require Ruby 3.3.0 or newer.
-[14:20:13]: Sending anonymous analytics information
-[14:20:13]: Learn more at https://docs.fastlane.tools/#metrics
-[14:20:13]: No personal or sensitive data is sent.
-[14:20:13]: You can disable this by adding `opt_out_usage` at the top of your Fastfile
-[14:20:13]: ------------------------------
-[14:20:13]: --- Step: default_platform ---
-[14:20:13]: ------------------------------
-[14:20:13]: Driving the lane 'ios build' 🚀
-[14:20:13]: -----------------
-[14:20:13]: --- Step: gym ---
-[14:20:13]: -----------------
-[14:20:13]: Resolving Swift Package Manager dependencies...
-[14:20:13]: $ xcodebuild -resolvePackageDependencies -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination generic/platform\=iOS
-[14:20:16]: ▸ Command line invocation:
-[14:20:16]: ▸     /Applications/Xcode_16.1.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination generic/platform=iOS
-[14:20:16]: ▸ User defaults from command line:
-[14:20:16]: ▸     IDEPackageSupportUseBuiltinSCM = YES
-[14:20:18]: ▸ resolved source packages: 
-[14:20:18]: $ xcodebuild -showBuildSettings -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination generic/platform\=iOS 2>&1
+[01:35:40]: WARNING: Support for your Ruby version (3.2.11) is going away. fastlane will soon require Ruby 3.3.0 or newer.
+[01:35:42]: Sending anonymous analytics information
+[01:35:42]: Learn more at https://docs.fastlane.tools/#metrics
+[01:35:42]: No personal or sensitive data is sent.
+[01:35:42]: You can disable this by adding `opt_out_usage` at the top of your Fastfile
+[01:35:42]: ------------------------------
+[01:35:42]: --- Step: default_platform ---
+[01:35:42]: ------------------------------
+[01:35:42]: Driving the lane 'ios build' 🚀
+[01:35:42]: -----------------
+[01:35:42]: --- Step: gym ---
+[01:35:42]: -----------------
+[01:35:42]: Resolving Swift Package Manager dependencies...
+[01:35:42]: $ xcodebuild -resolvePackageDependencies -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination generic/platform\=iOS
+[01:35:45]: ▸ Command line invocation:
+[01:35:45]: ▸     /Applications/Xcode_16.1.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination generic/platform=iOS
+[01:35:45]: ▸ User defaults from command line:
+[01:35:45]: ▸     IDEPackageSupportUseBuiltinSCM = YES
+[01:35:46]: ▸ resolved source packages: 
+[01:35:46]: $ xcodebuild -showBuildSettings -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination generic/platform\=iOS 2>&1
 
 +--------------------------------------------------------------------------------------------------+
 |                                     Summary for gym 2.234.0                                      |
@@ -35,7 +35,7 @@ Run bundle exec fastlane build
 | output_directory                     | .                                                         |
 | output_name                          | OAKHealthy                                                |
 | silent                               | false                                                     |
-| build_path                           | /Users/runner/Library/Developer/Xcode/Archives/2026-05-17 |
+| build_path                           | /Users/runner/Library/Developer/Xcode/Archives/2026-05-18 |
 | result_bundle                        | false                                                     |
 | buildlog_path                        | ~/Library/Logs/gym                                        |
 | xcodebuild_formatter                 | xcbeautify                                                |
@@ -50,57 +50,60 @@ Run bundle exec fastlane build
 | xcode_path                           | /Applications/Xcode_16.1.app                              |
 +--------------------------------------+-----------------------------------------------------------+
 
-[14:20:20]: $ set -o pipefail && xcodebuild -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination 'generic/platform=iOS' -archivePath ./build/OAKHealthy.xcarchive clean archive CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS='' CODE_SIGNING_ALLOWED=NO | tee /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log | xcbeautify
-[14:20:20]: ▸ ----- xcbeautify -----
-[14:20:20]: ▸ Version: 3.2.1
-[14:20:20]: ▸ ----------------------
-[14:20:21]: ▸ note: Using codesigning identity override: 
-[14:20:21]: ▸ Clean Succeeded
-[14:20:22]: ▸ note: Using codesigning identity override: 
-[14:20:22]: ▸ note: Building targets in dependency order
-[14:20:22]: ▸ note: Target dependency graph (1 target)
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy_const_extract_protocols.json
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.SwiftFileList
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.SwiftConstValuesFileList
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.LinkFileList
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-OutputFileMap.json
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.hmap
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.DependencyMetadataFileList
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-project-headers.hmap
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-own-target-headers.hmap
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-generated-files.hmap
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-all-target-headers.hmap
-[14:20:31]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-all-non-framework-target-headers.hmap
-[14:20:31]: ▸ [OAKHealthy] Compile Asset Catalog Assets.xcassets
-[14:20:35]: ▸ [OAKHealthy] Generate Asset Symbols Assets.xcassets
-[14:20:42]: ▸ ::error file=/Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/CloudSyncManager.swift,line=320,col=15::initializer for conditional binding must have Optional type, not 'Data'
-[14:20:42]: ▸         guard let data = result else {
-[14:20:42]: ▸               ^          ~~~~~~
-[14:20:42]: ▸ [OAKHealthy] Processing Info.plist
-[14:20:42]: ▸ note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'OAKHealthy' from project 'OAKHealthy')
-[14:20:42]: ▸ ** ARCHIVE FAILED **
-[14:20:42]: ▸ The following build commands failed:
-[14:20:42]: ▸ 	CompileSwift normal arm64 (in target 'OAKHealthy' from project 'OAKHealthy')
-[14:20:42]: ▸ 	SwiftCompile normal arm64 Compiling\ AddSupplementView.swift,\ AddSupplementViewModel.swift,\ AutoSuggestEngine.swift,\ CloudSyncManager.swift,\ CycleEngine.swift,\ HistoryView.swift,\ HistoryViewModel.swift,\ HomeView.swift,\ HomeViewModel.swift,\ LocalizationService.swift,\ NotificationDebugView.swift,\ NotificationService.swift,\ OAKLogoView.swift,\ ProfileManager.swift,\ SettingsView.swift,\ SupplementDictionary.swift,\ SupplementExport.swift,\ SupplementModels.swift,\ SupplementTrackerApp.swift,\ UpdateService.swift,\ UserGuideView.swift,\ VerificationTests.swift,\ GeneratedAssetSymbols.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/AddSupplementView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/AddSupplementViewModel.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Engine/AutoSuggestEngine.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/CloudSyncManager.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Engine/CycleEngine.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HistoryView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HistoryViewModel.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HomeView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HomeViewModel.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/LocalizationService.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/NotificationDebugView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/NotificationService.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/OAKLogoView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/ProfileManager.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/SettingsView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Models/SupplementDictionary.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/SupplementExport.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Models/SupplementModels.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/SupplementTrackerApp.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/UpdateService.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/UserGuideView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Engine/VerificationTests.swift /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/IntermediateBuildFilesPath/OAKHealthy.build/Release-iphoneos/OAKHealthy.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'OAKHealthy' from project 'OAKHealthy')
-[14:20:42]: ▸ 	Archiving project OAKHealthy with scheme OAKHealthy
-[14:20:42]: ▸ (3 failures)
-[14:20:42]: Exit status: 65
-[14:20:42]: 
-[14:20:42]: Maybe the error shown is caused by using the wrong version of Xcode
-[14:20:42]: Found multiple versions of Xcode in '/Applications/'
-[14:20:42]: Make sure you selected the right version for your project
-[14:20:42]: This build process was executed using '/Applications/Xcode_16.1.app'
-[14:20:42]: If you want to update your Xcode path, either
-[14:20:42]: 
-[14:20:42]: - Specify the Xcode version in your Fastfile
-[14:20:42]: ▸ xcversion(version: "8.1") # Selects Xcode 8.1.0
-[14:20:42]: 
-[14:20:42]: - Specify an absolute path to your Xcode installation in your Fastfile
-[14:20:42]: ▸ xcode_select "/Applications/Xcode8.app"
-[14:20:42]: 
-[14:20:42]: - Manually update the path using
-[14:20:42]: ▸ sudo xcode-select -s /Applications/Xcode.app
-[14:20:42]: 
+[01:35:48]: $ set -o pipefail && xcodebuild -scheme OAKHealthy -project OAKHealthy.xcodeproj -configuration Release -destination 'generic/platform=iOS' -archivePath ./build/OAKHealthy.xcarchive clean archive CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS='' CODE_SIGNING_ALLOWED=NO | tee /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log | xcbeautify
+[01:35:48]: ▸ ----- xcbeautify -----
+[01:35:48]: ▸ Version: 3.2.1
+[01:35:48]: ▸ ----------------------
+[01:35:50]: ▸ note: Using codesigning identity override: 
+[01:35:50]: ▸ Clean Succeeded
+[01:35:50]: ▸ note: Using codesigning identity override: 
+[01:35:50]: ▸ note: Building targets in dependency order
+[01:35:50]: ▸ note: Target dependency graph (1 target)
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy_const_extract_protocols.json
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.SwiftFileList
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.SwiftConstValuesFileList
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.LinkFileList
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-OutputFileMap.json
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.hmap
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy.DependencyMetadataFileList
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-project-headers.hmap
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-own-target-headers.hmap
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-generated-files.hmap
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-all-target-headers.hmap
+[01:36:02]: ▸ [OAKHealthy] Write Auxiliary File OAKHealthy-all-non-framework-target-headers.hmap
+[01:36:02]: ▸ [OAKHealthy] Compile Asset Catalog Assets.xcassets
+[01:36:07]: ▸ [OAKHealthy] Generate Asset Symbols Assets.xcassets
+[01:36:21]: ▸ ::error file=/Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/SupplementTrackerApp.swift,line=120,col=25::cannot assign to value: 'errorMessage' is a 'let' constant
+[01:36:21]: ▸                         errorMessage = nil
+[01:36:21]: ▸                         ^~~~~~~~~~~~
+[01:36:21]: ▸ ::error file=/Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/SupplementTrackerApp.swift,line=120,col=40::'nil' cannot be assigned to type 'String'
+[01:36:21]: ▸                         errorMessage = nil
+[01:36:21]: ▸                                        ^
+[01:36:21]: ▸ [OAKHealthy] Processing Info.plist
+[01:36:21]: ▸ note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'OAKHealthy' from project 'OAKHealthy')
+[01:36:21]: ▸ ** ARCHIVE FAILED **
+[01:36:21]: ▸ The following build commands failed:
+[01:36:21]: ▸ 	CompileSwift normal arm64 (in target 'OAKHealthy' from project 'OAKHealthy')
+[01:36:21]: ▸ 	SwiftCompile normal arm64 Compiling\ AddSupplementView.swift,\ AddSupplementViewModel.swift,\ AutoSuggestEngine.swift,\ CloudSyncManager.swift,\ CycleEngine.swift,\ HistoryView.swift,\ HistoryViewModel.swift,\ HomeView.swift,\ HomeViewModel.swift,\ LocalizationService.swift,\ NotificationDebugView.swift,\ NotificationService.swift,\ OAKLogoView.swift,\ ProfileManager.swift,\ SettingsView.swift,\ SupplementDictionary.swift,\ SupplementExport.swift,\ SupplementModels.swift,\ SupplementTrackerApp.swift,\ UpdateService.swift,\ UserGuideView.swift,\ VerificationTests.swift,\ GeneratedAssetSymbols.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/AddSupplementView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/AddSupplementViewModel.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Engine/AutoSuggestEngine.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/CloudSyncManager.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Engine/CycleEngine.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HistoryView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HistoryViewModel.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HomeView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/HomeViewModel.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/LocalizationService.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/NotificationDebugView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/NotificationService.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/OAKLogoView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/ProfileManager.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/SettingsView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Models/SupplementDictionary.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/SupplementExport.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Models/SupplementModels.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/SupplementTrackerApp.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Services/UpdateService.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Views/UserGuideView.swift /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Engine/VerificationTests.swift /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/IntermediateBuildFilesPath/OAKHealthy.build/Release-iphoneos/OAKHealthy.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'OAKHealthy' from project 'OAKHealthy')
+[01:36:21]: ▸ 	Archiving project OAKHealthy with scheme OAKHealthy
+[01:36:21]: ▸ (3 failures)
+[01:36:21]: Exit status: 65
+[01:36:21]: 
+[01:36:21]: Maybe the error shown is caused by using the wrong version of Xcode
+[01:36:21]: Found multiple versions of Xcode in '/Applications/'
+[01:36:21]: Make sure you selected the right version for your project
+[01:36:21]: This build process was executed using '/Applications/Xcode_16.1.app'
+[01:36:21]: If you want to update your Xcode path, either
+[01:36:21]: 
+[01:36:21]: - Specify the Xcode version in your Fastfile
+[01:36:21]: ▸ xcversion(version: "8.1") # Selects Xcode 8.1.0
+[01:36:21]: 
+[01:36:21]: - Specify an absolute path to your Xcode installation in your Fastfile
+[01:36:21]: ▸ xcode_select "/Applications/Xcode8.app"
+[01:36:21]: 
+[01:36:21]: - Manually update the path using
+[01:36:21]: ▸ sudo xcode-select -s /Applications/Xcode.app
+[01:36:21]: 
 
 +--------------------------------------------+
 |             Build environment              |
@@ -110,24 +113,24 @@ Run bundle exec fastlane build
 | sdk         | iPhoneOS18.1.sdk             |
 +-------------+------------------------------+
 
-[14:20:42]: ▸ ProcessInfoPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/InstallationBuildProductsLocation/Applications/OAKHealthy.app/Info.plist /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Info.plist (in target 'OAKHealthy' from project 'OAKHealthy')
-[14:20:42]: ▸     cd /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS
-[14:20:42]: ▸     builtin-infoPlistUtility /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/InstallationBuildProductsLocation/Applications/OAKHealthy.app/PkgInfo -expandbuildsettings -format binary -platform iphoneos -additionalcontentfile /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/IntermediateBuildFilesPath/OAKHealthy.build/Release-iphoneos/OAKHealthy.build/assetcatalog_generated_info.plist -requiredArchitecture arm64 -o /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/InstallationBuildProductsLocation/Applications/OAKHealthy.app/Info.plist
-[14:20:42]: ▸ note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'OAKHealthy' from project 'OAKHealthy')
-[14:20:42]: 
-[14:20:42]: ⬆️  Check out the few lines of raw `xcodebuild` output above for potential hints on how to solve this error
-[14:20:42]: 📋  For the complete and more detailed error log, check the full log at:
-[14:20:42]: 📋  /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log
-[14:20:42]: 
-[14:20:42]: Looks like fastlane ran into a build/archive error with your project
-[14:20:42]: It's hard to tell what's causing the error, so we wrote some guides on how
-[14:20:42]: to troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/
-[14:20:42]: Before submitting an issue on GitHub, please follow the guide above and make
-[14:20:42]: sure your project is set up correctly.
-[14:20:42]: fastlane uses `xcodebuild` commands to generate your binary, you can see the
-[14:20:42]: the full commands printed out in yellow in the above log.
-[14:20:42]: Make sure to inspect the output above, as usually you'll find more error information there
-[14:20:42]: 
+[01:36:21]: ▸ ProcessInfoPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/InstallationBuildProductsLocation/Applications/OAKHealthy.app/Info.plist /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Info.plist (in target 'OAKHealthy' from project 'OAKHealthy')
+[01:36:21]: ▸     cd /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS
+[01:36:21]: ▸     builtin-infoPlistUtility /Users/runner/work/OAK-Healthy/OAK-Healthy/iOS/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/InstallationBuildProductsLocation/Applications/OAKHealthy.app/PkgInfo -expandbuildsettings -format binary -platform iphoneos -additionalcontentfile /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/IntermediateBuildFilesPath/OAKHealthy.build/Release-iphoneos/OAKHealthy.build/assetcatalog_generated_info.plist -requiredArchitecture arm64 -o /Users/runner/Library/Developer/Xcode/DerivedData/OAKHealthy-dpsdvjtwayqcjpgoiuipkislkpil/Build/Intermediates.noindex/ArchiveIntermediates/OAKHealthy/InstallationBuildProductsLocation/Applications/OAKHealthy.app/Info.plist
+[01:36:21]: ▸ note: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'OAKHealthy' from project 'OAKHealthy')
+[01:36:21]: 
+[01:36:21]: ⬆️  Check out the few lines of raw `xcodebuild` output above for potential hints on how to solve this error
+[01:36:21]: 📋  For the complete and more detailed error log, check the full log at:
+[01:36:21]: 📋  /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log
+[01:36:21]: 
+[01:36:21]: Looks like fastlane ran into a build/archive error with your project
+[01:36:21]: It's hard to tell what's causing the error, so we wrote some guides on how
+[01:36:21]: to troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/
+[01:36:21]: Before submitting an issue on GitHub, please follow the guide above and make
+[01:36:21]: sure your project is set up correctly.
+[01:36:21]: fastlane uses `xcodebuild` commands to generate your binary, you can see the
+[01:36:21]: the full commands printed out in yellow in the above log.
+[01:36:21]: Make sure to inspect the output above, as usually you'll find more error information there
+[01:36:21]: 
 +------------------------------+
 |         Lane Context         |
 +------------------+-----------+
@@ -135,15 +138,15 @@ Run bundle exec fastlane build
 | PLATFORM_NAME    | ios       |
 | LANE_NAME        | ios build |
 +------------------+-----------+
-[14:20:42]: Called from Fastfile at line 6
-[14:20:42]: ```
-[14:20:42]:     4:	  desc "Build and Archive the iOS App"
-[14:20:42]:     5:	  lane :build do
-[14:20:42]:  => 6:	    gym(
-[14:20:42]:     7:	      project: "OAKHealthy.xcodeproj",
-[14:20:42]:     8:	      scheme: "OAKHealthy",
-[14:20:42]: ```
-[14:20:42]: Error building the application - see the log above
+[01:36:21]: Called from Fastfile at line 6
+[01:36:21]: ```
+[01:36:21]:     4:	  desc "Build and Archive the iOS App"
+[01:36:21]:     5:	  lane :build do
+[01:36:21]:  => 6:	    gym(
+[01:36:21]:     7:	      project: "OAKHealthy.xcodeproj",
+[01:36:21]:     8:	      scheme: "OAKHealthy",
+[01:36:21]: ```
+[01:36:21]: Error building the application - see the log above
 
 
 [!] Error building the application - see the log above
@@ -153,9 +156,9 @@ Run bundle exec fastlane build
 | Step | Action           | Time (in s) |
 +------+------------------+-------------+
 | 1    | default_platform | 0           |
-| 💥   | gym              | 29          |
+| 💥   | gym              | 39          |
 +------+------------------+-------------+
 
-[14:20:43]: fastlane finished with errors
-[14:20:43]: WARNING: Support for your Ruby version (3.2.11) is going away. fastlane will soon require Ruby 3.3.0 or newer.
+[01:36:21]: fastlane finished with errors
+[01:36:21]: WARNING: Support for your Ruby version (3.2.11) is going away. fastlane will soon require Ruby 3.3.0 or newer.
 Error: Process completed with exit code 1.

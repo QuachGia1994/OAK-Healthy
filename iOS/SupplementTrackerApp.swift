@@ -110,8 +110,8 @@ private struct SafeBootView: View {
             VStack(spacing: 16) {
                 OAKLogoView()
                     .frame(width: 140, height: 140)
-                if let errorMessage {
-                    Text(errorMessage)
+                if let message = errorMessage {
+                    Text(message)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
