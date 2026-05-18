@@ -199,18 +199,6 @@ fun AddSupplementScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(stringResource(R.string.continuous))
-                Spacer(modifier = Modifier.weight(1f))
-                Switch(
-                    checked = state.isContinuous,
-                    onCheckedChange = viewModel::onContinuousToggle
-                )
-            }
-            
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
                 Text(stringResource(R.string.repeat_weekly))
                 Spacer(modifier = Modifier.weight(1f))
                 Switch(
@@ -257,6 +245,18 @@ fun AddSupplementScreen(
                     text = "${selectedDays.joinToString(", ")} • ${stringResource(R.string.every_x_weeks_format, interval)}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.continuous))
+                Spacer(modifier = Modifier.weight(1f))
+                Switch(
+                    checked = state.isContinuous,
+                    onCheckedChange = viewModel::onContinuousToggle
                 )
             }
 

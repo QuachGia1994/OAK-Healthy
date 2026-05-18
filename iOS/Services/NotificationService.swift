@@ -284,8 +284,8 @@ public struct NotificationService: NotificationManaging {
     
     private func schedulingHorizonDays(for supplement: UserSupplement) -> Int {
         guard let weekly = supplement.cycleConfig.weeklyRecurrence else { return 7 }
-        let interval = max(1, weekly.intervalWeeks)
-        return min(56, max(7, interval * 7))
+        let safeInterval = min(8, max(1, weekly.intervalWeeks))
+        return max(7, safeInterval * 7)
     }
     
     private func matchesWeeklyRecurrenceIfNeeded(
@@ -296,7 +296,7 @@ public struct NotificationService: NotificationManaging {
         guard let weekly = supplement.cycleConfig.weeklyRecurrence else { return true }
         guard let weekdayBit = weekdayBitIndex(for: date, calendar: calendar) else { return true }
         guard (weekly.weekdaysMask & (1 << weekdayBit)) != 0 else { return false }
-        let interval = max(1, weekly.intervalWeeks)
+        let interval = min(52, max(1, weekly.intervalWeeks))
         let anchorWeekStart = startOfISOWeek(for: weekly.anchorDate, calendar: calendar)
         let dateWeekStart = startOfISOWeek(for: date, calendar: calendar)
         let days = calendar.dateComponents([.day], from: anchorWeekStart, to: dateWeekStart).day ?? 0

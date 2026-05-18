@@ -27,8 +27,8 @@ public struct WeeklyRecurrenceConfig: Codable, Sendable, Equatable {
     public let anchorDate: Date
     
     public init(weekdaysMask: Int, intervalWeeks: Int, anchorDate: Date) {
-        self.weekdaysMask = weekdaysMask
-        self.intervalWeeks = max(1, intervalWeeks)
+        self.weekdaysMask = max(1, min(127, weekdaysMask))
+        self.intervalWeeks = max(1, min(52, intervalWeeks))
         self.anchorDate = anchorDate
     }
 }
