@@ -232,12 +232,19 @@ struct SupplementExportCodec {
         for supplement in supplementsForClient {
             context.delete(supplement)
         }
+        try context.save()
         
-        let supplementOwners = Dictionary(uniqueKeysWithValues: allSupplements.map { ($0.id, $0.client?.id) })
+        let supplementOwners: [UUID: UUID?] = Dictionary(
+            allSupplements.map { ($0.id, $0.client?.id) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var takenSupplementIds = Set(supplementOwners.keys)
         
         let allExistingRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordOwners = Dictionary(uniqueKeysWithValues: allExistingRecords.map { ($0.id, $0.supplement?.client?.id) })
+        let recordOwners: [UUID: UUID?] = Dictionary(
+            allExistingRecords.map { ($0.id, $0.supplement?.client?.id) },
+            uniquingKeysWith: { first, _ in first }
+        )
         var takenRecordIds = Set(recordOwners.keys)
         
         var supplementById: [UUID: UserSupplement] = [:]
@@ -262,22 +269,17 @@ struct SupplementExportCodec {
             context.insert(supplement)
             supplementById[id] = supplement
         }
-        
-        for dto in backup.history {
-            let recordId = resolvedImportId(
-                rawUUIDString: dto.id,
-                clientId: client.id,
-                ownersById: recordOwners,
-                taken: &takenRecordIds
-            )
-            let supplementId = UUID(uuidString: dto.supplementId).flatMap { supplementIdMap[$0] ?? $0 }
-            guard let supplementId, let supplement = supplementById[supplementId] else { continue }
-            let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-            let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
-            context.insert(record)
-        }
-        
         try context.save()
+        
+        try importRecordsBatched(
+            backup: backup,
+            clientId: client.id,
+            supplementById: supplementById,
+            supplementIdMap: supplementIdMap,
+            recordOwners: recordOwners,
+            takenRecordIds: &takenRecordIds,
+            context: context
+        )
     }
 
     static func mergeBackupData(
@@ -404,6 +406,37 @@ struct SupplementExportCodec {
         while taken.contains(id) { id = UUID() }
         taken.insert(id)
         return id
+    }
+
+    private static func importRecordsBatched(
+        backup: OAKBackupData,
+        clientId: UUID,
+        supplementById: [UUID: UserSupplement],
+        supplementIdMap: [UUID: UUID],
+        recordOwners: [UUID: UUID?],
+        takenRecordIds: inout Set<UUID>,
+        context: ModelContext
+    ) throws {
+        let history = Array(backup.history.suffix(5_000))
+        var index = 0
+        while index < history.count {
+            let end = min(index + 500, history.count)
+            for dto in history[index..<end] {
+                let recordId = resolvedImportId(
+                    rawUUIDString: dto.id,
+                    clientId: clientId,
+                    ownersById: recordOwners,
+                    taken: &takenRecordIds
+                )
+                let supplementId = UUID(uuidString: dto.supplementId).flatMap { supplementIdMap[$0] ?? $0 }
+                guard let supplementId, let supplement = supplementById[supplementId] else { continue }
+                let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
+                context.insert(record)
+            }
+            try context.save()
+            index = end
+        }
     }
 
     private static func supplementsById(
