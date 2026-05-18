@@ -25,6 +25,7 @@ public struct SettingsView: View {
     @State private var isCloudSyncLoading: Bool = false
     @AppStorage("cloudSyncHostedBinId") private var hostedBinId: String = ""
     @AppStorage("cloudSyncLinkedBinId") private var downloadBinId: String = ""
+    @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     @State private var isShowingCopyBinIdAlert: Bool = false
     @State private var isBinIdVisible: Bool = false
     @State private var isRevokingBinId: Bool = false
@@ -543,6 +544,7 @@ public struct SettingsView: View {
                 showError(message: "missing_active_client".localized)
                 return
             }
+            isSafeModeEnabled = true
             try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
             shareStackPNGURL = nil
             UserDefaults.standard.set(binId, forKey: "cloudSyncLinkedBinId")
