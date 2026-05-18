@@ -147,10 +147,6 @@ private struct SafeBootView: View {
                     .buttonStyle(.bordered)
                 } else {
                     ProgressView()
-                    Button("Chế độ an toàn") {
-                        isSafeModeEnabled = true
-                    }
-                    .buttonStyle(.bordered)
                 }
             }
         }
