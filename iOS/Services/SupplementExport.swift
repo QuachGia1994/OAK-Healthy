@@ -233,9 +233,23 @@ struct SupplementExportCodec {
             context.delete(supplement)
         }
         
+        let supplementOwners = Dictionary(uniqueKeysWithValues: allSupplements.map { ($0.id, $0.client?.id) })
+        var takenSupplementIds = Set(supplementOwners.keys)
+        
+        let allExistingRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let recordOwners = Dictionary(uniqueKeysWithValues: allExistingRecords.map { ($0.id, $0.supplement?.client?.id) })
+        var takenRecordIds = Set(recordOwners.keys)
+        
         var supplementById: [UUID: UserSupplement] = [:]
+        var supplementIdMap: [UUID: UUID] = [:]
         for dto in backup.stack {
-            let id = UUID(uuidString: dto.id) ?? UUID()
+            let id = resolvedImportId(
+                rawUUIDString: dto.id,
+                clientId: client.id,
+                ownersById: supplementOwners,
+                taken: &takenSupplementIds
+            )
+            if let original = UUID(uuidString: dto.id) { supplementIdMap[original] = id }
             let supplement = UserSupplement(
                 id: id,
                 name: dto.name,
@@ -250,8 +264,13 @@ struct SupplementExportCodec {
         }
         
         for dto in backup.history {
-            let recordId = UUID(uuidString: dto.id) ?? UUID()
-            let supplementId = UUID(uuidString: dto.supplementId)
+            let recordId = resolvedImportId(
+                rawUUIDString: dto.id,
+                clientId: client.id,
+                ownersById: recordOwners,
+                taken: &takenRecordIds
+            )
+            let supplementId = UUID(uuidString: dto.supplementId).flatMap { supplementIdMap[$0] ?? $0 }
             guard let supplementId, let supplement = supplementById[supplementId] else { continue }
             let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
             let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
@@ -278,11 +297,104 @@ struct SupplementExportCodec {
         client: ClientProfile,
         context: ModelContext
     ) throws {
-        let existingSupplements = try supplementsById(clientId: client.id, context: context)
-        var existingRecords = try recordsById(clientId: client.id, context: context)
-        let supplementById = try upsertSupplements(backup: backup, client: client, existing: existingSupplements, context: context)
+        let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
+        let supplementOwners = Dictionary(uniqueKeysWithValues: allSupplements.map { ($0.id, $0.client?.id) })
+        var takenSupplementIds = Set(supplementOwners.keys)
+        
+        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let recordOwners = Dictionary(uniqueKeysWithValues: allRecords.map { ($0.id, $0.supplement?.client?.id) })
+        var takenRecordIds = Set(recordOwners.keys)
+        
+        var supplementIdMap: [UUID: UUID] = [:]
+        var supplementsForClient = Dictionary(
+            uniqueKeysWithValues: allSupplements.compactMap { s in
+                guard s.client?.id == client.id else { return nil }
+                return (s.id, s)
+            }
+        )
+        
+        for dto in backup.stack {
+            let resolvedId = resolvedImportId(
+                rawUUIDString: dto.id,
+                clientId: client.id,
+                ownersById: supplementOwners,
+                taken: &takenSupplementIds
+            )
+            if let original = UUID(uuidString: dto.id) { supplementIdMap[original] = resolvedId }
+            
+            if let target = supplementsForClient[resolvedId] {
+                try apply(dto: dto, to: target, client: client)
+                supplementsForClient[resolvedId] = target
+                continue
+            }
+            
+            let created = try makeSupplement(dto: dto, id: resolvedId, client: client)
+            context.insert(created)
+            supplementsForClient[resolvedId] = created
+        }
+        
         try context.save()
-        try upsertRecordsBatched(backup: backup, supplementById: supplementById, existing: &existingRecords, context: context)
+        
+        var recordsForClient = Dictionary(
+            uniqueKeysWithValues: allRecords.compactMap { r in
+                guard r.supplement?.client?.id == client.id else { return nil }
+                return (r.id, r)
+            }
+        )
+        
+        let history = Array(backup.history.suffix(5_000))
+        var index = 0
+        while index < history.count {
+            let end = min(index + 500, history.count)
+            for dto in history[index..<end] {
+                let resolvedRecordId = resolvedImportId(
+                    rawUUIDString: dto.id,
+                    clientId: client.id,
+                    ownersById: recordOwners,
+                    taken: &takenRecordIds
+                )
+                if let found = recordsForClient[resolvedRecordId] {
+                    found.status = dto.status
+                    found.date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                    continue
+                }
+                
+                let originalSupplementId = UUID(uuidString: dto.supplementId)
+                let resolvedSupplementId = originalSupplementId.flatMap { supplementIdMap[$0] ?? $0 }
+                guard let resolvedSupplementId, let supplement = supplementsForClient[resolvedSupplementId] else { continue }
+                
+                let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                let record = IntakeRecord(id: resolvedRecordId, date: date, status: dto.status, supplement: supplement)
+                context.insert(record)
+                recordsForClient[resolvedRecordId] = record
+            }
+            try context.save()
+            index = end
+        }
+    }
+    
+    private static func resolvedImportId(
+        rawUUIDString: String,
+        clientId: UUID,
+        ownersById: [UUID: UUID?],
+        taken: inout Set<UUID>
+    ) -> UUID {
+        if let parsed = UUID(uuidString: rawUUIDString) {
+            if let owner = ownersById[parsed], owner != clientId {
+                return uniqueId(avoiding: &taken)
+            }
+            if taken.contains(parsed) { return parsed }
+            taken.insert(parsed)
+            return parsed
+        }
+        return uniqueId(avoiding: &taken)
+    }
+    
+    private static func uniqueId(avoiding taken: inout Set<UUID>) -> UUID {
+        var id = UUID()
+        while taken.contains(id) { id = UUID() }
+        taken.insert(id)
+        return id
     }
 
     private static func supplementsById(
