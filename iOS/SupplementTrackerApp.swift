@@ -10,6 +10,12 @@ private enum BootKeys {
     static let containerReady = "container_ready"
 }
 
+private enum PendingImportKeys {
+    static let filePath = "oakPendingImportFilePath"
+    static let clientId = "oakPendingImportClientId"
+    static let linkedBinId = "oakPendingImportLinkedBinId"
+}
+
 @main
 struct SupplementTrackerApp: App {
     @AppStorage("appTheme") private var appTheme: String = "system"
@@ -162,6 +168,7 @@ private struct SafeBootView: View {
         let manager = ActiveClientManager()
         manager.loadFromStorage()
         validateActiveClient(manager: manager, container: container)
+        applyPendingImportIfNeeded(container: container, manager: manager)
         
         let delegate = NotificationDelegate()
         UNUserNotificationCenter.current().delegate = delegate
@@ -247,6 +254,50 @@ private struct SafeBootView: View {
         UserDefaults.standard.removeObject(forKey: "activeClientId")
         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
         UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
+    }
+    
+    @MainActor
+    private func applyPendingImportIfNeeded(container: ModelContainer, manager: ActiveClientManager) {
+        let path = UserDefaults.standard.string(forKey: PendingImportKeys.filePath) ?? ""
+        guard !path.isEmpty else { return }
+        
+        let url = URL(fileURLWithPath: path)
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            clearPendingImport(at: url)
+            return
+        }
+        
+        let context = ModelContext(container)
+        let clients = (try? context.fetch(FetchDescriptor<ClientProfile>())) ?? []
+        let wantedId = UUID(uuidString: UserDefaults.standard.string(forKey: PendingImportKeys.clientId) ?? "")
+        guard let client = clients.first(where: { $0.id == wantedId }) ?? clients.first else {
+            clearPendingImport(at: url)
+            return
+        }
+        
+        do {
+            try SupplementExportCodec.mergeBackup(data: data, client: client, context: context)
+            manager.setCurrentClientId(client.id)
+            let linked = UserDefaults.standard.string(forKey: PendingImportKeys.linkedBinId) ?? ""
+            if !linked.isEmpty {
+                UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
+            }
+            clearPendingImport(at: url)
+        } catch {
+            isSafeModeEnabled = true
+            clearPendingImport(at: url)
+        }
+    }
+    
+    @MainActor
+    private func clearPendingImport(at url: URL) {
+        try? FileManager.default.removeItem(at: url)
+        UserDefaults.standard.removeObject(forKey: PendingImportKeys.filePath)
+        UserDefaults.standard.removeObject(forKey: PendingImportKeys.clientId)
+        UserDefaults.standard.removeObject(forKey: PendingImportKeys.linkedBinId)
     }
 }
 

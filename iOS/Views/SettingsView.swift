@@ -26,6 +26,9 @@ public struct SettingsView: View {
     @AppStorage("cloudSyncHostedBinId") private var hostedBinId: String = ""
     @AppStorage("cloudSyncLinkedBinId") private var downloadBinId: String = ""
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
+    @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
+    @AppStorage("oakPendingImportClientId") private var pendingImportClientId: String = ""
+    @AppStorage("oakPendingImportLinkedBinId") private var pendingImportLinkedBinId: String = ""
     @State private var isShowingCopyBinIdAlert: Bool = false
     @State private var isBinIdVisible: Bool = false
     @State private var isRevokingBinId: Bool = false
@@ -540,19 +543,24 @@ public struct SettingsView: View {
 
         do {
             let data = try await CloudSyncManager.shared.downloadBackup(binId: binId)
-            guard let client = clients.first(where: { $0.id == clientId }) else {
-                showError(message: "missing_active_client".localized)
-                return
-            }
             isSafeModeEnabled = true
-            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
             shareStackPNGURL = nil
-            UserDefaults.standard.set(binId, forKey: "cloudSyncLinkedBinId")
-            importErrorMessage = "Tải & khôi phục thành công!"
+            try stagePendingImport(data: data, clientId: clientId, linkedBinId: binId)
+            importErrorMessage = "Đã tải dữ liệu. Vui lòng mở lại app để áp dụng."
         } catch {
             importErrorMessage = "Tải thất bại: \(error.localizedDescription)"
         }
         showImportErrorAlert = true
+    }
+    
+    @MainActor
+    private func stagePendingImport(data: Data, clientId: UUID, linkedBinId: String) throws {
+        let base = FileManager.default.temporaryDirectory
+        let url = base.appendingPathComponent("oak_pending_import.json")
+        try data.write(to: url, options: [.atomic])
+        pendingImportFilePath = url.path
+        pendingImportClientId = clientId.uuidString
+        pendingImportLinkedBinId = linkedBinId
     }
     
     private func showError(message: String) {

@@ -212,7 +212,7 @@ struct SupplementExportCodec {
         context: ModelContext
     ) throws {
         let backup = try decodeBackupCompat(data: data)
-        try mergeBackupData(backup, client: client, context: context)
+        try mergeBackupDataSafely(backup, client: client, context: context)
     }
     
     static func importBackupData(
@@ -271,6 +271,18 @@ struct SupplementExportCodec {
         let supplementById = try upsertSupplements(backup: backup, client: client, existing: existingSupplements, context: context)
         upsertRecords(backup: backup, supplementById: supplementById, existing: existingRecords, context: context)
         try context.save()
+    }
+    
+    static func mergeBackupDataSafely(
+        _ backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws {
+        let existingSupplements = try supplementsById(clientId: client.id, context: context)
+        var existingRecords = try recordsById(clientId: client.id, context: context)
+        let supplementById = try upsertSupplements(backup: backup, client: client, existing: existingSupplements, context: context)
+        try context.save()
+        try upsertRecordsBatched(backup: backup, supplementById: supplementById, existing: &existingRecords, context: context)
     }
 
     private static func supplementsById(
@@ -362,6 +374,35 @@ struct SupplementExportCodec {
             let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
             let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
             context.insert(record)
+        }
+    }
+    
+    private static func upsertRecordsBatched(
+        backup: OAKBackupData,
+        supplementById: [UUID: UserSupplement],
+        existing: inout [UUID: IntakeRecord],
+        context: ModelContext
+    ) throws {
+        let history = Array(backup.history.suffix(5_000))
+        var index = 0
+        while index < history.count {
+            let end = min(index + 500, history.count)
+            for dto in history[index..<end] {
+                let recordId = UUID(uuidString: dto.id) ?? UUID()
+                if let found = existing[recordId] {
+                    found.status = dto.status
+                    found.date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                    continue
+                }
+                let supplementId = UUID(uuidString: dto.supplementId)
+                guard let supplementId, let supplement = supplementById[supplementId] else { continue }
+                let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
+                context.insert(record)
+                existing[recordId] = record
+            }
+            try context.save()
+            index = end
         }
     }
     
