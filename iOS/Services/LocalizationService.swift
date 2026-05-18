@@ -60,7 +60,7 @@ public struct LocalizationService: Sendable {
         "settings_guide_3": ("Use the eye icon to hide the code in public. Use Revoke to permanently delete cloud data.", "Nhấn biểu tượng \"Con mắt\" để ẩn mã khi quay màn hình hoặc ở nơi công cộng. Dùng nút \"Thu hồi mã\" để xóa vĩnh viễn dữ liệu trên Cloud khi không còn nhu cầu sync."),
         "settings_guide_4": ("Check Notification List to confirm the app sent schedules. Ensure Battery Optimization (Android) / Focus (iOS) isn’t blocking.", "Nếu lỡ mốc giờ, vào \"Kiểm tra danh sách\" để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt \"Tối ưu hóa pin\" (Android) hoặc \"Không làm phiền\" (iOS)."),
         "about_title": ("About", "Giới thiệu"),
-        "settings_about_body": ("OAK Healthy - Professional supplement tracker for Traders and Athletes.", "OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader và Vận động viên."),
+        "settings_about_body": ("OAK Healthy - Professional supplement tracker for traders, athletes, and doctors monitoring patients.", "OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader, Vận động viên và cả bác sĩ theo dõi bệnh nhân."),
         "copyright_title": ("Copyright & Author", "Bản quyền & Tác giả"),
         "settings_app_name_label": ("OAK Healthy v1.0", "Tên app: OAK Healthy v1.0"),
         "settings_author_label": ("Mr. Phong (Personal Trader)", "Tác giả: Mr. Phong (Personal Trader)"),

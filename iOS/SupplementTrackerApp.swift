@@ -52,12 +52,13 @@ private struct RootLaunchView: View {
     @Binding var isAppLaunched: Bool
     @Binding var dependencies: AppDependencyContainer?
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
+    @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
     
     var body: some View {
         if isAppLaunched, let dependencies {
             Group {
-                if isSafeModeEnabled {
-                    SafeModeView()
+                if shouldShowSafeMode {
+                    SafeModeView(activeClientManager: dependencies.activeClientManager)
                 } else {
                     MainTabView(
                         selectedTab: $selectedTab,
@@ -81,6 +82,10 @@ private struct RootLaunchView: View {
                 isAppLaunched = true
             }
         }
+    }
+    
+    private var shouldShowSafeMode: Bool {
+        isSafeModeEnabled || !pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -163,8 +168,6 @@ private struct SafeBootView: View {
         attemptCrashRecoveryIfNeeded()
         UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
-        let pendingImportURL = pendingImportURLIfAvailable()
-        prepareStoreForPendingImportIfNeeded(pendingImportURL: pendingImportURL)
         let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
         guard let container = makeModelContainer(schema: schema) else {
             errorMessage = "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."
@@ -175,7 +178,6 @@ private struct SafeBootView: View {
         
         let manager = ActiveClientManager()
         manager.loadFromStorage()
-        applyPendingImportIfNeeded(container: container, manager: manager, pendingImportURL: pendingImportURL)
         validateActiveClient(manager: manager, container: container)
         
         let delegate = NotificationDelegate()
@@ -265,96 +267,38 @@ private struct SafeBootView: View {
         UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
     }
     
-    @MainActor
-    private func applyPendingImportIfNeeded(
-        container: ModelContainer,
-        manager: ActiveClientManager,
-        pendingImportURL: URL?
-    ) {
-        guard let url = pendingImportURL else { return }
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            clearPendingImport(at: url)
-            return
-        }
-        
-        let context = ModelContext(container)
-        let clients = (try? context.fetch(FetchDescriptor<ClientProfile>())) ?? []
-        let wantedId = UUID(uuidString: UserDefaults.standard.string(forKey: PendingImportKeys.clientId) ?? "")
-        let storedName = UserDefaults.standard.string(forKey: PendingImportKeys.clientName)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let client = clients.first(where: { $0.id == wantedId })
-            ?? clients.first
-            ?? createPendingImportClient(context: context, wantedId: wantedId, storedName: storedName)
-        
-        do {
-            try SupplementExportCodec.importBackup(data: data, client: client, context: context)
-            manager.setCurrentClientId(client.id)
-            let linked = UserDefaults.standard.string(forKey: PendingImportKeys.linkedBinId) ?? ""
-            if !linked.isEmpty {
-                UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
-            }
-            clearPendingImport(at: url)
-        } catch {
-            isSafeModeEnabled = true
-            clearPendingImport(at: url)
-        }
-    }
-    
-    @MainActor
-    private func pendingImportURLIfAvailable() -> URL? {
-        let path = UserDefaults.standard.string(forKey: PendingImportKeys.filePath)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !path.isEmpty else { return nil }
-        let url = URL(fileURLWithPath: path)
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            clearPendingImport(at: url)
-            return nil
-        }
-        return url
-    }
-    
-    @MainActor
-    private func prepareStoreForPendingImportIfNeeded(pendingImportURL: URL?) {
-        guard pendingImportURL != nil else { return }
-        guard let url = persistentStoreURL() else { return }
-        resetPersistentStore(at: url)
-        UserDefaults.standard.removeObject(forKey: "activeClientId")
-    }
-    
-    @MainActor
-    private func createPendingImportClient(
-        context: ModelContext,
-        wantedId: UUID?,
-        storedName: String
-    ) -> ClientProfile {
-        let name = storedName.isEmpty ? "Imported Client" : storedName
-        let client = ClientProfile(id: wantedId ?? UUID(), name: name)
-        context.insert(client)
-        try? context.save()
-        return client
-    }
-    
-    @MainActor
-    private func clearPendingImport(at url: URL) {
-        try? FileManager.default.removeItem(at: url)
-        UserDefaults.standard.removeObject(forKey: PendingImportKeys.filePath)
-        UserDefaults.standard.removeObject(forKey: PendingImportKeys.clientId)
-        UserDefaults.standard.removeObject(forKey: PendingImportKeys.clientName)
-        UserDefaults.standard.removeObject(forKey: PendingImportKeys.linkedBinId)
-    }
 }
 
 private struct SafeModeView: View {
+    @Environment(\.modelContext) private var modelContext
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
+    @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
+    @AppStorage("oakPendingImportClientId") private var pendingImportClientId: String = ""
+    @AppStorage("oakPendingImportClientName") private var pendingImportClientName: String = ""
+    @AppStorage("oakPendingImportLinkedBinId") private var pendingImportLinkedBinId: String = ""
+    @State private var pendingImportMessage: String?
+    let activeClientManager: ActiveClientManager
     
     var body: some View {
         NavigationStack {
             List {
                 Section {
+                    if hasPendingImport {
+                        if let pendingImportMessage {
+                            Text(pendingImportMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button("Áp dụng dữ liệu đã tải") {
+                            applyPendingImport()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Hủy dữ liệu đã tải") {
+                            discardPendingImport()
+                        }
+                        .buttonStyle(.bordered)
+                    }
                     Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
                     Button("Thoát chế độ an toàn") {
                         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
@@ -370,7 +314,82 @@ private struct SafeModeView: View {
         .task {
             isAutoSyncEnabled = false
             CloudSyncAutoSync.stopRealtimeSync()
+            if hasPendingImport {
+                pendingImportMessage = "Đã phát hiện dữ liệu đã tải. Hãy áp dụng từ đây để tránh văng app lúc khởi động."
+            }
         }
+    }
+    
+    private var hasPendingImport: Bool {
+        !pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
+    @MainActor
+    private func applyPendingImport() {
+        guard let url = pendingImportURL() else { return }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+            try wipeAllData()
+            let client = try createImportClient()
+            try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+            activeClientManager.setCurrentClientId(client.id)
+            let linked = pendingImportLinkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !linked.isEmpty {
+                UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
+            }
+            clearPendingImport(at: url)
+            pendingImportMessage = nil
+            isSafeModeEnabled = false
+        } catch {
+            pendingImportMessage = "Áp dụng dữ liệu thất bại: \(error.localizedDescription)"
+        }
+    }
+    
+    @MainActor
+    private func wipeAllData() throws {
+        let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
+        let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
+        let clients = try modelContext.fetch(FetchDescriptor<ClientProfile>())
+        for record in records { modelContext.delete(record) }
+        for supplement in supplements { modelContext.delete(supplement) }
+        for client in clients { modelContext.delete(client) }
+        try modelContext.save()
+    }
+    
+    @MainActor
+    private func createImportClient() throws -> ClientProfile {
+        let wantedId = UUID(uuidString: pendingImportClientId)
+        let storedName = pendingImportClientName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let client = ClientProfile(id: wantedId ?? UUID(), name: storedName.isEmpty ? "Imported Client" : storedName)
+        modelContext.insert(client)
+        try modelContext.save()
+        return client
+    }
+    
+    @MainActor
+    private func discardPendingImport() {
+        guard let url = pendingImportURL() else {
+            clearPendingImport(at: nil)
+            pendingImportMessage = nil
+            return
+        }
+        clearPendingImport(at: url)
+        pendingImportMessage = nil
+    }
+    
+    private func pendingImportURL() -> URL? {
+        let path = pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+    
+    private func clearPendingImport(at url: URL?) {
+        if let url { try? FileManager.default.removeItem(at: url) }
+        pendingImportFilePath = ""
+        pendingImportClientId = ""
+        pendingImportClientName = ""
+        pendingImportLinkedBinId = ""
     }
 }
 
