@@ -17,6 +17,7 @@ public struct SettingsView: View {
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
     @State private var shareStackPNGURL: URL?
+    @State private var isPreparingShareStack: Bool = false
     @State private var errorMessage: String?
     @State private var isShowingError = false
     @State private var importErrorMessage: String = ""
@@ -36,7 +37,6 @@ public struct SettingsView: View {
     }
     
     public var body: some View {
-        let refreshId = "\(activeClientManager.currentClientId?.uuidString ?? "nil")-\(supplementsForActiveClient.count)-\(recordsForActiveClient.count)-\(colorScheme == .dark ? "d" : "l")"
         NavigationStack {
             ZStack {
                 backgroundGradient.ignoresSafeArea()
@@ -47,9 +47,6 @@ public struct SettingsView: View {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
-        }
-        .task(id: refreshId) {
-            refreshSharePayloads()
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
             ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
@@ -119,6 +116,13 @@ public struct SettingsView: View {
                 ShareLink(item: shareStackPNGURL) {
                     Label("share_stack".localized, systemImage: "square.and.arrow.up")
                 }
+            } else {
+                Button {
+                    Task { await prepareShareStack() }
+                } label: {
+                    Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                }
+                .disabled(isPreparingShareStack || activeClientManager.currentClientId == nil)
             }
             
             NavigationLink("Kiểm tra danh sách thông báo") {
@@ -454,6 +458,18 @@ public struct SettingsView: View {
             shareStackPNGURL = nil
         }
     }
+    
+    private func prepareShareStack() async {
+        guard activeClientManager.currentClientId != nil else { return }
+        guard !isPreparingShareStack else { return }
+        isPreparingShareStack = true
+        defer { isPreparingShareStack = false }
+        refreshSharePayloads()
+        guard shareStackPNGURL != nil else {
+            showError(message: "export_failed".localized)
+            return
+        }
+    }
 
     private func hostData() async {
         guard activeClientManager.currentClientId != nil else {
@@ -527,7 +543,7 @@ public struct SettingsView: View {
                 return
             }
             try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
-            refreshSharePayloads()
+            shareStackPNGURL = nil
             UserDefaults.standard.set(binId, forKey: "cloudSyncLinkedBinId")
             importErrorMessage = "Tải & khôi phục thành công!"
         } catch {
