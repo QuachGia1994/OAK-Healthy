@@ -28,11 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
-import com.example.supplementtracker.domain.repository.IntakeRecord
-import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ceil
@@ -89,7 +85,10 @@ private fun HistoryContent(state: HistoryUiState.Success) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
+        item(
+            key = "chart",
+            contentType = "chart"
+        ) {
             Text(stringResource(R.string.intake_frequency_last_7), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Card(
                 modifier = Modifier
@@ -103,23 +102,25 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             }
         }
         
-        item {
+        item(
+            key = "details_title",
+            contentType = "title"
+        ) {
             Text(stringResource(R.string.log_details), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
 
-        if (state.records.isEmpty()) {
-            item { Text(stringResource(R.string.no_logs_yet), color = Color.Gray) }
+        if (state.sections.isEmpty()) {
+            item(
+                key = "empty",
+                contentType = "empty"
+            ) { Text(stringResource(R.string.no_logs_yet), color = Color.Gray) }
         } else {
-            val grouped = state.records
-                .groupBy { record ->
-                    LocalDateTime
-                        .ofInstant(Instant.ofEpochMilli(record.date), ZoneId.systemDefault())
-                        .toLocalDate()
-                }
-                .toSortedMap(compareByDescending { it })
-            
-            grouped.forEach { (date, records) ->
-                stickyHeader {
+            state.sections.forEach { section ->
+                val date = section.date
+                stickyHeader(
+                    key = "header_${date}",
+                    contentType = "header"
+                ) {
                     Surface(
                         color = containerColor,
                         shape = RoundedCornerShape(28.dp),
@@ -137,8 +138,11 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     }
                 }
                 
-                val sorted = records.sortedByDescending { it.date }
-                items(items = sorted, key = { it.id }) { record ->
+                items(
+                    items = section.records,
+                    key = { it.id },
+                    contentType = { "record" }
+                ) { record ->
                     HistoryRecordItem(record)
                 }
             }

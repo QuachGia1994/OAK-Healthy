@@ -66,6 +66,7 @@ fun HomeScreen(
     val updateInfo by updateService.updateInfo.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
+    val menuClients = remember(clients) { clients.distinctBy { it.name.trim().lowercase() } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val currentClientName = clients.firstOrNull { it.id == currentClientId }?.name
     var isClientMenuExpanded by remember { mutableStateOf(false) }
@@ -149,17 +150,15 @@ fun HomeScreen(
                                     expanded = isClientMenuExpanded,
                                     onDismissRequest = { isClientMenuExpanded = false }
                                 ) {
-                                    clients
-                                        .distinctBy { it.name }
-                                        .forEach { client ->
-                                            DropdownMenuItem(
-                                                text = { Text(client.name) },
-                                                onClick = {
-                                                    isClientMenuExpanded = false
-                                                    activeClientManager.setCurrentClientId(client.id)
-                                                }
-                                            )
-                                        }
+                                    menuClients.forEach { client ->
+                                        DropdownMenuItem(
+                                            text = { Text(client.name) },
+                                            onClick = {
+                                                isClientMenuExpanded = false
+                                                activeClientManager.setCurrentClientId(client.id)
+                                            }
+                                        )
+                                    }
                                     Divider()
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.add_a_client)) },
@@ -248,15 +247,28 @@ private fun HomeContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Section: Active Today
-        item { SectionHeader(stringResource(R.string.today_intake_title)) }
+        item(
+            key = "today_title",
+            contentType = "title"
+        ) { SectionHeader(stringResource(R.string.today_intake_title)) }
         
         if (state.activeSupplements.isEmpty()) {
-            item { EmptyStateMessage(stringResource(R.string.no_intake_today)) }
+            item(
+                key = "today_empty",
+                contentType = "empty"
+            ) { EmptyStateMessage(stringResource(R.string.no_intake_today)) }
         }
 
         state.activeSupplements.forEach { (time, items) ->
-            item(key = "time_$time") { TimeGroupHeader(time) }
-            items(items = items, key = { it.supplement.id }) { item ->
+            item(
+                key = "time_$time",
+                contentType = "time"
+            ) { TimeGroupHeader(time) }
+            items(
+                items = items,
+                key = { it.supplement.id },
+                contentType = { "supplement" }
+            ) { item ->
                 DismissibleSupplementCard(
                     item = item,
                     onToggleIntake = onToggleIntake,
@@ -268,8 +280,15 @@ private fun HomeContent(
 
         // Section: Resting
         if (state.restingSupplements.isNotEmpty()) {
-            item { SectionHeader(stringResource(R.string.resting_title)) }
-            items(items = state.restingSupplements, key = { it.supplement.id }) { info ->
+            item(
+                key = "resting_title",
+                contentType = "title"
+            ) { SectionHeader(stringResource(R.string.resting_title)) }
+            items(
+                items = state.restingSupplements,
+                key = { it.supplement.id },
+                contentType = { "resting" }
+            ) { info ->
                 RestingSupplementCard(info)
             }
         }

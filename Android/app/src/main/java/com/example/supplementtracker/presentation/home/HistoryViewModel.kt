@@ -32,9 +32,14 @@ sealed class HistoryUiState {
     data object NoClient : HistoryUiState()
     data class Success(
         val chartData: List<HistoryChartData>,
-        val records: List<IntakeRecord>
+        val sections: List<HistorySection>
     ) : HistoryUiState()
 }
+
+data class HistorySection(
+    val date: LocalDate,
+    val records: List<IntakeRecord>
+)
 
 /**
  * ViewModel xử lý lịch sử uống cho Android.
@@ -59,19 +64,38 @@ class HistoryViewModel(
     private fun processHistory(records: List<IntakeRecord>): HistoryUiState {
         val zoneId = ZoneId.systemDefault()
         val today = LocalDate.now(zoneId)
-        val chartData = mutableListOf<HistoryChartData>()
-        
-        for (i in 6 downTo 0) {
-            val date = today.minusDays(i.toLong())
-            val startOfDay = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
-            val endOfDay = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-            
-            val count = records.filter { it.date in startOfDay until endOfDay }.count()
-            chartData.add(HistoryChartData(label = dayLabel(date), count = count))
+        val startDate = today.minusDays(6)
+        val orderedRecords = records.sortedByDescending { it.date }
+        val counts = mutableMapOf<LocalDate, Int>()
+        val sections = mutableListOf<HistorySection>()
+        var currentDate: LocalDate? = null
+        var currentBucket = mutableListOf<IntakeRecord>()
+        for (record in orderedRecords) {
+            val date = java.time.Instant.ofEpochMilli(record.date).atZone(zoneId).toLocalDate()
+            if (!date.isBefore(startDate) && !date.isAfter(today)) {
+                counts[date] = (counts[date] ?: 0) + 1
+            }
+            if (currentDate == null) {
+                currentDate = date
+            }
+            if (date != currentDate) {
+                sections.add(HistorySection(date = currentDate, records = currentBucket.toList()))
+                currentDate = date
+                currentBucket = mutableListOf()
+            }
+            currentBucket.add(record)
+        }
+        if (currentDate != null) {
+            sections.add(HistorySection(date = currentDate, records = currentBucket.toList()))
         }
 
-        val orderedRecords = records.sortedByDescending { it.date }
-        return HistoryUiState.Success(chartData, orderedRecords)
+        val chartData = mutableListOf<HistoryChartData>()
+        for (i in 6 downTo 0) {
+            val date = today.minusDays(i.toLong())
+            chartData.add(HistoryChartData(label = dayLabel(date), count = counts[date] ?: 0))
+        }
+
+        return HistoryUiState.Success(chartData = chartData, sections = sections)
     }
 
     private fun dayLabel(date: LocalDate): String {

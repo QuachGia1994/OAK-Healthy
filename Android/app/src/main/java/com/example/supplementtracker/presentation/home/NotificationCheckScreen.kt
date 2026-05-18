@@ -57,6 +57,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+private data class NotificationDayGroup(
+    val day: LocalDate,
+    val items: List<ScheduledAlarmInfo>
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationCheckScreen(onBack: () -> Unit) {
@@ -113,7 +118,7 @@ private fun NotificationCheckTopBar(onBack: () -> Unit) {
 @Composable
 private fun NotificationCheckContent(
     context: Context,
-    grouped: Map<LocalDate, List<ScheduledAlarmInfo>>,
+    grouped: List<NotificationDayGroup>,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
     onReload: () -> Unit,
@@ -127,9 +132,17 @@ private fun NotificationCheckContent(
         item { StatusCards(context = context) }
         item { OutlinedButton(onClick = onReload) { Text("Làm mới danh sách") } }
         if (grouped.isEmpty()) item { EmptyNotificationCard() }
-        grouped.keys.sorted().forEach { day ->
-            item { Text(day.format(dateFormatter), style = MaterialTheme.typography.titleMedium) }
-            items(items = grouped[day].orEmpty(), key = { it.requestCode }) { item ->
+        grouped.forEach { group ->
+            val day = group.day
+            item(
+                key = "day_${day.toEpochDay()}",
+                contentType = "day"
+            ) { Text(day.format(dateFormatter), style = MaterialTheme.typography.titleMedium) }
+            items(
+                items = group.items,
+                key = { it.requestCode },
+                contentType = { "alarm" }
+            ) { item ->
                 AlarmCard(item = item, timeFormatter = timeFormatter)
             }
         }
@@ -235,10 +248,12 @@ private fun AlarmCard(item: ScheduledAlarmInfo, timeFormatter: DateTimeFormatter
     }
 }
 
-private fun groupByDate(items: List<ScheduledAlarmInfo>): Map<LocalDate, List<ScheduledAlarmInfo>> {
-    return items.groupBy {
-        Instant.ofEpochMilli(it.scheduledAtMillis).atZone(ZoneId.systemDefault()).toLocalDate()
-    }.mapValues { (_, list) -> list.sortedBy { it.scheduledAtMillis } }
+private fun groupByDate(items: List<ScheduledAlarmInfo>): List<NotificationDayGroup> {
+    val zoneId = ZoneId.systemDefault()
+    return items
+        .groupBy { Instant.ofEpochMilli(it.scheduledAtMillis).atZone(zoneId).toLocalDate() }
+        .map { (day, list) -> NotificationDayGroup(day = day, items = list.sortedBy { it.scheduledAtMillis }) }
+        .sortedBy { it.day }
 }
 
 @Composable

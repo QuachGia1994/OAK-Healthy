@@ -36,6 +36,7 @@ import java.time.LocalDate
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -116,6 +117,7 @@ fun SettingsScreen(
     } else {
         Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
     }
+    val listState = rememberLazyListState()
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
     var isEditClientDialogVisible by remember { mutableStateOf(false) }
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
@@ -171,6 +173,7 @@ fun SettingsScreen(
             }
         ) { padding ->
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
@@ -999,6 +1002,7 @@ fun MyStackListScreen(
             .distinctBy { it.id }
             .sortedBy { it.name }
     }
+    val listState = rememberLazyListState()
 
     Box(
         modifier = Modifier
@@ -1020,13 +1024,18 @@ fun MyStackListScreen(
             }
         ) { padding ->
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(items = supplements, key = { it.id }) { supplement ->
+                items(
+                    items = supplements,
+                    key = { it.id },
+                    contentType = { "supplement" }
+                ) { supplement ->
                     val time = supplement.intakeTime.trim()
                     val title = if (time.isEmpty()) supplement.name else "${supplement.name} ($time)"
                     InfoCard(
