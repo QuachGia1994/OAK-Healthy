@@ -542,7 +542,7 @@ public struct SettingsView: View {
                 showError(message: "missing_active_client".localized)
                 return
             }
-            try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
             shareStackPNGURL = nil
             UserDefaults.standard.set(binId, forKey: "cloudSyncLinkedBinId")
             importErrorMessage = "Tải & khôi phục thành công!"
