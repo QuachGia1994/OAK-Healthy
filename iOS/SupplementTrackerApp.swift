@@ -317,8 +317,8 @@ private struct SafeModeView: View {
                 Section {
                     Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
                     Button("Thoát chế độ an toàn") {
-                        UserDefaults.standard.set(BootKeys.exitingSafeMode, forKey: BootKeys.stage)
-                        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+                        UserDefaults.standard.removeObject(forKey: BootKeys.stage)
+                        UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
                         isSafeModeEnabled = false
                     }
                 } header: {

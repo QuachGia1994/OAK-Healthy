@@ -543,12 +543,19 @@ public struct SettingsView: View {
 
         do {
             let data = try await CloudSyncManager.shared.downloadBackup(binId: binId)
-            isSafeModeEnabled = true
             shareStackPNGURL = nil
-            try stagePendingImport(data: data, clientId: clientId, linkedBinId: binId)
-            importErrorMessage = "Đã tải dữ liệu. Vui lòng mở lại app để áp dụng."
+            try clearStagedImportIfAny()
+            guard let client = clients.first(where: { $0.id == clientId }) else {
+                showError(message: "missing_active_client".localized)
+                return
+            }
+            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            pendingImportFilePath = ""
+            pendingImportClientId = ""
+            pendingImportLinkedBinId = ""
+            importErrorMessage = "Đã tải và nhập dữ liệu thành công."
         } catch {
-            importErrorMessage = "Tải thất bại: \(error.localizedDescription)"
+            importErrorMessage = "Tải/Nhập thất bại: \(error.localizedDescription)"
         }
         showImportErrorAlert = true
     }
@@ -561,6 +568,17 @@ public struct SettingsView: View {
         pendingImportFilePath = url.path
         pendingImportClientId = clientId.uuidString
         pendingImportLinkedBinId = linkedBinId
+    }
+
+    @MainActor
+    private func clearStagedImportIfAny() throws {
+        let path = pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return }
+        let url = URL(fileURLWithPath: path)
+        try? FileManager.default.removeItem(at: url)
+        pendingImportFilePath = ""
+        pendingImportClientId = ""
+        pendingImportLinkedBinId = ""
     }
     
     private func showError(message: String) {
