@@ -15,6 +15,7 @@ private enum BootKeys {
 private enum PendingImportKeys {
     static let filePath = "oakPendingImportFilePath"
     static let clientId = "oakPendingImportClientId"
+    static let clientName = "oakPendingImportClientName"
     static let linkedBinId = "oakPendingImportLinkedBinId"
 }
 
@@ -162,6 +163,8 @@ private struct SafeBootView: View {
         attemptCrashRecoveryIfNeeded()
         UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+        let pendingImportURL = pendingImportURLIfAvailable()
+        prepareStoreForPendingImportIfNeeded(pendingImportURL: pendingImportURL)
         let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
         guard let container = makeModelContainer(schema: schema) else {
             errorMessage = "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."
@@ -172,8 +175,8 @@ private struct SafeBootView: View {
         
         let manager = ActiveClientManager()
         manager.loadFromStorage()
+        applyPendingImportIfNeeded(container: container, manager: manager, pendingImportURL: pendingImportURL)
         validateActiveClient(manager: manager, container: container)
-        applyPendingImportIfNeeded(container: container, manager: manager)
         
         let delegate = NotificationDelegate()
         UNUserNotificationCenter.current().delegate = delegate
@@ -263,11 +266,12 @@ private struct SafeBootView: View {
     }
     
     @MainActor
-    private func applyPendingImportIfNeeded(container: ModelContainer, manager: ActiveClientManager) {
-        let path = UserDefaults.standard.string(forKey: PendingImportKeys.filePath) ?? ""
-        guard !path.isEmpty else { return }
-        
-        let url = URL(fileURLWithPath: path)
+    private func applyPendingImportIfNeeded(
+        container: ModelContainer,
+        manager: ActiveClientManager,
+        pendingImportURL: URL?
+    ) {
+        guard let url = pendingImportURL else { return }
         let data: Data
         do {
             data = try Data(contentsOf: url)
@@ -279,13 +283,14 @@ private struct SafeBootView: View {
         let context = ModelContext(container)
         let clients = (try? context.fetch(FetchDescriptor<ClientProfile>())) ?? []
         let wantedId = UUID(uuidString: UserDefaults.standard.string(forKey: PendingImportKeys.clientId) ?? "")
-        guard let client = clients.first(where: { $0.id == wantedId }) ?? clients.first else {
-            clearPendingImport(at: url)
-            return
-        }
+        let storedName = UserDefaults.standard.string(forKey: PendingImportKeys.clientName)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let client = clients.first(where: { $0.id == wantedId })
+            ?? clients.first
+            ?? createPendingImportClient(context: context, wantedId: wantedId, storedName: storedName)
         
         do {
-            try SupplementExportCodec.mergeBackup(data: data, client: client, context: context)
+            try SupplementExportCodec.importBackup(data: data, client: client, context: context)
             manager.setCurrentClientId(client.id)
             let linked = UserDefaults.standard.string(forKey: PendingImportKeys.linkedBinId) ?? ""
             if !linked.isEmpty {
@@ -299,10 +304,45 @@ private struct SafeBootView: View {
     }
     
     @MainActor
+    private func pendingImportURLIfAvailable() -> URL? {
+        let path = UserDefaults.standard.string(forKey: PendingImportKeys.filePath)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !path.isEmpty else { return nil }
+        let url = URL(fileURLWithPath: path)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            clearPendingImport(at: url)
+            return nil
+        }
+        return url
+    }
+    
+    @MainActor
+    private func prepareStoreForPendingImportIfNeeded(pendingImportURL: URL?) {
+        guard pendingImportURL != nil else { return }
+        guard let url = persistentStoreURL() else { return }
+        resetPersistentStore(at: url)
+        UserDefaults.standard.removeObject(forKey: "activeClientId")
+    }
+    
+    @MainActor
+    private func createPendingImportClient(
+        context: ModelContext,
+        wantedId: UUID?,
+        storedName: String
+    ) -> ClientProfile {
+        let name = storedName.isEmpty ? "Imported Client" : storedName
+        let client = ClientProfile(id: wantedId ?? UUID(), name: name)
+        context.insert(client)
+        try? context.save()
+        return client
+    }
+    
+    @MainActor
     private func clearPendingImport(at url: URL) {
         try? FileManager.default.removeItem(at: url)
         UserDefaults.standard.removeObject(forKey: PendingImportKeys.filePath)
         UserDefaults.standard.removeObject(forKey: PendingImportKeys.clientId)
+        UserDefaults.standard.removeObject(forKey: PendingImportKeys.clientName)
         UserDefaults.standard.removeObject(forKey: PendingImportKeys.linkedBinId)
     }
 }

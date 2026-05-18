@@ -28,6 +28,7 @@ public struct SettingsView: View {
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
     @AppStorage("oakPendingImportClientId") private var pendingImportClientId: String = ""
+    @AppStorage("oakPendingImportClientName") private var pendingImportClientName: String = ""
     @AppStorage("oakPendingImportLinkedBinId") private var pendingImportLinkedBinId: String = ""
     @State private var isShowingCopyBinIdAlert: Bool = false
     @State private var isBinIdVisible: Bool = false
@@ -544,7 +545,8 @@ public struct SettingsView: View {
         do {
             let data = try await CloudSyncManager.shared.downloadBackup(binId: binId)
             shareStackPNGURL = nil
-            try stagePendingImport(data: data, clientId: clientId, linkedBinId: binId)
+            let clientName = clients.first(where: { $0.id == clientId })?.name ?? "Imported Client"
+            try stagePendingImport(data: data, clientId: clientId, clientName: clientName, linkedBinId: binId)
             importErrorMessage = "Đã tải dữ liệu. Vui lòng tắt app và mở lại để áp dụng."
         } catch {
             importErrorMessage = "Tải thất bại: \(error.localizedDescription)"
@@ -553,13 +555,23 @@ public struct SettingsView: View {
     }
     
     @MainActor
-    private func stagePendingImport(data: Data, clientId: UUID, linkedBinId: String) throws {
-        let base = FileManager.default.temporaryDirectory
+    private func stagePendingImport(data: Data, clientId: UUID, clientName: String, linkedBinId: String) throws {
+        let base = try pendingImportDirectory()
         let url = base.appendingPathComponent("oak_pending_import.json")
         try data.write(to: url, options: [.atomic])
         pendingImportFilePath = url.path
         pendingImportClientId = clientId.uuidString
+        pendingImportClientName = clientName.trimmingCharacters(in: .whitespacesAndNewlines)
         pendingImportLinkedBinId = linkedBinId
+    }
+    
+    private func pendingImportDirectory() throws -> URL {
+        try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
     }
     
     private func showError(message: String) {
