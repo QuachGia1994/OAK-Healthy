@@ -105,7 +105,6 @@ struct AppDependencyContainer {
     let modelContainer: ModelContainer
     let activeClientManager: ActiveClientManager
     let notificationService: NotificationService
-    let notificationDelegate: NotificationDelegate
 }
 
 private struct SafeBootView: View {
@@ -180,16 +179,12 @@ private struct SafeBootView: View {
         manager.loadFromStorage()
         validateActiveClient(manager: manager, container: container)
         
-        let delegate = NotificationDelegate()
-        UNUserNotificationCenter.current().delegate = delegate
-        
         let notificationService = NotificationService()
         onReady(
             AppDependencyContainer(
                 modelContainer: container,
                 activeClientManager: manager,
-                notificationService: notificationService,
-                notificationDelegate: delegate
+                notificationService: notificationService
             )
         )
     }
