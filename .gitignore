@@ -15,3 +15,5 @@ Android/**/build/
 **/__pycache__/
 **/*.pyc
 backups/
+*Build*.txt
+*build error*.txt
