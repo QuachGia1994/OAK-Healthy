@@ -278,6 +278,7 @@ private struct SafeModeView: View {
     @AppStorage("oakPendingImportClientName") private var pendingImportClientName: String = ""
     @AppStorage("oakPendingImportLinkedBinId") private var pendingImportLinkedBinId: String = ""
     @State private var pendingImportMessage: String?
+    @State private var isApplyingImport: Bool = false
     let activeClientManager: ActiveClientManager
     
     var body: some View {
@@ -290,13 +291,18 @@ private struct SafeModeView: View {
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
+                        if isApplyingImport {
+                            ProgressView()
+                        }
                         Button("Áp dụng dữ liệu đã tải") {
                             applyPendingImport()
                         }
+                        .disabled(isApplyingImport)
                         .buttonStyle(.borderedProminent)
                         Button("Hủy dữ liệu đã tải") {
                             discardPendingImport()
                         }
+                        .disabled(isApplyingImport)
                         .buttonStyle(.bordered)
                     }
                     Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
@@ -326,11 +332,12 @@ private struct SafeModeView: View {
     
     @MainActor
     private func applyPendingImport() {
+        guard !isApplyingImport else { return }
         guard let url = pendingImportURL() else { return }
-        let data: Data
         do {
-            data = try Data(contentsOf: url)
-            try wipeAllData()
+            isApplyingImport = true
+            defer { isApplyingImport = false }
+            let data = try Data(contentsOf: url)
             let client = try createImportClient()
             try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
             activeClientManager.setCurrentClientId(client.id)
@@ -339,29 +346,17 @@ private struct SafeModeView: View {
                 UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
             }
             clearPendingImport(at: url)
-            pendingImportMessage = nil
-            isSafeModeEnabled = false
+            pendingImportMessage = "Áp dụng dữ liệu thành công. Hãy thoát chế độ an toàn để sử dụng app."
         } catch {
+            isApplyingImport = false
             pendingImportMessage = "Áp dụng dữ liệu thất bại: \(error.localizedDescription)"
         }
     }
     
     @MainActor
-    private func wipeAllData() throws {
-        let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
-        let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
-        let clients = try modelContext.fetch(FetchDescriptor<ClientProfile>())
-        for record in records { modelContext.delete(record) }
-        for supplement in supplements { modelContext.delete(supplement) }
-        for client in clients { modelContext.delete(client) }
-        try modelContext.save()
-    }
-    
-    @MainActor
     private func createImportClient() throws -> ClientProfile {
-        let wantedId = UUID(uuidString: pendingImportClientId)
         let storedName = pendingImportClientName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let client = ClientProfile(id: wantedId ?? UUID(), name: storedName.isEmpty ? "Imported Client" : storedName)
+        let client = ClientProfile(id: UUID(), name: storedName.isEmpty ? "Imported Client" : storedName)
         modelContext.insert(client)
         try modelContext.save()
         return client
