@@ -347,7 +347,17 @@ private struct SafeModeView: View {
     @MainActor
     private func createImportClient() throws -> ClientProfile {
         let storedName = pendingImportClientName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let client = ClientProfile(id: UUID(), name: storedName.isEmpty ? "Imported Client" : storedName)
+        let normalized = storedName.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalized.isEmpty {
+            let existing = try modelContext.fetch(FetchDescriptor<ClientProfile>())
+            if let matched = existing.first(where: { $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == normalized }) {
+                return matched
+            }
+        }
+        
+        let name = storedName.isEmpty ? "Imported Client" : storedName
+        let client = ClientProfile(id: UUID(), name: name)
         modelContext.insert(client)
         try modelContext.save()
         return client
