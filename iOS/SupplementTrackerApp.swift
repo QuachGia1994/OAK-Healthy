@@ -42,14 +42,21 @@ private struct RootLaunchView: View {
     let preferredColorScheme: ColorScheme?
     @Binding var isAppLaunched: Bool
     @Binding var dependencies: AppDependencyContainer?
+    @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     
     var body: some View {
         if isAppLaunched, let dependencies {
-            MainTabView(
-                selectedTab: $selectedTab,
-                activeClientManager: dependencies.activeClientManager,
-                notificationService: dependencies.notificationService
-            )
+            Group {
+                if isSafeModeEnabled {
+                    SafeModeView()
+                } else {
+                    MainTabView(
+                        selectedTab: $selectedTab,
+                        activeClientManager: dependencies.activeClientManager,
+                        notificationService: dependencies.notificationService
+                    )
+                }
+            }
             .preferredColorScheme(preferredColorScheme)
             .modelContainer(dependencies.modelContainer)
             .task {
@@ -88,6 +95,8 @@ private struct SafeBootView: View {
     let onReady: (AppDependencyContainer) -> Void
     @State private var errorMessage: String?
     @State private var hasBootstrapped: Bool = false
+    @State private var bootAttempt: Int = 0
+    @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     
     var body: some View {
         ZStack {
@@ -107,12 +116,29 @@ private struct SafeBootView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
+                    Button("Thử lại") {
+                        errorMessage = nil
+                        hasBootstrapped = false
+                        bootAttempt += 1
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Khôi phục dữ liệu (xóa)") {
+                        recoverByWipingStore()
+                        errorMessage = nil
+                        hasBootstrapped = false
+                        bootAttempt += 1
+                    }
+                    .buttonStyle(.bordered)
                 } else {
                     ProgressView()
+                    Button("Chế độ an toàn") {
+                        isSafeModeEnabled = true
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
         }
-        .task {
+        .task(id: bootAttempt) {
             guard !hasBootstrapped else { return }
             hasBootstrapped = true
             await bootstrap()
@@ -160,8 +186,7 @@ private struct SafeBootView: View {
             return try ModelContainer(for: schema, configurations: configuration)
         } catch {
             print("SwiftData init failed: \(error.localizedDescription)")
-            resetPersistentStore(at: storeURL)
-            return try? ModelContainer(for: schema, configurations: configuration)
+            return nil
         }
     }
     
@@ -213,6 +238,36 @@ private struct SafeBootView: View {
         UserDefaults.standard.removeObject(forKey: "activeClientId")
         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
         UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
+    }
+    
+    @MainActor
+    private func recoverByWipingStore() {
+        guard let url = persistentStoreURL() else { return }
+        resetPersistentStore(at: url)
+        UserDefaults.standard.removeObject(forKey: "activeClientId")
+        UserDefaults.standard.removeObject(forKey: BootKeys.stage)
+        UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
+    }
+}
+
+private struct SafeModeView: View {
+    @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
+    @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
+    
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
+                    Button("Thoát chế độ an toàn") {
+                        isSafeModeEnabled = false
+                    }
+                } header: {
+                    Text("Chế độ an toàn")
+                }
+            }
+            .navigationTitle("OAK Healthy")
+        }
     }
 }
 

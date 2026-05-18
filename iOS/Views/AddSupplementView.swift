@@ -173,6 +173,8 @@ public struct AddSupplementView: View {
                                     .padding(.vertical, 8)
                                     .font(.subheadline.weight(.semibold))
                             }
+                            .buttonStyle(.plain)
+                            .contentShape(Capsule())
                             .foregroundStyle(isSelected ? Color.white : Color.primary)
                             .background(
                                 Capsule()

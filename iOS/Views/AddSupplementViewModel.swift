@@ -148,13 +148,10 @@ public final class AddSupplementViewModel {
     
     public func toggleWeekday(bitIndex: Int) {
         guard bitIndex >= 0, bitIndex <= 6 else { return }
+        let current = sanitizedWeekdaysMask()
         let bit = 1 << bitIndex
-        if (weekdaysMask & bit) != 0 {
-            weekdaysMask &= ~bit
-        } else {
-            weekdaysMask |= bit
-        }
-        if weekdaysMask == 0 { weekdaysMask = bit }
+        let toggled = current ^ bit
+        weekdaysMask = max(1, min(127, toggled == 0 ? bit : toggled))
     }
     
     /// Tạo đối tượng UserSupplement hoàn chỉnh.
@@ -190,8 +187,17 @@ public final class AddSupplementViewModel {
     
     private func makeWeeklyRecurrenceIfNeeded() -> WeeklyRecurrenceConfig? {
         guard isWeeklyRecurrenceEnabled else { return nil }
-        let interval = Int(intervalWeeks) ?? 1
+        let interval = max(1, Int(intervalWeeks) ?? 1)
         let anchor = Calendar.current.startOfDay(for: startDate)
-        return WeeklyRecurrenceConfig(weekdaysMask: weekdaysMask, intervalWeeks: interval, anchorDate: anchor)
+        return WeeklyRecurrenceConfig(
+            weekdaysMask: sanitizedWeekdaysMask(),
+            intervalWeeks: interval,
+            anchorDate: anchor
+        )
+    }
+    
+    private func sanitizedWeekdaysMask() -> Int {
+        let clamped = max(1, min(127, weekdaysMask))
+        return clamped
     }
 }
