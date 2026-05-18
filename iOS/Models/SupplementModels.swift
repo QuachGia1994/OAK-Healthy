@@ -31,6 +31,41 @@ public struct WeeklyRecurrenceConfig: Codable, Sendable, Equatable {
         self.intervalWeeks = max(1, min(52, intervalWeeks))
         self.anchorDate = anchorDate
     }
+    
+    enum CodingKeys: String, CodingKey {
+        case weekdaysMask
+        case intervalWeeks
+        case anchorDate
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let mask = Self.decodeInt(from: container, key: .weekdaysMask) ?? 127
+        let interval = Self.decodeInt(from: container, key: .intervalWeeks) ?? 1
+        let date = Self.decodeDate(from: container, key: .anchorDate) ?? .now
+        self.init(weekdaysMask: mask, intervalWeeks: interval, anchorDate: date)
+    }
+    
+    private static func decodeInt(from container: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Int? {
+        if let value = try? container.decodeIfPresent(Int.self, forKey: key) { return value }
+        if let raw = try? container.decodeIfPresent(String.self, forKey: key) { return Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        return nil
+    }
+    
+    private static func decodeDate(from container: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Date? {
+        if let date = try? container.decodeIfPresent(Date.self, forKey: key) { return date }
+        if let seconds = try? container.decodeIfPresent(Double.self, forKey: key) { return Date(timeIntervalSince1970: seconds) }
+        if let raw = try? container.decodeIfPresent(String.self, forKey: key) {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = "yyyy-MM-dd"
+            return formatter.date(from: trimmed) ?? ISO8601DateFormatter().date(from: trimmed)
+        }
+        return nil
+    }
 }
 
 /// Cấu hình chu kỳ uống (Cycling On/Off).
@@ -78,6 +113,41 @@ public struct CycleConfig: Codable, Sendable, Equatable {
         self.isContinuous = false
         self.durationMonths = safeDurationMonths
         self.weeklyRecurrence = weeklyRecurrence
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case daysOn
+        case daysOff
+        case isContinuous
+        case durationMonths
+        case weeklyRecurrence
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let daysOn = Self.decodeInt(from: container, key: .daysOn) ?? 1
+        let daysOff = Self.decodeInt(from: container, key: .daysOff) ?? 0
+        let isContinuous = Self.decodeBool(from: container, key: .isContinuous) ?? false
+        let durationMonths = Self.decodeInt(from: container, key: .durationMonths)
+        let weekly = try? container.decodeIfPresent(WeeklyRecurrenceConfig.self, forKey: .weeklyRecurrence)
+        self.init(daysOn: daysOn, daysOff: daysOff, isContinuous: isContinuous, durationMonths: durationMonths, weeklyRecurrence: weekly ?? nil)
+    }
+    
+    private static func decodeInt(from container: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Int? {
+        if let value = try? container.decodeIfPresent(Int.self, forKey: key) { return value }
+        if let raw = try? container.decodeIfPresent(String.self, forKey: key) { return Int(raw.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        return nil
+    }
+    
+    private static func decodeBool(from container: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Bool? {
+        if let value = try? container.decodeIfPresent(Bool.self, forKey: key) { return value }
+        if let intVal = try? container.decodeIfPresent(Int.self, forKey: key) { return intVal != 0 }
+        if let raw = try? container.decodeIfPresent(String.self, forKey: key) {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if ["true", "1", "yes"].contains(trimmed) { return true }
+            if ["false", "0", "no"].contains(trimmed) { return false }
+        }
+        return nil
     }
     
     /// Cấu hình mặc định cho việc uống liên tục.
