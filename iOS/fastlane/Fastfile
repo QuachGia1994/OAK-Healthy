@@ -15,4 +15,9 @@ platform :ios do
       archive_path: "./build/OAKHealthy.xcarchive"
     )
   end
+
+  desc "CI build (simulator compile)"
+  lane :ci_build do
+    sh("set -o pipefail && xcodebuild -project OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' clean build")
+  end
 end
