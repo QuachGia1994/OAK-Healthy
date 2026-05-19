@@ -84,6 +84,9 @@ public struct HistoryView: View {
             }
             .navigationTitle("history_title".localized)
             .task(id: activeClientManager.currentClientId) {
+                DebugReporter.report("history_task_start", fields: [
+                    "clientId": activeClientManager.currentClientId?.uuidString ?? ""
+                ])
                 await reload()
             }
         }
@@ -102,8 +105,12 @@ public struct HistoryView: View {
             recordsCount = 0
             sections = []
             viewModel.processHistory(records: [])
+            DebugReporter.report("history_reload_no_client")
             return
         }
+        DebugReporter.report("history_reload_start", fields: [
+            "clientId": clientId.uuidString
+        ])
         do {
             var descriptor = FetchDescriptor<IntakeRecord>(
                 predicate: #Predicate { $0.supplement?.client?.id == clientId },
@@ -114,10 +121,16 @@ public struct HistoryView: View {
             recordsCount = fetched.count
             sections = makeSections(records: fetched)
             viewModel.processHistory(records: fetched)
+            DebugReporter.report("history_reload_success", fields: [
+                "count": String(fetched.count)
+            ])
         } catch {
             recordsCount = 0
             sections = []
             viewModel.processHistory(records: [])
+            DebugReporter.report("history_reload_failed", fields: [
+                "error": String(describing: error)
+            ])
         }
     }
     

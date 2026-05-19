@@ -19,6 +19,35 @@ private enum PendingImportKeys {
     static let linkedBinId = "oakPendingImportLinkedBinId"
 }
 
+// #region debug-point ios-tab-crash-reporter
+enum DebugReporter {
+    private static let urlKey = "debugServerUrl"
+    private static let runIdKey = "debugRunId"
+    
+    static func report(_ name: String, fields: [String: String] = [:]) {
+        let rawUrl = (UserDefaults.standard.string(forKey: urlKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawUrl.isEmpty, let url = URL(string: rawUrl) else { return }
+        let runId = (UserDefaults.standard.string(forKey: runIdKey) ?? "pre").trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        var payload: [String: Any] = [
+            "ts": Int64(Date().timeIntervalSince1970 * 1000),
+            "sessionId": "ios-tab-crash",
+            "runId": runId,
+            "name": name
+        ]
+        if !fields.isEmpty { payload["fields"] = fields }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+        
+        URLSession.shared.dataTask(with: request).resume()
+    }
+}
+// #endregion debug-point ios-tab-crash-reporter
+
 @main
 struct SupplementTrackerApp: App {
     @AppStorage("appTheme") private var appTheme: String = "system"
@@ -70,11 +99,16 @@ private struct RootLaunchView: View {
             .preferredColorScheme(preferredColorScheme)
             .modelContainer(dependencies.modelContainer)
             .task {
+                DebugReporter.report("ui_task_start", fields: [
+                    "safeMode": String(isSafeModeEnabled),
+                    "pendingImport": String(!pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                ])
                 UserDefaults.standard.set(BootKeys.uiReady, forKey: BootKeys.stage)
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
                 try? await Task.sleep(for: .seconds(3))
                 UserDefaults.standard.set(BootKeys.uiStable, forKey: BootKeys.stage)
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+                DebugReporter.report("ui_task_stable")
             }
         } else {
             SafeBootView { container in
@@ -161,19 +195,25 @@ private struct SafeBootView: View {
     private func bootstrap() async {
         try? await Task.sleep(for: .seconds(2))
         attemptCrashRecoveryIfNeeded()
+        DebugReporter.report("bootstrap_start")
         UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
         let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
         guard let container = makeModelContainer(schema: schema) else {
             errorMessage = "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."
+            DebugReporter.report("bootstrap_container_failed")
             return
         }
         UserDefaults.standard.set(BootKeys.containerReady, forKey: BootKeys.stage)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+        DebugReporter.report("bootstrap_container_ready")
         
         let manager = ActiveClientManager()
         manager.loadFromStorage()
         validateActiveClient(manager: manager, container: container)
+        DebugReporter.report("bootstrap_active_client_loaded", fields: [
+            "currentClientId": manager.currentClientId?.uuidString ?? ""
+        ])
         
         let notificationService = NotificationService()
         onReady(
@@ -183,6 +223,7 @@ private struct SafeBootView: View {
                 notificationService: notificationService
             )
         )
+        DebugReporter.report("bootstrap_ready")
     }
     
     @MainActor
@@ -193,7 +234,10 @@ private struct SafeBootView: View {
         do {
             return try ModelContainer(for: schema, configurations: configuration)
         } catch {
-            print("SwiftData init failed: \(error.localizedDescription)")
+            DebugReporter.report("swiftdata_init_failed", fields: [
+                "storeURL": storeURL.path,
+                "error": String(describing: error)
+            ])
             return nil
         }
     }
@@ -209,7 +253,9 @@ private struct SafeBootView: View {
             )
             return base.appendingPathComponent("OAKHealthy.store")
         } catch {
-            print("AppSupport directory error: \(error.localizedDescription)")
+            DebugReporter.report("appsupport_dir_failed", fields: [
+                "error": String(describing: error)
+            ])
             return nil
         }
     }
@@ -243,6 +289,10 @@ private struct SafeBootView: View {
         guard lastEpoch > 0 else { return }
         let elapsed = Date().timeIntervalSince1970 - lastEpoch
         guard elapsed < 600 else { return }
+        DebugReporter.report("crash_recovery_triggered", fields: [
+            "lastStage": lastStage,
+            "elapsed": String(elapsed)
+        ])
         isSafeModeEnabled = true
         UserDefaults.standard.removeObject(forKey: "activeClientId")
         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
@@ -268,6 +318,7 @@ private struct SafeModeView: View {
     @AppStorage("oakPendingImportClientId") private var pendingImportClientId: String = ""
     @AppStorage("oakPendingImportClientName") private var pendingImportClientName: String = ""
     @AppStorage("oakPendingImportLinkedBinId") private var pendingImportLinkedBinId: String = ""
+    @AppStorage("debugServerUrl") private var debugServerUrl: String = ""
     @State private var pendingImportMessage: String?
     @State private var isApplyingImport: Bool = false
     let activeClientManager: ActiveClientManager
@@ -298,12 +349,25 @@ private struct SafeModeView: View {
                     }
                     Toggle("safe_mode_auto_sync_toggle".localized, isOn: $isAutoSyncEnabled)
                     Button("safe_mode_exit_button".localized) {
+                        DebugReporter.report("safe_mode_exit_tap", fields: [
+                            "pendingImport": String(hasPendingImport)
+                        ])
                         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
                         UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
                         isSafeModeEnabled = false
                     }
                 } header: {
                     Text("safe_mode_header".localized)
+                }
+                
+                Section("Debug") {
+                    TextField("Debug server URL", text: $debugServerUrl)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+                    Button("Send test event") {
+                        DebugReporter.report("debug_test_event")
+                    }
                 }
             }
             .navigationTitle("safe_mode_title".localized)
@@ -314,6 +378,9 @@ private struct SafeModeView: View {
             if hasPendingImport {
                 pendingImportMessage = "safe_mode_detected_message".localized
             }
+            DebugReporter.report("safe_mode_view_task", fields: [
+                "hasPendingImport": String(hasPendingImport)
+            ])
         }
     }
     
@@ -325,6 +392,7 @@ private struct SafeModeView: View {
     private func applyPendingImport() async {
         guard !isApplyingImport else { return }
         guard let url = pendingImportURL() else { return }
+        DebugReporter.report("safe_mode_apply_start")
         do {
             isApplyingImport = true
             defer { isApplyingImport = false }
@@ -347,9 +415,15 @@ private struct SafeModeView: View {
             }
             clearPendingImport(at: url)
             pendingImportMessage = "safe_mode_apply_success_message".localized
+            DebugReporter.report("safe_mode_apply_success", fields: [
+                "clientId": client.id.uuidString
+            ])
         } catch {
             isApplyingImport = false
             pendingImportMessage = String(format: "safe_mode_apply_failed_format".localized, error.localizedDescription)
+            DebugReporter.report("safe_mode_apply_failed", fields: [
+                "error": String(describing: error)
+            ])
         }
     }
     

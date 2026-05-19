@@ -59,17 +59,30 @@ public struct SyncCenterView: View {
         .navigationTitle("sync_center_title".localized)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            DebugReporter.report("sync_center_task_boot", fields: [
+                "currentClientId": activeClientManager.currentClientId?.uuidString ?? "",
+                "clientsCount": String(clients.count)
+            ])
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
         }
         .task(id: activeClientManager.currentClientId) {
+            DebugReporter.report("sync_center_task_reload_caches", fields: [
+                "clientId": activeClientManager.currentClientId?.uuidString ?? ""
+            ])
             await reloadCaches()
         }
         .task(id: activeBinId) {
+            DebugReporter.report("sync_center_task_load_logs", fields: [
+                "binId": activeBinId
+            ])
             logEntries = loadLogEntries(binId: activeBinId)
         }
         .task(id: isCloudEncryptionEnabled) {
+            DebugReporter.report("sync_center_task_refresh_key", fields: [
+                "enabled": String(isCloudEncryptionEnabled)
+            ])
             await refreshExportedCloudKey()
         }
         .alert("sync_center_notice_title".localized, isPresented: $showImportErrorAlert) {
@@ -84,6 +97,9 @@ public struct SyncCenterView: View {
         Section {
             Toggle("sync_center_auto_sync".localized, isOn: $isAutoSyncEnabled)
                 .onChange(of: isAutoSyncEnabled) {
+                    DebugReporter.report("sync_center_auto_sync_changed", fields: [
+                        "enabled": String(isAutoSyncEnabled)
+                    ])
                     if isAutoSyncEnabled {
                         CloudSyncAutoSync.startRealtimeSync(
                             modelContext: modelContext,
