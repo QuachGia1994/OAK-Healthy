@@ -113,11 +113,11 @@ public struct HistoryView: View {
         ])
         do {
             var descriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate { $0.supplement?.client?.id == clientId },
                 sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
             )
             descriptor.fetchLimit = 5_000
-            let fetched = try modelContext.fetch(descriptor)
+            let fetchedAll = try modelContext.fetch(descriptor)
+            let fetched = fetchedAll.filter { $0.supplement?.client?.id == clientId }
             recordsCount = fetched.count
             sections = makeSections(records: fetched)
             viewModel.processHistory(records: fetched)

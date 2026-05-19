@@ -365,21 +365,21 @@ enum CloudSyncAutoSync {
         do {
             var supplementsDescriptor = FetchDescriptor<UserSupplement>(
                 predicate: #Predicate {
-                    $0.client?.id == clientId &&
-                        ($0.updatedAtEpochMs > lastSyncEpochMs ||
-                         ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs))
+                    $0.updatedAtEpochMs > lastSyncEpochMs ||
+                        ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs)
                 }
             )
-            supplementsDescriptor.fetchLimit = 1
-            if !(try modelContext.fetch(supplementsDescriptor)).isEmpty { return true }
+            supplementsDescriptor.fetchLimit = 50
+            let changedSupplements = try modelContext.fetch(supplementsDescriptor)
+            if changedSupplements.contains(where: { $0.client?.id == clientId }) { return true }
             
             var recordsDescriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate {
-                    $0.supplement?.client?.id == clientId && $0.updatedAtEpochMs > lastSyncEpochMs
-                }
+                predicate: #Predicate { $0.updatedAtEpochMs > lastSyncEpochMs },
+                sortBy: [SortDescriptor(\IntakeRecord.updatedAtEpochMs, order: .reverse)]
             )
-            recordsDescriptor.fetchLimit = 1
-            return !(try modelContext.fetch(recordsDescriptor)).isEmpty
+            recordsDescriptor.fetchLimit = 100
+            let changedRecords = try modelContext.fetch(recordsDescriptor)
+            return changedRecords.contains(where: { $0.supplement?.client?.id == clientId })
         } catch {
             return true
         }

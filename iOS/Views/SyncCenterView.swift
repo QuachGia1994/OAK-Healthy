@@ -823,17 +823,16 @@ public struct SyncCenterView: View {
     
     private func hasLocalStackChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
         guard lastSyncEpochMs > 0 else { return true }
-        let supplementsDescriptor = FetchDescriptor<UserSupplement>(
-            predicate: #Predicate {
-                $0.client?.id == clientId &&
-                    ($0.updatedAtEpochMs > lastSyncEpochMs ||
-                     ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs))
-            }
-        )
         do {
-            var s = supplementsDescriptor
-            s.fetchLimit = 1
-            return !(try modelContext.fetch(s)).isEmpty
+            var descriptor = FetchDescriptor<UserSupplement>(
+                predicate: #Predicate {
+                    $0.updatedAtEpochMs > lastSyncEpochMs ||
+                        ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs)
+                }
+            )
+            descriptor.fetchLimit = 50
+            let changed = try modelContext.fetch(descriptor)
+            return changed.contains(where: { $0.client?.id == clientId })
         } catch {
             return true
         }
@@ -841,13 +840,14 @@ public struct SyncCenterView: View {
     
     private func hasLocalHistoryChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
         guard lastSyncEpochMs > 0 else { return true }
-        let recordsDescriptor = FetchDescriptor<IntakeRecord>(
-            predicate: #Predicate { $0.supplement?.client?.id == clientId && $0.updatedAtEpochMs > lastSyncEpochMs }
-        )
         do {
-            var r = recordsDescriptor
-            r.fetchLimit = 1
-            return !(try modelContext.fetch(r)).isEmpty
+            var descriptor = FetchDescriptor<IntakeRecord>(
+                predicate: #Predicate { $0.updatedAtEpochMs > lastSyncEpochMs },
+                sortBy: [SortDescriptor(\IntakeRecord.updatedAtEpochMs, order: .reverse)]
+            )
+            descriptor.fetchLimit = 100
+            let changed = try modelContext.fetch(descriptor)
+            return changed.contains(where: { $0.supplement?.client?.id == clientId })
         } catch {
             return true
         }
@@ -1028,18 +1028,17 @@ public struct SyncCenterView: View {
             return
         }
         do {
-            let supplementsDescriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate { $0.client?.id == clientId },
-                sortBy: [SortDescriptor(\UserSupplement.name)]
+            let supplementsAll = try modelContext.fetch(
+                FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
             )
-            cachedSupplements = try modelContext.fetch(supplementsDescriptor)
+            cachedSupplements = supplementsAll.filter { $0.client?.id == clientId }
             
             var recordsDescriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate { $0.supplement?.client?.id == clientId },
                 sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
             )
             recordsDescriptor.fetchLimit = 5_000
-            cachedRecords = try modelContext.fetch(recordsDescriptor)
+            let recordsAll = try modelContext.fetch(recordsDescriptor)
+            cachedRecords = recordsAll.filter { $0.supplement?.client?.id == clientId }
         } catch {
             cachedSupplements = []
             cachedRecords = []
