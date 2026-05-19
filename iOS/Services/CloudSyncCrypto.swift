@@ -145,7 +145,12 @@ public enum CloudSyncCrypto {
         let nonce = AES.GCM.Nonce()
         let nonceData = nonce.withUnsafeBytes { Data($0) }
         let key = SymmetricKey(data: keyData)
-        let sealed = try AES.GCM.seal(plaintext, using: key, nonce: nonce)
+        let sealed: AES.GCM.SealedBox
+        do {
+            sealed = try AES.GCM.seal(plaintext, using: key, nonce: nonce)
+        } catch {
+            throw .cryptoFailed(message: String(describing: error))
+        }
         var ctData = Data()
         ctData.append(sealed.ciphertext)
         ctData.append(sealed.tag)
@@ -158,7 +163,11 @@ public enum CloudSyncCrypto {
                 ct: ctData.base64EncodedString()
             )
         )
-        return try JSONEncoder().encode(payload)
+        do {
+            return try JSONEncoder().encode(payload)
+        } catch {
+            throw .cryptoFailed(message: String(describing: error))
+        }
     }
     
     public static func decryptIfNeeded(_ payload: Data) throws(CloudSyncCryptoError) -> Data {
@@ -174,10 +183,24 @@ public enum CloudSyncCrypto {
         guard ctData.count >= 16 else { throw .invalidPayload }
         guard let keyData = CloudSyncKeyManager.keyData(for: kid) else { throw .missingKey(keyId: kid) }
         let key = SymmetricKey(data: keyData)
-        let nonce = try AES.GCM.Nonce(data: nonceData)
+        let nonce: AES.GCM.Nonce
+        do {
+            nonce = try AES.GCM.Nonce(data: nonceData)
+        } catch {
+            throw .cryptoFailed(message: String(describing: error))
+        }
         let tag = ctData.suffix(16)
         let ciphertext = ctData.dropLast(16)
-        let box = try AES.GCM.SealedBox(nonce: nonce, ciphertext: Data(ciphertext), tag: tag)
-        return try AES.GCM.open(box, using: key)
+        let box: AES.GCM.SealedBox
+        do {
+            box = try AES.GCM.SealedBox(nonce: nonce, ciphertext: Data(ciphertext), tag: tag)
+        } catch {
+            throw .cryptoFailed(message: String(describing: error))
+        }
+        do {
+            return try AES.GCM.open(box, using: key)
+        } catch {
+            throw .cryptoFailed(message: String(describing: error))
+        }
     }
 }

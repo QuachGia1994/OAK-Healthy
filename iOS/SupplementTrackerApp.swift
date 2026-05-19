@@ -433,7 +433,7 @@ struct MainTabView: View {
         }
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase, initial: false) { _, newPhase in
             guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else {
                 CloudSyncAutoSync.stopRealtimeSync()
                 return

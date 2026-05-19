@@ -409,6 +409,6 @@ enum CloudSyncAutoSync {
             .filter { $0.supplement?.client?.id == clientId }
             .sorted { $0.date > $1.date }
             .prefix(5_000)
-        return try SupplementExportCodec.encodeBackup(supplements: supplements, records: records)
+        return try SupplementExportCodec.encodeBackup(supplements: supplements, records: Array(records))
     }
 }
