@@ -26,6 +26,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +38,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -47,9 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,14 +74,6 @@ fun SyncCenterScreen(
     val hostedBinId by homeViewModel.hostedBinId.collectAsStateWithLifecycle()
     val cloudSyncLoading by homeViewModel.cloudSyncLoading.collectAsStateWithLifecycle()
     val uiStatus by homeViewModel.cloudSyncUiStatus.collectAsStateWithLifecycle()
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
     val formatter = remember {
         DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
     }
@@ -100,6 +93,7 @@ fun SyncCenterScreen(
     var logsVersion by remember { mutableIntStateOf(0) }
     var logQuery by remember { mutableStateOf("") }
     var logPhaseFilter by remember { mutableStateOf("ALL") }
+    var isPhaseMenuExpanded by remember { mutableStateOf(false) }
     var isExportLogConfirmVisible by remember { mutableStateOf(false) }
 
     val activeBinId = remember(hostedBinId, linkedBinId) {
@@ -156,7 +150,7 @@ fun SyncCenterScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundBrush)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         if (isRevokeConfirmVisible) {
             AlertDialog(
@@ -316,7 +310,7 @@ fun SyncCenterScreen(
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                     title = { Text(stringResource(R.string.sync_center_title)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
@@ -331,7 +325,7 @@ fun SyncCenterScreen(
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item(key = "tabs") {
                     TabRow(selectedTabIndex = selectedTab) {
@@ -350,8 +344,8 @@ fun SyncCenterScreen(
 
                 item(key = "setup") {
                     Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -450,8 +444,8 @@ fun SyncCenterScreen(
                         val lastSyncText = if (status.lastSyncEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastSyncEpochMs)) else notYet
                         val lastAttemptText = if (status.lastAttemptEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastAttemptEpochMs)) else notYet
                         Card(
-                            shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -520,8 +514,8 @@ fun SyncCenterScreen(
 
                 item(key = "encryption") {
                     Card(
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -595,24 +589,74 @@ fun SyncCenterScreen(
                             singleLine = true
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedButton(onClick = { logPhaseFilter = "ALL" }) { Text(stringResource(R.string.sync_center_filter_all)) }
-                            OutlinedButton(onClick = { logPhaseFilter = "ERROR" }) { Text(stringResource(R.string.sync_center_filter_error)) }
-                            OutlinedButton(onClick = { logPhaseFilter = "HOST" }) { Text(stringResource(R.string.sync_center_filter_host)) }
-                            OutlinedButton(onClick = { logPhaseFilter = "DONE" }) { Text(stringResource(R.string.sync_center_filter_done)) }
+                        val phaseLabel = when (logPhaseFilter.uppercase()) {
+                            "ERROR" -> stringResource(R.string.sync_center_filter_error)
+                            "HOST" -> stringResource(R.string.sync_center_filter_host)
+                            "DONE" -> stringResource(R.string.sync_center_filter_done)
+                            else -> stringResource(R.string.sync_center_filter_all)
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Phase",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Box {
+                                OutlinedButton(onClick = { isPhaseMenuExpanded = true }) { Text(phaseLabel) }
+                                DropdownMenu(
+                                    expanded = isPhaseMenuExpanded,
+                                    onDismissRequest = { isPhaseMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sync_center_filter_all)) },
+                                        onClick = {
+                                            logPhaseFilter = "ALL"
+                                            isPhaseMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sync_center_filter_error)) },
+                                        onClick = {
+                                            logPhaseFilter = "ERROR"
+                                            isPhaseMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sync_center_filter_host)) },
+                                        onClick = {
+                                            logPhaseFilter = "HOST"
+                                            isPhaseMenuExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sync_center_filter_done)) },
+                                        onClick = {
+                                            logPhaseFilter = "DONE"
+                                            isPhaseMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedButton(onClick = { isExportLogConfirmVisible = true }) { Text(stringResource(R.string.sync_center_action_export)) }
-                            OutlinedButton(onClick = { isClearLogConfirmVisible = true }) { Text(stringResource(R.string.sync_center_action_clear)) }
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { isExportLogConfirmVisible = true }) { Text(stringResource(R.string.sync_center_action_export)) }
+                            Spacer(modifier = Modifier.weight(1f))
+                            TextButton(onClick = { isClearLogConfirmVisible = true }) {
+                                Text(stringResource(R.string.sync_center_action_clear), color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
 
                 items(items = logs, key = { it.ts }) { item ->
                     Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {

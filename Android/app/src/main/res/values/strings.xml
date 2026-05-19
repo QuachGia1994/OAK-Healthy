@@ -8,13 +8,13 @@
     <string name="settings_title">Settings</string>
     <string name="app_information_title">App Information</string>
     <string name="settings_guide_title">User Guide</string>
-    <string name="settings_guide_content">1. Setup Stack: Tap (+) to add. The app auto-calculates On/Off cycles from the start date.\n2. Multi-device sync: Enable \"Auto-Sync\" for realtime syncing. Use a fixed Link Code to avoid re-entering.\n3. Security: Use the eye icon to hide the code in public. Use Revoke to permanently delete cloud data.\n4. Notification diagnostics: Check Notification List to confirm the app sent schedules. Ensure Battery Optimization (Android) / Focus (iOS) isn’t blocking.</string>
+    <string name="settings_guide_content">1. Setup Stack: Tap (+) to add. The app auto-calculates On/Off cycles from the start date.\n2. Multi-device sync: Open Settings → Sync Center. On Host: (recommended) enable Cloud Encryption, then tap Host Data to create a Link Code. On Link: enter the code and tap Download.\n3. Security: If encryption is enabled, copy Sync Key from Host and Import on other devices. After rotating the key, re-import the new key. Use Revoke to permanently delete cloud data when you no longer need syncing.\n4. Notification diagnostics: Check Notification List to confirm the app sent schedules. Ensure Battery Optimization (Android) / Focus (iOS) isn’t blocking.</string>
     <string name="user_guide_1_title">Section 1: Setup Stack</string>
     <string name="user_guide_1_body">Tap (+) to add supplements. The app auto-calculates On/Off cycles (take/rest) from the start date.</string>
     <string name="user_guide_2_title">Section 2: Multi-device Sync</string>
-    <string name="user_guide_2_body">Enable “Auto-Sync” to keep data consistent across devices. Use a fixed Link Code so you don’t need to re-enter it.</string>
+    <string name="user_guide_2_body">Open Settings → Sync Center. On Host: (recommended) enable Cloud Encryption, then tap Host Data to create a Link Code. On Link: enter the code and tap Download. Enable Auto-Sync if you want realtime syncing.</string>
     <string name="user_guide_3_title">Section 3: Maximum Security</string>
-    <string name="user_guide_3_body">Tap the eye icon to hide the code in public. Use “Revoke” to permanently delete cloud data when you no longer need syncing.</string>
+    <string name="user_guide_3_body">If encryption is enabled, copy Sync Key from Host and Import on other devices. After rotating the key, re-import the new key. Tap the eye icon to hide the Link Code in public. Use “Revoke” to permanently delete cloud data when you no longer need syncing.</string>
     <string name="user_guide_4_title">Section 4: Notification Diagnostics</string>
     <string name="user_guide_4_body">If you miss a reminder, open “Notification List” to confirm the app scheduled it. Make sure Battery Optimization (Android) or Focus/Do Not Disturb (iOS) isn’t blocking.</string>
     

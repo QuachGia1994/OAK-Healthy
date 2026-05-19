@@ -7,13 +7,13 @@
     <string name="settings_title">Cài đặt</string>
     <string name="app_information_title">Thông tin ứng dụng</string>
     <string name="settings_guide_title">Hướng dẫn sử dụng</string>
-    <string name="settings_guide_content">1. Thiết lập Stack: Nhấn (+) để thêm chất. App tự động tính chu kỳ On/Off (uống/nghỉ) dựa trên ngày bắt đầu.\n2. Đồng bộ đa thiết bị: Bật \"Tự động đồng bộ\" để dữ liệu khớp nhau realtime giữa các máy. Sử dụng \"Mã liên kết\" cố định để không cần nhập lại nhiều lần.\n3. Bảo mật tối cao: Nhấn biểu tượng \"Con mắt\" để ẩn mã khi quay màn hình hoặc ở nơi công cộng. Dùng nút \"Thu hồi mã\" để xóa vĩnh viễn dữ liệu trên Cloud khi không còn nhu cầu sync.\n4. Chẩn đoán thông báo: Nếu lỡ mốc giờ, vào \"Kiểm tra danh sách\" để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt \"Tối ưu hóa pin\" (Android) hoặc \"Không làm phiền\" (iOS).</string>
+    <string name="settings_guide_content">1. Thiết lập Stack: Nhấn (+) để thêm chất. App tự động tính chu kỳ On/Off (uống/nghỉ) dựa trên ngày bắt đầu.\n2. Đồng bộ đa thiết bị: Vào Cài đặt → Sync Center. Thiết bị A (Host): (khuyến nghị) bật \"Mã hoá dữ liệu cloud\" rồi bấm \"Phát dữ liệu\" để tạo mã. Thiết bị B (Link): nhập mã và bấm \"Tải về\".\n3. Bảo mật tối cao: Nếu bật mã hoá, Copy \"Sync key\" từ Host và Import trên thiết bị còn lại. Sau khi Rotate key thì phải import lại key mới. Nhấn biểu tượng \"Con mắt\" để ẩn mã ở nơi công cộng. Dùng \"Thu hồi\" để xoá vĩnh viễn dữ liệu Cloud khi không còn nhu cầu sync.\n4. Chẩn đoán thông báo: Nếu lỡ mốc giờ, vào \"Kiểm tra danh sách\" để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt \"Tối ưu hóa pin\" (Android) hoặc \"Không làm phiền\" (iOS).</string>
     <string name="user_guide_1_title">Mục 1: Thiết lập Stack</string>
     <string name="user_guide_1_body">Nhấn (+) để thêm chất. App tự động tính chu kỳ On/Off (uống/nghỉ) dựa trên ngày bắt đầu.</string>
     <string name="user_guide_2_title">Mục 2: Đồng bộ đa thiết bị</string>
-    <string name="user_guide_2_body">Bật “Tự động đồng bộ” để dữ liệu khớp nhau realtime giữa các máy. Sử dụng “Mã liên kết” cố định để không cần nhập lại nhiều lần.</string>
+    <string name="user_guide_2_body">Vào Cài đặt → Sync Center. Thiết bị A (Host): (khuyến nghị) bật \"Mã hoá dữ liệu cloud\" rồi bấm \"Phát dữ liệu\" để tạo mã. Thiết bị B (Link): nhập mã và bấm \"Tải về\". Bật “Tự động đồng bộ” nếu muốn sync realtime.</string>
     <string name="user_guide_3_title">Mục 3: Bảo mật tối cao</string>
-    <string name="user_guide_3_body">Nhấn biểu tượng “Con mắt” để ẩn mã khi quay màn hình hoặc ở nơi công cộng. Dùng nút “Thu hồi mã” để xóa vĩnh viễn dữ liệu trên Cloud khi không còn nhu cầu sync.</string>
+    <string name="user_guide_3_body">Nếu bật mã hoá, Copy \"Sync key\" từ Host và Import trên thiết bị còn lại. Sau khi Rotate key thì phải import lại key mới. Nhấn biểu tượng “Con mắt” để ẩn mã ở nơi công cộng. Dùng “Thu hồi” để xóa vĩnh viễn dữ liệu trên Cloud khi không còn nhu cầu sync.</string>
     <string name="user_guide_4_title">Mục 4: Chẩn đoán thông báo</string>
     <string name="user_guide_4_body">Nếu lỡ mốc giờ, vào “Kiểm tra danh sách” để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt “Tối ưu hóa pin” (Android) hoặc “Không làm phiền” (iOS).</string>
 

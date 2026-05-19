@@ -181,9 +181,8 @@ object CloudSyncCrypto {
         if (rawKey.size != 32) throw CloudSyncCryptoError.CryptoFailed("Expected 32 bytes key")
         return runCatching {
             val master = getOrCreateMasterKey()
-            val nonce = ByteArray(12).also { SecureRandom().nextBytes(it) }
-            val ciphertext = encryptAesGcm(master, nonce, rawKey)
-            val nonceB64 = Base64.getEncoder().encodeToString(nonce)
+            val (iv, ciphertext) = encryptAesGcm(master, rawKey)
+            val nonceB64 = Base64.getEncoder().encodeToString(iv)
             val ctB64 = Base64.getEncoder().encodeToString(ciphertext)
             wrappedPrefix + nonceB64 + ":" + ctB64
         }.getOrElse { throw CloudSyncCryptoError.CryptoFailed(it.message ?: "Key wrap failed") }
@@ -196,7 +195,7 @@ object CloudSyncCrypto {
         if (pieces.size != 2) return null
         val nonce = runCatching { Base64.getDecoder().decode(pieces[0]) }.getOrNull() ?: return null
         val ciphertext = runCatching { Base64.getDecoder().decode(pieces[1]) }.getOrNull() ?: return null
-        if (nonce.size != 12) return null
+        if (nonce.size !in 12..16) return null
         if (ciphertext.size < 16) return null
         val plaintext = runCatching {
             val master = getOrCreateMasterKey()
@@ -234,15 +233,12 @@ object CloudSyncCrypto {
         }.getOrElse { throw CloudSyncCryptoError.CryptoFailed(it.message ?: "Encrypt failed") }
     }
 
-    private fun encryptAesGcm(key: SecretKey, nonce: ByteArray, plaintext: ByteArray): ByteArray {
+    private fun encryptAesGcm(key: SecretKey, plaintext: ByteArray): Pair<ByteArray, ByteArray> {
         return runCatching {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(
-                Cipher.ENCRYPT_MODE,
-                key,
-                GCMParameterSpec(128, nonce)
-            )
-            cipher.doFinal(plaintext)
+            cipher.init(Cipher.ENCRYPT_MODE, key)
+            val ciphertext = cipher.doFinal(plaintext)
+            Pair(cipher.iv, ciphertext)
         }.getOrElse { throw CloudSyncCryptoError.CryptoFailed(it.message ?: "Encrypt failed") }
     }
 
