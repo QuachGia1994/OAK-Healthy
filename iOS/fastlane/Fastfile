@@ -3,8 +3,9 @@ default_platform(:ios)
 platform :ios do
   desc "Build and Archive the iOS App"
   lane :build do
+    project_path = File.expand_path("../OAKHealthy.xcodeproj", __dir__)
     gym(
-      project: "OAKHealthy.xcodeproj",
+      project: project_path,
       scheme: "OAKHealthy",
       configuration: "Release",
       skip_codesigning: true,
@@ -18,6 +19,7 @@ platform :ios do
 
   desc "CI build (simulator compile)"
   lane :ci_build do
-    sh("set -o pipefail && xcodebuild -project OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' clean build")
+    project_path = File.expand_path("../OAKHealthy.xcodeproj", __dir__)
+    sh("set -o pipefail && xcodebuild -project '#{project_path}' -scheme OAKHealthy -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' clean build")
   end
 end
