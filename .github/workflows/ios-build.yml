@@ -155,7 +155,6 @@ jobs:
           sudo xcodebuild -license accept
           xcodebuild -runFirstLaunch
           xcrun simctl list devices > /dev/null || true
-          xcodebuild -downloadPlatform iOS
 
       - name: Build iOS App with Fastlane
         working-directory: ./iOS

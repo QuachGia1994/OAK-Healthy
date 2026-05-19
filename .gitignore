@@ -9,6 +9,9 @@ Android/**/*.iml
 Android/**/.cxx/
 Android/**/.externalNativeBuild/
 Android/**/build/
+Android/_tmp_*/
+Android/_tmp_*.*
+.trae/
 **/.DS_Store
 **/node_modules/
 **/*.xcconfig
