@@ -155,6 +155,14 @@ jobs:
           sudo xcodebuild -license accept
           xcodebuild -runFirstLaunch
           xcrun simctl list devices > /dev/null || true
+          
+          SDK_PATH="/Applications/Xcode_16.1.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.1.sdk"
+          if [ ! -d "$SDK_PATH" ]; then
+            echo "Missing iPhoneOS SDK (18.1). Downloading iOS platform..."
+            xcodebuild -downloadPlatform iOS
+          else
+            echo "iPhoneOS SDK found: $SDK_PATH"
+          fi
 
       - name: Build iOS App with Fastlane
         working-directory: ./iOS
