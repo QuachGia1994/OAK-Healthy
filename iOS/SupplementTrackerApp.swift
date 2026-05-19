@@ -445,7 +445,7 @@ struct MainTabView: View {
                 )
                 Task {
                     try? await Task.sleep(for: .seconds(1))
-                    await CloudSyncAutoSync.downloadAndMergeIfEnabled(
+                    await CloudSyncAutoSync.syncIfEnabled(
                         modelContext: modelContext,
                         clientId: activeClientManager.currentClientId
                     )
