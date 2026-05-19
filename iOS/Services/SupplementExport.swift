@@ -132,10 +132,10 @@ enum ZlibBase64Codec {
     
     private static func process(data: Data, operation: compression_stream_operation) -> Data? {
         let bufferSize = 64 * 1024
-        var stream = compression_stream()
+        var stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: nil, src_size: 0, state: nil)
         guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
         defer { compression_stream_destroy(&stream) }
-        return data.withUnsafeBytes { srcPtr in
+        return data.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) -> Data? in
             guard let srcBase = srcPtr.bindMemory(to: UInt8.self).baseAddress else { return nil }
             var dst = Data()
             stream.src_ptr = srcBase
@@ -297,7 +297,7 @@ struct SupplementExportCodec {
                     deletedAtEpochMs: supplement.deletedAtEpochMs
                 )
             }
-        let history = records.compactMap { record in
+        let history: [OAKBackupHistory] = records.compactMap { record in
             guard let supplementId = record.supplement?.id else { return nil }
             return OAKBackupHistory(
                 id: record.id.uuidString,
@@ -307,7 +307,7 @@ struct SupplementExportCodec {
                 updatedAtEpochMs: record.updatedAtEpochMs
             )
         }
-        let historyZlibBase64 = ZlibBase64Codec.encodeIfLarge(items: history)
+        let historyZlibBase64: String? = ZlibBase64Codec.encodeIfLarge(items: history)
         let file = OAKBackupData(
             version: "2.0",
             meta: OAKBackupMeta(schemaVersion: 2, updatedAtEpochMs: now, deviceId: deviceId),
