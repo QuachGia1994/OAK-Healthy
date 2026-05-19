@@ -87,10 +87,12 @@ private fun UserGuideContent(modifier: Modifier = Modifier) {
 @Composable
 private fun guideBackgroundBrush(): Brush {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    return if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    return androidx.compose.runtime.remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+        } else {
+            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+        }
     }
 }
 

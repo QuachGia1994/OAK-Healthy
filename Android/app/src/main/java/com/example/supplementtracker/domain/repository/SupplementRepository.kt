@@ -29,6 +29,8 @@ interface SupplementRepository {
     fun getRecordsByDateRange(clientId: String, startDate: Long, endDate: Long): Flow<List<IntakeRecord>>
     fun observeAllRecordsByClient(clientId: String): Flow<List<IntakeRecord>>
     suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord>
+    suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement>
+    suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord>
     suspend fun deleteAllSupplementsByClient(clientId: String)
     suspend fun deleteAllIntakeRecordsByClient(clientId: String)
 }
@@ -38,6 +40,7 @@ data class IntakeRecord(
     val supplementId: String,
     val date: Long,
     val status: String,
+    val updatedAtEpochMs: Long = System.currentTimeMillis(),
     val supplementName: String? = null,
     val dailyDose: String? = null,
     val intakeTime: String? = null

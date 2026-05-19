@@ -14,7 +14,7 @@ public struct NotificationDebugScreen: View {
                 NotificationDebugView(entries: entries)
             }
         }
-        .navigationTitle("Danh sách thông báo")
+        .navigationTitle("notification_debug_title".localized)
         .task {
             guard isLoading else { return }
             let items = await NotificationService().pendingRequestSnapshots()
@@ -34,7 +34,7 @@ public struct NotificationDebugView: View {
     public var body: some View {
         List {
             if entries.isEmpty {
-                Text("Chưa có mốc giờ nào. Vui lòng bật 'Cho phép gửi thông báo' để kích hoạt.")
+                Text("notification_debug_empty".localized)
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(groupedKeys, id: \.self) { day in
@@ -61,7 +61,7 @@ public struct NotificationDebugView: View {
     
     private func dayHeader(_ day: Date) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "vi_VN")
+        formatter.locale = Locale.current
         formatter.dateFormat = "EEEE, dd/MM/yyyy"
         return formatter.string(from: day)
     }
@@ -105,7 +105,8 @@ private struct NotificationRow: View {
     private var detailText: String {
         let dose = entry.dose.trimmingCharacters(in: .whitespacesAndNewlines)
         let cycle = entry.cycleText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let doseText = dose.isEmpty ? "Liều lượng: —" : "Liều lượng: \(dose)"
+        let resolvedDose = dose.isEmpty ? "—" : dose
+        let doseText = String(format: "notification_debug_dose_format".localized, resolvedDose)
         guard !cycle.isEmpty else { return doseText }
         return "\(doseText) • \(cycle)"
     }

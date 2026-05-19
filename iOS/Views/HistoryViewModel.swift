@@ -23,16 +23,21 @@ public final class HistoryViewModel {
     /// Tổng hợp dữ liệu uống theo tuần.
     public func processHistory(records: [IntakeRecord]) {
         let calendar = Calendar.current
-        let today = Date.now
+        let todayStart = calendar.startOfDay(for: .now)
+        var counts: [Date: Int] = [:]
+        counts.reserveCapacity(7)
         
-        // Lấy 7 ngày gần nhất
-        var data: [ChartData] = []
-        for i in (0..<7).reversed() {
-            guard let date = calendar.date(byAdding: .day, value: -i, to: today) else { continue }
-            let count = records.filter { calendar.isDate($0.date, inSameDayAs: date) }.count
-            data.append(ChartData(date: date, count: count))
+        for record in records {
+            let day = calendar.startOfDay(for: record.date)
+            counts[day, default: 0] += 1
         }
         
-        self.weeklyData = data
+        var data: [ChartData] = []
+        data.reserveCapacity(7)
+        for i in (0..<7).reversed() {
+            guard let date = calendar.date(byAdding: .day, value: -i, to: todayStart) else { continue }
+            data.append(ChartData(date: date, count: counts[date] ?? 0))
+        }
+        weeklyData = data
     }
 }

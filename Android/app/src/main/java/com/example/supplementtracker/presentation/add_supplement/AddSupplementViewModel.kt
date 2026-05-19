@@ -60,14 +60,16 @@ class AddSupplementViewModel(
 
     private suspend fun performSearch(query: String) {
         _state.update { it.copy(isLoading = true) }
-        when (val result = searchUseCase(query)) {
+        val result = runCatching { searchUseCase(query) }
+            .getOrElse { Resource.Error(it.message ?: "Unknown error") }
+        when (result) {
             is Resource.Success -> {
                 _state.update { it.copy(suggestions = result.data, isLoading = false) }
             }
             is Resource.Error -> {
                 _state.update { it.copy(error = result.message, isLoading = false) }
             }
-            else -> {}
+            else -> _state.update { it.copy(isLoading = false) }
         }
     }
 
@@ -221,7 +223,8 @@ class AddSupplementViewModel(
                         )
                     },
                     dailyDose = currentState.dailyDose,
-                    intakeTime = currentState.intakeTime
+                    intakeTime = currentState.intakeTime,
+                    updatedAtEpochMs = System.currentTimeMillis()
                 )
                 if (currentState.editingSupplementId == null) {
                     saveSupplementUseCase(supplement)

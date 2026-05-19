@@ -8,7 +8,7 @@ public struct UserGuideView: View {
             Section {
                 GuideRowView(
                     systemImage: "plus.circle.fill",
-                    title: "Mục 1: Thiết lập Stack",
+                    title: "user_guide_section_1_title".localized,
                     detailText: "settings_guide_1".localized
                 )
             } header: {
@@ -18,7 +18,7 @@ public struct UserGuideView: View {
             Section {
                 GuideRowView(
                     systemImage: "arrow.triangle.2.circlepath",
-                    title: "Mục 2: Đồng bộ đa thiết bị",
+                    title: "user_guide_section_2_title".localized,
                     detailText: "settings_guide_2".localized
                 )
             } header: {
@@ -28,7 +28,7 @@ public struct UserGuideView: View {
             Section {
                 GuideRowView(
                     systemImage: "eye.slash",
-                    title: "Mục 3: Bảo mật tối cao",
+                    title: "user_guide_section_3_title".localized,
                     detailText: "settings_guide_3".localized
                 )
             } header: {
@@ -38,7 +38,7 @@ public struct UserGuideView: View {
             Section {
                 GuideRowView(
                     systemImage: "bell.badge.fill",
-                    title: "Mục 4: Chẩn đoán thông báo",
+                    title: "user_guide_section_4_title".localized,
                     detailText: "settings_guide_4".localized
                 )
             } header: {

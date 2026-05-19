@@ -1,18 +1,14 @@
 import SwiftUI
 import SwiftData
-import UIKit
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
-    @Query(sort: \UserSupplement.name) private var allSupplements: [UserSupplement]
-    @Query(sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)]) private var allRecords: [IntakeRecord]
+    private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
-    @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
-    @State private var isInputCodeVisible: Bool = false
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
@@ -22,18 +18,11 @@ public struct SettingsView: View {
     @State private var isShowingError = false
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
-    @State private var isCloudSyncLoading: Bool = false
-    @AppStorage("cloudSyncHostedBinId") private var hostedBinId: String = ""
-    @AppStorage("cloudSyncLinkedBinId") private var downloadBinId: String = ""
-    @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
     @AppStorage("oakPendingImportClientId") private var pendingImportClientId: String = ""
     @AppStorage("oakPendingImportClientName") private var pendingImportClientName: String = ""
     @AppStorage("oakPendingImportLinkedBinId") private var pendingImportLinkedBinId: String = ""
-    @State private var isShowingCopyBinIdAlert: Bool = false
-    @State private var isBinIdVisible: Bool = false
-    @State private var isRevokingBinId: Bool = false
-    @State private var isShowingRevokeConfirm: Bool = false
+    @State private var cachedActiveSupplements: [UserSupplement] = []
     
     public let activeClientManager: ActiveClientManager
     
@@ -52,6 +41,9 @@ public struct SettingsView: View {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
+        }
+        .task(id: activeClientManager.currentClientId) {
+            await reloadClientCaches()
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
             ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
@@ -73,15 +65,10 @@ public struct SettingsView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .alert("Thông báo Nhập dữ liệu", isPresented: $showImportErrorAlert) {
-            Button("OK") {}
+        .alert("import_notice_title".localized, isPresented: $showImportErrorAlert) {
+            Button("ok".localized) {}
         } message: {
             Text(importErrorMessage)
-        }
-        .alert("Đã sao chép", isPresented: $isShowingCopyBinIdAlert) {
-            Button("OK") {}
-        } message: {
-            Text("Mã liên kết đã được sao chép.")
         }
     }
     
@@ -91,7 +78,7 @@ public struct SettingsView: View {
             appHeaderSection
             themeSelectionSection
             dataTransferSection
-            multiDeviceSyncSection
+            syncCenterSection
             supplementListSection
             userGuideSection
             aboutSection
@@ -105,7 +92,7 @@ public struct SettingsView: View {
     @ViewBuilder
     private var dataTransferSection: some View {
         Section {
-            Toggle("Cho phép gửi thông báo", isOn: $isNotificationEnabledByUser)
+            Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
                 .onChange(of: isNotificationEnabledByUser) {
                     if isNotificationEnabledByUser {
                         Task {
@@ -130,7 +117,7 @@ public struct SettingsView: View {
                 .disabled(isPreparingShareStack || activeClientManager.currentClientId == nil)
             }
             
-            NavigationLink("Kiểm tra danh sách thông báo") {
+            NavigationLink("notification_debug_link".localized) {
                 NotificationDebugScreen()
             }
         } header: {
@@ -140,98 +127,13 @@ public struct SettingsView: View {
     }
 
     @ViewBuilder
-    private var multiDeviceSyncSection: some View {
+    private var syncCenterSection: some View {
         Section {
-            Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
-                .onChange(of: isAutoSyncEnabled) {
-                    if isAutoSyncEnabled {
-                        CloudSyncAutoSync.startRealtimeSync(
-                            modelContext: modelContext,
-                            activeClientManager: activeClientManager
-                        )
-                        return
-                    }
-                    CloudSyncAutoSync.stopRealtimeSync()
-                }
-            
-            Button("Phát dữ liệu") {
-                Task { await hostData() }
+            NavigationLink("sync_center_title".localized) {
+                SyncCenterView(activeClientManager: activeClientManager)
             }
-            .disabled(isCloudSyncLoading)
-            
-            if isCloudSyncLoading {
-                ProgressView()
-            }
-            
-            if !hostedBinId.isEmpty {
-                let binId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-                HStack(alignment: .center, spacing: 8) {
-                    Text("Mã liên kết của bạn:")
-                        .foregroundStyle(.secondary)
-                    
-                    Text(isBinIdVisible ? binId : String(repeating: "•", count: 24))
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .textSelection(.enabled)
-                    
-                    Button(action: { isBinIdVisible.toggle() }) {
-                        Image(systemName: isBinIdVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.gray)
-                    }
-                    .buttonStyle(.borderless)
-                    
-                    Button {
-                        UIPasteboard.general.string = binId
-                        isShowingCopyBinIdAlert = true
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                    }
-                    .buttonStyle(.borderless)
-                }
-                
-                Button(role: .destructive) {
-                    isShowingRevokeConfirm = true
-                } label: {
-                    if isRevokingBinId {
-                        ProgressView()
-                    } else {
-                        Text("Thu hồi mã")
-                    }
-                }
-                .disabled(isCloudSyncLoading || isRevokingBinId)
-                .confirmationDialog(
-                    "Bạn chắc chắn muốn thu hồi mã? Thiết bị khác sẽ không còn sync được với mã hiện tại.",
-                    isPresented: $isShowingRevokeConfirm,
-                    titleVisibility: .visible
-                ) {
-                    Button("Thu hồi mã", role: .destructive) {
-                        Task { await revokeHostedBin() }
-                    }
-                    Button("Hủy", role: .cancel) {}
-                }
-            }
-            
-            HStack(spacing: 8) {
-                if isInputCodeVisible {
-                    TextField("Nhập mã liên kết", text: $downloadBinId)
-                } else {
-                    SecureField("Nhập mã liên kết", text: $downloadBinId)
-                }
-                Button(action: { isInputCodeVisible.toggle() }) {
-                    Image(systemName: isInputCodeVisible ? "eye.slash" : "eye")
-                        .foregroundStyle(.gray)
-                }
-                .buttonStyle(.borderless)
-            }
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            
-            Button("Tải về") {
-                Task { await receiveData() }
-            }
-            .disabled(isCloudSyncLoading)
         } header: {
-            Text("Đồng bộ đa thiết bị")
+            Text("multi_device_sync_header".localized)
         }
         .listRowBackground(glassRowBackground)
     }
@@ -413,7 +315,6 @@ public struct SettingsView: View {
     
     private func getCycleSummary(for supplement: UserSupplement) -> String {
         let config = supplement.cycleConfig
-        let cycleEngine = CycleCalculator()
         let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: config, at: .now)
         let statusText = status == .on ? "cycle_status_on".localized : "cycle_status_off".localized
         
@@ -457,7 +358,7 @@ public struct SettingsView: View {
         }
         
         do {
-            let png = try SupplementExportCodec.renderShareImageData(supplements: supplementsForActiveClient, colorScheme: colorScheme)
+            let png = try SupplementExportCodec.renderShareImageData(supplements: cachedActiveSupplements, colorScheme: colorScheme)
             shareStackPNGURL = try writeTempFile(named: "OAKHealthy_Stack.png", data: png)
         } catch {
             shareStackPNGURL = nil
@@ -474,100 +375,6 @@ public struct SettingsView: View {
             showError(message: "export_failed".localized)
             return
         }
-    }
-
-    private func hostData() async {
-        guard activeClientManager.currentClientId != nil else {
-            showError(message: "missing_active_client".localized)
-            return
-        }
-        isCloudSyncLoading = true
-        defer { isCloudSyncLoading = false }
-        let oldBinId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        isBinIdVisible = false
-        if !oldBinId.isEmpty {
-            do {
-                try await CloudSyncManager.shared.deleteBackup(binId: oldBinId)
-                hostedBinId = ""
-            } catch {
-                importErrorMessage = "Thu hồi mã cũ thất bại: \(error.localizedDescription)"
-                showImportErrorAlert = true
-                return
-            }
-        }
-
-        do {
-            let backup = try SupplementExportCodec.encodeBackup(
-                supplements: supplementsForActiveClient,
-                records: recordsForActiveClient
-            )
-            let id = try await CloudSyncManager.shared.uploadBackup(jsonData: backup)
-            hostedBinId = id
-            importErrorMessage = "Phát dữ liệu thành công!"
-        } catch {
-            importErrorMessage = "Phát dữ liệu thất bại: \(error.localizedDescription)"
-        }
-        showImportErrorAlert = true
-    }
-    
-    private func revokeHostedBin() async {
-        let binId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !binId.isEmpty else { return }
-        
-        isRevokingBinId = true
-        defer { isRevokingBinId = false }
-        
-        do {
-            try await CloudSyncManager.shared.deleteBackup(binId: binId)
-            hostedBinId = ""
-            isBinIdVisible = false
-            importErrorMessage = "Đã vô hiệu hóa mã."
-        } catch {
-            importErrorMessage = "Thu hồi mã thất bại: \(error.localizedDescription)"
-        }
-        showImportErrorAlert = true
-    }
-
-    @MainActor
-    private func receiveData() async {
-        guard let clientId = activeClientManager.currentClientId else {
-            showError(message: "missing_active_client".localized)
-            return
-        }
-        let binId = downloadBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !binId.isEmpty else {
-            showError(message: "Vui lòng nhập mã liên kết.")
-            return
-        }
-        isCloudSyncLoading = true
-        defer { isCloudSyncLoading = false }
-
-        do {
-            let data = try await CloudSyncManager.shared.downloadBackup(binId: binId)
-            shareStackPNGURL = nil
-            guard let client = clients.first(where: { $0.id == clientId }) ?? clients.first else {
-                showError(message: "missing_active_client".localized)
-                return
-            }
-            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
-            activeClientManager.setCurrentClientId(client.id)
-            isSafeModeEnabled = false
-            let linked = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !linked.isEmpty { downloadBinId = linked }
-            
-            if isNotificationEnabledByUser {
-                let center = UNUserNotificationCenter.current()
-                let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-                if granted {
-                    await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
-                }
-            }
-            
-            importErrorMessage = "Đã tải và áp dụng dữ liệu thành công."
-        } catch {
-            importErrorMessage = "Tải/Áp dụng thất bại: \(error.localizedDescription)"
-        }
-        showImportErrorAlert = true
     }
     
     @MainActor
@@ -596,13 +403,25 @@ public struct SettingsView: View {
     }
     
     private var supplementsForActiveClient: [UserSupplement] {
-        guard let currentClientId = activeClientManager.currentClientId else { return [] }
-        return allSupplements.filter { $0.client?.id == currentClientId }
+        cachedActiveSupplements
     }
     
-    private var recordsForActiveClient: [IntakeRecord] {
-        guard let currentClientId = activeClientManager.currentClientId else { return [] }
-        return allRecords.filter { $0.supplement?.client?.id == currentClientId }
+    @MainActor
+    private func reloadClientCaches() async {
+        guard let clientId = activeClientManager.currentClientId else {
+            cachedActiveSupplements = []
+            return
+        }
+        do {
+            let supplementsDescriptor = FetchDescriptor<UserSupplement>(
+                predicate: #Predicate { $0.client?.id == clientId },
+                sortBy: [SortDescriptor(\UserSupplement.name)]
+            )
+            let supplements = try modelContext.fetch(supplementsDescriptor)
+            cachedActiveSupplements = supplements.filter { $0.deletedAtEpochMs == nil }
+        } catch {
+            cachedActiveSupplements = []
+        }
     }
     
     private func writeTempFile(named fileName: String, data: Data) throws -> URL {
@@ -650,7 +469,7 @@ private struct ClientRow: View {
     }
 }
 
-private struct SupplementRow: View {
+private struct SupplementRow: View, Equatable {
     let name: String
     let cycleSummary: String
     
@@ -682,6 +501,7 @@ private struct MyStackListView: View {
                         name: time.isEmpty ? supplement.name : "\(supplement.name) (\(time))",
                         cycleSummary: cycleSummary(supplement)
                     )
+                    .equatable()
                 }
             }
         }

@@ -6,11 +6,13 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,17 +48,37 @@ fun AddSupplementScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundColor = Color(0xFFF2F2F7)
-    val backgroundBrush = Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+    val backgroundBrush = remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+        } else {
+            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+        }
+    }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy/MM/dd") }
 
-    val timePickerDialog = TimePickerDialog(
-        context,
-        { _, hour, minute ->
-            viewModel.onTimeChange(String.format("%02d:%02d", hour, minute))
-        },
-        8, 0, true
-    )
+    val timePickerDialog = remember(context) {
+        TimePickerDialog(
+            context,
+            { _, hour, minute ->
+                viewModel.onTimeChange(String.format("%02d:%02d", hour, minute))
+            },
+            8, 0, true
+        )
+    }
+
+    val isFormValid by remember(state) {
+        derivedStateOf {
+            state.name.isNotBlank() && (
+                state.isContinuous || (
+                    (state.daysOn.toIntOrNull() ?: 0) > 0 &&
+                        (state.daysOff.toIntOrNull() ?: -1) >= 0
+                    )
+                ) && (
+                !state.isWeeklyRecurrenceEnabled || (state.intervalWeeks.toIntOrNull() ?: 0) > 0
+                )
+        }
+    }
 
     LaunchedEffect(supplementId) {
         if (supplementId == null) {
@@ -69,6 +91,7 @@ fun AddSupplementScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(backgroundBrush)
     ) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -76,15 +99,12 @@ fun AddSupplementScreen(
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = { Text(if (supplementId == null) stringResource(R.string.add_supplement_title) else stringResource(R.string.edit_supplement_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                        }
+                    },
                     actions = {
-                        val isFormValid = state.name.isNotBlank() && (
-                            state.isContinuous || (
-                                (state.daysOn.toIntOrNull() ?: 0) > 0 &&
-                                    (state.daysOff.toIntOrNull() ?: -1) >= 0
-                                )
-                            ) && (
-                            !state.isWeeklyRecurrenceEnabled || (state.intervalWeeks.toIntOrNull() ?: 0) > 0
-                            )
                         Button(onClick = onSave, enabled = isFormValid) {
                             Text(stringResource(R.string.save))
                         }
@@ -110,6 +130,7 @@ fun AddSupplementScreen(
             if (state.suggestions.isNotEmpty()) {
                 val shape = RoundedCornerShape(32.dp)
                 val containerColor = MaterialTheme.colorScheme.surfaceVariant
+                val suggestionListState = rememberLazyListState()
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -118,16 +139,27 @@ fun AddSupplementScreen(
                     colors = CardDefaults.cardColors(containerColor = containerColor),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    state.suggestions.forEach { suggestion ->
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(suggestion.name) },
-                            supportingContent = { 
-                                Text(suggestion.advice ?: stringResource(R.string.suggested, suggestion.preferredTime)) 
-                            },
-                            trailingContent = { Icon(Icons.Default.AddCircle, contentDescription = null) },
-                            modifier = Modifier.clickable { viewModel.onSuggestionClick(suggestion) }
-                        )
+                    LazyColumn(
+                        state = suggestionListState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                    ) {
+                        items(
+                            items = state.suggestions,
+                            key = { it.name },
+                            contentType = { "suggestion" }
+                        ) { suggestion ->
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(suggestion.name) },
+                                supportingContent = {
+                                    Text(suggestion.advice ?: stringResource(R.string.suggested, suggestion.preferredTime))
+                                },
+                                trailingContent = { Icon(Icons.Default.AddCircle, contentDescription = null) },
+                                modifier = Modifier.clickable { viewModel.onSuggestionClick(suggestion) }
+                            )
+                        }
                     }
                 }
             }

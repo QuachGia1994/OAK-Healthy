@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -44,6 +45,7 @@ data class HistorySection(
 /**
  * ViewModel xử lý lịch sử uống cho Android.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModel(
     private val repository: SupplementRepository,
     private val activeClientManager: ActiveClientManager
@@ -79,14 +81,16 @@ class HistoryViewModel(
                 currentDate = date
             }
             if (date != currentDate) {
-                sections.add(HistorySection(date = currentDate, records = currentBucket.toList()))
+                val finishedDate = currentDate ?: date
+                sections.add(HistorySection(date = finishedDate, records = currentBucket.toList()))
                 currentDate = date
                 currentBucket = mutableListOf()
             }
             currentBucket.add(record)
         }
-        if (currentDate != null) {
-            sections.add(HistorySection(date = currentDate, records = currentBucket.toList()))
+        val lastDate = currentDate
+        if (lastDate != null) {
+            sections.add(HistorySection(date = lastDate, records = currentBucket.toList()))
         }
 
         val chartData = mutableListOf<HistoryChartData>()

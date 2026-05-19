@@ -110,10 +110,12 @@ fun HomeScreen(
     }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    val backgroundBrush = remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+        } else {
+            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+        }
     }
 
     Box(
@@ -442,7 +444,7 @@ private fun ActiveSupplementCard(
                 IconButton(
                     onClick = {
                         if (item.isTaken) {
-                            Toast.makeText(context, "Không thể hoàn tác lịch sử uống", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.home_intake_toast_cannot_undo), Toast.LENGTH_SHORT).show()
                             return@IconButton
                         }
                         showConfirmDialog = true
@@ -470,8 +472,8 @@ private fun ActiveSupplementCard(
     if (showConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
-            title = { Text("Xác nhận uống") },
-            text = { Text("Bạn đã uống chất này? Hành động này sẽ được ghi vào Lịch sử và không thể hoàn tác.") },
+            title = { Text(stringResource(R.string.home_intake_confirm_title)) },
+            text = { Text(stringResource(R.string.home_intake_confirm_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -480,12 +482,12 @@ private fun ActiveSupplementCard(
                         onToggleIntake(item.supplement.id.toString(), true)
                     }
                 ) {
-                    Text("Đã uống")
+                    Text(stringResource(R.string.home_intake_confirm_taken))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmDialog = false }) {
-                    Text("Hủy")
+                    Text(stringResource(R.string.home_intake_confirm_cancel))
                 }
             }
         )

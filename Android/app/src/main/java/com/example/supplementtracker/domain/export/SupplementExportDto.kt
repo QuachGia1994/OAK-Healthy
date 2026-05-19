@@ -31,8 +31,16 @@ object SupplementExportSchema {
 
 data class OAKBackupDataDTO(
     val version: String,
+    val meta: OAKBackupMetaDTO? = null,
     val stack: List<OAKBackupSupplementDTO>,
-    val history: List<OAKBackupHistoryDTO>
+    val history: List<OAKBackupHistoryDTO>,
+    val historyZlibBase64: String? = null
+)
+
+data class OAKBackupMetaDTO(
+    val schemaVersion: Int,
+    val updatedAtEpochMs: Long,
+    val deviceId: String
 )
 
 data class OAKBackupSupplementDTO(
@@ -41,16 +49,19 @@ data class OAKBackupSupplementDTO(
     val dailyDose: String,
     val intakeTime: String,
     val startDate: String,
-    val cycle: SupplementExportCycleDTO
+    val cycle: SupplementExportCycleDTO,
+    val updatedAtEpochMs: Long = 0L,
+    val deletedAtEpochMs: Long? = null
 )
 
 data class OAKBackupHistoryDTO(
     val id: String,
     val supplementId: String,
     val dateEpochMs: Long,
-    val status: String
+    val status: String,
+    val updatedAtEpochMs: Long = 0L
 )
 
 object OAKBackupSchema {
-    const val VERSION = "1.1"
+    const val VERSION = "2.0"
 }

@@ -110,4 +110,24 @@
     <string name="missing_active_client">Vui lòng chọn học viên trước.</string>
     <string name="invalid_json">File JSON không hợp lệ.</string>
     <string name="import_success">Đã nhập dữ liệu.</string>
+
+    <string name="notification_check_title">Danh sách thông báo</string>
+    <string name="notification_check_reload">Làm mới danh sách</string>
+    <string name="notification_check_empty">Không có thông báo nào đang được lên lịch.</string>
+    <string name="notification_check_exact_alarms_enabled">Đã bật</string>
+    <string name="notification_check_exact_alarms_disabled">Chưa bật</string>
+    <string name="notification_check_exact_alarms_format">Exact Alarms: %1$s</string>
+    <string name="notification_check_battery_opt_ignored">Đã bỏ tối ưu</string>
+    <string name="notification_check_battery_opt_optimized">Đang bị tối ưu</string>
+    <string name="notification_check_battery_opt_format">Battery Optimization: %1$s</string>
+    <string name="notification_check_open_battery_opt_settings">Mở cài đặt Battery Optimization</string>
+    <string name="notification_check_dose_format">Liều lượng: %1$s</string>
+
+    <string name="home_intake_toast_cannot_undo">Không thể hoàn tác lịch sử uống</string>
+    <string name="home_intake_confirm_title">Xác nhận uống</string>
+    <string name="home_intake_confirm_message">Bạn đã uống chất này? Hành động này sẽ được ghi vào Lịch sử và không thể hoàn tác.</string>
+    <string name="home_intake_confirm_taken">Đã uống</string>
+    <string name="home_intake_confirm_cancel">Hủy</string>
+
+    <string name="client_name_label">Tên</string>
 </resources>

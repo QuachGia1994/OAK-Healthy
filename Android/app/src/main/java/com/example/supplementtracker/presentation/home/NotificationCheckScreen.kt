@@ -49,7 +49,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.supplementtracker.R
 import com.example.supplementtracker.service.NotificationDebugStore
 import com.example.supplementtracker.service.ScheduledAlarmInfo
 import java.time.Instant
@@ -106,7 +108,7 @@ private fun NotificationCheckScaffold(
 private fun NotificationCheckTopBar(onBack: () -> Unit) {
     TopAppBar(
         colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-        title = { Text("Danh sách thông báo") },
+        title = { Text(stringResource(R.string.notification_check_title)) },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
@@ -130,7 +132,7 @@ private fun NotificationCheckContent(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { StatusCards(context = context) }
-        item { OutlinedButton(onClick = onReload) { Text("Làm mới danh sách") } }
+        item { OutlinedButton(onClick = onReload) { Text(stringResource(R.string.notification_check_reload)) } }
         if (grouped.isEmpty()) item { EmptyNotificationCard() }
         grouped.forEach { group ->
             val day = group.day
@@ -153,7 +155,7 @@ private fun NotificationCheckContent(
 private fun EmptyNotificationCard() {
     ElevatedCard {
         Text(
-            text = "Không có thông báo nào đang được lên lịch.",
+            text = stringResource(R.string.notification_check_empty),
             modifier = Modifier.padding(16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -192,7 +194,12 @@ private fun ExactAlarmStatusCard(canScheduleExactAlarms: Boolean) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(imageVector = Icons.Default.Notifications, contentDescription = null)
             Spacer(modifier = Modifier.size(10.dp))
-            Text("Exact Alarms: ${if (canScheduleExactAlarms) "Đã bật" else "Chưa bật"}")
+            val status = if (canScheduleExactAlarms) {
+                stringResource(R.string.notification_check_exact_alarms_enabled)
+            } else {
+                stringResource(R.string.notification_check_exact_alarms_disabled)
+            }
+            Text(stringResource(R.string.notification_check_exact_alarms_format, status))
         }
     }
 }
@@ -203,7 +210,12 @@ private fun BatteryOptimizationCard(isIgnoring: Boolean) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(imageVector = Icons.Default.Bolt, contentDescription = null)
             Spacer(modifier = Modifier.size(10.dp))
-            Text("Battery Optimization: ${if (isIgnoring) "Đã bỏ tối ưu" else "Đang bị tối ưu"}")
+            val status = if (isIgnoring) {
+                stringResource(R.string.notification_check_battery_opt_ignored)
+            } else {
+                stringResource(R.string.notification_check_battery_opt_optimized)
+            }
+            Text(stringResource(R.string.notification_check_battery_opt_format, status))
         }
     }
 }
@@ -220,7 +232,7 @@ private fun BatteryOptimizationButton(context: Context) {
             }
         }
     ) {
-        Text("Mở cài đặt Battery Optimization")
+        Text(stringResource(R.string.notification_check_open_battery_opt_settings))
     }
 }
 
@@ -240,7 +252,10 @@ private fun AlarmCard(item: ScheduledAlarmInfo, timeFormatter: DateTimeFormatter
             Spacer(modifier = Modifier.size(12.dp))
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(text = item.title, style = MaterialTheme.typography.titleMedium)
-                Text(text = "Liều lượng: ${item.dose}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = stringResource(R.string.notification_check_dose_format, item.dose),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Text(text = item.cycleText, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(text = time.format(timeFormatter), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
@@ -259,10 +274,12 @@ private fun groupByDate(items: List<ScheduledAlarmInfo>): List<NotificationDayGr
 @Composable
 private fun backgroundBrush(): Brush {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    return if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    return remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+        } else {
+            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+        }
     }
 }
 

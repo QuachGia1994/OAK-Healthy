@@ -75,6 +75,7 @@ public final class AddSupplementViewModel {
 
     /// Lưu thực phẩm bổ sung và thiết lập thông báo.
     public func saveSupplement() async -> UserSupplement? {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
         let supplement: UserSupplement
         if let existing = editingSupplement {
             guard let updated = createSupplement(id: existing.id) else { return nil }
@@ -83,6 +84,8 @@ public final class AddSupplementViewModel {
             existing.cycleConfig = updated.cycleConfig
             existing.dailyDose = updated.dailyDose
             existing.intakeTime = updated.intakeTime
+            existing.updatedAtEpochMs = now
+            existing.deletedAtEpochMs = nil
             supplement = existing
         } else {
             guard let created = createSupplement(id: UUID()) else { return nil }
@@ -181,6 +184,8 @@ public final class AddSupplementViewModel {
             cycleConfig: config,
             dailyDose: dailyDose,
             intakeTime: timeString,
+            updatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
+            deletedAtEpochMs: nil,
             client: activeClient
         )
     }

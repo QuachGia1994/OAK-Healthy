@@ -63,7 +63,9 @@ data class UserSupplement(
     val startDate: LocalDate,
     val cycleConfig: CycleConfig,
     val dailyDose: String,
-    val intakeTime: String // Định dạng HH:mm
+    val intakeTime: String, // Định dạng HH:mm
+    val updatedAtEpochMs: Long = System.currentTimeMillis(),
+    val deletedAtEpochMs: Long? = null
 )
 
 /**

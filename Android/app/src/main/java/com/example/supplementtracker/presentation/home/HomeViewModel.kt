@@ -1,6 +1,7 @@
 package com.example.supplementtracker.presentation.home
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.supplementtracker.domain.model.CycleStatus
@@ -32,27 +33,62 @@ import com.example.supplementtracker.domain.export.SupplementExportSchema
 import com.example.supplementtracker.domain.export.OAKBackupDataDTO
 import com.example.supplementtracker.domain.export.OAKBackupHistoryDTO
 import com.example.supplementtracker.domain.export.OAKBackupJson
+import com.example.supplementtracker.domain.export.OAKBackupMetaDTO
 import com.example.supplementtracker.domain.export.OAKBackupSchema
 import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.R
 import java.util.Locale
 import com.example.supplementtracker.service.CloudSyncManager
+import com.example.supplementtracker.service.CloudSyncCrypto
+import com.example.supplementtracker.service.CloudSyncCryptoError
+import com.example.supplementtracker.service.CloudSyncPayloadCodec
+import com.example.supplementtracker.service.CloudSyncManifestCodec
 import com.example.supplementtracker.service.NotificationSchedulerImpl
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     private val context: Context,
     private val repository: com.example.supplementtracker.domain.repository.SupplementRepository,
     private val activeClientManager: ActiveClientManager,
     private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
 ) : ViewModel() {
+
+    enum class CloudSyncPhase {
+        IDLE,
+        PULLING,
+        MERGING,
+        PUSHING,
+        RETRYING_CONFLICT,
+        DONE,
+        ERROR
+    }
+
+    data class CloudSyncUiStatus(
+        val binId: String,
+        val lastSyncEpochMs: Long,
+        val lastAttemptEpochMs: Long,
+        val hasPendingChanges: Boolean,
+        val lastError: String?,
+        val phase: CloudSyncPhase,
+        val conflictRetryCount: Int,
+        val bytesDownloaded: Long,
+        val bytesUploaded: Long,
+        val pullMs: Long,
+        val mergeMs: Long,
+        val pushMs: Long,
+        val totalMs: Long
+    )
 
     private val _refreshTrigger = MutableStateFlow(0)
     private val _dataTransferMessage = MutableStateFlow<String?>(null)
@@ -61,6 +97,8 @@ class HomeViewModel(
     val cloudSyncLoading: StateFlow<Boolean> = _cloudSyncLoading
     private val _hostedBinId = MutableStateFlow<String?>(null)
     val hostedBinId: StateFlow<String?> = _hostedBinId
+    private val _cloudSyncUiStatus = MutableStateFlow<CloudSyncUiStatus?>(null)
+    val cloudSyncUiStatus: StateFlow<CloudSyncUiStatus?> = _cloudSyncUiStatus
     private var autoSyncJob: Job? = null
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
@@ -88,52 +126,134 @@ class HomeViewModel(
         _dataTransferMessage.value = null
     }
     
-    suspend fun buildBackupJson(): Result<String> {
+    fun syncNow(binId: String) {
+        viewModelScope.launch { syncTwoWay(binId) }
+    }
+    
+    fun refreshCloudSyncUi(binId: String) {
+        viewModelScope.launch { updateCloudSyncUiStatus(binId) }
+    }
+    
+    private suspend fun updateCloudSyncUiStatus(binId: String) {
+        val clientId = activeClientManager.currentClientId.value ?: return
+        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val id = binId.trim()
+        if (id.isEmpty()) {
+            _cloudSyncUiStatus.value = null
+            return
+        }
+        val lastSyncKey = "cloudSyncLastSyncEpochMs_$id"
+        val lastAttemptKey = "cloudSyncLastAttemptEpochMs_$id"
+        val lastErrorKey = "cloudSyncLastError_$id"
+        val phaseKey = "cloudSyncPhase_$id"
+        val retryKey = "cloudSyncConflictRetryCount_$id"
+        val bytesDownloadedKey = "cloudSyncBytesDownloaded_$id"
+        val bytesUploadedKey = "cloudSyncBytesUploaded_$id"
+        val pullMsKey = "cloudSyncPullMs_$id"
+        val mergeMsKey = "cloudSyncMergeMs_$id"
+        val pushMsKey = "cloudSyncPushMs_$id"
+        val totalMsKey = "cloudSyncTotalMs_$id"
+        val lastSyncEpochMs = prefs.getLong(lastSyncKey, 0L)
+        val lastAttemptEpochMs = prefs.getLong(lastAttemptKey, 0L)
+        val lastError = prefs.getString(lastErrorKey, null)?.trim()?.takeIf { it.isNotEmpty() }
+        val phase = runCatching { CloudSyncPhase.valueOf(prefs.getString(phaseKey, "") ?: "") }.getOrNull()
+            ?: CloudSyncPhase.IDLE
+        val retryCount = prefs.getInt(retryKey, 0)
+        val bytesDownloaded = prefs.getLong(bytesDownloadedKey, 0L)
+        val bytesUploaded = prefs.getLong(bytesUploadedKey, 0L)
+        val pullMs = prefs.getLong(pullMsKey, 0L)
+        val mergeMs = prefs.getLong(mergeMsKey, 0L)
+        val pushMs = prefs.getLong(pushMsKey, 0L)
+        val totalMs = prefs.getLong(totalMsKey, 0L)
+        val pending = hasLocalChangesSince(clientId, lastSyncEpochMs)
+        _cloudSyncUiStatus.value = CloudSyncUiStatus(
+            binId = id,
+            lastSyncEpochMs = lastSyncEpochMs,
+            lastAttemptEpochMs = lastAttemptEpochMs,
+            hasPendingChanges = pending,
+            lastError = lastError
+            ,
+            phase = phase,
+            conflictRetryCount = retryCount,
+            bytesDownloaded = bytesDownloaded,
+            bytesUploaded = bytesUploaded,
+            pullMs = pullMs,
+            mergeMs = mergeMs,
+            pushMs = pushMs,
+            totalMs = totalMs
+        )
+    }
+    
+    private suspend fun buildBackupJson(includeStack: Boolean, includeHistory: Boolean): Result<String> {
         return runCatching {
             val clientId = activeClientManager.currentClientId.value
                 ?: error(context.getString(R.string.missing_active_client))
             val clientIdString = clientId.toString()
 
-            val supplements = repository.getAllSupplements(clientIdString).first()
-            val history = repository.getAllRecordsByClient(clientIdString)
+            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            val deviceId = prefs.getString("cloudSyncDeviceId", null) ?: run {
+                val created = java.util.UUID.randomUUID().toString()
+                prefs.edit().putString("cloudSyncDeviceId", created).apply()
+                created
+            }
+            val now = System.currentTimeMillis()
 
-            val stack = supplements.map { supplement ->
-                OAKBackupSupplementDTO(
-                    id = supplement.id.toString(),
-                    name = supplement.name,
-                    dailyDose = supplement.dailyDose,
-                    intakeTime = supplement.intakeTime,
-                    startDate = supplement.startDate.toString(),
-                    cycle = com.example.supplementtracker.domain.export.SupplementExportCycleDTO(
-                        isContinuous = supplement.cycleConfig.isContinuous,
-                        daysOn = supplement.cycleConfig.daysOn,
-                        daysOff = supplement.cycleConfig.daysOff,
-                        durationMonths = supplement.cycleConfig.durationMonths,
-                        weeklyWeekdaysMask = supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
-                        weeklyIntervalWeeks = supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
-                        weeklyAnchorDate = supplement.cycleConfig.weeklyRecurrence?.anchorDate?.toString()
+            val stack = if (includeStack) {
+                repository.getAllSupplementsForSync(clientIdString).map { supplement ->
+                    OAKBackupSupplementDTO(
+                        id = supplement.id.toString(),
+                        name = supplement.name,
+                        dailyDose = supplement.dailyDose,
+                        intakeTime = supplement.intakeTime,
+                        startDate = supplement.startDate.toString(),
+                        cycle = com.example.supplementtracker.domain.export.SupplementExportCycleDTO(
+                            isContinuous = supplement.cycleConfig.isContinuous,
+                            daysOn = supplement.cycleConfig.daysOn,
+                            daysOff = supplement.cycleConfig.daysOff,
+                            durationMonths = supplement.cycleConfig.durationMonths,
+                            weeklyWeekdaysMask = supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
+                            weeklyIntervalWeeks = supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
+                            weeklyAnchorDate = supplement.cycleConfig.weeklyRecurrence?.anchorDate?.toString()
+                        ),
+                        updatedAtEpochMs = supplement.updatedAtEpochMs,
+                        deletedAtEpochMs = supplement.deletedAtEpochMs
                     )
-                )
+                }
+            } else {
+                emptyList()
             }
 
-            val records = history.map { record ->
-                OAKBackupHistoryDTO(
-                    id = record.id,
-                    supplementId = record.supplementId,
-                    dateEpochMs = record.date,
-                    status = record.status
-                )
+            val history = if (includeHistory) {
+                repository.getAllRecordsForSync(clientIdString).map { record ->
+                    OAKBackupHistoryDTO(
+                        id = record.id,
+                        supplementId = record.supplementId,
+                        dateEpochMs = record.date,
+                        status = record.status,
+                        updatedAtEpochMs = record.updatedAtEpochMs
+                    )
+                }
+            } else {
+                emptyList()
             }
 
             OAKBackupJson.encode(
                 OAKBackupDataDTO(
                     version = OAKBackupSchema.VERSION,
+                    meta = OAKBackupMetaDTO(schemaVersion = 2, updatedAtEpochMs = now, deviceId = deviceId),
                     stack = stack,
-                    history = records
+                    history = history,
+                    historyZlibBase64 = null
                 )
             )
         }
     }
+
+    private suspend fun buildStackBackupJson(): Result<String> = buildBackupJson(includeStack = true, includeHistory = false)
+
+    private suspend fun buildHistoryBackupJson(): Result<String> = buildBackupJson(includeStack = false, includeHistory = true)
+
+    private suspend fun buildFullBackupJson(): Result<String> = buildBackupJson(includeStack = true, includeHistory = true)
 
     private fun getStartOfDay() = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     private fun getEndOfDay() = LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -164,6 +284,7 @@ class HomeViewModel(
     private fun matchesWeeklyRecurrenceIfNeeded(supplement: UserSupplement, date: LocalDate): Boolean {
         val weekly = supplement.cycleConfig.weeklyRecurrence ?: return true
         val bitIndex = when (date.dayOfWeek) {
+            null -> return false
             java.time.DayOfWeek.MONDAY -> 0
             java.time.DayOfWeek.TUESDAY -> 1
             java.time.DayOfWeek.WEDNESDAY -> 2
@@ -189,7 +310,7 @@ class HomeViewModel(
                 val binId = activeAutoSyncBinId()
                 if (binId != null) {
                     Log.d("AutoSync", "☁️ Auto-Sync: Starting upload...")
-                    uploadToBin(binId)
+                    syncTwoWay(binId)
                 }
                 return@launch
             }
@@ -217,7 +338,11 @@ class HomeViewModel(
                 return@launch
             }
             
-            val decoded = OAKBackupJson.decodeCompat(json).getOrElse {
+            val prepared = runCatching { CloudSyncPayloadCodec.decompressIfNeeded(json) }.getOrElse {
+                _dataTransferMessage.value = context.getString(R.string.invalid_json)
+                return@launch
+            }
+            val decoded = OAKBackupJson.decodeCompat(prepared).getOrElse {
                 _dataTransferMessage.value = context.getString(R.string.invalid_json)
                 return@launch
             }
@@ -250,7 +375,9 @@ class HomeViewModel(
                     startDate = startDate,
                     cycleConfig = cycle,
                     dailyDose = dto.dailyDose,
-                    intakeTime = dto.intakeTime
+                    intakeTime = dto.intakeTime,
+                    updatedAtEpochMs = dto.updatedAtEpochMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
+                    deletedAtEpochMs = dto.deletedAtEpochMs
                 )
                 
                 repository.saveSupplement(imported)
@@ -265,7 +392,8 @@ class HomeViewModel(
                         id = record.id,
                         supplementId = normalizedSupplementId,
                         date = record.dateEpochMs,
-                        status = record.status
+                        status = record.status,
+                        updatedAtEpochMs = record.updatedAtEpochMs.takeIf { it > 0L } ?: record.dateEpochMs
                     )
                 )
             }
@@ -278,53 +406,217 @@ class HomeViewModel(
     fun hostData() {
         viewModelScope.launch {
             _cloudSyncLoading.value = true
-            val oldBinId = _hostedBinId.value?.trim().orEmpty()
-            val json = buildBackupJson().getOrElse { error ->
+            val manifestId = _hostedBinId.value?.trim().orEmpty()
+            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            val stackPlain = buildStackBackupJson().getOrElse { error ->
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = error.message ?: "Export failed"
+                _dataTransferMessage.value = error.message ?: "Export stack failed"
+                return@launch
+            }
+            val historyPlain = buildHistoryBackupJson().getOrElse { error ->
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = error.message ?: "Export history failed"
                 return@launch
             }
 
-            if (oldBinId.isNotEmpty()) {
-                val upsert = CloudSyncManager().upsertBackup(oldBinId, json)
+            fun encryptPrepared(plaintext: String): String {
+                val prepared = CloudSyncPayloadCodec.compressIfUseful(plaintext)
+                return CloudSyncCrypto.wrapForUploadIfEnabled(context, prepared)
+            }
+
+            val stackEncrypted = runCatching { encryptPrepared(stackPlain) }.getOrElse {
                 _cloudSyncLoading.value = false
-                upsert.onSuccess {
-                    _hostedBinId.value = oldBinId
-                    _dataTransferMessage.value = "Đã cập nhật dữ liệu lên mã hiện tại!"
-                }.onFailure {
-                    _dataTransferMessage.value = "Phát dữ liệu thất bại: ${it.message ?: "Unknown"}"
+                _dataTransferMessage.value = it.message ?: "Encrypt stack failed"
+                return@launch
+            }
+            val historyEncrypted = runCatching { encryptPrepared(historyPlain) }.getOrElse {
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = it.message ?: "Encrypt history failed"
+                return@launch
+            }
+
+            if (manifestId.isNotEmpty()) {
+                val stackKey = "cloudSyncStackBinId_$manifestId"
+                val historyKey = "cloudSyncHistoryBinId_$manifestId"
+                var stackId = prefs.getString(stackKey, "").orEmpty().trim()
+                var historyId = prefs.getString(historyKey, "").orEmpty().trim()
+                if (stackId.isEmpty() || historyId.isEmpty()) {
+                    val manifestDownload = CloudSyncManager().downloadBackupAlways(manifestId).getOrElse { error ->
+                        _cloudSyncLoading.value = false
+                        _dataTransferMessage.value = error.message ?: "Load manifest failed"
+                        return@launch
+                    }
+                    val decrypted = runCatching { CloudSyncCrypto.unwrapDownloadedIfNeeded(context, manifestDownload.json ?: "") }.getOrElse {
+                        _cloudSyncLoading.value = false
+                        _dataTransferMessage.value = it.message ?: "Decrypt manifest failed"
+                        return@launch
+                    }
+                    val prepared = runCatching { CloudSyncPayloadCodec.decompressIfNeeded(decrypted) }.getOrElse {
+                        _cloudSyncLoading.value = false
+                        _dataTransferMessage.value = it.message ?: "Decode manifest failed"
+                        return@launch
+                    }
+                    val decoded = runCatching { CloudSyncManifestCodec.decode(prepared) }.getOrNull()
+                    if (decoded == null) {
+                        val legacyPlain = buildFullBackupJson().getOrElse { error ->
+                            _cloudSyncLoading.value = false
+                            _dataTransferMessage.value = error.message ?: "Export failed"
+                            return@launch
+                        }
+                        val legacyEncrypted = runCatching { encryptPrepared(legacyPlain) }.getOrElse {
+                            _cloudSyncLoading.value = false
+                            _dataTransferMessage.value = it.message ?: "Encrypt failed"
+                            return@launch
+                        }
+                        val upsertLegacy = CloudSyncManager().upsertBackup(manifestId, legacyEncrypted)
+                        _cloudSyncLoading.value = false
+                        upsertLegacy.onSuccess {
+                            val lastSyncKey = "cloudSyncLastSyncEpochMs_$manifestId"
+                            val lastErrorKey = "cloudSyncLastError_$manifestId"
+                            prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).remove(lastErrorKey).apply()
+                            updateCloudSyncUiStatus(manifestId)
+                            appendCloudSyncLog(prefs, manifestId, "HOST", "Host legacy update OK")
+                            _dataTransferMessage.value = "Đã cập nhật dữ liệu lên mã hiện tại!"
+                        }.onFailure {
+                            val lastErrorKey = "cloudSyncLastError_$manifestId"
+                            prefs.edit().putString(lastErrorKey, it.message ?: "Unknown").apply()
+                            updateCloudSyncUiStatus(manifestId)
+                            appendCloudSyncLog(prefs, manifestId, "ERROR", "Host legacy update failed")
+                            _dataTransferMessage.value = "Phát dữ liệu thất bại: ${it.message ?: "Unknown"}"
+                        }
+                        return@launch
+                    }
+                    stackId = decoded.stackBinId
+                    historyId = decoded.historyBinId
+                    prefs.edit().putString(stackKey, stackId).putString(historyKey, historyId).apply()
                 }
+
+                appendCloudSyncLog(prefs, manifestId, "HOST", "Host update start")
+                val upsertStack = CloudSyncManager().upsertBackup(stackId, stackEncrypted)
+                val upsertHistory = CloudSyncManager().upsertBackup(historyId, historyEncrypted)
+                val manifestPlain = CloudSyncManifestCodec.encode(stackId, historyId)
+                val manifestEncrypted = runCatching { encryptPrepared(manifestPlain) }.getOrElse {
+                    _cloudSyncLoading.value = false
+                    _dataTransferMessage.value = it.message ?: "Encrypt manifest failed"
+                    return@launch
+                }
+                val upsertManifest = CloudSyncManager().upsertBackup(manifestId, manifestEncrypted)
+                _cloudSyncLoading.value = false
+
+                val error = upsertStack.exceptionOrNull()
+                    ?: upsertHistory.exceptionOrNull()
+                    ?: upsertManifest.exceptionOrNull()
+                if (error != null) {
+                    val lastErrorKey = "cloudSyncLastError_$manifestId"
+                    prefs.edit().putString(lastErrorKey, error.message ?: "Unknown").apply()
+                    updateCloudSyncUiStatus(manifestId)
+                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Host update failed")
+                    _dataTransferMessage.value = "Phát dữ liệu thất bại: ${error.message ?: "Unknown"}"
+                    return@launch
+                }
+
+                val lastSyncKey = "cloudSyncLastSyncEpochMs_$manifestId"
+                val lastErrorKey = "cloudSyncLastError_$manifestId"
+                prefs.edit()
+                    .putLong(lastSyncKey, System.currentTimeMillis())
+                    .remove(lastErrorKey)
+                    .apply()
+                updateCloudSyncUiStatus(manifestId)
+                appendCloudSyncLog(prefs, manifestId, "HOST", "Host update OK")
+                _dataTransferMessage.value = "Đã cập nhật dữ liệu lên mã hiện tại!"
                 return@launch
             }
 
-            val created = CloudSyncManager().uploadBackup(json)
-            _cloudSyncLoading.value = false
-            created.onSuccess {
-                _hostedBinId.value = it
-                _dataTransferMessage.value = "Phát dữ liệu thành công!"
-            }.onFailure {
-                _dataTransferMessage.value = "Phát dữ liệu thất bại: ${it.message ?: "Unknown"}"
+            val stackId = CloudSyncManager().uploadBackup(stackEncrypted).getOrElse { error ->
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = error.message ?: "Upload stack failed"
+                return@launch
             }
+            val historyId = CloudSyncManager().uploadBackup(historyEncrypted).getOrElse { error ->
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = error.message ?: "Upload history failed"
+                return@launch
+            }
+            val manifestPlain = CloudSyncManifestCodec.encode(stackId, historyId)
+            val manifestEncrypted = runCatching { encryptPrepared(manifestPlain) }.getOrElse {
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = it.message ?: "Encrypt manifest failed"
+                return@launch
+            }
+            val newManifestId = CloudSyncManager().uploadBackup(manifestEncrypted).getOrElse { error ->
+                _cloudSyncLoading.value = false
+                _dataTransferMessage.value = error.message ?: "Upload manifest failed"
+                return@launch
+            }
+            _cloudSyncLoading.value = false
+            _hostedBinId.value = newManifestId
+            prefs.edit()
+                .putString("cloudSyncHostedBinId", newManifestId)
+                .putString("cloudSyncStackBinId_$newManifestId", stackId)
+                .putString("cloudSyncHistoryBinId_$newManifestId", historyId)
+                .putLong("cloudSyncLastSyncEpochMs_$newManifestId", System.currentTimeMillis())
+                .remove("cloudSyncLastError_$newManifestId")
+                .apply()
+            updateCloudSyncUiStatus(newManifestId)
+            appendCloudSyncLog(prefs, newManifestId, "HOST", "Host created OK")
+            _dataTransferMessage.value = "Phát dữ liệu thành công!"
         }
+    }
+
+    fun enableCloudEncryption(enabled: Boolean) {
+        CloudSyncCrypto.setEnabled(context, enabled)
+            .onSuccess { _dataTransferMessage.value = if (enabled) "Đã bật mã hoá cloud sync" else "Đã tắt mã hoá cloud sync" }
+            .onFailure { _dataTransferMessage.value = it.message ?: "Cấu hình mã hoá thất bại" }
+    }
+    
+    fun exportCloudEncryptionKey(): String? {
+        return CloudSyncCrypto.exportCurrentKey(context)
+    }
+    
+    fun rotateCloudEncryptionKey() {
+        runCatching { CloudSyncCrypto.rotateKey(context) }
+            .onSuccess { _dataTransferMessage.value = "Đã rotate key (hãy copy key mới sang thiết bị khác)" }
+            .onFailure { _dataTransferMessage.value = it.message ?: "Rotate key thất bại" }
+    }
+    
+    fun importCloudEncryptionKey(exported: String) {
+        runCatching { CloudSyncCrypto.importKey(context, exported) }
+            .onSuccess { _dataTransferMessage.value = "Đã import key: $it" }
+            .onFailure { _dataTransferMessage.value = it.message ?: "Import key thất bại" }
     }
     
     fun revokeHostedBin() {
         viewModelScope.launch {
-            val binId = _hostedBinId.value ?: run {
+            val manifestId = _hostedBinId.value ?: run {
                 _dataTransferMessage.value = "Không có mã để thu hồi."
                 return@launch
             }
+            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            val stackId = prefs.getString("cloudSyncStackBinId_$manifestId", "").orEmpty().trim()
+            val historyId = prefs.getString("cloudSyncHistoryBinId_$manifestId", "").orEmpty().trim()
             _cloudSyncLoading.value = true
-            val deleteResult = CloudSyncManager().deleteBackup(binId)
+            val manager = CloudSyncManager()
+            val deleteManifest = manager.deleteBackup(manifestId)
+            val deleteStack = if (stackId.isNotEmpty()) manager.deleteBackup(stackId) else Result.success(Unit)
+            val deleteHistory = if (historyId.isNotEmpty()) manager.deleteBackup(historyId) else Result.success(Unit)
             _cloudSyncLoading.value = false
-            deleteResult.onSuccess {
+            val error = deleteManifest.exceptionOrNull()
+                ?: deleteStack.exceptionOrNull()
+                ?: deleteHistory.exceptionOrNull()
+            if (error == null) {
                 _hostedBinId.value = null
-                context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
-                    .edit().remove("cloudSyncHostedBinId").apply()
+                prefs.edit()
+                    .remove("cloudSyncHostedBinId")
+                    .remove("cloudSyncStackBinId_$manifestId")
+                    .remove("cloudSyncHistoryBinId_$manifestId")
+                    .remove("cloudSyncEtag_$manifestId")
+                    .remove("cloudSyncEtagStack_$manifestId")
+                    .remove("cloudSyncEtagHistory_$manifestId")
+                    .apply()
                 _dataTransferMessage.value = "Đã vô hiệu hóa mã."
-            }.onFailure {
-                _dataTransferMessage.value = "Thu hồi mã thất bại: ${it.message ?: "Unknown"}"
+                return@launch
             }
+            _dataTransferMessage.value = "Thu hồi mã thất bại: ${error.message ?: "Unknown"}"
         }
     }
     
@@ -338,13 +630,13 @@ class HomeViewModel(
                 val delayMs = autoSyncDelayMs(prefs)
 
                 if (hosted.isNotEmpty()) {
-                    if (!_cloudSyncLoading.value) uploadToBin(hosted)
+                    if (!_cloudSyncLoading.value) syncTwoWay(hosted)
                     delay(delayMs)
                     continue
                 }
 
                 if (linked.isNotEmpty()) {
-                    silentDownloadAndMerge(linked)
+                    if (!_cloudSyncLoading.value) syncTwoWay(linked)
                     delay(delayMs)
                     continue
                 }
@@ -369,13 +661,357 @@ class HomeViewModel(
         return id.takeIf { it.isNotEmpty() }
     }
     
-    private suspend fun uploadToBin(binId: String) {
-        val json = buildBackupJson().getOrElse { return }
-        CloudSyncManager().upsertBackup(binId, json).onSuccess {
-            markSyncActivity()
-        }.onFailure { error ->
-            Log.d("AutoSync", "☁️ Auto-Sync: Upload failed: ${error.message ?: "Unknown"}")
+    private fun appendCloudSyncLog(prefs: android.content.SharedPreferences, binId: String, phase: String, message: String) {
+        val id = binId.trim()
+        if (id.isEmpty()) return
+        val key = "cloudSyncLog_$id"
+        val existing = prefs.getString(key, null)
+        val array = runCatching { if (existing.isNullOrBlank()) JSONArray() else JSONArray(existing) }.getOrElse { JSONArray() }
+        val entry = JSONObject()
+            .put("ts", System.currentTimeMillis())
+            .put("phase", phase)
+            .put("msg", message)
+        array.put(entry)
+        val keep = 30
+        val trimmed = JSONArray()
+        val start = (array.length() - keep).coerceAtLeast(0)
+        for (i in start until array.length()) trimmed.put(array.getJSONObject(i))
+        prefs.edit().putString(key, trimmed.toString()).apply()
+    }
+    
+    private suspend fun syncTwoWay(binId: String) {
+        val clientId = activeClientManager.currentClientId.value ?: return
+        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val manifestId = binId.trim()
+        if (manifestId.isEmpty()) return
+
+        _cloudSyncLoading.value = true
+        val etagManifestKey = "cloudSyncEtag_$manifestId"
+        val etagStackKey = "cloudSyncEtagStack_$manifestId"
+        val etagHistoryKey = "cloudSyncEtagHistory_$manifestId"
+        val stackIdKey = "cloudSyncStackBinId_$manifestId"
+        val historyIdKey = "cloudSyncHistoryBinId_$manifestId"
+        val lastSyncKey = "cloudSyncLastSyncEpochMs_$manifestId"
+        val lastAttemptKey = "cloudSyncLastAttemptEpochMs_$manifestId"
+        val lastErrorKey = "cloudSyncLastError_$manifestId"
+        val phaseKey = "cloudSyncPhase_$manifestId"
+        val retryKey = "cloudSyncConflictRetryCount_$manifestId"
+        val bytesDownloadedKey = "cloudSyncBytesDownloaded_$manifestId"
+        val bytesUploadedKey = "cloudSyncBytesUploaded_$manifestId"
+        val pullMsKey = "cloudSyncPullMs_$manifestId"
+        val mergeMsKey = "cloudSyncMergeMs_$manifestId"
+        val pushMsKey = "cloudSyncPushMs_$manifestId"
+        val totalMsKey = "cloudSyncTotalMs_$manifestId"
+
+        val lastSyncEpochMs = prefs.getLong(lastSyncKey, 0L)
+        val localStackChanged = hasLocalStackChangesSince(clientId, lastSyncEpochMs)
+        val localHistoryChanged = hasLocalHistoryChangesSince(clientId, lastSyncEpochMs)
+        val startedAt = SystemClock.elapsedRealtime()
+
+        prefs.edit()
+            .putLong(lastAttemptKey, System.currentTimeMillis())
+            .putString(phaseKey, CloudSyncPhase.PULLING.name)
+            .putInt(retryKey, 0)
+            .putLong(bytesDownloadedKey, 0L)
+            .putLong(bytesUploadedKey, 0L)
+            .putLong(pullMsKey, 0L)
+            .putLong(mergeMsKey, 0L)
+            .putLong(pushMsKey, 0L)
+            .putLong(totalMsKey, 0L)
+            .apply()
+        appendCloudSyncLog(prefs, manifestId, "START", "Sync start")
+        updateCloudSyncUiStatus(manifestId)
+
+        fun decryptAndPrepare(recordJson: String): String {
+            val decrypted = CloudSyncCrypto.unwrapDownloadedIfNeeded(context, recordJson)
+            return CloudSyncPayloadCodec.decompressIfNeeded(decrypted)
         }
+        
+        fun encryptAndPrepare(plaintextJson: String): String {
+            val prepared = CloudSyncPayloadCodec.compressIfUseful(plaintextJson)
+            return CloudSyncCrypto.wrapForUploadIfEnabled(context, prepared)
+        }
+
+        var stackId = prefs.getString(stackIdKey, "").orEmpty().trim()
+        var historyId = prefs.getString(historyIdKey, "").orEmpty().trim()
+        val pullStartedAt = SystemClock.elapsedRealtime()
+        val previousManifestEtag = prefs.getString(etagManifestKey, "").orEmpty().trim()
+        val manifestDownload = if (stackId.isEmpty() || historyId.isEmpty()) {
+            CloudSyncManager().downloadBackupAlways(manifestId).getOrElse { error ->
+                prefs.edit().putString(lastErrorKey, error.message ?: "Manifest load failed").apply()
+                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
+                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                appendCloudSyncLog(prefs, manifestId, "ERROR", "Manifest load failed")
+                _cloudSyncLoading.value = false
+                updateCloudSyncUiStatus(manifestId)
+                return
+            }
+        } else {
+            CloudSyncManager().downloadBackupIfChanged(manifestId, previousManifestEtag).getOrElse { error ->
+                prefs.edit().putString(lastErrorKey, error.message ?: "Manifest pull failed").apply()
+                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
+                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                appendCloudSyncLog(prefs, manifestId, "ERROR", "Manifest pull failed")
+                _cloudSyncLoading.value = false
+                updateCloudSyncUiStatus(manifestId)
+                return
+            }
+        }
+        val manifestEtag = manifestDownload.etag.orEmpty().trim().ifEmpty { previousManifestEtag }
+        if (manifestEtag.isNotEmpty()) prefs.edit().putString(etagManifestKey, manifestEtag).apply()
+        if (!manifestDownload.json.isNullOrBlank()) {
+            val manifestJson = manifestDownload.json.orEmpty()
+            val prepared = runCatching { decryptAndPrepare(manifestJson) }.getOrElse {
+                prefs.edit().putString(lastErrorKey, it.message ?: "Manifest decrypt failed").apply()
+                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
+                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                appendCloudSyncLog(prefs, manifestId, "ERROR", "Manifest decrypt failed")
+                _cloudSyncLoading.value = false
+                updateCloudSyncUiStatus(manifestId)
+                return
+            }
+            val decoded = runCatching { CloudSyncManifestCodec.decode(prepared) }.getOrNull()
+            if (decoded == null) {
+                val bytesDown = manifestJson.toByteArray(Charsets.UTF_8).size
+                prefs.edit().putLong(bytesDownloadedKey, bytesDown.toLong()).apply()
+                prefs.edit().putString(phaseKey, CloudSyncPhase.MERGING.name).apply()
+                updateCloudSyncUiStatus(manifestId)
+                val mergeStartedAt = SystemClock.elapsedRealtime()
+                val legacyPlain = runCatching { decryptAndPrepare(manifestJson) }.getOrElse {
+                    prefs.edit().putString(lastErrorKey, it.message ?: "Decrypt failed").apply()
+                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                    prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
+                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Decrypt failed")
+                    _cloudSyncLoading.value = false
+                    updateCloudSyncUiStatus(manifestId)
+                    return
+                }
+                mergeRemoteIntoLocal(legacyPlain, clientId)
+                prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
+                val remoteChanged = manifestJson.isNotBlank()
+                if (!remoteChanged && !localStackChanged && !localHistoryChanged) {
+                    prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
+                    prefs.edit().remove(lastErrorKey).apply()
+                    prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
+                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                    markSyncActivity()
+                    _cloudSyncLoading.value = false
+                    appendCloudSyncLog(prefs, manifestId, "DONE", "No changes")
+                    updateCloudSyncUiStatus(manifestId)
+                    return
+                }
+                prefs.edit().putString(phaseKey, CloudSyncPhase.PUSHING.name).apply()
+                updateCloudSyncUiStatus(manifestId)
+                val pushStartedAt = SystemClock.elapsedRealtime()
+                val fullPlain = buildFullBackupJson().getOrElse {
+                    prefs.edit().putString(lastErrorKey, it.message ?: "Export failed").apply()
+                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                    prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
+                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Export failed")
+                    _cloudSyncLoading.value = false
+                    updateCloudSyncUiStatus(manifestId)
+                    return
+                }
+                val fullEnc = runCatching { encryptAndPrepare(fullPlain) }.getOrElse {
+                    prefs.edit().putString(lastErrorKey, it.message ?: "Encrypt failed").apply()
+                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                    prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
+                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Encrypt failed")
+                    _cloudSyncLoading.value = false
+                    updateCloudSyncUiStatus(manifestId)
+                    return
+                }
+                val bytesUp = fullEnc.toByteArray(Charsets.UTF_8).size.toLong()
+                prefs.edit().putLong(bytesUploadedKey, bytesUp).apply()
+                val upsert = CloudSyncManager().upsertBackup(manifestId, fullEnc, manifestEtag.takeIf { it.isNotEmpty() })
+                upsert.getOrElse { error ->
+                    prefs.edit().putString(lastErrorKey, error.message ?: "Upload failed").apply()
+                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                    prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
+                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Upload failed")
+                    _cloudSyncLoading.value = false
+                    updateCloudSyncUiStatus(manifestId)
+                    return
+                }?.orEmpty()?.trim()?.let { if (it.isNotEmpty()) prefs.edit().putString(etagManifestKey, it).apply() }
+                prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
+                prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
+                prefs.edit().remove(lastErrorKey).apply()
+                prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
+                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                markSyncActivity()
+                _cloudSyncLoading.value = false
+                appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKey, 0L)}ms")
+                updateCloudSyncUiStatus(manifestId)
+                return
+            }
+            stackId = decoded.stackBinId
+            historyId = decoded.historyBinId
+            prefs.edit().putString(stackIdKey, stackId).putString(historyIdKey, historyId).apply()
+        }
+        if (stackId.isEmpty() || historyId.isEmpty()) {
+            prefs.edit().putString(lastErrorKey, "Missing stack/history id").apply()
+            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+            prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
+            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+            appendCloudSyncLog(prefs, manifestId, "ERROR", "Missing stack/history id")
+            _cloudSyncLoading.value = false
+            updateCloudSyncUiStatus(manifestId)
+            return
+        }
+
+        val prevStackEtag = prefs.getString(etagStackKey, "").orEmpty().trim()
+        val prevHistoryEtag = prefs.getString(etagHistoryKey, "").orEmpty().trim()
+        val stackDownload = CloudSyncManager().downloadBackupIfChanged(stackId, prevStackEtag).getOrElse { error ->
+            prefs.edit().putString(lastErrorKey, error.message ?: "Stack pull failed").apply()
+            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+            prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
+            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+            appendCloudSyncLog(prefs, manifestId, "ERROR", "Stack pull failed")
+            _cloudSyncLoading.value = false
+            updateCloudSyncUiStatus(manifestId)
+            return
+        }
+        val historyDownload = CloudSyncManager().downloadBackupIfChanged(historyId, prevHistoryEtag).getOrElse { error ->
+            prefs.edit().putString(lastErrorKey, error.message ?: "History pull failed").apply()
+            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+            prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
+            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+            appendCloudSyncLog(prefs, manifestId, "ERROR", "History pull failed")
+            _cloudSyncLoading.value = false
+            updateCloudSyncUiStatus(manifestId)
+            return
+        }
+
+        val pullMs = SystemClock.elapsedRealtime() - pullStartedAt
+        prefs.edit().putLong(pullMsKey, pullMs).apply()
+        val stackEtag = stackDownload.etag.orEmpty().trim().ifEmpty { prevStackEtag }
+        val historyEtag = historyDownload.etag.orEmpty().trim().ifEmpty { prevHistoryEtag }
+        if (stackEtag.isNotEmpty()) prefs.edit().putString(etagStackKey, stackEtag).apply()
+        if (historyEtag.isNotEmpty()) prefs.edit().putString(etagHistoryKey, historyEtag).apply()
+
+        val bytesDown = (manifestDownload.json?.toByteArray(Charsets.UTF_8)?.size ?: 0) +
+            (stackDownload.json?.toByteArray(Charsets.UTF_8)?.size ?: 0) +
+            (historyDownload.json?.toByteArray(Charsets.UTF_8)?.size ?: 0)
+        prefs.edit().putLong(bytesDownloadedKey, bytesDown.toLong()).apply()
+
+        prefs.edit().putString(phaseKey, CloudSyncPhase.MERGING.name).apply()
+        updateCloudSyncUiStatus(manifestId)
+        val mergeStartedAt = SystemClock.elapsedRealtime()
+        if (!stackDownload.json.isNullOrBlank()) {
+            val prepared = runCatching { decryptAndPrepare(stackDownload.json.orEmpty()) }.getOrElse {
+                prefs.edit().putString(lastErrorKey, it.message ?: "Decrypt failed").apply()
+                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
+                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                appendCloudSyncLog(prefs, manifestId, "ERROR", "Decrypt stack failed")
+                _cloudSyncLoading.value = false
+                updateCloudSyncUiStatus(manifestId)
+                return
+            }
+            mergeRemoteIntoLocal(prepared, clientId)
+        }
+        if (!historyDownload.json.isNullOrBlank()) {
+            val prepared = runCatching { decryptAndPrepare(historyDownload.json.orEmpty()) }.getOrElse {
+                prefs.edit().putString(lastErrorKey, it.message ?: "Decrypt failed").apply()
+                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+                prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
+                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                appendCloudSyncLog(prefs, manifestId, "ERROR", "Decrypt history failed")
+                _cloudSyncLoading.value = false
+                updateCloudSyncUiStatus(manifestId)
+                return
+            }
+            mergeRemoteIntoLocal(prepared, clientId)
+        }
+        val mergeMs = SystemClock.elapsedRealtime() - mergeStartedAt
+        prefs.edit().putLong(mergeMsKey, mergeMs).apply()
+
+        val remoteChanged = !stackDownload.json.isNullOrBlank() || !historyDownload.json.isNullOrBlank()
+        if (!remoteChanged && !localStackChanged && !localHistoryChanged) {
+            prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
+            prefs.edit().remove(lastErrorKey).apply()
+            prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
+            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+            markSyncActivity()
+            _cloudSyncLoading.value = false
+            appendCloudSyncLog(prefs, manifestId, "DONE", "No changes")
+            updateCloudSyncUiStatus(manifestId)
+            return
+        }
+
+        prefs.edit().putString(phaseKey, CloudSyncPhase.PUSHING.name).apply()
+        updateCloudSyncUiStatus(manifestId)
+        val pushStartedAt = SystemClock.elapsedRealtime()
+        var bytesUp = 0L
+
+        suspend fun pushPart(
+            partId: String,
+            etagKey: String,
+            build: suspend () -> Result<String>,
+            label: String
+        ): String? {
+            val plaintext = build().getOrElse { throw it }
+            val encrypted = encryptAndPrepare(plaintext)
+            bytesUp += encrypted.toByteArray(Charsets.UTF_8).size.toLong()
+            val etag = prefs.getString(etagKey, "").orEmpty().trim()
+            val upsert = CloudSyncManager().upsertBackup(partId, encrypted, etag.takeIf { it.isNotEmpty() })
+            return upsert.getOrElse { error ->
+                val msg = error.message.orEmpty()
+                if (!msg.contains("412") && !msg.contains("409")) throw error
+                prefs.edit().putString(phaseKey, CloudSyncPhase.RETRYING_CONFLICT.name).apply()
+                prefs.edit().putInt(retryKey, 1).apply()
+                updateCloudSyncUiStatus(manifestId)
+                appendCloudSyncLog(prefs, manifestId, "ERROR", "$label conflict, retry")
+                val latest = CloudSyncManager().downloadBackupAlways(partId).getOrThrow()
+                if (!latest.json.isNullOrBlank()) {
+                    val prepared = decryptAndPrepare(latest.json.orEmpty())
+                    mergeRemoteIntoLocal(prepared, clientId)
+                }
+                val retryPlain = build().getOrThrow()
+                val retryEnc = encryptAndPrepare(retryPlain)
+                bytesUp += retryEnc.toByteArray(Charsets.UTF_8).size.toLong()
+                CloudSyncManager().upsertBackup(partId, retryEnc, latest.etag).getOrThrow()
+                latest.etag
+            }?.orEmpty()?.trim()
+        }
+
+        try {
+            if (localStackChanged) {
+                val newEtag = pushPart(stackId, etagStackKey, ::buildStackBackupJson, "STACK")
+                if (!newEtag.isNullOrBlank()) prefs.edit().putString(etagStackKey, newEtag).apply()
+            }
+            if (localHistoryChanged) {
+                val newEtag = pushPart(historyId, etagHistoryKey, ::buildHistoryBackupJson, "HISTORY")
+                if (!newEtag.isNullOrBlank()) prefs.edit().putString(etagHistoryKey, newEtag).apply()
+            }
+        } catch (t: Throwable) {
+            prefs.edit().putString(lastErrorKey, t.message ?: "Upload failed").apply()
+            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+            prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
+            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+            _cloudSyncLoading.value = false
+            appendCloudSyncLog(prefs, manifestId, "ERROR", "Upload failed")
+            updateCloudSyncUiStatus(manifestId)
+            return
+        }
+
+        prefs.edit().putLong(bytesUploadedKey, bytesUp).apply()
+        prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
+        prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
+        prefs.edit().remove(lastErrorKey).apply()
+        prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
+        prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+        markSyncActivity()
+        _cloudSyncLoading.value = false
+        appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKey, 0L)}ms")
+        updateCloudSyncUiStatus(manifestId)
     }
     
     fun refreshNotificationSchedules() {
@@ -391,38 +1027,132 @@ class HomeViewModel(
 
     fun receiveData(binId: String) {
         viewModelScope.launch {
-            _cloudSyncLoading.value = true
-            val json = CloudSyncManager().downloadBackup(binId).getOrElse { error ->
-                _cloudSyncLoading.value = false
-                _dataTransferMessage.value = "Mã không hợp lệ / lỗi tải: ${error.message ?: "Unknown"}"
-                return@launch
-            }
-            _cloudSyncLoading.value = false
-            importBackupFromJson(json)
+            syncTwoWay(binId)
         }
     }
 
     fun silentDownloadAndMerge(binId: String) {
-        viewModelScope.launch {
-            Log.d("AutoSync", "☁️ Auto-Sync: Silent download from $binId...")
-            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
-            val etagKey = "cloudSyncEtag_${binId.trim()}"
-            val etag = prefs.getString(etagKey, "").orEmpty().trim()
-            val result = CloudSyncManager().downloadBackupIfChanged(binId, etag).getOrElse { error ->
-                val msg = error.message.orEmpty()
-                Log.d("AutoSync", "☁️ Auto-Sync: Silent download failed: $msg")
-                if (msg.contains("404") || msg.contains("not found", ignoreCase = true)) {
-                    clearStaleBinId(binId)
+        viewModelScope.launch { syncTwoWay(binId) }
+    }
+    
+    private suspend fun mergeRemoteIntoLocal(json: String, clientId: java.util.UUID) {
+        val decoded = OAKBackupJson.decodeCompat(json).getOrElse { return }
+        val clientIdString = clientId.toString()
+        val localSupplements = repository.getAllSupplementsForSync(clientIdString).associateBy { it.id.toString().lowercase(Locale.ROOT) }
+        val localRecords = repository.getAllRecordsForSync(clientIdString).associateBy { it.id.lowercase(Locale.ROOT) }
+        
+        decoded.stack.forEach { remote ->
+            val remoteId = remote.id.lowercase(Locale.ROOT)
+            val local = localSupplements[remoteId]
+            val remoteUpdatedAt = remote.updatedAtEpochMs
+            val remoteDeletedAt = remote.deletedAtEpochMs
+            if (remoteDeletedAt != null) {
+                val localDeletedAt = local?.deletedAtEpochMs ?: 0L
+                if (remoteDeletedAt > localDeletedAt) {
+                    val updated = (local ?: makeLocalFromRemote(remote, clientId)).copy(
+                        updatedAtEpochMs = maxOf(remoteUpdatedAt, remoteDeletedAt),
+                        deletedAtEpochMs = remoteDeletedAt
+                    )
+                    repository.saveSupplement(updated)
                 }
-                return@launch
+                return@forEach
             }
-            val newEtag = result.etag.orEmpty().trim()
-            if (newEtag.isNotEmpty()) prefs.edit().putString(etagKey, newEtag).apply()
-            val json = result.json ?: return@launch
-            importBackupFromJson(json)
-            markSyncActivity()
-            Log.d("AutoSync", "☁️ Auto-Sync: Silent download & merge completed")
+            
+            if (local == null) {
+                repository.saveSupplement(makeLocalFromRemote(remote, clientId))
+                return@forEach
+            }
+            
+            val localTs = maxOf(local.updatedAtEpochMs, local.deletedAtEpochMs ?: 0L)
+            if (remoteUpdatedAt > localTs) {
+                repository.updateSupplement(
+                    local.copy(
+                        name = remote.name,
+                        startDate = runCatching { LocalDate.parse(remote.startDate) }.getOrElse { local.startDate },
+                        cycleConfig = local.cycleConfig.copy(
+                            isContinuous = remote.cycle.isContinuous,
+                            daysOn = remote.cycle.daysOn,
+                            daysOff = remote.cycle.daysOff,
+                            durationMonths = remote.cycle.durationMonths,
+                            weeklyRecurrence = run {
+                                val mask = remote.cycle.weeklyWeekdaysMask ?: return@run null
+                                val interval = remote.cycle.weeklyIntervalWeeks ?: return@run null
+                                val anchor = remote.cycle.weeklyAnchorDate?.let { d -> runCatching { LocalDate.parse(d) }.getOrNull() } ?: return@run null
+                                WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
+                            }
+                        ),
+                        dailyDose = remote.dailyDose,
+                        intakeTime = remote.intakeTime,
+                        updatedAtEpochMs = remoteUpdatedAt,
+                        deletedAtEpochMs = null
+                    )
+                )
+            }
         }
+        
+        decoded.history.forEach { remote ->
+            val remoteId = remote.id.lowercase(Locale.ROOT)
+            val local = localRecords[remoteId]
+            val remoteUpdatedAt = remote.updatedAtEpochMs
+            val localUpdatedAt = local?.updatedAtEpochMs ?: 0L
+            if (remoteUpdatedAt <= localUpdatedAt) return@forEach
+            repository.insertIntakeRecord(
+                com.example.supplementtracker.domain.repository.IntakeRecord(
+                    id = remote.id,
+                    supplementId = remote.supplementId.lowercase(Locale.ROOT),
+                    date = remote.dateEpochMs,
+                    status = remote.status,
+                    updatedAtEpochMs = remoteUpdatedAt.takeIf { it > 0L } ?: remote.dateEpochMs
+                )
+            )
+        }
+    }
+    
+    private fun makeLocalFromRemote(remote: OAKBackupSupplementDTO, clientId: java.util.UUID): UserSupplement {
+        val weekly = run {
+            val mask = remote.cycle.weeklyWeekdaysMask ?: return@run null
+            val interval = remote.cycle.weeklyIntervalWeeks ?: return@run null
+            val anchor = remote.cycle.weeklyAnchorDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@run null
+            WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
+        }
+        val cycle = CycleConfig(
+            daysOn = remote.cycle.daysOn,
+            daysOff = remote.cycle.daysOff,
+            isContinuous = remote.cycle.isContinuous,
+            durationMonths = remote.cycle.durationMonths,
+            weeklyRecurrence = weekly
+        )
+        return UserSupplement(
+            id = runCatching { java.util.UUID.fromString(remote.id) }.getOrElse { java.util.UUID.randomUUID() },
+            clientId = clientId,
+            name = remote.name,
+            startDate = runCatching { LocalDate.parse(remote.startDate) }.getOrElse { LocalDate.now() },
+            cycleConfig = cycle,
+            dailyDose = remote.dailyDose,
+            intakeTime = remote.intakeTime,
+            updatedAtEpochMs = remote.updatedAtEpochMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
+            deletedAtEpochMs = remote.deletedAtEpochMs
+        )
+    }
+    
+    private suspend fun hasLocalChangesSince(clientId: java.util.UUID, lastSyncEpochMs: Long): Boolean {
+        if (lastSyncEpochMs <= 0L) return true
+        if (hasLocalStackChangesSince(clientId, lastSyncEpochMs)) return true
+        return hasLocalHistoryChangesSince(clientId, lastSyncEpochMs)
+    }
+
+    private suspend fun hasLocalStackChangesSince(clientId: java.util.UUID, lastSyncEpochMs: Long): Boolean {
+        if (lastSyncEpochMs <= 0L) return true
+        val clientIdString = clientId.toString()
+        val supplements = repository.getAllSupplementsForSync(clientIdString)
+        return supplements.any { maxOf(it.updatedAtEpochMs, it.deletedAtEpochMs ?: 0L) > lastSyncEpochMs }
+    }
+
+    private suspend fun hasLocalHistoryChangesSince(clientId: java.util.UUID, lastSyncEpochMs: Long): Boolean {
+        if (lastSyncEpochMs <= 0L) return true
+        val clientIdString = clientId.toString()
+        val records = repository.getAllRecordsForSync(clientIdString)
+        return records.any { it.updatedAtEpochMs > lastSyncEpochMs }
     }
 
     private fun markSyncActivity() {

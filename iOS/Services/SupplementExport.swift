@@ -1,3 +1,4 @@
+import Compression
 import Foundation
 import SwiftData
 import SwiftUI
@@ -41,13 +42,17 @@ struct SupplementExportCycle: Codable, Sendable {
 
 struct OAKBackupData: Codable, Sendable {
     var version: String
+    var meta: OAKBackupMeta?
     var stack: [OAKBackupSupplement]
     var history: [OAKBackupHistory]
+    var historyZlibBase64: String?
 
     enum CodingKeys: String, CodingKey {
         case version
+        case meta
         case stack = "supplements"
         case history = "historyLogs"
+        case historyZlibBase64
     }
 
     enum LegacyCodingKeys: String, CodingKey {
@@ -55,10 +60,12 @@ struct OAKBackupData: Codable, Sendable {
         case history
     }
 
-    init(version: String, stack: [OAKBackupSupplement], history: [OAKBackupHistory]) {
+    init(version: String, meta: OAKBackupMeta?, stack: [OAKBackupSupplement], history: [OAKBackupHistory], historyZlibBase64: String?) {
         self.version = version
+        self.meta = meta
         self.stack = stack
         self.history = history
+        self.historyZlibBase64 = historyZlibBase64
     }
 
     init(from decoder: Decoder) throws {
@@ -66,6 +73,8 @@ struct OAKBackupData: Codable, Sendable {
         let legacyContainer = try decoder.container(keyedBy: LegacyCodingKeys.self)
 
         self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.1"
+        self.meta = try? container.decodeIfPresent(OAKBackupMeta.self, forKey: .meta)
+        self.historyZlibBase64 = try? container.decodeIfPresent(String.self, forKey: .historyZlibBase64)
 
         if let supplements = try container.decodeIfPresent([OAKBackupSupplement].self, forKey: .stack) {
             self.stack = supplements
@@ -81,14 +90,75 @@ struct OAKBackupData: Codable, Sendable {
             )
         }
 
-        if let historyLogs = try container.decodeIfPresent([OAKBackupHistory].self, forKey: .history) {
-            self.history = historyLogs
-        } else if let legacyHistory = try legacyContainer.decodeIfPresent([OAKBackupHistory].self, forKey: .history) {
-            self.history = legacyHistory
-        } else {
-            self.history = []
+        var mergedHistory: [OAKBackupHistory] = []
+        if let historyLogs = try container.decodeIfPresent([OAKBackupHistory].self, forKey: .history) { mergedHistory.append(contentsOf: historyLogs) }
+        else if let legacyHistory = try legacyContainer.decodeIfPresent([OAKBackupHistory].self, forKey: .history) { mergedHistory.append(contentsOf: legacyHistory) }
+        if let historyZlibBase64, let inflated = ZlibBase64Codec.decodeArray(base64: historyZlibBase64) {
+            mergedHistory.append(contentsOf: inflated)
+        }
+        self.history = ZlibBase64Codec.dedupeByIdKeepingNewest(items: mergedHistory)
+    }
+}
+
+enum ZlibBase64Codec {
+    private static let threshold = 200
+    
+    static func encodeIfLarge<T: Encodable>(items: [T]) -> String? {
+        guard items.count > threshold else { return nil }
+        guard let data = try? JSONEncoder().encode(items) else { return nil }
+        guard let compressed = compress(data: data) else { return nil }
+        return compressed.base64EncodedString()
+    }
+    
+    static func decodeArray(base64: String) -> [OAKBackupHistory]? {
+        let trimmed = base64.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let raw = Data(base64Encoded: trimmed) else { return nil }
+        guard let inflated = decompress(data: raw) else { return nil }
+        return try? JSONDecoder().decode([OAKBackupHistory].self, from: inflated)
+    }
+    
+    static func dedupeByIdKeepingNewest(items: [OAKBackupHistory]) -> [OAKBackupHistory] {
+        Dictionary(grouping: items, by: { $0.id })
+            .compactMap { $0.value.max(by: { $0.updatedAtEpochMs < $1.updatedAtEpochMs }) }
+    }
+    
+    private static func compress(data: Data) -> Data? {
+        process(data: data, operation: COMPRESSION_STREAM_ENCODE)
+    }
+    
+    private static func decompress(data: Data) -> Data? {
+        process(data: data, operation: COMPRESSION_STREAM_DECODE)
+    }
+    
+    private static func process(data: Data, operation: compression_stream_operation) -> Data? {
+        let bufferSize = 64 * 1024
+        var stream = compression_stream()
+        guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
+        defer { compression_stream_destroy(&stream) }
+        return data.withUnsafeBytes { srcPtr in
+            guard let srcBase = srcPtr.bindMemory(to: UInt8.self).baseAddress else { return nil }
+            var dst = Data()
+            stream.src_ptr = srcBase
+            stream.src_size = data.count
+            let dstBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+            defer { dstBuffer.deallocate() }
+            while true {
+                stream.dst_ptr = dstBuffer
+                stream.dst_size = bufferSize
+                let status = compression_stream_process(&stream, 0)
+                let written = bufferSize - stream.dst_size
+                if written > 0 { dst.append(dstBuffer, count: written) }
+                if status == COMPRESSION_STATUS_END { return dst }
+                if status == COMPRESSION_STATUS_ERROR { return nil }
+            }
         }
     }
+}
+
+struct OAKBackupMeta: Codable, Sendable {
+    var schemaVersion: Int
+    var updatedAtEpochMs: Int64
+    var deviceId: String
 }
 
 struct OAKBackupSupplement: Codable, Sendable {
@@ -98,6 +168,8 @@ struct OAKBackupSupplement: Codable, Sendable {
     var intakeTime: String
     var startDate: String
     var cycle: SupplementExportCycle
+    var updatedAtEpochMs: Int64
+    var deletedAtEpochMs: Int64?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -106,6 +178,40 @@ struct OAKBackupSupplement: Codable, Sendable {
         case intakeTime
         case startDate
         case cycle
+        case updatedAtEpochMs
+        case deletedAtEpochMs
+    }
+    
+    init(
+        id: String,
+        name: String,
+        dailyDose: String,
+        intakeTime: String,
+        startDate: String,
+        cycle: SupplementExportCycle,
+        updatedAtEpochMs: Int64,
+        deletedAtEpochMs: Int64?
+    ) {
+        self.id = id
+        self.name = name
+        self.dailyDose = dailyDose
+        self.intakeTime = intakeTime
+        self.startDate = startDate
+        self.cycle = cycle
+        self.updatedAtEpochMs = updatedAtEpochMs
+        self.deletedAtEpochMs = deletedAtEpochMs
+    }
+    
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        self.name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        self.dailyDose = try c.decodeIfPresent(String.self, forKey: .dailyDose) ?? ""
+        self.intakeTime = try c.decodeIfPresent(String.self, forKey: .intakeTime) ?? "08:00"
+        self.startDate = try c.decodeIfPresent(String.self, forKey: .startDate) ?? "1970-01-01"
+        self.cycle = (try? c.decode(SupplementExportCycle.self, forKey: .cycle)) ?? SupplementExportCycle(isContinuous: false, daysOn: 1, daysOff: 0, durationMonths: nil, weeklyWeekdaysMask: nil, weeklyIntervalWeeks: nil, weeklyAnchorDate: nil)
+        self.updatedAtEpochMs = try c.decodeIfPresent(Int64.self, forKey: .updatedAtEpochMs) ?? 0
+        self.deletedAtEpochMs = try c.decodeIfPresent(Int64.self, forKey: .deletedAtEpochMs)
     }
 }
 
@@ -114,12 +220,37 @@ struct OAKBackupHistory: Codable, Sendable {
     var supplementId: String
     var dateEpochMs: Int64
     var status: String
+    var updatedAtEpochMs: Int64
 
     enum CodingKeys: String, CodingKey {
         case id
         case supplementId
         case dateEpochMs
         case status
+        case updatedAtEpochMs
+    }
+    
+    init(
+        id: String,
+        supplementId: String,
+        dateEpochMs: Int64,
+        status: String,
+        updatedAtEpochMs: Int64
+    ) {
+        self.id = id
+        self.supplementId = supplementId
+        self.dateEpochMs = dateEpochMs
+        self.status = status
+        self.updatedAtEpochMs = updatedAtEpochMs
+    }
+    
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try c.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        self.supplementId = try c.decodeIfPresent(String.self, forKey: .supplementId) ?? ""
+        self.dateEpochMs = try c.decodeIfPresent(Int64.self, forKey: .dateEpochMs) ?? 0
+        self.status = try c.decodeIfPresent(String.self, forKey: .status) ?? "Taken"
+        self.updatedAtEpochMs = try c.decodeIfPresent(Int64.self, forKey: .updatedAtEpochMs) ?? 0
     }
 }
 
@@ -137,9 +268,16 @@ struct SupplementExportCodec {
         supplements: [UserSupplement],
         records: [IntakeRecord]
     ) throws -> Data {
-        let file = OAKBackupData(
-            version: "1.1",
-            stack: supplements.map { supplement in
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let deviceId = {
+            let key = "cloudSyncDeviceId"
+            let existing = (UserDefaults.standard.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !existing.isEmpty { return existing }
+            let created = UUID().uuidString
+            UserDefaults.standard.set(created, forKey: key)
+            return created
+        }()
+        let stack = supplements.map { supplement in
                 OAKBackupSupplement(
                     id: supplement.id.uuidString,
                     name: supplement.name,
@@ -154,18 +292,28 @@ struct SupplementExportCodec {
                         weeklyWeekdaysMask: supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
                         weeklyIntervalWeeks: supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
                         weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) }
-                    )
-                )
-            },
-            history: records.compactMap { record in
-                guard let supplementId = record.supplement?.id else { return nil }
-                return OAKBackupHistory(
-                    id: record.id.uuidString,
-                    supplementId: supplementId.uuidString,
-                    dateEpochMs: Int64(record.date.timeIntervalSince1970 * 1000),
-                    status: record.status
+                    ),
+                    updatedAtEpochMs: supplement.updatedAtEpochMs,
+                    deletedAtEpochMs: supplement.deletedAtEpochMs
                 )
             }
+        let history = records.compactMap { record in
+            guard let supplementId = record.supplement?.id else { return nil }
+            return OAKBackupHistory(
+                id: record.id.uuidString,
+                supplementId: supplementId.uuidString,
+                dateEpochMs: Int64(record.date.timeIntervalSince1970 * 1000),
+                status: record.status,
+                updatedAtEpochMs: record.updatedAtEpochMs
+            )
+        }
+        let historyZlibBase64 = ZlibBase64Codec.encodeIfLarge(items: history)
+        let file = OAKBackupData(
+            version: "2.0",
+            meta: OAKBackupMeta(schemaVersion: 2, updatedAtEpochMs: now, deviceId: deviceId),
+            stack: stack,
+            history: historyZlibBase64 == nil ? history : [],
+            historyZlibBase64: historyZlibBase64
         )
         return try JSONEncoder().encode(file)
     }
@@ -176,12 +324,13 @@ struct SupplementExportCodec {
         }
 
         if let stack = try? JSONDecoder().decode([OAKBackupSupplement].self, from: data) {
-            return OAKBackupData(version: "1.1", stack: stack, history: [])
+            return OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
         }
         
         let legacy = try decode(data: data)
         let converted = OAKBackupData(
-            version: "1.1",
+            version: "2.0",
+            meta: nil,
             stack: legacy.supplements.map { dto in
                 OAKBackupSupplement(
                     id: UUID().uuidString,
@@ -189,10 +338,13 @@ struct SupplementExportCodec {
                     dailyDose: dto.dailyDose,
                     intakeTime: dto.intakeTime,
                     startDate: dto.startDate,
-                    cycle: dto.cycle
+                    cycle: dto.cycle,
+                    updatedAtEpochMs: 0,
+                    deletedAtEpochMs: nil
                 )
             },
-            history: []
+            history: [],
+            historyZlibBase64: nil
         )
         return converted
     }
@@ -264,6 +416,8 @@ struct SupplementExportCodec {
                 cycleConfig: cycleConfig(from: dto.cycle),
                 dailyDose: dto.dailyDose,
                 intakeTime: dto.intakeTime,
+                updatedAtEpochMs: dto.updatedAtEpochMs,
+                deletedAtEpochMs: dto.deletedAtEpochMs,
                 client: client
             )
             context.insert(supplement)
@@ -332,6 +486,9 @@ struct SupplementExportCodec {
             if let original = UUID(uuidString: dto.id) { supplementIdMap[original] = resolvedId }
             
             if let target = supplementsForClient[resolvedId] {
+                let localTs = max(target.updatedAtEpochMs, target.deletedAtEpochMs ?? 0)
+                let remoteTs = max(dto.updatedAtEpochMs, dto.deletedAtEpochMs ?? 0)
+                guard remoteTs > localTs else { continue }
                 try apply(dto: dto, to: target, client: client)
                 supplementsForClient[resolvedId] = target
                 continue
@@ -364,8 +521,10 @@ struct SupplementExportCodec {
                     taken: &takenRecordIds
                 )
                 if let found = recordsForClient[resolvedRecordId] {
+                    guard dto.updatedAtEpochMs > found.updatedAtEpochMs else { continue }
                     found.status = dto.status
                     found.date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                    found.updatedAtEpochMs = dto.updatedAtEpochMs
                     continue
                 }
                 
@@ -374,7 +533,7 @@ struct SupplementExportCodec {
                 guard let resolvedSupplementId, let supplement = supplementsForClient[resolvedSupplementId] else { continue }
                 
                 let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-                let record = IntakeRecord(id: resolvedRecordId, date: date, status: dto.status, supplement: supplement)
+                let record = IntakeRecord(id: resolvedRecordId, date: date, status: dto.status, updatedAtEpochMs: dto.updatedAtEpochMs, supplement: supplement)
                 context.insert(record)
                 recordsForClient[resolvedRecordId] = record
             }
@@ -431,7 +590,7 @@ struct SupplementExportCodec {
                 let supplementId = UUID(uuidString: dto.supplementId).flatMap { supplementIdMap[$0] ?? $0 }
                 guard let supplementId, let supplement = supplementById[supplementId] else { continue }
                 let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-                let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
+                let record = IntakeRecord(id: recordId, date: date, status: dto.status, updatedAtEpochMs: dto.updatedAtEpochMs, supplement: supplement)
                 context.insert(record)
             }
             try context.save()
@@ -469,7 +628,9 @@ struct SupplementExportCodec {
         for dto in backup.stack {
             let id = UUID(uuidString: dto.id) ?? UUID()
             if let target = result[id] {
-                try apply(dto: dto, to: target, client: client)
+                let localTs = max(target.updatedAtEpochMs, target.deletedAtEpochMs ?? 0)
+                let remoteTs = max(dto.updatedAtEpochMs, dto.deletedAtEpochMs ?? 0)
+                if remoteTs > localTs { try apply(dto: dto, to: target, client: client) }
                 result[id] = target
                 continue
             }
@@ -493,6 +654,8 @@ struct SupplementExportCodec {
             cycleConfig: cycleConfig(from: dto.cycle),
             dailyDose: dto.dailyDose,
             intakeTime: dto.intakeTime,
+            updatedAtEpochMs: dto.updatedAtEpochMs,
+            deletedAtEpochMs: dto.deletedAtEpochMs,
             client: client
         )
     }
@@ -507,6 +670,8 @@ struct SupplementExportCodec {
         supplement.cycleConfig = cycleConfig(from: dto.cycle)
         supplement.dailyDose = dto.dailyDose
         supplement.intakeTime = dto.intakeTime
+        supplement.updatedAtEpochMs = dto.updatedAtEpochMs
+        supplement.deletedAtEpochMs = dto.deletedAtEpochMs
         supplement.client = client
     }
 
@@ -519,14 +684,16 @@ struct SupplementExportCodec {
         for dto in backup.history {
             let recordId = UUID(uuidString: dto.id) ?? UUID()
             if let found = existing[recordId] {
+                guard dto.updatedAtEpochMs > found.updatedAtEpochMs else { continue }
                 found.status = dto.status
                 found.date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+                found.updatedAtEpochMs = dto.updatedAtEpochMs
                 continue
             }
             let supplementId = UUID(uuidString: dto.supplementId)
             guard let supplementId, let supplement = supplementById[supplementId] else { continue }
             let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-            let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
+            let record = IntakeRecord(id: recordId, date: date, status: dto.status, updatedAtEpochMs: dto.updatedAtEpochMs, supplement: supplement)
             context.insert(record)
         }
     }
@@ -551,7 +718,7 @@ struct SupplementExportCodec {
                 let supplementId = UUID(uuidString: dto.supplementId)
                 guard let supplementId, let supplement = supplementById[supplementId] else { continue }
                 let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-                let record = IntakeRecord(id: recordId, date: date, status: dto.status, supplement: supplement)
+                let record = IntakeRecord(id: recordId, date: date, status: dto.status, updatedAtEpochMs: dto.updatedAtEpochMs, supplement: supplement)
                 context.insert(record)
                 existing[recordId] = record
             }
@@ -729,7 +896,7 @@ private struct StackShareSnapshotView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("OAK Healthy")
+                Text("app_name".localized)
                     .font(.title2)
                     .fontWeight(.bold)
                     .foregroundStyle(.primary)

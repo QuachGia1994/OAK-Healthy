@@ -31,6 +31,7 @@ import com.example.supplementtracker.presentation.home.MyStackListScreen
 import com.example.supplementtracker.presentation.home.NotificationCheckScreen
 import com.example.supplementtracker.presentation.home.SettingsScreen
 import com.example.supplementtracker.presentation.home.UserGuideScreen
+import com.example.supplementtracker.presentation.sync.SyncCenterScreen
 
 enum class AppTheme {
     LIGHT,
@@ -47,6 +48,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object UserGuide : Screen("user_guide", R.string.settings_guide_title, { })
     data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
     data object EditSupplement : Screen("edit_supplement/{id}", R.string.app_name, { })
+    data object SyncCenter : Screen("sync_center", R.string.sync_center_title, { })
 }
 
 @Composable
@@ -120,7 +122,14 @@ fun AppNavigation(
                     onThemeChange = onThemeChange,
                     onNavigateToStackManager = { navController.navigate(Screen.MyStack.route) },
                     onNavigateToNotificationDebug = { navController.navigate(Screen.NotificationDebug.route) },
-                    onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) }
+                    onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
+                    onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) }
+                )
+            }
+            composable(Screen.SyncCenter.route) {
+                SyncCenterScreen(
+                    homeViewModel = homeViewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.MyStack.route) {

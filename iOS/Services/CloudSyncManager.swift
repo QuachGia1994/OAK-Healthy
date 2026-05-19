@@ -8,6 +8,7 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
     case serverError(statusCode: Int, body: String)
     case networkError(message: String)
     case decodingError(message: String)
+    case cryptoError(message: String)
 
     public var errorDescription: String? {
         switch self {
@@ -24,6 +25,8 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
             return "Lỗi mạng: \(message)"
         case .decodingError(let message):
             return "Lỗi dữ liệu: \(message)"
+        case .cryptoError(let message):
+            return "Lỗi mã hoá: \(message)"
         }
     }
 }
@@ -55,7 +58,8 @@ public actor CloudSyncManager {
     
     public func upsertBackup(
         binId: String,
-        jsonData: Data
+        jsonData: Data,
+        ifMatchEtag: String? = nil
     ) async throws(CloudSyncError) {
         let apiKey = try requireApiKey()
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -64,15 +68,20 @@ public actor CloudSyncManager {
         let url = Self.baseURL.appendingPathComponent(id)
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
-        request.httpBody = jsonData
+        request.httpBody = try encryptPayloadIfNeeded(jsonData)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
+        if let ifMatchEtag {
+            let trimmed = ifMatchEtag.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { request.setValue(trimmed, forHTTPHeaderField: "If-Match") }
+        }
         
         let (data, http) = try await fetch(request: request)
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
         }
+        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
     }
     
     public func uploadBackup(
@@ -82,7 +91,7 @@ public actor CloudSyncManager {
         
         var request = URLRequest(url: Self.baseURL)
         request.httpMethod = "POST"
-        request.httpBody = jsonData
+        request.httpBody = try encryptPayloadIfNeeded(jsonData)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
         
@@ -96,6 +105,7 @@ public actor CloudSyncManager {
         let metadata = obj?["metadata"] as? [String: Any]
         let id = metadata?["id"] as? String
         guard let id, !id.isEmpty else { throw CloudSyncError.invalidResponse }
+        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
         return id
     }
     
@@ -118,11 +128,10 @@ public actor CloudSyncManager {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
         }
+        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
         
-        let obj = try decodeJSONObject(data) as? [String: Any]
-        let record = obj?["record"]
-        guard let record else { throw CloudSyncError.invalidResponse }
-        return try encodeJSONObject(record)
+        let record = try recordData(from: data)
+        return try decryptPayloadIfNeeded(record)
     }
 
     public func downloadBackupIfChanged(
@@ -146,7 +155,7 @@ public actor CloudSyncManager {
             throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
         }
         if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
-        return try recordData(from: data)
+        return try decryptPayloadIfNeeded(recordData(from: data))
     }
     
     public func deleteBackup(
@@ -230,6 +239,26 @@ public actor CloudSyncManager {
         return try encodeJSONObject(record)
     }
     
+    private func encryptPayloadIfNeeded(_ data: Data) throws(CloudSyncError) -> Data {
+        do {
+            let prepared = CloudSyncPayloadCodec.compressIfUseful(data)
+            return try CloudSyncCrypto.encryptIfEnabled(prepared)
+        } catch {
+            throw CloudSyncError.cryptoError(message: error.localizedDescription)
+        }
+    }
+    
+    private func decryptPayloadIfNeeded(_ data: Data) throws(CloudSyncError) -> Data {
+        do {
+            let decrypted = try CloudSyncCrypto.decryptIfNeeded(data)
+            return try CloudSyncPayloadCodec.decompressIfNeeded(decrypted)
+        } catch let error as CloudSyncPayloadCodecError {
+            throw CloudSyncError.decodingError(message: error.localizedDescription)
+        } catch {
+            throw CloudSyncError.cryptoError(message: error.localizedDescription)
+        }
+    }
+    
     private func responseEtag(http: HTTPURLResponse) -> String? {
         let raw = http.value(forHTTPHeaderField: "ETag") ?? http.value(forHTTPHeaderField: "Etag")
         let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -275,30 +304,12 @@ enum CloudSyncAutoSync {
         activeClientManager: ActiveClientManager
     ) async {
         while !Task.isCancelled {
-            await downloadAndMergeIfEnabled(
-                modelContext: modelContext,
-                clientId: activeClientManager.currentClientId
-            )
+            await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
             try? await Task.sleep(for: pollInterval())
         }
     }
     
-    static func uploadIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
-        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return }
-        guard let binId = activeBinId() else {
-            print("☁️ Auto-Sync Upload: Skipped – no binId")
-            return
-        }
-        guard let clientId else { return }
-        markActivity()
-        print("☁️ Auto-Sync: Uploading to bin \(binId)...")
-        let backup = try? makeBackup(modelContext: modelContext, clientId: clientId)
-        guard let backup else { return }
-        try? await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: backup)
-        print("☁️ Auto-Sync: Upload completed")
-    }
-    
-    static func downloadAndMergeIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
+    static func syncIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
         guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else {
             print("☁️ Auto-Sync: Skipped – auto sync disabled")
             return
@@ -311,23 +322,66 @@ enum CloudSyncAutoSync {
             print("☁️ Auto-Sync: Skipped – no active client")
             return
         }
-        print("☁️ Auto-Sync: Downloading from bin \(binId)...")
+        let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { return }
+        let lastSyncKey = "cloudSyncLastSyncEpochMs_\(id)"
+        let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: lastSyncKey))
+        let localChanged = hasLocalChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
         do {
             let result = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: binId)
-            guard let data = result else {
-                print("☁️ Auto-Sync: Not modified")
-                return
-            }
+            let remoteChanged = result != nil
             let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
             guard let client else {
                 print("☁️ Auto-Sync: Client not found in local DB")
                 return
             }
-            try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            if let data = result { try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext) }
+            let shouldUpload = localChanged
+            if !remoteChanged, !shouldUpload { return }
+            if shouldUpload {
+                let etag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(id)")
+                let backup = try? makeBackup(modelContext: modelContext, clientId: clientId)
+                if let backup {
+                    do {
+                        try await CloudSyncManager.shared.upsertBackup(binId: id, jsonData: backup, ifMatchEtag: etag)
+                    } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 412 || statusCode == 409 {
+                        let latest = try await CloudSyncManager.shared.downloadBackup(binId: id)
+                        try? SupplementExportCodec.mergeBackup(data: latest, client: client, context: modelContext)
+                        let retryBackup = try? makeBackup(modelContext: modelContext, clientId: clientId)
+                        let retryEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(id)")
+                        if let retryBackup { try? await CloudSyncManager.shared.upsertBackup(binId: id, jsonData: retryBackup, ifMatchEtag: retryEtag) }
+                    }
+                }
+            }
+            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastSyncKey)
             markActivity()
-            print("☁️ Auto-Sync: Download & merge completed")
         } catch {
             print("☁️ Auto-Sync: Download failed")
+        }
+    }
+    
+    private static func hasLocalChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
+        guard lastSyncEpochMs > 0 else { return true }
+        do {
+            var supplementsDescriptor = FetchDescriptor<UserSupplement>(
+                predicate: #Predicate {
+                    $0.client?.id == clientId &&
+                        ($0.updatedAtEpochMs > lastSyncEpochMs ||
+                         ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs))
+                }
+            )
+            supplementsDescriptor.fetchLimit = 1
+            if !(try modelContext.fetch(supplementsDescriptor)).isEmpty { return true }
+            
+            var recordsDescriptor = FetchDescriptor<IntakeRecord>(
+                predicate: #Predicate {
+                    $0.supplement?.client?.id == clientId && $0.updatedAtEpochMs > lastSyncEpochMs
+                }
+            )
+            recordsDescriptor.fetchLimit = 1
+            return !(try modelContext.fetch(recordsDescriptor)).isEmpty
+        } catch {
+            return true
         }
     }
     
@@ -351,7 +405,10 @@ enum CloudSyncAutoSync {
     
     private static func makeBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
         let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>()).filter { $0.client?.id == clientId }
-        let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>()).filter { $0.supplement?.client?.id == clientId }
+        let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
+            .filter { $0.supplement?.client?.id == clientId }
+            .sorted { $0.date > $1.date }
+            .prefix(5_000)
         return try SupplementExportCodec.encodeBackup(supplements: supplements, records: records)
     }
 }

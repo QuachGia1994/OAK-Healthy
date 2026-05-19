@@ -341,14 +341,14 @@ private struct ActiveSupplementRow: View {
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
-        .alert("Xác nhận uống?", isPresented: $showConfirm) {
-            Button("Hủy", role: .cancel) {}
-            Button("Đã uống") {
+        .alert("home_confirm_intake_title".localized, isPresented: $showConfirm) {
+            Button("cancel".localized, role: .cancel) {}
+            Button("home_confirm_intake_action".localized) {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 onToggle(supplement, timeString, modelContext)
             }
         } message: {
-            Text("Hành động này sẽ được ghi vào Lịch sử và không thể hoàn tác.")
+            Text("home_confirm_intake_message".localized)
         }
     }
 }

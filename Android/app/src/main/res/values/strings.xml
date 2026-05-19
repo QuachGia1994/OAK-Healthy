@@ -3,6 +3,7 @@
     <string name="nav_home">Dashboard</string>
     <string name="nav_history">History</string>
     <string name="nav_settings">Settings</string>
+    <string name="sync_center_title">Sync Center</string>
     
     <string name="settings_title">Settings</string>
     <string name="app_information_title">App Information</string>
@@ -110,4 +111,109 @@
     <string name="missing_active_client">Please select a client first.</string>
     <string name="invalid_json">Invalid JSON file.</string>
     <string name="import_success">Imported.</string>
+
+    <string name="sync_center_tab_host">Host</string>
+    <string name="sync_center_tab_link">Link</string>
+
+    <string name="sync_center_revoke_title">Thu hồi mã liên kết?</string>
+    <string name="sync_center_revoke_message">Thiết bị khác sẽ không còn sync được với mã hiện tại.</string>
+    <string name="sync_center_rotate_title">Rotate key?</string>
+    <string name="sync_center_rotate_message">Thiết bị khác cần import key mới để đọc dữ liệu upload sau khi rotate.</string>
+    <string name="sync_center_disable_encryption_title">Tắt mã hoá?</string>
+    <string name="sync_center_disable_encryption_message">Dữ liệu sẽ upload dạng plaintext JSON. Hãy chắc chắn bạn hiểu rủi ro bảo mật.</string>
+    <string name="sync_center_rehost_title">Phát dữ liệu lại?</string>
+    <string name="sync_center_rehost_message">Mã hiện tại sẽ bị thu hồi và tạo mã mới. Thiết bị khác phải nhập mã mới để sync.</string>
+    <string name="sync_center_import_key_title">Import key?</string>
+    <string name="sync_center_clear_log_title">Xoá log sync?</string>
+    <string name="sync_center_clear_log_message">Hành động này chỉ xoá log trên thiết bị hiện tại.</string>
+    <string name="sync_center_export_log_title">Export log?</string>
+    <string name="sync_center_export_log_message">Log sẽ được copy vào clipboard để bạn dán gửi đi.</string>
+
+    <string name="sync_center_device_a_title">Thiết bị A (Host)</string>
+    <string name="sync_center_device_a_desc">Bấm Phát dữ liệu để tạo mã. Thiết bị B dùng mã này để link.</string>
+    <string name="sync_center_step_host_1">Bật Mã hoá dữ liệu cloud nếu muốn bảo mật (khuyến nghị).</string>
+    <string name="sync_center_step_host_2">Bấm Phát dữ liệu để tạo mã liên kết.</string>
+    <string name="sync_center_step_host_3">Copy mã và gửi sang thiết bị B (tab Link).</string>
+    <string name="sync_center_action_host_data">Phát dữ liệu</string>
+    <string name="sync_center_link_code_label">Mã liên kết:</string>
+    <string name="sync_center_action_hide">Ẩn</string>
+    <string name="sync_center_action_show">Hiện</string>
+
+    <string name="sync_center_device_b_title">Thiết bị B (Link)</string>
+    <string name="sync_center_device_b_desc">Nhập mã từ thiết bị A rồi bấm Tải về.</string>
+    <string name="sync_center_step_link_1">Nhập mã liên kết từ thiết bị A.</string>
+    <string name="sync_center_step_link_2">Bấm Tải về để pull + merge dữ liệu.</string>
+    <string name="sync_center_step_link_3">Nếu đang bật mã hoá, import key tương ứng để đọc dữ liệu cloud.</string>
+    <string name="sync_center_link_code_input_label">Mã liên kết</string>
+    <string name="sync_center_action_download">Tải về</string>
+    <string name="sync_center_auto_sync_label">Tự động đồng bộ</string>
+
+    <string name="sync_center_status_title">Trạng thái sync</string>
+    <string name="sync_center_not_yet">Chưa có</string>
+    <string name="sync_center_status_code_format">Mã: %1$s</string>
+    <string name="sync_center_status_last_sync_format">Lần sync gần nhất: %1$s</string>
+    <string name="sync_center_status_last_attempt_format">Lần thử gần nhất: %1$s</string>
+    <string name="sync_center_status_pending_changes">Có thay đổi cục bộ chưa upload</string>
+    <string name="sync_center_status_no_pending_changes">Không có thay đổi cục bộ</string>
+    <string name="sync_center_status_bytes_format">Download: %1$s • Upload: %2$s</string>
+    <string name="sync_center_status_timings_format">Pull %1$dms • Merge %2$dms • Push %3$dms • Total %4$dms</string>
+    <string name="sync_center_status_last_error_format">Lỗi lần trước: %1$s</string>
+    <string name="sync_center_status_hint_missing_key">Gợi ý: có thể thiếu sync key. Hãy Copy key từ thiết bị Host và Import key tại mục Mã hoá.</string>
+
+    <string name="sync_center_encryption_title">Mã hoá dữ liệu cloud</string>
+    <string name="sync_center_export_key_label">Sync key (copy sang thiết bị khác)</string>
+    <string name="sync_center_import_key_input_label">Nhập key (keyId:base64)</string>
+    <string name="sync_center_logs_title">Sync log (gần đây)</string>
+    <string name="sync_center_logs_search_label">Tìm trong log</string>
+
+    <string name="sync_center_import_key_note_invalid_format">Key format không hợp lệ (cần keyId:base64).</string>
+    <string name="sync_center_import_key_note_same_current">KeyId này trùng với current key.</string>
+    <string name="sync_center_import_key_note_same_previous">KeyId này trùng với previous key.</string>
+    <string name="sync_center_import_key_note_keyid_format">KeyId: %1$s</string>
+
+    <string name="sync_center_action_revoke">Thu hồi</string>
+    <string name="sync_center_action_rotate">Rotate</string>
+    <string name="sync_center_action_disable">Tắt</string>
+    <string name="sync_center_action_keep_encryption">Giữ mã hoá</string>
+    <string name="sync_center_action_create_new_code">Tạo mã mới</string>
+    <string name="sync_center_action_import">Import</string>
+    <string name="sync_center_action_delete">Xoá</string>
+    <string name="sync_center_action_copy">Copy</string>
+    <string name="sync_center_action_cancel">Hủy</string>
+    <string name="sync_center_action_sync_now">Sync ngay</string>
+    <string name="sync_center_action_copy_key">Copy key</string>
+    <string name="sync_center_action_import_key">Import key</string>
+    <string name="sync_center_action_export">Export</string>
+    <string name="sync_center_action_clear">Clear</string>
+
+    <string name="sync_center_filter_all">All</string>
+    <string name="sync_center_filter_error">Error</string>
+    <string name="sync_center_filter_host">Host</string>
+    <string name="sync_center_filter_done">Done</string>
+
+    <string name="sync_center_toast_code_copied">Đã sao chép mã</string>
+    <string name="sync_center_toast_key_copied">Đã sao chép key</string>
+    <string name="sync_center_toast_key_imported">Đã import key</string>
+    <string name="sync_center_toast_log_cleared">Đã xoá log</string>
+    <string name="sync_center_toast_log_copied">Đã copy log</string>
+
+    <string name="notification_check_title">Notification List</string>
+    <string name="notification_check_reload">Reload</string>
+    <string name="notification_check_empty">No scheduled notifications.</string>
+    <string name="notification_check_exact_alarms_enabled">Enabled</string>
+    <string name="notification_check_exact_alarms_disabled">Disabled</string>
+    <string name="notification_check_exact_alarms_format">Exact Alarms: %1$s</string>
+    <string name="notification_check_battery_opt_ignored">Not optimized</string>
+    <string name="notification_check_battery_opt_optimized">Optimized</string>
+    <string name="notification_check_battery_opt_format">Battery Optimization: %1$s</string>
+    <string name="notification_check_open_battery_opt_settings">Open Battery Optimization settings</string>
+    <string name="notification_check_dose_format">Dose: %1$s</string>
+
+    <string name="home_intake_toast_cannot_undo">History cannot be undone.</string>
+    <string name="home_intake_confirm_title">Confirm intake</string>
+    <string name="home_intake_confirm_message">Have you taken this? This action will be recorded in History and cannot be undone.</string>
+    <string name="home_intake_confirm_taken">Taken</string>
+    <string name="home_intake_confirm_cancel">Cancel</string>
+
+    <string name="client_name_label">Name</string>
 </resources>

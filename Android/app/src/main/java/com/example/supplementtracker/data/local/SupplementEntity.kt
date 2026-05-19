@@ -37,5 +37,7 @@ data class SupplementEntity(
     val intakeTime: String, // Lưu dạng String enum
     val weeklyWeekdaysMask: Int?,
     val weeklyIntervalWeeks: Int?,
-    val weeklyAnchorDate: String?
+    val weeklyAnchorDate: String?,
+    val updatedAtEpochMs: Long,
+    val deletedAtEpochMs: Long?
 )

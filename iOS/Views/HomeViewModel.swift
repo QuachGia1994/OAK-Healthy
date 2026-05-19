@@ -44,17 +44,15 @@ public final class HomeViewModel {
         }
         guard !isAlreadyTaken else { return }
 
-        let newRecord = IntakeRecord(date: today, status: "Taken", intakeTime: time, supplement: supplement)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let newRecord = IntakeRecord(date: today, status: "Taken", intakeTime: time, updatedAtEpochMs: now, supplement: supplement)
         context.insert(newRecord)
         
         try? context.save()
         
         Task { await notificationService.cancelReminder(for: supplement, timeString: time, day: today) }
         Task {
-            await CloudSyncAutoSync.uploadIfEnabled(
-                modelContext: context,
-                clientId: supplement.client?.id
-            )
+            await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id)
         }
     }
     
@@ -71,13 +69,14 @@ public final class HomeViewModel {
     
     /// Xóa thực phẩm bổ sung.
     public func deleteSupplement(_ supplement: UserSupplement, context: ModelContext) {
-        if !supplement.intakeRecords.isEmpty {
-            for record in supplement.intakeRecords {
-                context.delete(record)
-            }
-        }
-        context.delete(supplement)
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        supplement.deletedAtEpochMs = now
+        supplement.updatedAtEpochMs = now
         try? context.save()
+        
+        Task {
+            await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id)
+        }
     }
     
     /// Phân loại danh sách thực phẩm bổ sung.
@@ -89,6 +88,7 @@ public final class HomeViewModel {
         var resting: [RestingSupplementInfo] = []
         
         for supplement in supplements {
+            if supplement.deletedAtEpochMs != nil { continue }
             let status = try? cycleEngine.determineStatus(
                 for: supplement.startDate,
                 config: supplement.cycleConfig,

@@ -5,19 +5,15 @@ import SwiftData
 /// Màn hình lịch sử uống với biểu đồ (iOS).
 public struct HistoryView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Query(sort: [SortDescriptor(\IntakeRecord.date, order: .reverse)])
-    private var allRecords: [IntakeRecord]
+    @Environment(\.modelContext) private var modelContext
     @State private var viewModel = HistoryViewModel()
+    @State private var sections: [HistorySectionModel] = []
+    @State private var recordsCount: Int = 0
     
     public let activeClientManager: ActiveClientManager
     
     public init(activeClientManager: ActiveClientManager) {
         self.activeClientManager = activeClientManager
-    }
-    
-    private var records: [IntakeRecord] {
-        guard let currentClientId = activeClientManager.currentClientId else { return [] }
-        return allRecords.filter { $0.supplement?.client?.id == currentClientId }
     }
     
     public var body: some View {
@@ -58,14 +54,14 @@ public struct HistoryView: View {
                             Text("log_details".localized)
                                 .font(.headline)
                             
-                            if records.isEmpty {
+                            if recordsCount == 0 {
                                 Text("no_logs_yet".localized)
                                     .foregroundStyle(.secondary)
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 12) {
-                                    ForEach(groupedRecords, id: \.date) { section in
+                                    ForEach(sections) { section in
                                         VStack(alignment: .leading, spacing: 8) {
-                                            Text(sectionTitle(for: section.date))
+                                            Text(section.title)
                                                 .font(.headline)
                                                 .frame(maxWidth: .infinity, alignment: .leading)
                                                 .padding(.horizontal, 12)
@@ -73,8 +69,9 @@ public struct HistoryView: View {
                                                 .background(.secondary.opacity(0.12))
                                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                                             
-                                            ForEach(section.records) { record in
-                                                HistoryRow(record: record)
+                                            ForEach(section.rows) { row in
+                                                HistoryRow(row: row)
+                                                    .equatable()
                                             }
                                         }
                                     }
@@ -86,14 +83,8 @@ public struct HistoryView: View {
                 }
             }
             .navigationTitle("history_title".localized)
-            .onAppear {
-                viewModel.processHistory(records: records)
-            }
-            .onChange(of: records) {
-                viewModel.processHistory(records: records)
-            }
-            .onChange(of: activeClientManager.currentClientId) {
-                viewModel.processHistory(records: records)
+            .task(id: activeClientManager.currentClientId) {
+                await reload()
             }
         }
     }
@@ -105,53 +96,75 @@ public struct HistoryView: View {
         return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
     
-    private var groupedRecords: [(date: Date, records: [IntakeRecord])] {
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: records) { record in
-            calendar.startOfDay(for: record.date)
+    @MainActor
+    private func reload() async {
+        guard let clientId = activeClientManager.currentClientId else {
+            recordsCount = 0
+            sections = []
+            viewModel.processHistory(records: [])
+            return
         }
-        
-        return grouped
-            .map { (date: $0.key, records: $0.value.sorted { $0.date > $1.date }) }
-            .sorted { $0.date > $1.date }
+        do {
+            var descriptor = FetchDescriptor<IntakeRecord>(
+                predicate: #Predicate { $0.supplement?.client?.id == clientId },
+                sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
+            )
+            descriptor.fetchLimit = 5_000
+            let fetched = try modelContext.fetch(descriptor)
+            recordsCount = fetched.count
+            sections = makeSections(records: fetched)
+            viewModel.processHistory(records: fetched)
+        } catch {
+            recordsCount = 0
+            sections = []
+            viewModel.processHistory(records: [])
+        }
     }
     
-    private func sectionTitle(for date: Date) -> String {
+    private func makeSections(records: [IntakeRecord]) -> [HistorySectionModel] {
+        let isVietnamese = (Locale.preferredLanguages.first ?? "").hasPrefix("vi")
         let calendar = Calendar.current
-        
-        if calendar.isDateInToday(date) {
-            return isVietnamese ? "Hôm nay" : "Today"
-        }
-        
-        if calendar.isDateInYesterday(date) {
-            return isVietnamese ? "Hôm qua" : "Yesterday"
-        }
-        
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: isVietnamese ? "vi_VN" : "en_US")
         formatter.dateStyle = .long
         formatter.timeStyle = .none
-        return formatter.string(from: date)
-    }
-    
-    private var isVietnamese: Bool {
-        guard let preferredLanguage = Locale.preferredLanguages.first else { return false }
-        return preferredLanguage.hasPrefix("vi")
+        
+        let grouped = Dictionary(grouping: records) { calendar.startOfDay(for: $0.date) }
+        return grouped
+            .map { (date: $0.key, records: $0.value) }
+            .sorted { $0.date > $1.date }
+            .map { item in
+                let title: String = {
+                    if calendar.isDateInToday(item.date) { return "history_today".localized }
+                    if calendar.isDateInYesterday(item.date) { return "history_yesterday".localized }
+                    return formatter.string(from: item.date)
+                }()
+                let rows = item.records
+                    .sorted { $0.date > $1.date }
+                    .map { record in
+                        HistoryRowModel(
+                            id: record.id,
+                            timeText: record.date.formatted(date: .omitted, time: .shortened),
+                            supplementName: record.supplement?.name ?? "not_available".localized
+                        )
+                    }
+                return HistorySectionModel(date: item.date, title: title, rows: rows)
+            }
     }
 }
 
 /// Dòng hiển thị chi tiết nhật ký.
-private struct HistoryRow: View {
-    let record: IntakeRecord
+private struct HistoryRow: View, Equatable {
+    let row: HistoryRowModel
     
     var body: some View {
         HStack {
-            Text(record.date.formatted(date: .omitted, time: .shortened))
+            Text(row.timeText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
             
-            Text(record.supplement?.name ?? "not_available".localized)
+            Text(row.supplementName)
                 .font(.body)
                 .fontWeight(.medium)
             Spacer()
@@ -163,6 +176,19 @@ private struct HistoryRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 5)
     }
+}
+
+private struct HistorySectionModel: Identifiable, Equatable {
+    var id: Date { date }
+    let date: Date
+    let title: String
+    let rows: [HistoryRowModel]
+}
+
+private struct HistoryRowModel: Identifiable, Equatable {
+    let id: UUID
+    let timeText: String
+    let supplementName: String
 }
 
 #Preview {

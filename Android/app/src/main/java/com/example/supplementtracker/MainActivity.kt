@@ -7,12 +7,11 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.room.Room
 import com.example.supplementtracker.data.local.SupplementDatabase
 import com.example.supplementtracker.data.repository.SupplementRepositoryImpl
@@ -34,61 +33,33 @@ import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.util.Log
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.example.supplementtracker.presentation.splash.SplashScreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     private var timeZoneReceiver: TimeZoneChangeReceiver? = null
-    private lateinit var homeViewModel: HomeViewModel
-    @Volatile private var keepSplashOnScreen = true
+    private var homeViewModel: HomeViewModel? = null
+
+    private data class AppDeps(
+        val homeViewModel: HomeViewModel,
+        val historyViewModel: HistoryViewModel,
+        val addSupplementViewModel: AddSupplementViewModel,
+        val activeClientManager: ActiveClientManager
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val splashScreen = installSplashScreen()
-        splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }
+        installSplashScreen()
 
         super.onCreate(savedInstanceState)
-        lifecycleScope.launch {
-            delay(1_500)
-            keepSplashOnScreen = false
-        }
         
         requestNotificationPermission()
-        
-        // Khởi tạo Database và Repository (Trong thực tế nên dùng Hilt)
-        val db = Room.databaseBuilder(
-            applicationContext,
-            SupplementDatabase::class.java,
-            SupplementDatabase.DATABASE_NAME
-        )
-            .addMigrations(SupplementDatabase.MIGRATION_2_3, SupplementDatabase.MIGRATION_3_4)
-            .fallbackToDestructiveMigration()
-            .build()
-        
-        val repository = SupplementRepositoryImpl(db.supplementDao)
-        val activeClientManager = ActiveClientManager(applicationContext, repository)
-        
-        // Khởi tạo ViewModels
-        homeViewModel = HomeViewModel(
-            context = applicationContext,
-            repository = repository,
-            activeClientManager = activeClientManager
-        )
-        val historyViewModel = HistoryViewModel(repository, activeClientManager)
-        val addSupplementViewModel = AddSupplementViewModel(
-            saveSupplementUseCase = SaveSupplementUseCase(repository),
-            repository = repository,
-            context = applicationContext,
-            activeClientManager = activeClientManager
-        )
 
         // Đăng ký TimeZoneChangeReceiver
         timeZoneReceiver = TimeZoneChangeReceiver {
-            homeViewModel.refresh()
+            homeViewModel?.refresh()
         }
         registerReceiver(timeZoneReceiver, IntentFilter(Intent.ACTION_TIMEZONE_CHANGED))
-        
-        homeViewModel.refreshNotificationSchedules()
 
         setContent {
             var appTheme by rememberSaveable { mutableStateOf(AppTheme.SYSTEM) }
@@ -97,24 +68,92 @@ class MainActivity : ComponentActivity() {
                 AppTheme.LIGHT -> false
                 AppTheme.SYSTEM -> isSystemInDarkTheme()
             }
-            MaterialTheme(colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()) {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    AppNavigation(
+
+            var deps by remember { mutableStateOf<AppDeps?>(null) }
+            var initError by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(Unit) {
+                try {
+                    val (repository, activeClientManager) = withContext(Dispatchers.IO) {
+                        val db = Room.databaseBuilder(
+                            applicationContext,
+                            SupplementDatabase::class.java,
+                            SupplementDatabase.DATABASE_NAME
+                        )
+                            .addMigrations(
+                                SupplementDatabase.MIGRATION_2_3,
+                                SupplementDatabase.MIGRATION_3_4,
+                                SupplementDatabase.MIGRATION_4_5
+                            )
+                            .fallbackToDestructiveMigration()
+                            .build()
+
+                        val repository = SupplementRepositoryImpl(db.supplementDao)
+                        val activeClientManager = ActiveClientManager(applicationContext, repository)
+                        repository to activeClientManager
+                    }
+
+                    val homeViewModel = HomeViewModel(
+                        context = applicationContext,
+                        repository = repository,
+                        activeClientManager = activeClientManager
+                    )
+                    val historyViewModel = HistoryViewModel(repository, activeClientManager)
+                    val addSupplementViewModel = AddSupplementViewModel(
+                        saveSupplementUseCase = SaveSupplementUseCase(repository),
+                        repository = repository,
+                        context = applicationContext,
+                        activeClientManager = activeClientManager
+                    )
+
+                    this@MainActivity.homeViewModel = homeViewModel
+                    homeViewModel.refreshNotificationSchedules()
+
+                    deps = AppDeps(
                         homeViewModel = homeViewModel,
                         historyViewModel = historyViewModel,
                         addSupplementViewModel = addSupplementViewModel,
-                        activeClientManager = activeClientManager,
-                        appTheme = appTheme,
-                        onThemeChange = { appTheme = it }
+                        activeClientManager = activeClientManager
                     )
+                } catch (e: Exception) {
+                    Log.e("Startup", "Init failed", e)
+                    initError = e.message ?: "Unknown"
+                }
+            }
+
+            MaterialTheme(colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    val ready = deps
+                    if (initError != null) {
+                        Text(text = initError ?: "Unknown error")
+                    } else if (ready == null) {
+                        SplashScreen(autoFinish = false)
+                    } else {
+                        AppNavigation(
+                            homeViewModel = ready.homeViewModel,
+                            historyViewModel = ready.historyViewModel,
+                            addSupplementViewModel = ready.addSupplementViewModel,
+                            activeClientManager = ready.activeClientManager,
+                            appTheme = appTheme,
+                            onThemeChange = { appTheme = it }
+                        )
+                    }
                 }
             }
         }
     }
     
+    override fun onDestroy() {
+        timeZoneReceiver?.let { receiver ->
+            runCatching { unregisterReceiver(receiver) }
+        }
+        timeZoneReceiver = null
+        super.onDestroy()
+    }
+    
     override fun onResume() {
         super.onResume()
-        homeViewModel.refreshNotificationSchedules()
+        homeViewModel?.refreshNotificationSchedules()
         
         val prefs = applicationContext.getSharedPreferences("oak_settings", MODE_PRIVATE)
         val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
@@ -129,11 +168,6 @@ class MainActivity : ComponentActivity() {
         // Auto-sync is handled via periodic upload in HomeViewModel.
         // Log.d("AutoSync", "☁️ Auto-Sync: Starting download...")
         // homeViewModel.receiveData(binId)
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        timeZoneReceiver?.let { unregisterReceiver(it) }
     }
 
     private fun requestNotificationPermission() {

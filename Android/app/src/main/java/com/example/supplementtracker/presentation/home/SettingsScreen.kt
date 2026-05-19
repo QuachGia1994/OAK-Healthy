@@ -40,6 +40,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -64,7 +65,10 @@ import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
 import java.io.FileOutputStream
+import java.time.Instant
 import java.util.UUID
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.FileProvider
@@ -89,20 +93,15 @@ fun SettingsScreen(
     onThemeChange: (AppTheme) -> Unit,
     onNavigateToStackManager: () -> Unit,
     onNavigateToNotificationDebug: () -> Unit,
-    onNavigateToUserGuide: () -> Unit
+    onNavigateToUserGuide: () -> Unit,
+    onNavigateToSyncCenter: () -> Unit
 ) {
     val context = LocalContext.current
-    val settingsPrefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
-    var isAutoSyncEnabled by remember {
-        mutableStateOf(settingsPrefs.getBoolean("isAutoSyncEnabled", false))
-    }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
-    val cloudSyncLoading by homeViewModel.cloudSyncLoading.collectAsStateWithLifecycle()
-    val hostedBinId by homeViewModel.hostedBinId.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val hostView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -111,11 +110,12 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareStackTitle = stringResource(R.string.share_stack)
-    var isBinIdVisible by remember { mutableStateOf(false) }
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    val backgroundBrush = remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+        } else {
+            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+        }
     }
     val listState = rememberLazyListState()
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
@@ -123,38 +123,21 @@ fun SettingsScreen(
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
-    var downloadBinId by remember {
-        mutableStateOf(settingsPrefs.getString("cloudSyncLinkedBinId", "").orEmpty())
-    }
-    var isInputVisible by remember { mutableStateOf(false) }
-    var isRevokeConfirmVisible by remember { mutableStateOf(false) }
 
-    val allSupplements = remember(uiState, currentClientId) {
-        if (currentClientId == null) return@remember emptyList<UserSupplement>()
-        val success = uiState as? HomeUiState.Success ?: return@remember emptyList()
-        (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
-            .distinctBy { it.id }
-            .sortedBy { it.name }
+    val allSupplements by remember(uiState, currentClientId) {
+        derivedStateOf {
+            if (currentClientId == null) return@derivedStateOf emptyList<UserSupplement>()
+            val success = uiState as? HomeUiState.Success ?: return@derivedStateOf emptyList()
+            (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
+                .distinctBy { it.id }
+                .sortedBy { it.name }
+        }
     }
 
     LaunchedEffect(dataTransferMessage) {
         val message = dataTransferMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         homeViewModel.clearDataTransferMessage()
-    }
-    
-    LaunchedEffect(hostedBinId) {
-        isBinIdVisible = false
-        settingsPrefs.edit().putString("cloudSyncHostedBinId", hostedBinId ?: "").apply()
-    }
-    
-    LaunchedEffect(isAutoSyncEnabled) {
-        settingsPrefs.edit().putBoolean("isAutoSyncEnabled", isAutoSyncEnabled).apply()
-        if (isAutoSyncEnabled) {
-            homeViewModel.startAutoSync()
-            return@LaunchedEffect
-        }
-        homeViewModel.stopAutoSync()
     }
 
     Box(
@@ -207,9 +190,20 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         } else {
-                            clients.forEach { client ->
-                                key(client.id) {
-                                    var isMenuExpanded by remember { mutableStateOf(false) }
+                            val clientListState = rememberLazyListState()
+                            LazyColumn(
+                                state = clientListState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 240.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(
+                                    items = clients,
+                                    key = { it.id },
+                                    contentType = { "client" }
+                                ) { client ->
+                                    var isMenuExpanded by remember(client.id) { mutableStateOf(false) }
                                     val isActive = client.id == currentClientId
                                     Row(
                                         modifier = Modifier
@@ -361,143 +355,7 @@ fun SettingsScreen(
 
                 item {
                     SettingsSection(title = "Đồng bộ đa thiết bị") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = "Tự động đồng bộ", style = MaterialTheme.typography.bodyLarge)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Switch(
-                                checked = isAutoSyncEnabled,
-                                onCheckedChange = { isAutoSyncEnabled = it }
-                            )
-                        }
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    isBinIdVisible = false
-                                    homeViewModel.hostData()
-                                },
-                                enabled = !cloudSyncLoading
-                            ) {
-                                if (cloudSyncLoading) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-                                Text("Phát dữ liệu")
-                            }
-                        }
-
-                        val currentBinId = hostedBinId
-                        if (currentBinId != null) {
-                            val binIdToCopy = currentBinId.trim()
-                            val maskedBinId = remember { "•".repeat(24) }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Mã liên kết của bạn:",
-                                    modifier = Modifier.padding(end = 8.dp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = if (isBinIdVisible) binIdToCopy else maskedBinId,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(onClick = { isBinIdVisible = !isBinIdVisible }) {
-                                    Icon(
-                                        imageVector = if (isBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = null
-                                    )
-                                }
-                                TextButton(
-                                    onClick = {
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("binId", binIdToCopy))
-                                        Toast.makeText(context, "Đã sao chép", Toast.LENGTH_SHORT).show()
-                                    }
-                                ) {
-                                    Text("Copy")
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            TextButton(
-                                onClick = {
-                                    isBinIdVisible = false
-                                    isRevokeConfirmVisible = true
-                                }
-                            ) {
-                                Text(
-                                    text = "Thu hồi mã",
-                                    color = Color(0xFFD32F2F),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            
-                            if (isRevokeConfirmVisible) {
-                                AlertDialog(
-                                    onDismissRequest = { isRevokeConfirmVisible = false },
-                                    confirmButton = {
-                                        TextButton(onClick = {
-                                            isRevokeConfirmVisible = false
-                                            homeViewModel.revokeHostedBin()
-                                        }) { Text("Thu hồi") }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = { isRevokeConfirmVisible = false }) { Text("Hủy") }
-                                    },
-                                    title = { Text("Xác nhận") },
-                                    text = { Text("Bạn chắc chắn muốn thu hồi mã? Thiết bị khác sẽ không còn sync được với mã hiện tại.") }
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = downloadBinId,
-                            onValueChange = {
-                                downloadBinId = it
-                                settingsPrefs.edit().putString("cloudSyncLinkedBinId", it.trim()).apply()
-                            },
-                            label = { Text("Nhập mã liên kết") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            visualTransformation = if (isInputVisible) {
-                                VisualTransformation.None
-                            } else {
-                                PasswordVisualTransformation()
-                            },
-                            trailingIcon = {
-                                IconButton(onClick = { isInputVisible = !isInputVisible }) {
-                                    Icon(
-                                        imageVector = if (isInputVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = null
-                                    )
-                                }
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedButton(
-                            onClick = { homeViewModel.receiveData(downloadBinId) },
-                            enabled = !cloudSyncLoading
-                        ) {
-                            if (cloudSyncLoading) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Spacer(modifier = Modifier.width(8.dp))
-                            }
-                            Text("Tải về")
-                        }
+                        SettingsRow(title = "Sync Center", onClick = onNavigateToSyncCenter)
                     }
                 }
 
@@ -670,7 +528,7 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = clientNameInput,
                     onValueChange = { clientNameInput = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.client_name_label)) },
                     singleLine = true
                 )
             },
@@ -683,13 +541,13 @@ fun SettingsScreen(
                     activeClientManager.setCurrentClientId(created.id)
                     clientNameInput = ""
                     isAddClientDialogVisible = false
-                }) { Text("Save") }
+                }) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     clientNameInput = ""
                     isAddClientDialogVisible = false
-                }) { Text("Cancel") }
+                }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -704,7 +562,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = clientNameInput,
                         onValueChange = { clientNameInput = it },
-                        label = { Text("Name") },
+                        label = { Text(stringResource(R.string.client_name_label)) },
                         singleLine = true
                     )
                 },
@@ -715,13 +573,13 @@ fun SettingsScreen(
                         homeViewModel.updateClient(target.copy(name = trimmed))
                         clientNameInput = ""
                         isEditClientDialogVisible = false
-                    }) { Text("Save") }
+                    }) { Text(stringResource(R.string.save)) }
                 },
                 dismissButton = {
                     TextButton(onClick = {
                         clientNameInput = ""
                         isEditClientDialogVisible = false
-                    }) { Text("Cancel") }
+                    }) { Text(stringResource(R.string.cancel)) }
                 }
             )
         }
@@ -756,6 +614,40 @@ private fun SettingsSection(
                 content = content
             )
         }
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "${bytes}B"
+    val kb = bytes / 1024.0
+    if (kb < 1024) return String.format(java.util.Locale.US, "%.1fKB", kb)
+    val mb = kb / 1024.0
+    return String.format(java.util.Locale.US, "%.2fMB", mb)
+}
+
+@Composable
+private fun StepChip(label: String, done: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .background(
+                color = if (done) Color(0x3322C55E) else MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(999.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Icon(
+            imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.KeyboardArrowRight,
+            contentDescription = null,
+            tint = if (done) Color(0xFF22C55E) else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -813,7 +705,6 @@ private fun AppThemeSegmentedControl(
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val outerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFFF2F2F7)
     val selectedColor = if (isDark) Color.White.copy(alpha = 0.22f) else Color.White
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.12f) else Color(0x14000000)
 
     val items = listOf(
         Triple(stringResource(R.string.appearance_light), AppTheme.LIGHT, appTheme == AppTheme.LIGHT),
@@ -852,10 +743,13 @@ private fun AppThemeSegmentedControl(
 }
 
 @Composable
-private fun getCycleSummary(supplement: UserSupplement): String {
+private fun getCycleSummary(
+    supplement: UserSupplement,
+    calculateCycleUseCase: CalculateCycleUseCase,
+    today: LocalDate
+): String {
     val config = supplement.cycleConfig
-    val calculateCycleUseCase = CalculateCycleUseCase()
-    val status = calculateCycleUseCase(supplement.startDate, config, LocalDate.now())
+    val status = calculateCycleUseCase(supplement.startDate, config, today)
     val statusText = if (status == CycleStatus.ON) {
         R.string.cycle_status_on
     } else {
@@ -989,20 +883,26 @@ fun MyStackListScreen(
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    val backgroundBrush = remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+        } else {
+            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+        }
     }
 
-    val supplements = remember(uiState, currentClientId) {
-        if (currentClientId == null) return@remember emptyList<UserSupplement>()
-        val success = uiState as? HomeUiState.Success ?: return@remember emptyList()
-        (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
-            .distinctBy { it.id }
-            .sortedBy { it.name }
+    val supplements by remember(uiState, currentClientId) {
+        derivedStateOf {
+            if (currentClientId == null) return@derivedStateOf emptyList<UserSupplement>()
+            val success = uiState as? HomeUiState.Success ?: return@derivedStateOf emptyList()
+            (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
+                .distinctBy { it.id }
+                .sortedBy { it.name }
+        }
     }
     val listState = rememberLazyListState()
+    val calculateCycleUseCase = remember { CalculateCycleUseCase() }
+    val today = remember { LocalDate.now() }
 
     Box(
         modifier = Modifier
@@ -1040,7 +940,11 @@ fun MyStackListScreen(
                     val title = if (time.isEmpty()) supplement.name else "${supplement.name} ($time)"
                     InfoCard(
                         title = title,
-                        content = getCycleSummary(supplement)
+                        content = getCycleSummary(
+                            supplement = supplement,
+                            calculateCycleUseCase = calculateCycleUseCase,
+                            today = today
+                        )
                     )
                 }
             }
@@ -1073,9 +977,20 @@ private fun ClientManagementCard(
             if (clients.isEmpty()) {
                 Text(text = stringResource(R.string.add_client_to_start), style = MaterialTheme.typography.bodyMedium)
             } else {
-                clients.forEach { client ->
-                    key(client.id) {
-                        var isMenuExpanded by remember { mutableStateOf(false) }
+                val listState = rememberLazyListState()
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 240.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(
+                        items = clients,
+                        key = { it.id },
+                        contentType = { "client" }
+                    ) { client ->
+                        var isMenuExpanded by remember(client.id) { mutableStateOf(false) }
                         val isActive = client.id == currentClientId
                         Row(
                             modifier = Modifier

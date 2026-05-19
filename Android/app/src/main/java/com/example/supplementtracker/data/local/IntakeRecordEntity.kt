@@ -26,5 +26,6 @@ data class IntakeRecordEntity(
     val id: String = UUID.randomUUID().toString(),
     val supplementId: String,
     val date: Long, // Epoch millis
-    val status: String = "Taken"
+    val status: String = "Taken",
+    val updatedAtEpochMs: Long
 )

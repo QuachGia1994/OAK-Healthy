@@ -37,8 +37,11 @@ interface SupplementDao {
     @Query("SELECT * FROM supplements WHERE id = :id")
     suspend fun getSupplementById(id: String): SupplementEntity?
 
-    @Query("SELECT * FROM supplements WHERE clientId = :clientId ORDER BY name ASC")
+    @Query("SELECT * FROM supplements WHERE clientId = :clientId AND deletedAtEpochMs IS NULL ORDER BY name ASC")
     fun getSupplementsByClient(clientId: String): Flow<List<SupplementEntity>>
+    
+    @Query("SELECT * FROM supplements WHERE clientId = :clientId ORDER BY name ASC")
+    suspend fun getSupplementsByClientForSync(clientId: String): List<SupplementEntity>
 
     // --- Intake Records ---
 
@@ -103,6 +106,7 @@ interface SupplementDao {
             END AS isTakenToday
         FROM supplements s
         WHERE s.clientId = :clientId
+        AND s.deletedAtEpochMs IS NULL
         ORDER BY s.name ASC
         """
     )
@@ -129,6 +133,17 @@ interface SupplementDao {
         """
     )
     suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecordWithSupplementEntity>
+    
+    @Query(
+        """
+        SELECT *
+        FROM intake_records
+        WHERE supplementId IN (SELECT id FROM supplements WHERE clientId = :clientId)
+        ORDER BY date DESC
+        LIMIT 5000
+        """
+    )
+    suspend fun getAllRecordsByClientForSync(clientId: String): List<IntakeRecordEntity>
 
     @Query(
         """

@@ -1,7 +1,12 @@
 package com.example.supplementtracker.domain.export
 
+import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.DeflaterOutputStream
+import java.util.zip.InflaterInputStream
 
 object SupplementExportJson {
     fun encode(file: SupplementExportFileDTO): String {
@@ -86,20 +91,27 @@ object SupplementExportJson {
 }
 
 object OAKBackupJson {
+    private const val HISTORY_COMPRESS_THRESHOLD = 200
+
     fun encode(data: OAKBackupDataDTO): String {
         val root = JSONObject()
         root.put("version", data.version)
+        data.meta?.let { meta ->
+            val metaObj = JSONObject()
+            metaObj.put("schemaVersion", meta.schemaVersion)
+            metaObj.put("updatedAtEpochMs", meta.updatedAtEpochMs)
+            metaObj.put("deviceId", meta.deviceId)
+            root.put("meta", metaObj)
+        }
         val supplementsArray = JSONArray()
         data.stack.forEach { dto ->
             supplementsArray.put(encodeSupplement(dto))
         }
         root.put("supplements", supplementsArray)
 
-        val historyLogsArray = JSONArray()
-        data.history.forEach { dto ->
-            historyLogsArray.put(encodeHistory(dto))
-        }
+        val (historyLogsArray, historyZlibBase64) = encodeHistoryPayload(data.history)
         root.put("historyLogs", historyLogsArray)
+        if (!historyZlibBase64.isNullOrBlank()) root.put("historyZlibBase64", historyZlibBase64)
 
         return root.toString(2)
     }
@@ -161,14 +173,67 @@ object OAKBackupJson {
                 for (i in 0 until historyArray.length()) {
                     add(decodeHistory(historyArray.getJSONObject(i)))
                 }
+            }.toMutableList()
+            
+            val historyZlibBase64 = root.optString("historyZlibBase64", "").trim().ifBlank { null }
+            if (historyZlibBase64 != null) {
+                val inflated = inflateZlibBase64Array(historyZlibBase64)
+                for (i in 0 until inflated.length()) {
+                    val obj = inflated.optJSONObject(i) ?: continue
+                    history.add(decodeHistory(obj))
+                }
+            }
+            
+            val dedupedHistory = history
+                .groupBy { it.id.lowercase() }
+                .mapNotNull { (_, list) -> list.maxByOrNull { it.updatedAtEpochMs } }
+            
+            val metaObj = root.optJSONObject("meta")
+            val meta = metaObj?.let {
+                val deviceId = it.optString("deviceId", "").trim()
+                if (deviceId.isEmpty()) return@let null
+                OAKBackupMetaDTO(
+                    schemaVersion = it.optInt("schemaVersion", 0),
+                    updatedAtEpochMs = it.optLong("updatedAtEpochMs", 0L),
+                    deviceId = deviceId
+                )
             }
 
             OAKBackupDataDTO(
                 version = root.optString("version", OAKBackupSchema.VERSION),
+                meta = meta,
                 stack = stack,
-                history = history
+                history = dedupedHistory,
+                historyZlibBase64 = historyZlibBase64
             )
         }
+    }
+    
+    private fun encodeHistoryPayload(history: List<OAKBackupHistoryDTO>): Pair<JSONArray, String?> {
+        if (history.size <= HISTORY_COMPRESS_THRESHOLD) {
+            val array = JSONArray()
+            history.forEach { array.put(encodeHistory(it)) }
+            return array to null
+        }
+        val array = JSONArray()
+        val full = JSONArray()
+        history.forEach { dto -> full.put(encodeHistory(dto)) }
+        val raw = full.toString()
+        val z = zlib(raw)
+        val b64 = Base64.encodeToString(z, Base64.NO_WRAP)
+        return array to b64
+    }
+    
+    private fun zlib(text: String): ByteArray {
+        val baos = ByteArrayOutputStream()
+        DeflaterOutputStream(baos).use { it.write(text.toByteArray(Charsets.UTF_8)) }
+        return baos.toByteArray()
+    }
+    
+    private fun inflateZlibBase64Array(base64: String): JSONArray {
+        val bytes = Base64.decode(base64, Base64.DEFAULT)
+        val text = InflaterInputStream(ByteArrayInputStream(bytes)).bufferedReader(Charsets.UTF_8).use { it.readText() }
+        return JSONArray(text)
     }
 
     private fun decodeStackArray(array: JSONArray): List<OAKBackupSupplementDTO> {
@@ -188,6 +253,8 @@ object OAKBackupJson {
         obj.put("intakeTime", dto.intakeTime)
         obj.put("startDate", dto.startDate)
         obj.put("cycle", encodeCycle(dto.cycle))
+        obj.put("updatedAtEpochMs", dto.updatedAtEpochMs)
+        dto.deletedAtEpochMs?.let { obj.put("deletedAtEpochMs", it) }
         return obj
     }
 
@@ -198,7 +265,9 @@ object OAKBackupJson {
             dailyDose = obj.optString("dailyDose", ""),
             intakeTime = obj.optString("intakeTime", "08:00"),
             startDate = obj.optString("startDate", "1970-01-01"),
-            cycle = decodeCycle(obj.optJSONObject("cycle") ?: JSONObject())
+            cycle = decodeCycle(obj.optJSONObject("cycle") ?: JSONObject()),
+            updatedAtEpochMs = obj.optLong("updatedAtEpochMs", 0L),
+            deletedAtEpochMs = obj.optLong("deletedAtEpochMs", -1L).takeIf { it >= 0L }
         )
     }
 
@@ -208,6 +277,7 @@ object OAKBackupJson {
         obj.put("supplementId", dto.supplementId)
         obj.put("dateEpochMs", dto.dateEpochMs)
         obj.put("status", dto.status)
+        obj.put("updatedAtEpochMs", dto.updatedAtEpochMs)
         return obj
     }
 
@@ -218,7 +288,8 @@ object OAKBackupJson {
             id = obj.optString("id", java.util.UUID.randomUUID().toString()),
             supplementId = supplementId,
             dateEpochMs = obj.optLong("dateEpochMs", 0L),
-            status = obj.optString("status", "Taken")
+            status = obj.optString("status", "Taken"),
+            updatedAtEpochMs = obj.optLong("updatedAtEpochMs", 0L)
         )
     }
 

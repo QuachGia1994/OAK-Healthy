@@ -172,6 +172,10 @@ public final class UserSupplement: Identifiable {
     /// Thời điểm uống trong ngày (Định dạng HH:mm).
     public var intakeTime: String
     
+    public var updatedAtEpochMs: Int64
+    
+    public var deletedAtEpochMs: Int64?
+    
     /// Liên kết tới học viên/khách hàng (Coach Mode).
     public var client: ClientProfile?
     
@@ -195,6 +199,8 @@ public final class UserSupplement: Identifiable {
         cycleConfig: CycleConfig,
         dailyDose: String,
         intakeTime: String,
+        updatedAtEpochMs: Int64 = Int64(Date().timeIntervalSince1970 * 1000),
+        deletedAtEpochMs: Int64? = nil,
         client: ClientProfile? = nil
     ) {
         self.id = id
@@ -203,6 +209,8 @@ public final class UserSupplement: Identifiable {
         self.cycleConfig = cycleConfig
         self.dailyDose = dailyDose
         self.intakeTime = intakeTime
+        self.updatedAtEpochMs = updatedAtEpochMs
+        self.deletedAtEpochMs = deletedAtEpochMs
         self.client = client
         self.intakeRecords = []
     }
@@ -257,6 +265,8 @@ public final class IntakeRecord: Identifiable {
     public var status: String
     /// Khung giờ uống (HH:mm). Rỗng nếu dữ liệu cũ chưa có.
     public var intakeTime: String
+    
+    public var updatedAtEpochMs: Int64
     /// Liên kết ngược tới chất bổ sung.
     public var supplement: UserSupplement?
     
@@ -271,12 +281,14 @@ public final class IntakeRecord: Identifiable {
         date: Date = .now, 
         status: String = "Taken", 
         intakeTime: String = "",
+        updatedAtEpochMs: Int64 = Int64(Date().timeIntervalSince1970 * 1000),
         supplement: UserSupplement? = nil
     ) {
         self.id = id
         self.date = date
         self.status = status
         self.intakeTime = intakeTime
+        self.updatedAtEpochMs = updatedAtEpochMs
         self.supplement = supplement
     }
 }

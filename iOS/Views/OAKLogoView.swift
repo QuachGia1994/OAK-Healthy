@@ -32,7 +32,7 @@ public struct OAKLogoView: View {
             }
             .frame(width: 100, height: 100)
             
-            Text("OAK Healthy")
+            Text("app_name".localized)
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(primaryColor)
                 .lineLimit(1)

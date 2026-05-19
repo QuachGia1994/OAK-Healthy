@@ -222,7 +222,7 @@ private struct AddSupplementPreview: View {
             if let context = Self.makePreviewContext() {
                 AddSupplementView(modelContext: context) { _ in }
             } else {
-                Text("Preview unavailable")
+                Text("preview_unavailable".localized)
             }
         }
     }

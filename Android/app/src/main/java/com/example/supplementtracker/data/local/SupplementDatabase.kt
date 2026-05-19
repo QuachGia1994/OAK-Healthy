@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ClientProfileEntity::class, SupplementEntity::class, IntakeRecordEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class SupplementDatabase : RoomDatabase() {
@@ -106,6 +106,17 @@ abstract class SupplementDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE supplements ADD COLUMN weeklyWeekdaysMask INTEGER")
                 db.execSQL("ALTER TABLE supplements ADD COLUMN weeklyIntervalWeeks INTEGER")
                 db.execSQL("ALTER TABLE supplements ADD COLUMN weeklyAnchorDate TEXT")
+            }
+        }
+        
+        val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE supplements ADD COLUMN updatedAtEpochMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE supplements ADD COLUMN deletedAtEpochMs INTEGER")
+                db.execSQL("UPDATE supplements SET updatedAtEpochMs = strftime('%s','now') * 1000 WHERE updatedAtEpochMs = 0")
+                
+                db.execSQL("ALTER TABLE intake_records ADD COLUMN updatedAtEpochMs INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE intake_records SET updatedAtEpochMs = date WHERE updatedAtEpochMs = 0")
             }
         }
     }

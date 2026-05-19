@@ -50,11 +50,17 @@ class SupplementRepositoryImpl(
     }
 
     override suspend fun updateSupplement(supplement: UserSupplement) = withContext(Dispatchers.IO) {
-        dao.updateSupplement(supplement.toEntity())
+        val existing = dao.getSupplementById(supplement.id.toString())
+        val preservedDeletedAt = existing?.deletedAtEpochMs
+        dao.updateSupplement(
+            supplement.copy(deletedAtEpochMs = preservedDeletedAt).toEntity()
+        )
     }
 
     override suspend fun deleteSupplement(supplement: UserSupplement) = withContext(Dispatchers.IO) {
-        dao.deleteSupplement(supplement.toEntity())
+        val now = System.currentTimeMillis()
+        val existing = dao.getSupplementById(supplement.id.toString()) ?: return@withContext
+        dao.updateSupplement(existing.copy(updatedAtEpochMs = now, deletedAtEpochMs = now))
     }
 
     override suspend fun getSupplementById(id: String): UserSupplement? = withContext(Dispatchers.IO) {
@@ -93,7 +99,9 @@ class SupplementRepositoryImpl(
                         weeklyRecurrence = weekly
                     ),
                     dailyDose = row.dailyDose,
-                    intakeTime = row.intakeTime
+                    intakeTime = row.intakeTime,
+                    updatedAtEpochMs = 0L,
+                    deletedAtEpochMs = null
                 )
                 UserSupplementTakenToday(supplement = supplement, isTakenToday = row.isTakenToday)
             }
@@ -101,11 +109,14 @@ class SupplementRepositoryImpl(
     }
 
     override suspend fun logIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
         dao.insertIntakeRecord(
             IntakeRecordEntity(
                 id = "$supplementId-$date",
                 supplementId = supplementId,
                 date = date
+                ,
+                updatedAtEpochMs = now
             )
         )
     }
@@ -116,7 +127,8 @@ class SupplementRepositoryImpl(
                 id = record.id,
                 supplementId = record.supplementId,
                 date = record.date,
-                status = record.status
+                status = record.status,
+                updatedAtEpochMs = record.updatedAtEpochMs
             )
         )
     }
@@ -135,6 +147,7 @@ class SupplementRepositoryImpl(
                     supplementId = record.supplementId,
                     date = record.date,
                     status = record.status,
+                    updatedAtEpochMs = record.date,
                     supplementName = record.supplementName,
                     dailyDose = record.dailyDose,
                     intakeTime = record.intakeTime
@@ -151,6 +164,7 @@ class SupplementRepositoryImpl(
                     supplementId = record.supplementId,
                     date = record.date,
                     status = record.status,
+                    updatedAtEpochMs = record.date,
                     supplementName = record.supplementName,
                     dailyDose = record.dailyDose,
                     intakeTime = record.intakeTime
@@ -166,9 +180,26 @@ class SupplementRepositoryImpl(
                 supplementId = record.supplementId,
                 date = record.date,
                 status = record.status,
+                updatedAtEpochMs = record.date,
                 supplementName = record.supplementName,
                 dailyDose = record.dailyDose,
                 intakeTime = record.intakeTime
+            )
+        }
+    }
+    
+    override suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement> = withContext(Dispatchers.IO) {
+        dao.getSupplementsByClientForSync(clientId).map { it.toDomain() }
+    }
+    
+    override suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord> = withContext(Dispatchers.IO) {
+        dao.getAllRecordsByClientForSync(clientId).map { entity ->
+            IntakeRecord(
+                id = entity.id,
+                supplementId = entity.supplementId,
+                date = entity.date,
+                status = entity.status,
+                updatedAtEpochMs = entity.updatedAtEpochMs
             )
         }
     }

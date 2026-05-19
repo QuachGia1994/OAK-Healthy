@@ -285,34 +285,34 @@ private struct SafeModeView: View {
                         if isApplyingImport {
                             ProgressView()
                         }
-                        Button("Áp dụng dữ liệu đã tải") {
+                        Button("safe_mode_apply_button".localized) {
                             Task { await applyPendingImport() }
                         }
                         .disabled(isApplyingImport)
                         .buttonStyle(.borderedProminent)
-                        Button("Hủy dữ liệu đã tải") {
+                        Button("safe_mode_discard_button".localized) {
                             discardPendingImport()
                         }
                         .disabled(isApplyingImport)
                         .buttonStyle(.bordered)
                     }
-                    Toggle("Tự động đồng bộ", isOn: $isAutoSyncEnabled)
-                    Button("Thoát chế độ an toàn") {
+                    Toggle("safe_mode_auto_sync_toggle".localized, isOn: $isAutoSyncEnabled)
+                    Button("safe_mode_exit_button".localized) {
                         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
                         UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
                         isSafeModeEnabled = false
                     }
                 } header: {
-                    Text("Chế độ an toàn")
+                    Text("safe_mode_header".localized)
                 }
             }
-            .navigationTitle("OAK Healthy")
+            .navigationTitle("safe_mode_title".localized)
         }
         .task {
             isAutoSyncEnabled = false
             CloudSyncAutoSync.stopRealtimeSync()
             if hasPendingImport {
-                pendingImportMessage = "Đã phát hiện dữ liệu đã tải. Hãy áp dụng từ đây để tránh văng app lúc khởi động."
+                pendingImportMessage = "safe_mode_detected_message".localized
             }
         }
     }
@@ -346,10 +346,10 @@ private struct SafeModeView: View {
                 }
             }
             clearPendingImport(at: url)
-            pendingImportMessage = "Áp dụng dữ liệu thành công. Hãy thoát chế độ an toàn để sử dụng app."
+            pendingImportMessage = "safe_mode_apply_success_message".localized
         } catch {
             isApplyingImport = false
-            pendingImportMessage = "Áp dụng dữ liệu thất bại: \(error.localizedDescription)"
+            pendingImportMessage = String(format: "safe_mode_apply_failed_format".localized, error.localizedDescription)
         }
     }
     
@@ -365,7 +365,7 @@ private struct SafeModeView: View {
             }
         }
         
-        let name = storedName.isEmpty ? "Imported Client" : storedName
+        let name = storedName.isEmpty ? "imported_client_default_name".localized : storedName
         let client = ClientProfile(id: UUID(), name: name)
         modelContext.insert(client)
         try modelContext.save()

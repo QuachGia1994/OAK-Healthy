@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -28,7 +29,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
+import com.example.supplementtracker.domain.repository.IntakeRecord
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ceil
@@ -41,10 +46,12 @@ fun HistoryScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-    } else {
-        Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+    val backgroundBrush = remember(isDark) {
+        if (isDark) {
+            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+        } else {
+            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+        }
     }
 
     Box(
@@ -152,10 +159,13 @@ private fun HistoryContent(state: HistoryUiState.Success) {
 
 @Composable
 private fun PremiumBarChart(data: List<HistoryChartData>) {
-    val maxCount = data.maxOfOrNull { it.count }?.coerceAtLeast(0) ?: 0
-    val step = chooseStep(maxCount)
-    val maxAxis = if (maxCount == 0) step * 4 else ceil(maxCount.toFloat() / step).toInt() * step
-    val yLabels = (0..(maxAxis / step)).map { it * step }
+    val axis = remember(data) {
+        val maxCount = data.maxOfOrNull { it.count }?.coerceAtLeast(0) ?: 0
+        val step = chooseStep(maxCount)
+        val maxAxis = if (maxCount == 0) step * 4 else ceil(maxCount.toFloat() / step).toInt() * step
+        val yLabels = (0..(maxAxis / step)).map { it * step }
+        ChartAxis(maxCount = maxCount, maxAxis = maxAxis, yLabels = yLabels)
+    }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val gridColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f)
@@ -168,7 +178,7 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
                 modifier = Modifier.width(32.dp),
                 horizontalAlignment = Alignment.End
             ) {
-                yLabels.reversed().forEach { value ->
+                axis.yLabels.reversed().forEach { value ->
                     Text(
                         text = value.toString(),
                         fontSize = 11.sp,
@@ -190,7 +200,7 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
                 val chartHeight = size.height
                 val chartWidth = size.width
 
-                val lineCount = yLabels.size
+                val lineCount = axis.yLabels.size
                 for (i in 0 until lineCount) {
                     val y = chartHeight * (i.toFloat() / (lineCount - 1).coerceAtLeast(1))
                     drawLine(
@@ -208,7 +218,7 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
                 val radius = 8.dp.toPx()
 
                 data.forEachIndexed { index, item ->
-                    val ratio = if (maxAxis == 0) 0f else item.count.toFloat() / maxAxis.toFloat()
+                    val ratio = if (axis.maxAxis == 0) 0f else item.count.toFloat() / axis.maxAxis.toFloat()
                     val barHeight = ratio * (chartHeight - 6.dp.toPx())
                     val left = spacing + index * (barWidth + spacing)
                     val top = chartHeight - barHeight
@@ -242,6 +252,12 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
     }
 }
 
+private data class ChartAxis(
+    val maxCount: Int,
+    val maxAxis: Int,
+    val yLabels: List<Int>
+)
+
 private fun chooseStep(maxCount: Int): Int {
     return when {
         maxCount <= 4 -> 1
@@ -253,9 +269,14 @@ private fun chooseStep(maxCount: Int): Int {
 
 @Composable
 private fun HistoryRecordItem(record: IntakeRecord) {
-    val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(record.date), ZoneId.systemDefault())
-    val timeText = dateTime.format(DateTimeFormatter.ofPattern("HH:mm"))
-    val displayTime = if (timeText == "00:00" && !record.intakeTime.isNullOrBlank()) record.intakeTime else timeText
+    val zoneId = remember { ZoneId.systemDefault() }
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val displayTime = remember(record.date, record.intakeTime) {
+        val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(record.date), zoneId)
+        val timeText = dateTime.format(timeFormatter)
+        val intake = record.intakeTime?.takeIf { it.isNotBlank() }
+        if (timeText == "00:00" && intake != null) intake else timeText
+    }
 
     val shape = RoundedCornerShape(28.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant

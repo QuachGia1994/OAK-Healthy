@@ -24,7 +24,9 @@ fun UserSupplement.toEntity(): SupplementEntity {
         intakeTime = intakeTime,
         weeklyWeekdaysMask = cycleConfig.weeklyRecurrence?.weekdaysMask,
         weeklyIntervalWeeks = cycleConfig.weeklyRecurrence?.intervalWeeks,
-        weeklyAnchorDate = cycleConfig.weeklyRecurrence?.anchorDate?.toString()
+        weeklyAnchorDate = cycleConfig.weeklyRecurrence?.anchorDate?.toString(),
+        updatedAtEpochMs = updatedAtEpochMs,
+        deletedAtEpochMs = deletedAtEpochMs
     )
 }
 
@@ -48,6 +50,8 @@ fun SupplementEntity.toDomain(): UserSupplement {
             weeklyRecurrence = weekly
         ),
         dailyDose = dailyDose,
-        intakeTime = intakeTime
+        intakeTime = intakeTime,
+        updatedAtEpochMs = updatedAtEpochMs,
+        deletedAtEpochMs = deletedAtEpochMs
     )
 }
