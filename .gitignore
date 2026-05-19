@@ -12,6 +12,7 @@ Android/**/build/
 Android/_tmp_*/
 Android/_tmp_*.*
 .trae/
+IOS Build.txt
 **/.DS_Store
 **/node_modules/
 **/*.xcconfig
