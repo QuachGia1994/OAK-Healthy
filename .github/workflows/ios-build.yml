@@ -14,7 +14,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Select Xcode (with iPhoneOS SDK)
         run: |
@@ -188,7 +188,7 @@ jobs:
           zip -qr OAKHealthy_Unsigned.ipa Payload
           
       - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: OAKHealthy-iOS-IPA
           path: iOS/OAKHealthy_Unsigned.ipa
