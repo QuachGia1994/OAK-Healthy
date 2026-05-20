@@ -252,6 +252,11 @@ public final class ClientProfile: Identifiable {
     }
 }
 
+public enum IntakeStatus: String, Sendable {
+    case taken = "Taken"
+    case skipped = "Skipped"
+}
+
 /// Nhật ký uống thực phẩm bổ sung.
 ///
 /// Lưu lại thời điểm và trạng thái mỗi lần người dùng xác nhận đã uống.
@@ -279,7 +284,7 @@ public final class IntakeRecord: Identifiable {
     public init(
         id: UUID = UUID(), 
         date: Date = .now, 
-        status: String = "Taken", 
+        status: String = IntakeStatus.taken.rawValue,
         intakeTime: String = "",
         updatedAtEpochMs: Int64 = Int64(Date().timeIntervalSince1970 * 1000),
         supplement: UserSupplement? = nil

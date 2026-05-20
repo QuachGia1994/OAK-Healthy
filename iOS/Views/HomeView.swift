@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UIKit
 
 /// Màn hình chính Dashboard trên iOS.
 public struct HomeView: View {
@@ -60,7 +59,12 @@ public struct HomeView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } header: {
-                        Text("today_intake_title".localized)
+                        TodayHeaderView(
+                            title: "today_intake_title".localized,
+                            streakDays: viewModel.streakDays(supplements: supplements),
+                            counts: viewModel.todayCounts(),
+                            onAdd: { isShowingAddSheet = true }
+                        )
                     }
                     
                     let sortedTimes = viewModel.activeSupplements.keys.sorted()
@@ -71,19 +75,21 @@ public struct HomeView: View {
                                     ActiveSupplementRow(
                                         supplement: supplement,
                                         timeString: time,
-                                        onToggle: { supplement, timeString, context in
-                                            viewModel.toggleIntake(
+                                        status: viewModel.doseStatus(supplement, timeString: time),
+                                        urgency: viewModel.doseUrgency(supplement, timeString: time),
+                                        onAction: { supplement, timeString, action, context in
+                                            viewModel.markDose(
                                                 for: supplement,
                                                 timeString: timeString,
+                                                action: action,
                                                 context: context,
                                                 notificationService: notificationService
                                             )
-                                        },
-                                        isTaken: viewModel.isTakenToday(supplement, timeString: time)
+                                        }
                                     )
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
-                                    .swipeActions(edge: .leading) {
+                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                         Button {
                                             editingSupplement = supplement
                                         } label: {
@@ -91,9 +97,9 @@ public struct HomeView: View {
                                         }
                                         .tint(.orange)
                                     }
-                                    .swipeActions(edge: .trailing) {
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
-                                            viewModel.deleteSupplement(supplement, context: modelContext)
+                                            viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
                                         } label: {
                                             Label("delete".localized, systemImage: "trash")
                                         }
@@ -106,7 +112,7 @@ public struct HomeView: View {
                                         }
                                         
                                         Button(role: .destructive) {
-                                            viewModel.deleteSupplement(supplement, context: modelContext)
+                                            viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
                                         } label: {
                                             Label("delete".localized, systemImage: "trash")
                                         }
@@ -127,14 +133,14 @@ public struct HomeView: View {
                                 RestingSupplementRow(info: info, onEdit: { editingSupplement = $0 })
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
-                                    .swipeActions(edge: .trailing) {
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
-                                            viewModel.deleteSupplement(info.supplement, context: modelContext)
+                                            viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
                                         } label: {
                                             Label("delete".localized, systemImage: "trash")
                                         }
                                     }
-                                    .swipeActions(edge: .leading) {
+                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                         Button {
                                             editingSupplement = info.supplement
                                         } label: {
@@ -150,7 +156,7 @@ public struct HomeView: View {
                                         }
                                         
                                         Button(role: .destructive) {
-                                            viewModel.deleteSupplement(info.supplement, context: modelContext)
+                                            viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
                                         } label: {
                                             Label("delete".localized, systemImage: "trash")
                                         }
@@ -163,7 +169,9 @@ public struct HomeView: View {
                     }
                     .scrollContentBackground(.hidden)
                     .listStyle(.plain)
-                    .navigationTitle("today_intake_title".localized)
+                    .navigationTitle("dashboard_title".localized)
+                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Menu {
@@ -226,6 +234,19 @@ public struct HomeView: View {
                     .onChange(of: supplements) {
                         viewModel.processSupplements(supplements)
                     }
+                    .alert(
+                        "error_title".localized,
+                        isPresented: Binding(
+                            get: { viewModel.errorMessage != nil },
+                            set: { newValue in
+                                if !newValue { viewModel.errorMessage = nil }
+                            }
+                        )
+                    ) {
+                        Button("ok".localized) { viewModel.errorMessage = nil }
+                    } message: {
+                        Text(viewModel.errorMessage ?? "")
+                    }
                 }
             }
         }
@@ -239,7 +260,12 @@ public struct HomeView: View {
                 guard !name.isEmpty else { return }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    viewModel.errorMessage = error.localizedDescription
+                    return
+                }
                 activeClientManager.setCurrentClientId(created.id)
             }
         }
@@ -266,6 +292,84 @@ public struct HomeView: View {
     }
 }
 
+private struct TodayHeaderView: View {
+    let title: String
+    let streakDays: Int
+    let counts: HomeViewModel.TodayCounts
+    let onAdd: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.title3)
+                    .fontWeight(.bold)
+                if streakDays > 0 {
+                    StreakChip(streakDays: streakDays)
+                }
+                Spacer()
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.headline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .background(.thinMaterial)
+                .clipShape(Capsule())
+            }
+            
+            HStack(spacing: 8) {
+                CountChip(title: "notif_action_taken".localized, value: counts.taken, tint: .green)
+                CountChip(title: "dose_status_planned".localized, value: counts.planned, tint: .gray)
+                CountChip(title: "dose_status_skipped".localized, value: counts.skipped, tint: .orange)
+                CountChip(title: "dose_status_missed".localized, value: counts.missed, tint: .red)
+            }
+        }
+        .padding(.top, 4)
+    }
+}
+
+private struct StreakChip: View {
+    let streakDays: Int
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "flame.fill")
+                .font(.caption)
+                .foregroundStyle(.orange)
+            Text(String(format: "home_streak_format".localized, streakDays))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+    }
+}
+
+private struct CountChip: View {
+    let title: String
+    let value: Int
+    let tint: Color
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
+            Text("\(title) \(value)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+    }
+}
+
 private struct AddClientSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String = ""
@@ -274,7 +378,7 @@ private struct AddClientSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
+                TextField("client_name_label".localized, text: $name)
             }
             .navigationTitle("add_client".localized)
             .toolbar {
@@ -298,9 +402,11 @@ private struct ActiveSupplementRow: View {
     @Environment(\.modelContext) private var modelContext
     let supplement: UserSupplement
     let timeString: String
-    let onToggle: (UserSupplement, String, ModelContext) -> Void
-    let isTaken: Bool
-    @State private var showConfirm = false
+    let status: HomeViewModel.DoseStatus
+    let urgency: HomeViewModel.DoseUrgency
+    let onAction: (UserSupplement, String, HomeViewModel.DoseAction, ModelContext) -> Void
+    @State private var isShowingActions = false
+    @State private var iconScale: CGFloat = 1
     
     var body: some View {
         HStack {
@@ -318,6 +424,20 @@ private struct ActiveSupplementRow: View {
                 }
                 .foregroundStyle(.secondary)
                 
+                if status == .missed {
+                    Text("dose_status_missed".localized)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                } else if status == .skipped {
+                    Text("dose_status_skipped".localized)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if urgency == .dueSoon {
+                    UrgencyChip(title: "home_due_soon".localized, tint: .blue)
+                } else if urgency == .missedSoon {
+                    UrgencyChip(title: "home_almost_missed".localized, tint: .red)
+                }
+                
                 if let instruction = supplement.instruction, !instruction.isEmpty {
                     Text(instruction.localized)
                         .font(.caption)
@@ -329,27 +449,129 @@ private struct ActiveSupplementRow: View {
             }
             Spacer()
             Button {
-                guard !isTaken else { return }
-                showConfirm = true
+                guard status != .taken, status != .skipped else { return }
+                withAnimation(.snappy) {
+                    isShowingActions = true
+                }
             } label: {
-                Image(systemName: isTaken ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isTaken ? .green : .gray)
+                Image(systemName: symbolName(for: status))
+                    .foregroundStyle(symbolColor(for: status))
                     .font(.title2)
+                    .scaleEffect(iconScale)
+                    .animation(.snappy, value: status)
             }
         }
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 6)
-        .alert("home_confirm_intake_title".localized, isPresented: $showConfirm) {
-            Button("cancel".localized, role: .cancel) {}
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(borderColor, lineWidth: borderWidth)
+        )
+        .shadow(color: shadowColor, radius: 10, x: 0, y: 6)
+        .animation(.snappy, value: urgency)
+        .confirmationDialog(
+            "home_confirm_intake_title".localized,
+            isPresented: $isShowingActions,
+            titleVisibility: .visible
+        ) {
             Button("home_confirm_intake_action".localized) {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                onToggle(supplement, timeString, modelContext)
+                pulseIcon()
+                withAnimation(.snappy) {
+                    onAction(supplement, timeString, .taken, modelContext)
+                }
             }
+            Button("notif_action_skip".localized) {
+                pulseIcon()
+                withAnimation(.snappy) {
+                    onAction(supplement, timeString, .skipped, modelContext)
+                }
+            }
+            Button("cancel".localized, role: .cancel) {}
         } message: {
             Text("home_confirm_intake_message".localized)
         }
+    }
+    
+    private func symbolName(for status: HomeViewModel.DoseStatus) -> String {
+        switch status {
+        case .planned:
+            "circle"
+        case .taken:
+            "checkmark.circle.fill"
+        case .skipped:
+            "xmark.circle.fill"
+        case .missed:
+            "exclamationmark.circle.fill"
+        }
+    }
+    
+    private func symbolColor(for status: HomeViewModel.DoseStatus) -> Color {
+        switch status {
+        case .planned:
+            .gray
+        case .taken:
+            .green
+        case .skipped:
+            .orange
+        case .missed:
+            .red
+        }
+    }
+    
+    private var borderColor: Color {
+        switch urgency {
+        case .none: .clear
+        case .dueSoon: .blue.opacity(0.35)
+        case .missedSoon: .red.opacity(0.35)
+        }
+    }
+    
+    private var borderWidth: CGFloat {
+        urgency == .none ? 0 : 1
+    }
+    
+    private var shadowColor: Color {
+        switch urgency {
+        case .none: .black.opacity(0.12)
+        case .dueSoon: .blue.opacity(0.16)
+        case .missedSoon: .red.opacity(0.16)
+        }
+    }
+    
+    @MainActor
+    private func pulseIcon() {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.55)) {
+            iconScale = 1.25
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(160))
+            await MainActor.run {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                    iconScale = 1
+                }
+            }
+        }
+    }
+}
+
+private struct UrgencyChip: View {
+    let title: String
+    let tint: Color
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(tint)
+                .frame(width: 8, height: 8)
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
     }
 }
 

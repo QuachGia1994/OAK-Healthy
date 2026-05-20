@@ -9,6 +9,9 @@ public struct HistoryView: View {
     @State private var viewModel = HistoryViewModel()
     @State private var sections: [HistorySectionModel] = []
     @State private var recordsCount: Int = 0
+    @State private var allRecords: [IntakeRecord] = []
+    @State private var searchText: String = ""
+    @State private var filter: HistoryFilter = .all
     
     public let activeClientManager: ActiveClientManager
     
@@ -54,6 +57,9 @@ public struct HistoryView: View {
                             Text("log_details".localized)
                                 .font(.headline)
                             
+                            HistoryFilterBar(searchText: $searchText, filter: $filter)
+                                .padding(.top, 8)
+                            
                             if recordsCount == 0 {
                                 Text("no_logs_yet".localized)
                                     .foregroundStyle(.secondary)
@@ -83,11 +89,19 @@ public struct HistoryView: View {
                 }
             }
             .navigationTitle("history_title".localized)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .task(id: activeClientManager.currentClientId) {
                 DebugReporter.report("history_task_start", fields: [
                     "clientId": activeClientManager.currentClientId?.uuidString ?? ""
                 ])
                 await reload()
+            }
+            .onChange(of: searchText) {
+                withAnimation(.snappy) { rebuildSections() }
+            }
+            .onChange(of: filter) {
+                withAnimation(.snappy) { rebuildSections() }
             }
         }
     }
@@ -103,6 +117,7 @@ public struct HistoryView: View {
     private func reload() async {
         guard let clientId = activeClientManager.currentClientId else {
             recordsCount = 0
+            allRecords = []
             sections = []
             viewModel.processHistory(records: [])
             DebugReporter.report("history_reload_no_client")
@@ -119,18 +134,38 @@ public struct HistoryView: View {
             let fetchedAll = try modelContext.fetch(descriptor)
             let fetched = fetchedAll.filter { $0.supplement?.client?.id == clientId }
             recordsCount = fetched.count
-            sections = makeSections(records: fetched)
+            allRecords = fetched
+            rebuildSections()
             viewModel.processHistory(records: fetched)
             DebugReporter.report("history_reload_success", fields: [
                 "count": String(fetched.count)
             ])
         } catch {
             recordsCount = 0
+            allRecords = []
             sections = []
             viewModel.processHistory(records: [])
             DebugReporter.report("history_reload_failed", fields: [
                 "error": String(describing: error)
             ])
+        }
+    }
+
+    @MainActor
+    private func rebuildSections() {
+        sections = makeSections(records: filteredRecords(from: allRecords))
+    }
+    
+    private func filteredRecords(from records: [IntakeRecord]) -> [IntakeRecord] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return records.filter { record in
+            if filter != .all {
+                if filter == .taken && record.status != IntakeStatus.taken.rawValue { return false }
+                if filter == .skipped && record.status != IntakeStatus.skipped.rawValue { return false }
+            }
+            if query.isEmpty { return true }
+            let name = record.supplement?.name.lowercased() ?? ""
+            return name.contains(query)
         }
     }
     
@@ -158,7 +193,8 @@ public struct HistoryView: View {
                         HistoryRowModel(
                             id: record.id,
                             timeText: record.date.formatted(date: .omitted, time: .shortened),
-                            supplementName: record.supplement?.name ?? "not_available".localized
+                            supplementName: record.supplement?.name ?? "not_available".localized,
+                            status: record.status
                         )
                     }
                 return HistorySectionModel(date: item.date, title: title, rows: rows)
@@ -171,6 +207,7 @@ private struct HistoryRow: View, Equatable {
     let row: HistoryRowModel
     
     var body: some View {
+        let isSkipped = row.status == IntakeStatus.skipped.rawValue
         HStack {
             Text(row.timeText)
                 .font(.caption)
@@ -181,13 +218,50 @@ private struct HistoryRow: View, Equatable {
                 .font(.body)
                 .fontWeight(.medium)
             Spacer()
-            Image(systemName: "checkmark.seal.fill")
-                .foregroundStyle(.green)
+            Image(systemName: isSkipped ? "xmark.seal.fill" : "checkmark.seal.fill")
+                .foregroundStyle(isSkipped ? .orange : .green)
         }
         .padding()
-        .background(.ultraThinMaterial)
+                        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 5)
+    }
+}
+
+private enum HistoryFilter: String, CaseIterable, Hashable {
+    case all
+    case taken
+    case skipped
+    
+    var title: String {
+        switch self {
+        case .all: "filter_all".localized
+        case .taken: "notif_action_taken".localized
+        case .skipped: "dose_status_skipped".localized
+        }
+    }
+}
+
+private struct HistoryFilterBar: View {
+    @Binding var searchText: String
+    @Binding var filter: HistoryFilter
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField("history_search_placeholder".localized, text: $searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(12)
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            Picker("", selection: $filter) {
+                ForEach(HistoryFilter.allCases, id: \.self) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
     }
 }
 
@@ -202,6 +276,7 @@ private struct HistoryRowModel: Identifiable, Equatable {
     let id: UUID
     let timeText: String
     let supplementName: String
+    let status: String
 }
 
 #Preview {
