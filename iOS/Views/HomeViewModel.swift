@@ -84,8 +84,7 @@ public final class HomeViewModel {
     }
     
     public func doseUrgency(_ supplement: UserSupplement, timeString: String, now: Date = .now) -> DoseUrgency {
-        let time = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !time.isEmpty else { return .none }
+        guard let time = normalizedTimeString(timeString) else { return .none }
         guard doseStatus(supplement, timeString: time, now: now) == .planned else { return .none }
         guard let scheduledAt = scheduledAtLocal(for: now, timeString: time) else { return .none }
         if todayRecord(for: supplement, scheduledAt: scheduledAt, timeString: time) != nil { return .none }
@@ -118,8 +117,7 @@ public final class HomeViewModel {
         context: ModelContext,
         notificationService: NotificationService
     ) {
-        let time = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !time.isEmpty else { return }
+        guard let time = normalizedTimeString(timeString) else { return }
         
         let scheduledAt = scheduledAtLocal(for: .now, timeString: time)
         guard let scheduledAt else { return }
@@ -156,8 +154,7 @@ public final class HomeViewModel {
     }
     
     public func doseStatus(_ supplement: UserSupplement, timeString: String, now: Date = .now) -> DoseStatus {
-        let time = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !time.isEmpty else { return .planned }
+        guard let time = normalizedTimeString(timeString) else { return .planned }
         
         let scheduledAt = scheduledAtLocal(for: now, timeString: time)
         guard let scheduledAt else { return .planned }
@@ -182,7 +179,12 @@ public final class HomeViewModel {
         return supplement.intakeRecords.first { record in
             guard calendar.isDate(record.date, inSameDayAs: scheduledAt) else { return false }
             if record.intakeTime.isEmpty { return true }
-            return record.intakeTime == timeString
+            let recordTime = record.intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !recordTime.isEmpty else { return true }
+            if let recordNormalized = normalizedTimeString(recordTime), let scheduledNormalized = normalizedTimeString(timeString) {
+                return recordNormalized == scheduledNormalized
+            }
+            return recordTime == timeString
         }
     }
     
@@ -237,9 +239,18 @@ public final class HomeViewModel {
     private func intakeTimes(from raw: String) -> [String] {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
+        let normalized = TimeStrings.normalizeList(trimmed)
+        if !normalized.isEmpty { return normalized }
         let parts = trimmed.split(whereSeparator: { ",;|".contains($0) })
         let times = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         return times.isEmpty ? [trimmed] : times
+    }
+
+    private func normalizedTimeString(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard let minutes = TimeStrings.parseLenientTime(trimmed) else { return nil }
+        return TimeStrings.formatTime(minutes)
     }
     
     private func calculateDaysRemaining(for supplement: UserSupplement, at today: Date) -> Int {
