@@ -567,10 +567,6 @@ public struct SettingsView: View {
             showError(message: "missing_active_client".localized)
             return
         }
-        guard let client = clients.first(where: { $0.id == clientId }) else {
-            showError(message: "missing_active_client".localized)
-            return
-        }
         do {
             let allRecords = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
             let recordsForClient = allRecords.filter { $0.supplement?.client?.id == clientId }

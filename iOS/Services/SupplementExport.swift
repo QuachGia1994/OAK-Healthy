@@ -190,22 +190,30 @@ struct OAKBackupSupplement: Codable, Sendable {
         startDate: String,
         cycle: SupplementExportCycle
     ) -> String {
-        [
-            "supplement",
-            name.trimmingCharacters(in: .whitespacesAndNewlines),
-            dailyDose.trimmingCharacters(in: .whitespacesAndNewlines),
-            intakeTime.trimmingCharacters(in: .whitespacesAndNewlines),
-            startDate.trimmingCharacters(in: .whitespacesAndNewlines),
-            String(cycle.isContinuous),
-            String(cycle.daysOn),
-            String(cycle.daysOff),
-            cycle.durationMonths.map(String.init) ?? "",
-            cycle.weeklyWeekdaysMask.map(String.init) ?? "",
-            cycle.weeklyIntervalWeeks.map(String.init) ?? "",
-            cycle.weeklyAnchorDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        ]
-        .joined(separator: "|")
-        .lowercased()
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedDailyDose = dailyDose.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedIntakeTime = intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStartDate = startDate.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedAnchorDate = cycle.weeklyAnchorDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let normalizedDurationMonths = cycle.durationMonths.map(String.init) ?? ""
+        let normalizedWeekdaysMask = cycle.weeklyWeekdaysMask.map(String.init) ?? ""
+        let normalizedIntervalWeeks = cycle.weeklyIntervalWeeks.map(String.init) ?? ""
+        
+        var parts: [String] = []
+        parts.reserveCapacity(12)
+        parts.append("supplement")
+        parts.append(normalizedName)
+        parts.append(normalizedDailyDose)
+        parts.append(normalizedIntakeTime)
+        parts.append(normalizedStartDate)
+        parts.append(String(cycle.isContinuous))
+        parts.append(String(cycle.daysOn))
+        parts.append(String(cycle.daysOff))
+        parts.append(normalizedDurationMonths)
+        parts.append(normalizedWeekdaysMask)
+        parts.append(normalizedIntervalWeeks)
+        parts.append(normalizedAnchorDate)
+        return parts.joined(separator: "|").lowercased()
     }
 
     enum CodingKeys: String, CodingKey {
