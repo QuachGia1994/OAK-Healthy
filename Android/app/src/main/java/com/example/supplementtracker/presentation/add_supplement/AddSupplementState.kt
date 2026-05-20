@@ -1,6 +1,5 @@
 package com.example.supplementtracker.presentation.add_supplement
 
-import com.example.supplementtracker.domain.model.IntakeTime
 import com.example.supplementtracker.domain.model.SupplementReference
 import java.time.LocalDate
 

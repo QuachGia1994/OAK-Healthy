@@ -11,9 +11,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -24,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,6 +91,22 @@ private fun HistoryContent(state: HistoryUiState.Success) {
     val shape = RoundedCornerShape(28.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
     val listState = rememberLazyListState()
+    var searchText by rememberSaveable { mutableStateOf("") }
+    var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
+    val filteredSections = remember(state.sections, searchText, filter) {
+        val query = searchText.trim().lowercase(Locale.ROOT)
+        state.sections.mapNotNull { section ->
+            val records = section.records.filter { record ->
+                if (filter == HistoryFilter.TAKEN && record.status != "Taken") return@filter false
+                if (filter == HistoryFilter.SKIPPED && record.status != "Skipped") return@filter false
+                if (query.isEmpty()) return@filter true
+                val name = record.supplementName?.lowercase(Locale.ROOT).orEmpty()
+                name.contains(query)
+            }
+            if (records.isEmpty()) return@mapNotNull null
+            HistorySection(date = section.date, records = records)
+        }
+    }
 
     LazyColumn(
         state = listState,
@@ -115,14 +137,26 @@ private fun HistoryContent(state: HistoryUiState.Success) {
         ) {
             Text(stringResource(R.string.log_details), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
+        
+        item(
+            key = "filters",
+            contentType = "filters"
+        ) {
+            HistoryFilterBar(
+                searchText = searchText,
+                onSearchTextChange = { searchText = it },
+                filter = filter,
+                onFilterChange = { filter = it }
+            )
+        }
 
-        if (state.sections.isEmpty()) {
+        if (filteredSections.isEmpty()) {
             item(
                 key = "empty",
                 contentType = "empty"
             ) { Text(stringResource(R.string.no_logs_yet), color = Color.Gray) }
         } else {
-            state.sections.forEach { section ->
+            filteredSections.forEach { section ->
                 val date = section.date
                 stickyHeader(
                     key = "header_${date}",
@@ -153,6 +187,54 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     HistoryRecordItem(record)
                 }
             }
+        }
+    }
+}
+
+private enum class HistoryFilter {
+    ALL,
+    TAKEN,
+    SKIPPED
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HistoryFilterBar(
+    searchText: String,
+    onSearchTextChange: (String) -> Unit,
+    filter: HistoryFilter,
+    onFilterChange: (HistoryFilter) -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    val shape = RoundedCornerShape(18.dp)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(
+            value = searchText,
+            onValueChange = onSearchTextChange,
+            placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(base, shape)
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            FilterChip(
+                selected = filter == HistoryFilter.ALL,
+                onClick = { onFilterChange(HistoryFilter.ALL) },
+                label = { Text(stringResource(R.string.history_filter_all), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            )
+            FilterChip(
+                selected = filter == HistoryFilter.TAKEN,
+                onClick = { onFilterChange(HistoryFilter.TAKEN) },
+                label = { Text(stringResource(R.string.notif_action_taken), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            )
+            FilterChip(
+                selected = filter == HistoryFilter.SKIPPED,
+                onClick = { onFilterChange(HistoryFilter.SKIPPED) },
+                label = { Text(stringResource(R.string.notif_action_skip), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            )
         }
     }
 }
@@ -270,7 +352,7 @@ private fun chooseStep(maxCount: Int): Int {
 @Composable
 private fun HistoryRecordItem(record: IntakeRecord) {
     val zoneId = remember { ZoneId.systemDefault() }
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("H:mm") }
     val displayTime = remember(record.date, record.intakeTime) {
         val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(record.date), zoneId)
         val timeText = dateTime.format(timeFormatter)
@@ -278,13 +360,14 @@ private fun HistoryRecordItem(record: IntakeRecord) {
         if (timeText == "00:00" && intake != null) intake else timeText
     }
 
-    val shape = RoundedCornerShape(28.dp)
-    val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    val isSkipped = record.status == "Skipped"
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = base),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -295,24 +378,27 @@ private fun HistoryRecordItem(record: IntakeRecord) {
                 modifier = Modifier.width(56.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text(record.supplementName ?: "N/A", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = record.supplementName ?: stringResource(R.string.history_not_available),
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
             Icon(
-                imageVector = Icons.Default.CheckCircle,
+                imageVector = if (isSkipped) Icons.Default.Cancel else Icons.Default.CheckCircle,
                 contentDescription = null,
-                tint = Color(0xFF2E7D32)
+                tint = if (isSkipped) Color(0xFFFF9800) else Color(0xFF2E7D32)
             )
         }
     }
 }
 
+@Composable
 private fun historySectionTitle(date: LocalDate): String {
     val locale = Locale.getDefault()
-    val isVietnamese = locale.language == "vi"
     val today = LocalDate.now()
     
-    if (date == today) return if (isVietnamese) "Hôm nay" else "Today"
-    if (date == today.minusDays(1)) return if (isVietnamese) "Hôm qua" else "Yesterday"
+    if (date == today) return stringResource(R.string.history_today)
+    if (date == today.minusDays(1)) return stringResource(R.string.history_yesterday)
     
     val formatter = DateTimeFormatter.ofPattern("d MMMM, yyyy", locale)
     return date.format(formatter)

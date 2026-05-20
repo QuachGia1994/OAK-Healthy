@@ -109,7 +109,18 @@ public struct AddSupplementView: View {
     private var cycleSection: some View {
         Section {
             DatePicker("start_date".localized, selection: $viewModel.startDate, displayedComponents: .date)
-            DatePicker("intake_time".localized, selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
+            TextField("intake_time".localized, text: $viewModel.intakeTimes)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .onSubmit {
+                    viewModel.intakeTimes = TimeStrings.normalizeString(viewModel.intakeTimes)
+                }
+            HStack {
+                DatePicker("", selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
+                    .labelsHidden()
+                Spacer()
+                Button("add_time".localized) { viewModel.addSelectedTime() }
+            }
             weeklyRecurrenceControls
             Toggle("continuous".localized, isOn: $viewModel.isContinuous)
             

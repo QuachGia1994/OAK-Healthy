@@ -325,9 +325,12 @@ enum CloudSyncAutoSync {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { return }
         let lastSyncKey = "cloudSyncLastSyncEpochMs_\(id)"
+        let lastAttemptKey = "cloudSyncLastAttemptEpochMs_\(id)"
+        let lastErrorKey = "cloudSyncLastError_\(id)"
         let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: lastSyncKey))
         let localChanged = hasLocalChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
         do {
+            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastAttemptKey)
             let result = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: binId)
             let remoteChanged = result != nil
             let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
@@ -356,7 +359,9 @@ enum CloudSyncAutoSync {
             UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastSyncKey)
             markActivity()
         } catch {
-            print("☁️ Auto-Sync: Download failed")
+            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastAttemptKey)
+            UserDefaults.standard.set(error.localizedDescription, forKey: lastErrorKey)
+            print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
         }
     }
     

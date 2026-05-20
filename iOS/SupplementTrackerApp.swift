@@ -125,7 +125,28 @@ private struct RootLaunchView: View {
 
 @preconcurrency
 class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+    
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        if response.actionIdentifier == NotificationService.Action.taken.rawValue || response.actionIdentifier == NotificationService.Action.skipped.rawValue {
+            let scheduledAtEpochMs = (info["scheduledAtEpochMs"] as? NSNumber)?.int64Value
+                ?? (info["scheduledAtEpochMs"] as? Int64)
+                ?? 0
+            NotificationCenter.default.post(
+                name: NSNotification.Name("OAKDoseAction"),
+                object: nil,
+                userInfo: [
+                    "actionIdentifier": response.actionIdentifier,
+                    "supplementID": info["supplementID"] as? String ?? "",
+                    "intakeTime": info["intakeTime"] as? String ?? "",
+                    "scheduledAtEpochMs": scheduledAtEpochMs,
+                    "requestIdentifier": response.notification.request.identifier
+                ]
+            )
+            completionHandler()
+            return
+        }
         NotificationCenter.default.post(name: NSNotification.Name("OpenDashboard"), object: nil)
         completionHandler()
     }
@@ -166,13 +187,13 @@ private struct SafeBootView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
-                    Button("Thử lại") {
+                    Button("safe_boot_retry".localized) {
                         errorMessage = nil
                         hasBootstrapped = false
                         bootAttempt += 1
                     }
                     .buttonStyle(.borderedProminent)
-                    Button("Khôi phục dữ liệu (xóa)") {
+                    Button("safe_boot_wipe_data".localized) {
                         recoverByWipingStore()
                         errorMessage = nil
                         hasBootstrapped = false
@@ -200,7 +221,7 @@ private struct SafeBootView: View {
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
         let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
         guard let container = makeModelContainer(schema: schema) else {
-            errorMessage = "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."
+            errorMessage = "bootstrap_init_failed_message".localized
             DebugReporter.report("bootstrap_container_failed")
             return
         }
@@ -216,6 +237,8 @@ private struct SafeBootView: View {
         ])
         
         let notificationService = NotificationService()
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+        await notificationService.registerNotificationActions()
         onReady(
             AppDependencyContainer(
                 modelContainer: container,
@@ -360,14 +383,16 @@ private struct SafeModeView: View {
                     Text("safe_mode_header".localized)
                 }
                 
-                Section("Debug") {
-                    TextField("Debug server URL", text: $debugServerUrl)
+                Section {
+                    TextField("debug_server_url_placeholder".localized, text: $debugServerUrl)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .textFieldStyle(.roundedBorder)
-                    Button("Send test event") {
+                    Button("debug_send_test_event".localized) {
                         DebugReporter.report("debug_test_event")
                     }
+                } header: {
+                    Text("debug_section_title".localized)
                 }
             }
             .navigationTitle("safe_mode_title".localized)
@@ -396,7 +421,7 @@ private struct SafeModeView: View {
         do {
             isApplyingImport = true
             defer { isApplyingImport = false }
-            let data = try Data(contentsOf: url)
+            let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: url) }.value
             let client = try createImportClient()
             try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
             activeClientManager.setCurrentClientId(client.id)
@@ -507,6 +532,13 @@ struct MainTabView: View {
         }
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
+            selectedTab = 0
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OAKDoseAction"))) { notification in
+            selectedTab = 0
+            handleDoseAction(notification.userInfo)
+        }
         .onChange(of: scenePhase, initial: false) { _, newPhase in
             guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else {
                 CloudSyncAutoSync.stopRealtimeSync()
@@ -527,6 +559,55 @@ struct MainTabView: View {
                 return
             }
             CloudSyncAutoSync.stopRealtimeSync()
+        }
+    }
+    
+    private func handleDoseAction(_ userInfo: [AnyHashable: Any]?) {
+        let supplementId = (userInfo?["supplementID"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let intakeTime = (userInfo?["intakeTime"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let actionIdentifier = (userInfo?["actionIdentifier"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestIdentifier = (userInfo?["requestIdentifier"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let scheduledAtEpochMs = userInfo?["scheduledAtEpochMs"] as? Int64 ?? 0
+        guard let supplementUUID = UUID(uuidString: supplementId) else { return }
+        guard scheduledAtEpochMs > 0 else { return }
+        let scheduledAt = Date(timeIntervalSince1970: TimeInterval(scheduledAtEpochMs) / 1000)
+        let normalizedTime = TimeStrings.normalizeList(intakeTime).first ?? intakeTime
+        let status = switch actionIdentifier {
+        case NotificationService.Action.skipped.rawValue: "Skipped"
+        default: "Taken"
+        }
+        
+        Task { @MainActor in
+            let descriptor = FetchDescriptor<UserSupplement>(predicate: #Predicate { $0.id == supplementUUID })
+            guard let supplement = try? modelContext.fetch(descriptor).first else { return }
+            if hasRecord(supplement: supplement, scheduledAt: scheduledAt, intakeTime: normalizedTime) { return }
+            let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
+            let key = DoseEventKey.make(supplementId: supplementUUID, scheduledAtEpochMs: scheduledAtEpochMs)
+            let recordId = DoseEventKey.stableUUID(from: key)
+            let record = IntakeRecord(
+                id: recordId,
+                date: scheduledAt,
+                status: status,
+                intakeTime: normalizedTime,
+                updatedAtEpochMs: nowEpochMs,
+                supplement: supplement
+            )
+            modelContext.insert(record)
+            try? modelContext.save()
+            await notificationService.cancelReminder(for: supplement, timeString: normalizedTime, day: scheduledAt)
+            if !requestIdentifier.isEmpty {
+                UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [requestIdentifier])
+            }
+            await CloudSyncAutoSync.syncIfEnabled(modelContext: modelContext, clientId: supplement.client?.id)
+        }
+    }
+    
+    private func hasRecord(supplement: UserSupplement, scheduledAt: Date, intakeTime: String) -> Bool {
+        let calendar = Calendar.current
+        return supplement.intakeRecords.contains { record in
+            guard calendar.isDate(record.date, inSameDayAs: scheduledAt) else { return false }
+            if record.intakeTime.isEmpty { return true }
+            return record.intakeTime == intakeTime
         }
     }
 }

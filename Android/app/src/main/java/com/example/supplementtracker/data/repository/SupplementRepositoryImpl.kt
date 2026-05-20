@@ -103,7 +103,11 @@ class SupplementRepositoryImpl(
                     updatedAtEpochMs = 0L,
                     deletedAtEpochMs = null
                 )
-                UserSupplementTakenToday(supplement = supplement, isTakenToday = row.isTakenToday)
+                UserSupplementTakenToday(
+                    supplement = supplement,
+                    todayStatus = row.todayStatus,
+                    isTakenToday = row.isTakenToday
+                )
             }
         }
     }
@@ -131,6 +135,15 @@ class SupplementRepositoryImpl(
                 updatedAtEpochMs = record.updatedAtEpochMs
             )
         )
+    }
+
+    override suspend fun deleteDuplicateIntakeRecords(supplementId: String, date: Long, keepId: String) = withContext(Dispatchers.IO) {
+        val normalizedSupplementId = supplementId.trim()
+        val normalizedKeepId = keepId.trim()
+        if (normalizedSupplementId.isEmpty()) return@withContext
+        if (date <= 0L) return@withContext
+        if (normalizedKeepId.isEmpty()) return@withContext
+        dao.deleteDuplicateIntakeRecords(supplementId = normalizedSupplementId, date = date, keepId = normalizedKeepId)
     }
 
     override suspend fun removeIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {
@@ -210,6 +223,26 @@ class SupplementRepositoryImpl(
 
     override suspend fun deleteAllIntakeRecordsByClient(clientId: String) = withContext(Dispatchers.IO) {
         dao.deleteAllIntakeRecordsByClient(clientId)
+    }
+
+    override suspend fun importBackupAtomic(
+        clientId: String,
+        supplements: List<UserSupplement>,
+        records: List<IntakeRecord>
+    ) = withContext(Dispatchers.IO) {
+        dao.importBackupAtomic(
+            clientId = clientId,
+            supplements = supplements.map { it.toEntity() },
+            records = records.map { record ->
+                IntakeRecordEntity(
+                    id = record.id,
+                    supplementId = record.supplementId,
+                    date = record.date,
+                    status = record.status,
+                    updatedAtEpochMs = record.updatedAtEpochMs
+                )
+            }
+        )
     }
 }
 

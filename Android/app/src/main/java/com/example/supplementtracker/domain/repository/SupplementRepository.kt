@@ -25,6 +25,7 @@ interface SupplementRepository {
     // Intake Records
     suspend fun logIntake(supplementId: String, date: Long)
     suspend fun insertIntakeRecord(record: IntakeRecord)
+    suspend fun deleteDuplicateIntakeRecords(supplementId: String, date: Long, keepId: String)
     suspend fun removeIntake(supplementId: String, date: Long)
     fun getRecordsByDateRange(clientId: String, startDate: Long, endDate: Long): Flow<List<IntakeRecord>>
     fun observeAllRecordsByClient(clientId: String): Flow<List<IntakeRecord>>
@@ -33,6 +34,11 @@ interface SupplementRepository {
     suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord>
     suspend fun deleteAllSupplementsByClient(clientId: String)
     suspend fun deleteAllIntakeRecordsByClient(clientId: String)
+    suspend fun importBackupAtomic(
+        clientId: String,
+        supplements: List<UserSupplement>,
+        records: List<IntakeRecord>
+    )
 }
 
 data class IntakeRecord(

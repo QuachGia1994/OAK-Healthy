@@ -19,12 +19,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.time.temporal.WeekFields
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.ZoneId
+import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.util.DoseEventKey
+import com.example.supplementtracker.domain.util.TimeStrings
 import com.example.supplementtracker.data.mock.SupplementDictionary
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
@@ -63,6 +67,11 @@ class HomeViewModel(
     private val activeClientManager: ActiveClientManager,
     private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
 ) : ViewModel() {
+
+    private enum class RecordStatus(val raw: String) {
+        TAKEN("Taken"),
+        SKIPPED("Skipped")
+    }
 
     enum class CloudSyncPhase {
         IDLE,
@@ -109,8 +118,12 @@ class HomeViewModel(
     ) { clientId, _ -> clientId }
         .flatMapLatest { clientId ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HomeUiState.NoClient)
-            repository.getSupplementsWithTakenToday(id, getStartOfDay(), getEndOfDay())
-                .map { supplements -> processSupplements(supplements) }
+            combine(
+                repository.getAllSupplements(id),
+                repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 29), getEndOfTomorrow())
+            ) { supplements, records ->
+                processSupplements(supplements, records)
+            }
         }
         .stateIn(
             scope = viewModelScope,
@@ -224,18 +237,20 @@ class HomeViewModel(
             }
 
             val history = if (includeHistory) {
-                repository.getAllRecordsForSync(clientIdString).map { record ->
-                    OAKBackupHistoryDTO(
-                        id = record.id,
-                        supplementId = record.supplementId,
-                        dateEpochMs = record.date,
-                        status = record.status,
-                        updatedAtEpochMs = record.updatedAtEpochMs
-                    )
-                }
-            } else {
-                emptyList()
-            }
+                repository.getAllRecordsForSync(clientIdString)
+                    .groupBy { DoseEventKey.make(it.supplementId, it.date) }
+                    .mapNotNull { (_, list) -> list.maxByOrNull { it.updatedAtEpochMs } }
+                    .map { record ->
+                        val key = DoseEventKey.make(record.supplementId, record.date)
+                        OAKBackupHistoryDTO(
+                            id = key,
+                            supplementId = record.supplementId.lowercase(Locale.ROOT),
+                            dateEpochMs = record.date,
+                            status = record.status,
+                            updatedAtEpochMs = record.updatedAtEpochMs
+                        )
+                    }
+            } else emptyList()
 
             OAKBackupJson.encode(
                 OAKBackupDataDTO(
@@ -255,30 +270,100 @@ class HomeViewModel(
 
     private suspend fun buildFullBackupJson(): Result<String> = buildBackupJson(includeStack = true, includeHistory = true)
 
-    private fun getStartOfDay() = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    private fun getEndOfDay() = LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    private fun getStartOfDay(daysAgo: Long): Long {
+        return LocalDate.now().minusDays(daysAgo).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+    
+    private fun getEndOfTomorrow(): Long {
+        return LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
 
     private fun processSupplements(
-        supplements: List<UserSupplementTakenToday>
+        supplements: List<UserSupplement>,
+        records: List<IntakeRecord>
     ): HomeUiState {
         val today = LocalDate.now()
+        val nowEpochMs = System.currentTimeMillis()
+        val recordStatusByDose = HashMap<String, String>(records.size)
+        records.forEach { record ->
+            recordStatusByDose[DoseEventKey.make(record.supplementId, record.date)] = record.status
+        }
+        
+        val takenDays = HashSet<LocalDate>()
+        records.forEach { record ->
+            if (record.status != RecordStatus.TAKEN.raw) return@forEach
+            val day = Instant.ofEpochMilli(record.date).atZone(ZoneId.systemDefault()).toLocalDate()
+            takenDays.add(day)
+        }
+        val streakStart = if (takenDays.contains(today)) today else today.minusDays(1)
+        var streakDays = 0
+        var cursor = streakStart
+        while (takenDays.contains(cursor)) {
+            streakDays += 1
+            cursor = cursor.minusDays(1)
+        }
+
         val activeItems = supplements
             .filter {
-                calculateCycleUseCase(it.supplement.startDate, it.supplement.cycleConfig, today) == CycleStatus.ON &&
-                    matchesWeeklyRecurrenceIfNeeded(it.supplement, today)
+                calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.ON &&
+                    matchesWeeklyRecurrenceIfNeeded(it, today)
             }
-            .map { taken ->
-                val advice = adviceByName[taken.supplement.name]
-                SupplementUiItem(taken.supplement, taken.isTakenToday, advice)
+            .flatMap { supplement ->
+                val advice = adviceByName[supplement.name]
+                parseTimes(supplement.intakeTime).map { time ->
+                    val scheduledAt = scheduledAtEpochMs(time) ?: 0L
+                    val status = recordStatusByDose[DoseEventKey.make(supplement.id.toString(), scheduledAt)]
+                    val doseStatus = doseStatus(
+                        scheduledAtEpochMs = scheduledAt,
+                        recordedStatus = status,
+                        nowEpochMs = nowEpochMs
+                    )
+                    val dueSoonMs = 20 * 60 * 1000L
+                    val missedAfter = scheduledAt + (2 * 60 * 60 * 1000L)
+                    val isDueSoon = doseStatus == DoseStatus.PLANNED &&
+                        scheduledAt > nowEpochMs &&
+                        (scheduledAt - nowEpochMs) <= dueSoonMs
+                    val isMissedSoon = doseStatus == DoseStatus.PLANNED &&
+                        scheduledAt > 0L &&
+                        nowEpochMs in (missedAfter - dueSoonMs) until missedAfter
+                    SupplementUiItem(
+                        supplement = supplement,
+                        timeString = time,
+                        scheduledAtEpochMs = scheduledAt,
+                        doseStatus = doseStatus,
+                        advice = advice,
+                        isDueSoon = isDueSoon,
+                        isMissedSoon = isMissedSoon
+                    )
+                }
             }
-            .groupBy { it.supplement.intakeTime }
+            .groupBy { it.timeString }
             .toSortedMap()
 
         val restingList = supplements
-            .filter { calculateCycleUseCase(it.supplement.startDate, it.supplement.cycleConfig, today) == CycleStatus.OFF }
-            .map { RestingSupplementInfo(it.supplement, calculateDaysRemaining(it.supplement, today)) }
+            .filter { calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF }
+            .map { RestingSupplementInfo(it, calculateDaysRemaining(it, today)) }
 
-        return HomeUiState.Success(activeItems, restingList)
+        return HomeUiState.Success(activeItems, restingList, streakDays)
+    }
+
+    private fun doseStatus(scheduledAtEpochMs: Long, recordedStatus: String?, nowEpochMs: Long): DoseStatus {
+        if (recordedStatus == RecordStatus.SKIPPED.raw) return DoseStatus.SKIPPED
+        if (recordedStatus == RecordStatus.TAKEN.raw) return DoseStatus.TAKEN
+        if (scheduledAtEpochMs <= 0L) return DoseStatus.PLANNED
+
+        val missedAfter = scheduledAtEpochMs + (2 * 60 * 60 * 1000L)
+        if (nowEpochMs > missedAfter) return DoseStatus.MISSED
+        return DoseStatus.PLANNED
+    }
+
+    private fun parseTimes(raw: String): List<String> {
+        return TimeStrings.normalizeList(raw)
+    }
+
+    private fun scheduledAtEpochMs(timeString: String): Long? {
+        val parsed = TimeStrings.parseLenient(timeString) ?: return null
+        return LocalDate.now().atTime(parsed).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
     
     private fun matchesWeeklyRecurrenceIfNeeded(supplement: UserSupplement, date: LocalDate): Boolean {
@@ -303,23 +388,52 @@ class HomeViewModel(
         return mod == 0
     }
 
-    fun toggleIntake(supplementId: String, isChecked: Boolean) {
+    fun toggleIntake(supplementId: String, timeString: String, action: DoseAction) {
         viewModelScope.launch {
-            if (isChecked) {
-                repository.logIntake(supplementId, System.currentTimeMillis())
-                val binId = activeAutoSyncBinId()
-                if (binId != null) {
-                    Log.d("AutoSync", "☁️ Auto-Sync: Starting upload...")
-                    syncTwoWay(binId)
-                }
-                return@launch
-            }
+            val scheduledAt = scheduledAtEpochMs(timeString) ?: return@launch
+            recordDoseInternal(supplementId = supplementId, scheduledAtEpochMs = scheduledAt, action = action)
+        }
+    }
+
+    fun recordDoseFromNotification(
+        supplementId: String,
+        scheduledAtEpochMs: Long,
+        action: DoseAction
+    ) {
+        viewModelScope.launch {
+            recordDoseInternal(supplementId = supplementId, scheduledAtEpochMs = scheduledAtEpochMs, action = action)
+        }
+    }
+
+    private suspend fun recordDoseInternal(supplementId: String, scheduledAtEpochMs: Long, action: DoseAction) {
+        if (scheduledAtEpochMs <= 0L) return
+        val now = System.currentTimeMillis()
+        val normalizedSupplementId = supplementId.lowercase(Locale.ROOT)
+        val status = when (action) {
+            DoseAction.TAKEN -> RecordStatus.TAKEN.raw
+            DoseAction.SKIPPED -> RecordStatus.SKIPPED.raw
+        }
+        repository.insertIntakeRecord(
+            IntakeRecord(
+                id = DoseEventKey.make(normalizedSupplementId, scheduledAtEpochMs),
+                supplementId = normalizedSupplementId,
+                date = scheduledAtEpochMs,
+                status = status,
+                updatedAtEpochMs = now
+            )
+        )
+
+        val binId = activeAutoSyncBinId()
+        if (binId != null) {
+            Log.d("AutoSync", "☁️ Auto-Sync: Starting upload...")
+            syncTwoWay(binId)
         }
     }
 
     fun deleteItem(supplement: UserSupplement) {
         viewModelScope.launch {
             repository.deleteSupplement(supplement)
+            rescheduleNotificationsNow()
         }
     }
 
@@ -327,6 +441,7 @@ class HomeViewModel(
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
             repository.deleteSupplement(supplement)
+            rescheduleNotificationsNow()
         }
     }
     
@@ -348,11 +463,8 @@ class HomeViewModel(
             }
 
             val clientIdString = clientId.toString()
-            repository.deleteAllIntakeRecordsByClient(clientIdString)
-            repository.deleteAllSupplementsByClient(clientIdString)
-
             val importedSupplementIds = HashSet<String>(decoded.stack.size)
-            decoded.stack.forEach { dto ->
+            val supplementsToImport = decoded.stack.mapNotNull { dto ->
                 val weekly = run {
                     val mask = dto.cycle.weeklyWeekdaysMask ?: return@run null
                     val interval = dto.cycle.weeklyIntervalWeeks ?: return@run null
@@ -369,7 +481,11 @@ class HomeViewModel(
                 val startDate = runCatching { LocalDate.parse(dto.startDate) }.getOrElse { LocalDate.now() }
                 
                 val imported = UserSupplement(
-                    id = runCatching { java.util.UUID.fromString(dto.id) }.getOrElse { java.util.UUID.randomUUID() },
+                    id = runCatching { java.util.UUID.fromString(dto.id) }.getOrElse {
+                        com.example.supplementtracker.domain.util.StableId.uuidFromString(
+                            dto.id.trim().lowercase(Locale.ROOT)
+                        )
+                    },
                     clientId = clientId,
                     name = dto.name,
                     startDate = startDate,
@@ -380,14 +496,13 @@ class HomeViewModel(
                     deletedAtEpochMs = dto.deletedAtEpochMs
                 )
                 
-                repository.saveSupplement(imported)
                 importedSupplementIds.add(imported.id.toString().lowercase(Locale.ROOT))
+                imported
             }
 
-            decoded.history.forEach { record ->
+            val recordsToImport = decoded.history.mapNotNull { record ->
                 val normalizedSupplementId = record.supplementId.lowercase(Locale.ROOT)
-                if (!importedSupplementIds.contains(normalizedSupplementId)) return@forEach
-                repository.insertIntakeRecord(
+                if (!importedSupplementIds.contains(normalizedSupplementId)) return@mapNotNull null
                     com.example.supplementtracker.domain.repository.IntakeRecord(
                         id = record.id,
                         supplementId = normalizedSupplementId,
@@ -395,11 +510,23 @@ class HomeViewModel(
                         status = record.status,
                         updatedAtEpochMs = record.updatedAtEpochMs.takeIf { it > 0L } ?: record.dateEpochMs
                     )
-                )
             }
+
+            repository.importBackupAtomic(clientIdString, supplementsToImport, recordsToImport)
             
             refresh()
+            rescheduleNotificationsNow()
+            context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+                .edit()
+                .putLong("oakLastBackupImportEpochMs", System.currentTimeMillis())
+                .apply()
             _dataTransferMessage.value = context.getString(R.string.import_success)
+        }
+    }
+
+    fun exportFullBackupJson(onResult: (Result<String>) -> Unit) {
+        viewModelScope.launch {
+            onResult(buildFullBackupJson())
         }
     }
 
@@ -410,12 +537,12 @@ class HomeViewModel(
             val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
             val stackPlain = buildStackBackupJson().getOrElse { error ->
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = error.message ?: "Export stack failed"
+                _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_export_stack_failed)
                 return@launch
             }
             val historyPlain = buildHistoryBackupJson().getOrElse { error ->
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = error.message ?: "Export history failed"
+                _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_export_history_failed)
                 return@launch
             }
 
@@ -426,12 +553,12 @@ class HomeViewModel(
 
             val stackEncrypted = runCatching { encryptPrepared(stackPlain) }.getOrElse {
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = it.message ?: "Encrypt stack failed"
+                _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_host_encrypt_stack_failed)
                 return@launch
             }
             val historyEncrypted = runCatching { encryptPrepared(historyPlain) }.getOrElse {
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = it.message ?: "Encrypt history failed"
+                _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_host_encrypt_history_failed)
                 return@launch
             }
 
@@ -443,29 +570,29 @@ class HomeViewModel(
                 if (stackId.isEmpty() || historyId.isEmpty()) {
                     val manifestDownload = CloudSyncManager().downloadBackupAlways(manifestId).getOrElse { error ->
                         _cloudSyncLoading.value = false
-                        _dataTransferMessage.value = error.message ?: "Load manifest failed"
+                        _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_load_manifest_failed)
                         return@launch
                     }
                     val decrypted = runCatching { CloudSyncCrypto.unwrapDownloadedIfNeeded(context, manifestDownload.json ?: "") }.getOrElse {
                         _cloudSyncLoading.value = false
-                        _dataTransferMessage.value = it.message ?: "Decrypt manifest failed"
+                        _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_host_decrypt_manifest_failed)
                         return@launch
                     }
                     val prepared = runCatching { CloudSyncPayloadCodec.decompressIfNeeded(decrypted) }.getOrElse {
                         _cloudSyncLoading.value = false
-                        _dataTransferMessage.value = it.message ?: "Decode manifest failed"
+                        _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_host_decode_manifest_failed)
                         return@launch
                     }
                     val decoded = runCatching { CloudSyncManifestCodec.decode(prepared) }.getOrNull()
                     if (decoded == null) {
                         val legacyPlain = buildFullBackupJson().getOrElse { error ->
                             _cloudSyncLoading.value = false
-                            _dataTransferMessage.value = error.message ?: "Export failed"
+                            _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_export_failed)
                             return@launch
                         }
                         val legacyEncrypted = runCatching { encryptPrepared(legacyPlain) }.getOrElse {
                             _cloudSyncLoading.value = false
-                            _dataTransferMessage.value = it.message ?: "Encrypt failed"
+                            _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_host_encrypt_failed)
                             return@launch
                         }
                         val upsertLegacy = CloudSyncManager().upsertBackup(manifestId, legacyEncrypted)
@@ -476,13 +603,16 @@ class HomeViewModel(
                             prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).remove(lastErrorKey).apply()
                             updateCloudSyncUiStatus(manifestId)
                             appendCloudSyncLog(prefs, manifestId, "HOST", "Host legacy update OK")
-                            _dataTransferMessage.value = "Đã cập nhật dữ liệu lên mã hiện tại!"
+                            _dataTransferMessage.value = context.getString(R.string.cloud_host_update_existing_success)
                         }.onFailure {
                             val lastErrorKey = "cloudSyncLastError_$manifestId"
-                            prefs.edit().putString(lastErrorKey, it.message ?: "Unknown").apply()
+                            prefs.edit().putString(lastErrorKey, it.message ?: context.getString(R.string.error_unknown)).apply()
                             updateCloudSyncUiStatus(manifestId)
                             appendCloudSyncLog(prefs, manifestId, "ERROR", "Host legacy update failed")
-                            _dataTransferMessage.value = "Phát dữ liệu thất bại: ${it.message ?: "Unknown"}"
+                            _dataTransferMessage.value = context.getString(
+                                R.string.cloud_host_failed_format,
+                                it.message ?: context.getString(R.string.error_unknown)
+                            )
                         }
                         return@launch
                     }
@@ -497,7 +627,7 @@ class HomeViewModel(
                 val manifestPlain = CloudSyncManifestCodec.encode(stackId, historyId)
                 val manifestEncrypted = runCatching { encryptPrepared(manifestPlain) }.getOrElse {
                     _cloudSyncLoading.value = false
-                    _dataTransferMessage.value = it.message ?: "Encrypt manifest failed"
+                    _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_host_encrypt_manifest_failed)
                     return@launch
                 }
                 val upsertManifest = CloudSyncManager().upsertBackup(manifestId, manifestEncrypted)
@@ -508,10 +638,13 @@ class HomeViewModel(
                     ?: upsertManifest.exceptionOrNull()
                 if (error != null) {
                     val lastErrorKey = "cloudSyncLastError_$manifestId"
-                    prefs.edit().putString(lastErrorKey, error.message ?: "Unknown").apply()
+                    prefs.edit().putString(lastErrorKey, error.message ?: context.getString(R.string.error_unknown)).apply()
                     updateCloudSyncUiStatus(manifestId)
                     appendCloudSyncLog(prefs, manifestId, "ERROR", "Host update failed")
-                    _dataTransferMessage.value = "Phát dữ liệu thất bại: ${error.message ?: "Unknown"}"
+                    _dataTransferMessage.value = context.getString(
+                        R.string.cloud_host_failed_format,
+                        error.message ?: context.getString(R.string.error_unknown)
+                    )
                     return@launch
                 }
 
@@ -523,29 +656,29 @@ class HomeViewModel(
                     .apply()
                 updateCloudSyncUiStatus(manifestId)
                 appendCloudSyncLog(prefs, manifestId, "HOST", "Host update OK")
-                _dataTransferMessage.value = "Đã cập nhật dữ liệu lên mã hiện tại!"
+                _dataTransferMessage.value = context.getString(R.string.cloud_host_update_existing_success)
                 return@launch
             }
 
             val stackId = CloudSyncManager().uploadBackup(stackEncrypted).getOrElse { error ->
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = error.message ?: "Upload stack failed"
+                _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_upload_stack_failed)
                 return@launch
             }
             val historyId = CloudSyncManager().uploadBackup(historyEncrypted).getOrElse { error ->
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = error.message ?: "Upload history failed"
+                _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_upload_history_failed)
                 return@launch
             }
             val manifestPlain = CloudSyncManifestCodec.encode(stackId, historyId)
             val manifestEncrypted = runCatching { encryptPrepared(manifestPlain) }.getOrElse {
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = it.message ?: "Encrypt manifest failed"
+                _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_host_encrypt_manifest_failed)
                 return@launch
             }
             val newManifestId = CloudSyncManager().uploadBackup(manifestEncrypted).getOrElse { error ->
                 _cloudSyncLoading.value = false
-                _dataTransferMessage.value = error.message ?: "Upload manifest failed"
+                _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_upload_manifest_failed)
                 return@launch
             }
             _cloudSyncLoading.value = false
@@ -559,14 +692,20 @@ class HomeViewModel(
                 .apply()
             updateCloudSyncUiStatus(newManifestId)
             appendCloudSyncLog(prefs, newManifestId, "HOST", "Host created OK")
-            _dataTransferMessage.value = "Phát dữ liệu thành công!"
+            _dataTransferMessage.value = context.getString(R.string.cloud_host_success)
         }
     }
 
     fun enableCloudEncryption(enabled: Boolean) {
         CloudSyncCrypto.setEnabled(context, enabled)
-            .onSuccess { _dataTransferMessage.value = if (enabled) "Đã bật mã hoá cloud sync" else "Đã tắt mã hoá cloud sync" }
-            .onFailure { _dataTransferMessage.value = it.message ?: "Cấu hình mã hoá thất bại" }
+            .onSuccess {
+                _dataTransferMessage.value = if (enabled) {
+                    context.getString(R.string.cloud_encryption_enabled)
+                } else {
+                    context.getString(R.string.cloud_encryption_disabled)
+                }
+            }
+            .onFailure { _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_encryption_failed) }
     }
     
     fun exportCloudEncryptionKey(): String? {
@@ -575,20 +714,20 @@ class HomeViewModel(
     
     fun rotateCloudEncryptionKey() {
         runCatching { CloudSyncCrypto.rotateKey(context) }
-            .onSuccess { _dataTransferMessage.value = "Đã rotate key (hãy copy key mới sang thiết bị khác)" }
-            .onFailure { _dataTransferMessage.value = it.message ?: "Rotate key thất bại" }
+            .onSuccess { _dataTransferMessage.value = context.getString(R.string.cloud_rotate_success) }
+            .onFailure { _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_rotate_failed) }
     }
     
     fun importCloudEncryptionKey(exported: String) {
         runCatching { CloudSyncCrypto.importKey(context, exported) }
-            .onSuccess { _dataTransferMessage.value = "Đã import key: $it" }
-            .onFailure { _dataTransferMessage.value = it.message ?: "Import key thất bại" }
+            .onSuccess { _dataTransferMessage.value = context.getString(R.string.cloud_import_key_success_format, it) }
+            .onFailure { _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_import_key_failed) }
     }
     
     fun revokeHostedBin() {
         viewModelScope.launch {
             val manifestId = _hostedBinId.value ?: run {
-                _dataTransferMessage.value = "Không có mã để thu hồi."
+                _dataTransferMessage.value = context.getString(R.string.cloud_revoke_missing_code)
                 return@launch
             }
             val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
@@ -613,10 +752,13 @@ class HomeViewModel(
                     .remove("cloudSyncEtagStack_$manifestId")
                     .remove("cloudSyncEtagHistory_$manifestId")
                     .apply()
-                _dataTransferMessage.value = "Đã vô hiệu hóa mã."
+                _dataTransferMessage.value = context.getString(R.string.cloud_revoke_success)
                 return@launch
             }
-            _dataTransferMessage.value = "Thu hồi mã thất bại: ${error.message ?: "Unknown"}"
+            _dataTransferMessage.value = context.getString(
+                R.string.cloud_revoke_failed_format,
+                error.message ?: context.getString(R.string.error_unknown)
+            )
         }
     }
     
@@ -802,6 +944,7 @@ class HomeViewModel(
                     _cloudSyncLoading.value = false
                     appendCloudSyncLog(prefs, manifestId, "DONE", "No changes")
                     updateCloudSyncUiStatus(manifestId)
+                    rescheduleNotificationsNow()
                     return
                 }
                 prefs.edit().putString(phaseKey, CloudSyncPhase.PUSHING.name).apply()
@@ -849,6 +992,7 @@ class HomeViewModel(
                 _cloudSyncLoading.value = false
                 appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKey, 0L)}ms")
                 updateCloudSyncUiStatus(manifestId)
+                rescheduleNotificationsNow()
                 return
             }
             stackId = decoded.stackBinId
@@ -943,6 +1087,7 @@ class HomeViewModel(
             _cloudSyncLoading.value = false
             appendCloudSyncLog(prefs, manifestId, "DONE", "No changes")
             updateCloudSyncUiStatus(manifestId)
+            rescheduleNotificationsNow()
             return
         }
 
@@ -1012,17 +1157,33 @@ class HomeViewModel(
         _cloudSyncLoading.value = false
         appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKey, 0L)}ms")
         updateCloudSyncUiStatus(manifestId)
+        rescheduleNotificationsNow()
     }
     
     fun refreshNotificationSchedules() {
+        viewModelScope.launch {
+            rescheduleNotificationsNow()
+        }
+    }
+    
+    fun clearPendingNotifications() {
         viewModelScope.launch {
             val clients = repository.observeClients().first()
             val supplements = clients.flatMap { client ->
                 repository.getAllSupplements(client.id.toString()).first()
             }
             val scheduler = NotificationSchedulerImpl(context)
-            supplements.forEach { scheduler.schedule(it) }
+            scheduler.clearAll(supplements)
         }
+    }
+
+    private suspend fun rescheduleNotificationsNow() {
+        val clients = repository.observeClients().first()
+        val supplements = clients.flatMap { client ->
+            repository.getAllSupplements(client.id.toString()).first()
+        }
+        val scheduler = NotificationSchedulerImpl(context)
+        scheduler.rescheduleAll(supplements)
     }
 
     fun receiveData(binId: String) {
@@ -1039,7 +1200,12 @@ class HomeViewModel(
         val decoded = OAKBackupJson.decodeCompat(json).getOrElse { return }
         val clientIdString = clientId.toString()
         val localSupplements = repository.getAllSupplementsForSync(clientIdString).associateBy { it.id.toString().lowercase(Locale.ROOT) }
-        val localRecords = repository.getAllRecordsForSync(clientIdString).associateBy { it.id.lowercase(Locale.ROOT) }
+        val localRecordList = repository.getAllRecordsForSync(clientIdString)
+        val localRecords = localRecordList.associateBy { it.id.lowercase(Locale.ROOT) }
+        val localRecordsByDoseKey = localRecordList
+            .groupBy { DoseEventKey.make(it.supplementId, it.date) }
+            .mapNotNull { (key, list) -> list.maxByOrNull { it.updatedAtEpochMs }?.let { key to it } }
+            .toMap()
         
         decoded.stack.forEach { remote ->
             val remoteId = remote.id.lowercase(Locale.ROOT)
@@ -1092,18 +1258,44 @@ class HomeViewModel(
         
         decoded.history.forEach { remote ->
             val remoteId = remote.id.lowercase(Locale.ROOT)
-            val local = localRecords[remoteId]
-            val remoteUpdatedAt = remote.updatedAtEpochMs
-            val localUpdatedAt = local?.updatedAtEpochMs ?: 0L
-            if (remoteUpdatedAt <= localUpdatedAt) return@forEach
-            repository.insertIntakeRecord(
-                com.example.supplementtracker.domain.repository.IntakeRecord(
-                    id = remote.id,
-                    supplementId = remote.supplementId.lowercase(Locale.ROOT),
+            val normalizedSupplementId = remote.supplementId.lowercase(Locale.ROOT)
+            val remoteDoseKey = DoseEventKey.make(normalizedSupplementId, remote.dateEpochMs)
+            val remoteUpdatedAt = remote.updatedAtEpochMs.takeIf { it > 0L } ?: remote.dateEpochMs
+            val localByKey = localRecordsByDoseKey[remoteDoseKey]
+            if (localByKey != null) {
+                if (remoteUpdatedAt <= localByKey.updatedAtEpochMs) return@forEach
+                val updated = localByKey.copy(
+                    supplementId = normalizedSupplementId,
                     date = remote.dateEpochMs,
                     status = remote.status,
-                    updatedAtEpochMs = remoteUpdatedAt.takeIf { it > 0L } ?: remote.dateEpochMs
+                    updatedAtEpochMs = remoteUpdatedAt
                 )
+                repository.insertIntakeRecord(
+                    updated
+                )
+                repository.deleteDuplicateIntakeRecords(
+                    supplementId = normalizedSupplementId,
+                    date = remote.dateEpochMs,
+                    keepId = updated.id
+                )
+                return@forEach
+            }
+
+            val local = localRecords[remoteId]
+            val localUpdatedAt = local?.updatedAtEpochMs ?: 0L
+            if (remoteUpdatedAt <= localUpdatedAt) return@forEach
+            val inserted = com.example.supplementtracker.domain.repository.IntakeRecord(
+                id = remoteId,
+                supplementId = normalizedSupplementId,
+                date = remote.dateEpochMs,
+                status = remote.status,
+                updatedAtEpochMs = remoteUpdatedAt
+            )
+            repository.insertIntakeRecord(inserted)
+            repository.deleteDuplicateIntakeRecords(
+                supplementId = normalizedSupplementId,
+                date = remote.dateEpochMs,
+                keepId = inserted.id
             )
         }
     }
@@ -1123,7 +1315,11 @@ class HomeViewModel(
             weeklyRecurrence = weekly
         )
         return UserSupplement(
-            id = runCatching { java.util.UUID.fromString(remote.id) }.getOrElse { java.util.UUID.randomUUID() },
+            id = runCatching { java.util.UUID.fromString(remote.id) }.getOrElse {
+                com.example.supplementtracker.domain.util.StableId.uuidFromString(
+                    remote.id.trim().lowercase(Locale.ROOT)
+                )
+            },
             clientId = clientId,
             name = remote.name,
             startDate = runCatching { LocalDate.parse(remote.startDate) }.getOrElse { LocalDate.now() },

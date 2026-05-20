@@ -1,12 +1,19 @@
 package com.example.supplementtracker.presentation.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissValue
@@ -25,12 +32,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -210,7 +220,7 @@ fun HomeScreen(
                 OutlinedTextField(
                     value = newClientName,
                     onValueChange = { newClientName = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.client_name_label)) },
                     singleLine = true
                 )
             },
@@ -225,19 +235,20 @@ fun HomeScreen(
                         newClientName = ""
                         isAddClientDialogVisible = false
                     }
-                ) { Text("Save") }
+                ) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {
-                TextButton(onClick = { isAddClientDialogVisible = false }) { Text("Cancel") }
+                TextButton(onClick = { isAddClientDialogVisible = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HomeContent(
     state: HomeUiState.Success,
-    onToggleIntake: (String, Boolean) -> Unit,
+    onToggleIntake: (String, String, DoseAction) -> Unit,
     onDelete: (UserSupplement) -> Unit,
     onEdit: (String) -> Unit
 ) {
@@ -253,6 +264,28 @@ private fun HomeContent(
             key = "today_title",
             contentType = "title"
         ) { SectionHeader(stringResource(R.string.today_intake_title)) }
+
+        item(
+            key = "today_summary",
+            contentType = "summary"
+        ) {
+            val counts = remember(state.activeSupplements) {
+                var planned = 0
+                var taken = 0
+                var skipped = 0
+                var missed = 0
+                state.activeSupplements.values.flatten().forEach { item ->
+                    when (item.doseStatus) {
+                        DoseStatus.PLANNED -> planned += 1
+                        DoseStatus.TAKEN -> taken += 1
+                        DoseStatus.SKIPPED -> skipped += 1
+                        DoseStatus.MISSED -> missed += 1
+                    }
+                }
+                TodayCounts(planned = planned, taken = taken, skipped = skipped, missed = missed)
+            }
+            TodaySummaryCard(counts = counts, streakDays = state.streakDays)
+        }
         
         if (state.activeSupplements.isEmpty()) {
             item(
@@ -268,15 +301,17 @@ private fun HomeContent(
             ) { TimeGroupHeader(time) }
             items(
                 items = items,
-                key = { it.supplement.id },
+                key = { "${it.supplement.id}-${it.timeString}" },
                 contentType = { "supplement" }
             ) { item ->
-                DismissibleSupplementCard(
-                    item = item,
-                    onToggleIntake = onToggleIntake,
-                    onDelete = onDelete,
-                    onEdit = onEdit
-                )
+                Box(modifier = Modifier.animateItemPlacement()) {
+                    DismissibleSupplementCard(
+                        item = item,
+                        onToggleIntake = onToggleIntake,
+                        onDelete = onDelete,
+                        onEdit = onEdit
+                    )
+                }
             }
         }
 
@@ -317,24 +352,158 @@ private fun TimeGroupHeader(time: String) {
     )
 }
 
+private data class TodayCounts(
+    val planned: Int,
+    val taken: Int,
+    val skipped: Int,
+    val missed: Int
+)
+
+@Composable
+private fun TodaySummaryCard(counts: TodayCounts, streakDays: Int) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            StreakPill(days = streakDays)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CountPill(
+                title = stringResource(R.string.notif_action_taken),
+                value = counts.taken,
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier.weight(1f)
+            )
+            CountPill(
+                title = stringResource(R.string.home_status_planned),
+                value = counts.planned,
+                tint = Color.Gray,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CountPill(
+                title = stringResource(R.string.notif_action_skip),
+                value = counts.skipped,
+                tint = Color(0xFFFF9800),
+                modifier = Modifier.weight(1f)
+            )
+            CountPill(
+                title = stringResource(R.string.home_status_missed),
+                value = counts.missed,
+                tint = Color(0xFFD32F2F),
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun StreakPill(days: Int) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    Box(
+        modifier = Modifier
+            .background(base, RoundedCornerShape(18.dp))
+            .border(1.dp, Color(0xFFFFB300).copy(alpha = 0.30f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.home_streak_format, days),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (isDark) Color.White else Color(0xFF111111),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun CountPill(
+    title: String,
+    value: Int?,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val textColor = if (isDark) Color.White else Color(0xFF111111)
+    Box(
+        modifier = modifier
+            .background(Color.Transparent, RoundedCornerShape(18.dp))
+            .border(1.dp, tint.copy(alpha = 0.22f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(tint, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (value == null) title else "$title $value",
+                style = MaterialTheme.typography.labelLarge,
+                color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlassCard(
+    modifier: Modifier = Modifier,
+    accent: Color? = null,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    val stroke = (accent ?: Color.White).copy(alpha = if (isDark) 0.16f else 0.28f)
+    val shape = RoundedCornerShape(28.dp)
+    val highlight = if (isDark) {
+        listOf(base.copy(alpha = 0.16f), base)
+    } else {
+        listOf(base.copy(alpha = 0.74f), base)
+    }
+
+    Box(
+        modifier = modifier
+            .background(Brush.linearGradient(highlight), shape)
+            .border(1.dp, stroke, shape)
+            .clip(shape)
+            .padding(contentPadding)
+    ) {
+        Column(content = content)
+    }
+}
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 private fun DismissibleSupplementCard(
     item: SupplementUiItem,
-    onToggleIntake: (String, Boolean) -> Unit,
+    onToggleIntake: (String, String, DoseAction) -> Unit,
     onDelete: (UserSupplement) -> Unit,
     onEdit: (String) -> Unit
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
+    var isDeleteConfirmVisible by remember { mutableStateOf(false) }
     val dismissState = rememberDismissState(confirmStateChange = { value: DismissValue ->
         when (value) {
             DismissValue.DismissedToStart -> {
-                onDelete(item.supplement)
-                true
+                isMenuOpen = true
+                false
             }
             DismissValue.DismissedToEnd -> {
-                onEdit(item.supplement.id.toString())
-                true
+                isMenuOpen = true
+                false
             }
             else -> true
         }
@@ -378,7 +547,7 @@ private fun DismissibleSupplementCard(
                 item = item,
                 onToggleIntake = onToggleIntake,
                 modifier = Modifier.combinedClickable(
-                    onClick = {},
+                    onClick = { isMenuOpen = true },
                     onLongClick = { isMenuOpen = true }
                 )
             )
@@ -399,73 +568,116 @@ private fun DismissibleSupplementCard(
                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                     onClick = {
                         isMenuOpen = false
-                        onDelete(item.supplement)
+                        isDeleteConfirmVisible = true
                     }
                 )
             }
         }
         }
     )
+
+    if (isDeleteConfirmVisible) {
+        AlertDialog(
+            onDismissRequest = { isDeleteConfirmVisible = false },
+            title = { Text(stringResource(R.string.delete)) },
+            text = { Text(stringResource(R.string.delete_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        isDeleteConfirmVisible = false
+                        onDelete(item.supplement)
+                    }
+                ) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { isDeleteConfirmVisible = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun ActiveSupplementCard(
     item: SupplementUiItem,
-    onToggleIntake: (String, Boolean) -> Unit,
+    onToggleIntake: (String, String, DoseAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var showConfirmDialog by remember(item.supplement.id) { mutableStateOf(false) }
-    val shape = RoundedCornerShape(28.dp)
-    val containerColor = MaterialTheme.colorScheme.surfaceVariant
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(item.supplement.name, style = MaterialTheme.typography.titleMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(item.supplement.intakeTime, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        Text(" • ", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    }
-                }
-                IconButton(
-                    onClick = {
-                        if (item.isTaken) {
-                            Toast.makeText(context, context.getString(R.string.home_intake_toast_cannot_undo), Toast.LENGTH_SHORT).show()
-                            return@IconButton
-                        }
-                        showConfirmDialog = true
-                    }
-                ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = if (item.isTaken) Color.Green else Color.Gray
-                    )
+    val urgencyAccent = when {
+        item.isMissedSoon -> Color(0xFFD32F2F)
+        item.isDueSoon -> Color(0xFF42A5F5)
+        else -> null
+    }
+    GlassCard(modifier = modifier.fillMaxWidth(), accent = urgencyAccent) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(item.supplement.name, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(item.timeString, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(" • ", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                 }
             }
-            if (!item.advice.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = item.advice,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontStyle = FontStyle.Italic
+            val targetTint = when (item.doseStatus) {
+                DoseStatus.TAKEN -> Color(0xFF2E7D32)
+                DoseStatus.SKIPPED -> Color(0xFFFF9800)
+                DoseStatus.MISSED -> Color(0xFFD32F2F)
+                DoseStatus.PLANNED -> Color.Gray
+            }
+            val tint by androidx.compose.animation.animateColorAsState(targetValue = targetTint, label = "doseTint")
+            val pulse = remember { Animatable(1f) }
+            LaunchedEffect(item.doseStatus) {
+                if (item.doseStatus == DoseStatus.TAKEN || item.doseStatus == DoseStatus.SKIPPED) {
+                    pulse.snapTo(1f)
+                    pulse.animateTo(1.16f, tween(140))
+                    pulse.animateTo(1f, tween(200))
+                }
+            }
+            IconButton(
+                onClick = {
+                    if (item.doseStatus == DoseStatus.TAKEN || item.doseStatus == DoseStatus.SKIPPED) {
+                        Toast.makeText(context, context.getString(R.string.home_intake_toast_cannot_undo), Toast.LENGTH_SHORT).show()
+                        return@IconButton
+                    }
+                    showConfirmDialog = true
+                }
+            ) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.graphicsLayer(scaleX = pulse.value, scaleY = pulse.value)
                 )
             }
+        }
+        AnimatedVisibility(
+            visible = item.isMissedSoon || item.isDueSoon,
+            enter = fadeIn(animationSpec = tween(160)),
+            exit = fadeOut(animationSpec = tween(160))
+        ) {
+            val text = if (item.isMissedSoon) {
+                stringResource(R.string.home_almost_missed)
+            } else {
+                stringResource(R.string.home_due_soon)
+            }
+            val color = if (item.isMissedSoon) Color(0xFFD32F2F) else Color(0xFF42A5F5)
+            Spacer(modifier = Modifier.height(10.dp))
+            CountPill(title = text, value = null, tint = color, modifier = Modifier.fillMaxWidth())
+        }
+        if (!item.advice.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = item.advice,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontStyle = FontStyle.Italic
+            )
         }
     }
     
@@ -475,14 +687,21 @@ private fun ActiveSupplementCard(
             title = { Text(stringResource(R.string.home_intake_confirm_title)) },
             text = { Text(stringResource(R.string.home_intake_confirm_message)) },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showConfirmDialog = false
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onToggleIntake(item.supplement.id.toString(), true)
-                    }
-                ) {
-                    Text(stringResource(R.string.home_intake_confirm_taken))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showConfirmDialog = false
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onToggleIntake(item.supplement.id.toString(), item.timeString, DoseAction.TAKEN)
+                        }
+                    ) { Text(stringResource(R.string.home_intake_confirm_taken)) }
+                    TextButton(
+                        onClick = {
+                            showConfirmDialog = false
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onToggleIntake(item.supplement.id.toString(), item.timeString, DoseAction.SKIPPED)
+                        }
+                    ) { Text(stringResource(R.string.home_intake_confirm_skip)) }
                 }
             },
             dismissButton = {
@@ -497,20 +716,8 @@ private fun ActiveSupplementCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RestingSupplementCard(info: RestingSupplementInfo) {
-    val shape = RoundedCornerShape(28.dp)
-    val containerColor = MaterialTheme.colorScheme.surfaceVariant
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth(),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(info.supplement.name, style = MaterialTheme.typography.titleMedium, color = Color.Gray)
                 Text(

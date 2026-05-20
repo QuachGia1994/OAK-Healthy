@@ -58,11 +58,41 @@ public struct NotificationService: NotificationManaging {
     
     public static let shared = NotificationService()
     
+    public enum Action: String, Sendable {
+        case taken = "OAK_DOSE_TAKEN"
+        case skipped = "OAK_DOSE_SKIPPED"
+    }
+    
+    public enum Category: String, Sendable {
+        case dose = "OAK_DOSE_CATEGORY"
+    }
+    
     private let center = UNUserNotificationCenter.current()
     private let cycleCalculator: any CycleCalculating
     
     public init(cycleCalculator: any CycleCalculating = CycleCalculator()) {
         self.cycleCalculator = cycleCalculator
+    }
+    
+    @MainActor
+    public func registerNotificationActions() async {
+        let taken = UNNotificationAction(
+            identifier: Action.taken.rawValue,
+            title: "notif_action_taken".localized,
+            options: [.authenticationRequired]
+        )
+        let skipped = UNNotificationAction(
+            identifier: Action.skipped.rawValue,
+            title: "notif_action_skip".localized,
+            options: [.authenticationRequired]
+        )
+        let category = UNNotificationCategory(
+            identifier: Category.dose.rawValue,
+            actions: [taken, skipped],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
     }
     
     /// Yêu cầu quyền gửi thông báo từ người dùng.
@@ -78,6 +108,7 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func scheduleReminders(for supplement: UserSupplement) async throws(NotificationError) {
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
+        await cancelReminders(for: supplement)
         let calendar = isoWeekCalendar()
         let horizonDays = schedulingHorizonDays(for: supplement)
         for timeString in intakeTimes(from: supplement.intakeTime) {
@@ -118,14 +149,19 @@ public struct NotificationService: NotificationManaging {
             try? await scheduleReminders(for: supplement)
         }
     }
+
+    @MainActor
+    public func clearAllPendingNotifications() async {
+        center.removeAllPendingNotificationRequests()
+        await NotificationShadowLogStore.shared.clear()
+    }
     
     // MARK: - Private Helpers
     
     private func intakeTimeComponents(from time: String, calendar: Calendar) -> DateComponents? {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        guard let timeDate = formatter.date(from: time) else { return nil }
-        return calendar.dateComponents([.hour, .minute], from: timeDate)
+        let trimmed = time.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let minutes = TimeStrings.parseLenientTime(trimmed) else { return nil }
+        return DateComponents(hour: minutes / 60, minute: minutes % 60)
     }
     
     private func upcomingTriggerDates(
@@ -185,16 +221,19 @@ public struct NotificationService: NotificationManaging {
         )
         content.sound = .default
         let cycle = cycleText(for: supplement, at: date)
-        content.userInfo = notificationUserInfo(for: supplement, timeString: timeString, cycle: cycle)
+        content.userInfo = notificationUserInfo(for: supplement, timeString: timeString, cycle: cycle, scheduledAt: date)
+        content.categoryIdentifier = Category.dose.rawValue
         return content
     }
     
     private func notificationUserInfo(
         for supplement: UserSupplement,
         timeString: String,
-        cycle: String
+        cycle: String,
+        scheduledAt: Date
     ) -> [AnyHashable: Any] {
         let dosage = supplement.dailyDose
+        let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
         return [
             "supplementID": supplement.id.uuidString,
             "supplementName": supplement.name,
@@ -202,7 +241,8 @@ public struct NotificationService: NotificationManaging {
             "dosage": dosage,
             "cycle": cycle,
             "dailyDose": dosage,
-            "cycleText": cycle
+            "cycleText": cycle,
+            "scheduledAtEpochMs": scheduledAtEpochMs
         ]
     }
     
@@ -266,7 +306,7 @@ public struct NotificationService: NotificationManaging {
     
     private func cycleText(for supplement: UserSupplement, at date: Date) -> String {
         let config = supplement.cycleConfig
-        guard !config.isContinuous else { return "Liên tục" }
+        guard !config.isContinuous else { return "cycle_continuous".localized }
         let total = config.daysOn + config.daysOff
         guard total > 0 else { return "" }
         
@@ -276,10 +316,12 @@ public struct NotificationService: NotificationManaging {
         let elapsed = calendar.dateComponents([.day], from: startDay, to: currentDay).day ?? 0
         let dayInCycle = (elapsed % total) + 1
         
-        if dayInCycle <= config.daysOn { return "Ngày \(dayInCycle)/\(config.daysOn)" }
+        if dayInCycle <= config.daysOn {
+            return String(format: "cycle_label_day_format".localized, dayInCycle, config.daysOn)
+        }
         let dayInOff = dayInCycle - config.daysOn
         let offTotal = max(config.daysOff, 1)
-        return "Nghỉ \(dayInOff)/\(offTotal)"
+        return String(format: "cycle_label_rest_format".localized, dayInOff, offTotal)
     }
     
     private func schedulingHorizonDays(for supplement: UserSupplement) -> Int {

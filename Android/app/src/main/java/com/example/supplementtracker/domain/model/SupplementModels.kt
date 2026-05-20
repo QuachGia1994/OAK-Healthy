@@ -25,11 +25,11 @@ sealed class Resource<out T> {
 /**
  * Thời điểm uống trong ngày.
  */
-enum class IntakeTime(val label: String) {
-    MORNING("Sáng"),
-    AFTERNOON("Trưa"),
-    EVENING("Chiều"),
-    NIGHT("Tối")
+enum class IntakeTime {
+    MORNING,
+    AFTERNOON,
+    EVENING,
+    NIGHT
 }
 
 /**
@@ -73,6 +73,7 @@ data class UserSupplement(
  */
 data class UserSupplementTakenToday(
     val supplement: UserSupplement,
+    val todayStatus: String?,
     val isTakenToday: Boolean
 )
 
@@ -90,7 +91,7 @@ data class SupplementReference(
 /**
  * Trạng thái chu kỳ.
  */
-enum class CycleStatus(val label: String) {
-    ON("Được uống"),
-    OFF("Nghỉ")
+enum class CycleStatus {
+    ON,
+    OFF
 }

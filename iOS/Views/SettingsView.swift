@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
@@ -9,6 +10,8 @@ public struct SettingsView: View {
     private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
+    @AppStorage("oakLastBackupExportEpochMs") private var lastBackupExportEpochMs: Double = 0
+    @AppStorage("oakLastBackupImportEpochMs") private var lastBackupImportEpochMs: Double = 0
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
@@ -18,6 +21,11 @@ public struct SettingsView: View {
     @State private var isShowingError = false
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
+    @State private var isShowingClearNotificationsConfirm: Bool = false
+    @State private var pendingNotificationCount: Int = 0
+    @State private var isShowingImportBackupSheet: Bool = false
+    @State private var importBackupText: String = ""
+    @State private var importBackupPreview: BackupPreview = .empty
     @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
     @AppStorage("oakPendingImportClientId") private var pendingImportClientId: String = ""
     @AppStorage("oakPendingImportClientName") private var pendingImportClientName: String = ""
@@ -44,6 +52,7 @@ public struct SettingsView: View {
         }
         .task(id: activeClientManager.currentClientId) {
             await reloadClientCaches()
+            await refreshPendingNotificationCount()
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
             ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
@@ -69,6 +78,92 @@ public struct SettingsView: View {
             Button("ok".localized) {}
         } message: {
             Text(importErrorMessage)
+        }
+        .confirmationDialog(
+            "notification_clear_pending_confirm_title".localized,
+            isPresented: $isShowingClearNotificationsConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("delete".localized, role: .destructive) {
+                Task {
+                    await NotificationService.shared.clearAllPendingNotifications()
+                    await refreshPendingNotificationCount()
+                }
+            }
+            Button("cancel".localized, role: .cancel) {}
+        } message: {
+            Text("notification_clear_pending_confirm_message".localized)
+        }
+        .sheet(isPresented: $isShowingImportBackupSheet) {
+            NavigationStack {
+                Form {
+                    if importBackupPreview.hasData {
+                        Section {
+                            Text("backup_preview_title".localized)
+                                .font(.headline)
+                            Text("\("backup_preview_schema_label".localized): \(importBackupPreview.schema)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\("backup_preview_updated_label".localized): \(importBackupPreview.updatedAtText)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\("backup_preview_device_label".localized): \(importBackupPreview.deviceIdText)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\("backup_preview_stack_label".localized): \(importBackupPreview.stackCount)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("\("backup_preview_history_label".localized): \(importBackupPreview.historyCount)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if !importBackupPreview.errorText.isEmpty {
+                        Section {
+                            Text(importBackupPreview.errorText)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                    
+                    TextEditor(text: $importBackupText)
+                        .frame(minHeight: 220)
+                        .overlay {
+                            if importBackupText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("backup_json_placeholder".localized)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 4)
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                            }
+                        }
+                        .onChange(of: importBackupText) {
+                            importBackupPreview = .empty
+                        }
+                    
+                    Button("backup_preview_action".localized) {
+                        previewImportBackup(from: importBackupText)
+                    }
+                }
+                .navigationTitle("import_data".localized)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("cancel".localized) { isShowingImportBackupSheet = false }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("import_data".localized) {
+                            Task { await importBackupFromText(importBackupText) }
+                        }
+                        .disabled(!importBackupPreview.hasData)
+                    }
+                    ToolbarItem(placement: .bottomBar) {
+                        Button("backup_paste_from_clipboard".localized) {
+                            importBackupText = UIPasteboard.general.string ?? ""
+                            importBackupPreview = .empty
+                            previewImportBackup(from: importBackupText)
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -100,9 +195,31 @@ public struct SettingsView: View {
                             let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
                             guard granted else { return }
                             await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
+                            await refreshPendingNotificationCount()
                         }
+                        return
+                    }
+                    Task {
+                        await NotificationService.shared.clearAllPendingNotifications()
+                        await refreshPendingNotificationCount()
                     }
                 }
+            
+            Text(String(format: "notification_pending_format".localized, pendingNotificationCount))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button("notification_reschedule_now".localized) {
+                Task {
+                    await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
+                    await refreshPendingNotificationCount()
+                }
+            }
+            .disabled(!isNotificationEnabledByUser)
+            
+            Button("notification_clear_pending".localized, role: .destructive) {
+                isShowingClearNotificationsConfirm = true
+            }
             
             if let shareStackPNGURL {
                 ShareLink(item: shareStackPNGURL) {
@@ -120,6 +237,35 @@ public struct SettingsView: View {
             NavigationLink("notification_debug_link".localized) {
                 NotificationDebugScreen()
             }
+            
+            Button {
+                Task { await exportBackupToClipboard() }
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("export_data".localized)
+                    if lastBackupExportEpochMs > 0 {
+                        Text(String(format: "backup_last_export_format".localized, formattedEpochMs(lastBackupExportEpochMs)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .disabled(activeClientManager.currentClientId == nil)
+            
+            Button {
+                importBackupText = ""
+                isShowingImportBackupSheet = true
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("import_data".localized)
+                    if lastBackupImportEpochMs > 0 {
+                        Text(String(format: "backup_last_import_format".localized, formattedEpochMs(lastBackupImportEpochMs)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .disabled(activeClientManager.currentClientId == nil)
         } header: {
             Text("data_tools".localized)
         }
@@ -401,6 +547,105 @@ public struct SettingsView: View {
         errorMessage = message
         isShowingError = true
     }
+
+    private func formattedEpochMs(_ epochMs: Double) -> String {
+        let date = Date(timeIntervalSince1970: epochMs / 1000.0)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy HH:mm"
+        return formatter.string(from: date)
+    }
+    
+    @MainActor
+    private func refreshPendingNotificationCount() async {
+        let snapshots = await NotificationService.shared.pendingRequestSnapshots()
+        pendingNotificationCount = snapshots.count
+    }
+    
+    @MainActor
+    private func exportBackupToClipboard() async {
+        guard let clientId = activeClientManager.currentClientId else {
+            showError(message: "missing_active_client".localized)
+            return
+        }
+        guard let client = clients.first(where: { $0.id == clientId }) else {
+            showError(message: "missing_active_client".localized)
+            return
+        }
+        do {
+            let allRecords = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
+            let recordsForClient = allRecords.filter { $0.supplement?.client?.id == clientId }
+            let data = try SupplementExportCodec.encodeBackup(supplements: cachedActiveSupplements, records: recordsForClient)
+            guard let json = String(data: data, encoding: .utf8) else {
+                showError(message: "export_failed".localized)
+                return
+            }
+            UIPasteboard.general.string = json
+            lastBackupExportEpochMs = Double(Date().timeIntervalSince1970 * 1000)
+        } catch {
+            showError(message: "export_failed".localized)
+        }
+    }
+    
+    @MainActor
+    private func importBackupFromText(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let clientId = activeClientManager.currentClientId else {
+            showError(message: "missing_active_client".localized)
+            return
+        }
+        guard let client = clients.first(where: { $0.id == clientId }) else {
+            showError(message: "missing_active_client".localized)
+            return
+        }
+        guard let data = trimmed.data(using: .utf8) else {
+            showError(message: "invalid_json".localized)
+            return
+        }
+        do {
+            try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
+            lastBackupImportEpochMs = Double(Date().timeIntervalSince1970 * 1000)
+            await reloadClientCaches()
+            if isNotificationEnabledByUser {
+                await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
+            }
+            await refreshPendingNotificationCount()
+            isShowingImportBackupSheet = false
+        } catch {
+            showError(message: "import_failed".localized)
+        }
+    }
+    
+    @MainActor
+    private func previewImportBackup(from text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            importBackupPreview = .empty
+            return
+        }
+        guard let data = trimmed.data(using: .utf8) else {
+            importBackupPreview = .error("invalid_json".localized)
+            return
+        }
+        do {
+            let decoded = try SupplementExportCodec.decodeBackupCompat(data: data)
+            let meta = decoded.meta
+            let schema = meta?.schemaVersion ?? 0
+            let updatedAt = meta?.updatedAtEpochMs ?? 0
+            let deviceId = meta?.deviceId ?? ""
+            let updatedText = updatedAt > 0 ? formattedEpochMs(Double(updatedAt)) : "not_available".localized
+            importBackupPreview = BackupPreview(
+                schema: schema > 0 ? "\(schema)" : "not_available".localized,
+                updatedAtText: updatedText,
+                deviceIdText: deviceId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "not_available".localized : deviceId,
+                stackCount: decoded.stack.count,
+                historyCount: decoded.history.count,
+                errorText: ""
+            )
+        } catch {
+            importBackupPreview = .error("invalid_json".localized)
+        }
+    }
     
     private var supplementsForActiveClient: [UserSupplement] {
         cachedActiveSupplements
@@ -428,6 +673,27 @@ public struct SettingsView: View {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         try data.write(to: url, options: [.atomic])
         return url
+    }
+}
+
+private struct BackupPreview: Hashable {
+    let schema: String
+    let updatedAtText: String
+    let deviceIdText: String
+    let stackCount: Int
+    let historyCount: Int
+    let errorText: String
+    
+    var hasData: Bool {
+        !schema.isEmpty && errorText.isEmpty
+    }
+    
+    static var empty: BackupPreview {
+        BackupPreview(schema: "", updatedAtText: "", deviceIdText: "", stackCount: 0, historyCount: 0, errorText: "")
+    }
+    
+    static func error(_ text: String) -> BackupPreview {
+        BackupPreview(schema: "", updatedAtText: "", deviceIdText: "", stackCount: 0, historyCount: 0, errorText: text)
     }
 }
 
@@ -549,15 +815,15 @@ private struct ClientEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
+                TextField("client_name_label".localized, text: $name)
             }
             .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("cancel".localized) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("save".localized) {
                         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmed.isEmpty else { return }
                         onSave(trimmed)

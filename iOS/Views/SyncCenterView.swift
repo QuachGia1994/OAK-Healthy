@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 public struct SyncCenterView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -26,6 +27,7 @@ public struct SyncCenterView: View {
     @State private var logQuery: String = ""
     @State private var logPhaseFilter: String = "ALL"
     @State private var syncPhase: SyncPhase = .idle
+    @State private var isManifestPartsVisible: Bool = false
     
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
@@ -157,6 +159,10 @@ public struct SyncCenterView: View {
                 } ?? false
                 let lastError = (UserDefaults.standard.string(forKey: lastErrorKey) ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                let stackId = (UserDefaults.standard.string(forKey: "cloudSyncStackBinId_\(activeBinId)") ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let historyId = (UserDefaults.standard.string(forKey: "cloudSyncHistoryBinId_\(activeBinId)") ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
                 
                 VStack(alignment: .leading, spacing: 6) {
                     if lastSyncEpochMs > 0 {
@@ -221,6 +227,53 @@ public struct SyncCenterView: View {
                         )
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    
+                    if !stackId.isEmpty || !historyId.isEmpty {
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                if !stackId.isEmpty {
+                                    Text(
+                                        String(
+                                            format: "sync_center_stack_id_label_format".localized,
+                                            isManifestPartsVisible ? stackId : String(repeating: "•", count: 16)
+                                        )
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                }
+                                if !historyId.isEmpty {
+                                    Text(
+                                        String(
+                                            format: "sync_center_history_id_label_format".localized,
+                                            isManifestPartsVisible ? historyId : String(repeating: "•", count: 16)
+                                        )
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Button(action: { isManifestPartsVisible.toggle() }) {
+                                Image(systemName: isManifestPartsVisible ? "eye.slash" : "eye")
+                                    .foregroundStyle(.gray)
+                            }
+                            .buttonStyle(.borderless)
+                            Button(action: {
+                                var text = ""
+                                if !stackId.isEmpty { text += "stack: \(stackId)\n" }
+                                if !historyId.isEmpty { text += "history: \(historyId)" }
+                                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !trimmed.isEmpty {
+                                    UIPasteboard.general.string = trimmed
+                                    showToast("sync_center_toast_code_copied".localized)
+                                }
+                            }) {
+                                Image(systemName: "doc.on.doc")
+                                    .foregroundStyle(.gray)
+                            }
+                            .buttonStyle(.borderless)
+                        }
                     }
                     
                     if pullMs > 0 || mergeMs > 0 || pushMs > 0 || totalMs > 0 {
@@ -333,6 +386,15 @@ public struct SyncCenterView: View {
                         .foregroundStyle(.gray)
                 }
                 .buttonStyle(.borderless)
+                
+                Button(action: {
+                    UIPasteboard.general.string = binId
+                    showToast("sync_center_toast_code_copied".localized)
+                }) {
+                    Image(systemName: "doc.on.doc")
+                        .foregroundStyle(.gray)
+                }
+                .buttonStyle(.borderless)
             }
             
             Button(role: .destructive) {
@@ -372,6 +434,14 @@ public struct SyncCenterView: View {
             }
             Button(action: { isInputCodeVisible.toggle() }) {
                 Image(systemName: isInputCodeVisible ? "eye.slash" : "eye")
+                    .foregroundStyle(.gray)
+            }
+            .buttonStyle(.borderless)
+            
+            Button(action: {
+                linkedBinId = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            }) {
+                Image(systemName: "clipboard")
                     .foregroundStyle(.gray)
             }
             .buttonStyle(.borderless)
@@ -439,10 +509,12 @@ public struct SyncCenterView: View {
                         }
                         Button("cancel".localized, role: .cancel) {}
                     }
+                    .buttonStyle(.borderless)
                     
                     Button("sync_center_refresh_key_action".localized) {
                         Task { await refreshExportedCloudKey() }
                     }
+                    .buttonStyle(.borderless)
                 }
                 
                 TextField("sync_center_import_key_placeholder".localized, text: $importCloudSyncKeyInput)
@@ -491,17 +563,18 @@ public struct SyncCenterView: View {
                 Picker("sync_center_logs_phase".localized, selection: $logPhaseFilter) {
                     Text("sync_center_logs_phase_all".localized).tag("ALL")
                     ForEach(availableLogPhases, id: \.self) { phase in
-                        Text(phase).tag(phase)
+                        Text(CloudSyncLogEntry.displayText(for: phase)).tag(phase)
                     }
                 }
                 .pickerStyle(.menu)
                 .font(.caption)
                 
                 HStack {
-                    ShareLink(item: rawLogJsonString) {
+                    ShareLink(item: prettyLogText) {
                         Text("sync_center_logs_export".localized)
                     }
                     .font(.caption)
+                    .buttonStyle(.borderless)
                     
                     Spacer()
                     Button(role: .destructive) { isShowingClearLogConfirm = true } label: {
@@ -517,6 +590,7 @@ public struct SyncCenterView: View {
                         }
                         Button("cancel".localized, role: .cancel) {}
                     }
+                    .buttonStyle(.borderless)
                 }
                 
                 if filteredLogEntries.isEmpty {
@@ -564,6 +638,11 @@ public struct SyncCenterView: View {
         let key = "cloudSyncLog_\(id)"
         guard let data = UserDefaults.standard.data(forKey: key) else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
+    }
+    
+    private var prettyLogText: String {
+        guard !logEntries.isEmpty else { return "[]" }
+        return logEntries.map { "\($0.title) — \($0.message)" }.joined(separator: "\n")
     }
     
     private var activeBinId: String {
@@ -1129,9 +1208,32 @@ private struct CloudSyncLogEntry: Codable, Identifiable {
     let phase: String
     let message: String
     
+    static func displayText(for phase: String) -> String {
+        switch phase.uppercased() {
+        case "HOST":
+            return "sync_log_phase_host".localized
+        case "SYNC":
+            return "sync_log_phase_sync".localized
+        case "PULL":
+            return "sync_center_chip_pull".localized
+        case "MERGE":
+            return "sync_center_chip_merge".localized
+        case "PUSH":
+            return "sync_center_chip_push".localized
+        case "CONFLICT":
+            return "sync_log_phase_conflict".localized
+        case "DONE":
+            return "sync_log_phase_done".localized
+        case "ERROR":
+            return "sync_log_phase_error".localized
+        default:
+            return phase
+        }
+    }
+    
     var title: String {
         let date = Date(timeIntervalSince1970: Double(epochMs) / 1000.0)
-        return "\(date.formatted(date: .abbreviated, time: .standard)) • \(phase)"
+        return "\(date.formatted(date: .abbreviated, time: .standard)) • \(Self.displayText(for: phase))"
     }
 }
 

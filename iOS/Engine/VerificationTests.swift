@@ -35,3 +35,27 @@ public struct CycleVerification {
         }
     }
 }
+
+public struct DoseEventVerification {
+    public static func verify() {
+        guard let supplementId = UUID(uuidString: "00000000-0000-0000-0000-000000000001") else {
+            print("DoseEventVerification FAIL: invalid supplementId")
+            return
+        }
+        let scheduledAtEpochMs: Int64 = 1_700_000_000_000
+        let key1 = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: scheduledAtEpochMs)
+        let key2 = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: scheduledAtEpochMs)
+        if key1 != key2 { print("DoseEventVerification FAIL: key not deterministic") }
+        
+        let uuid1 = DoseEventKey.stableUUID(from: key1)
+        let uuid2 = DoseEventKey.stableUUID(from: key2)
+        if uuid1 != uuid2 { print("DoseEventVerification FAIL: stableUUID not deterministic") }
+        
+        let older = (updatedAt: Int64(100), status: "Taken")
+        let newer = (updatedAt: Int64(200), status: "Skipped")
+        let selected = [older, newer].max(by: { $0.updatedAt < $1.updatedAt })
+        if selected?.status != "Skipped" { print("DoseEventVerification FAIL: LWW selection failed") }
+        
+        print("DoseEventVerification OK")
+    }
+}

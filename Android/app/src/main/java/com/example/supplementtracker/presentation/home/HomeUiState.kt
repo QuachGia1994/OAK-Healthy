@@ -10,7 +10,8 @@ sealed class HomeUiState {
     data object NoClient : HomeUiState()
     data class Success(
         val activeSupplements: Map<String, List<SupplementUiItem>>,
-        val restingSupplements: List<RestingSupplementInfo>
+        val restingSupplements: List<RestingSupplementInfo>,
+        val streakDays: Int
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }
@@ -20,9 +21,25 @@ sealed class HomeUiState {
  */
 data class SupplementUiItem(
     val supplement: UserSupplement,
-    val isTaken: Boolean,
-    val advice: String? = null
+    val timeString: String,
+    val scheduledAtEpochMs: Long,
+    val doseStatus: DoseStatus,
+    val advice: String? = null,
+    val isDueSoon: Boolean = false,
+    val isMissedSoon: Boolean = false
 )
+
+enum class DoseStatus {
+    PLANNED,
+    TAKEN,
+    SKIPPED,
+    MISSED
+}
+
+enum class DoseAction {
+    TAKEN,
+    SKIPPED
+}
 
 /**
  * Thông tin bổ sung cho chất đang nghỉ.

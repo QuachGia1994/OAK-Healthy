@@ -104,10 +104,6 @@ class HistoryViewModel(
 
     private fun dayLabel(date: LocalDate): String {
         val locale = Locale.getDefault()
-        if (locale.language == "vi") {
-            val value = date.dayOfWeek.value
-            return if (value == 7) "CN" else "Thứ ${value + 1}"
-        }
         return date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
     }
 }

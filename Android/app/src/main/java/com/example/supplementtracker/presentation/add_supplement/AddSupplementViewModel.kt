@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.Resource
 import com.example.supplementtracker.domain.model.SupplementReference
@@ -14,16 +15,19 @@ import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
 import com.example.supplementtracker.domain.usecase.SearchSupplementUseCase
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.service.NotificationSchedulerImpl
 import com.example.supplementtracker.worker.CycleCheckWorker
 import java.util.concurrent.TimeUnit
 import android.content.Context
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import com.example.supplementtracker.domain.util.TimeStrings
 
 /**
  * ViewModel xử lý logic UI cho màn hình thêm chất.
@@ -61,7 +65,7 @@ class AddSupplementViewModel(
     private suspend fun performSearch(query: String) {
         _state.update { it.copy(isLoading = true) }
         val result = runCatching { searchUseCase(query) }
-            .getOrElse { Resource.Error(it.message ?: "Unknown error") }
+            .getOrElse { Resource.Error(it.message ?: context.getString(R.string.error_unknown)) }
         when (result) {
             is Resource.Success -> {
                 _state.update { it.copy(suggestions = result.data, isLoading = false) }
@@ -77,10 +81,11 @@ class AddSupplementViewModel(
      * Áp dụng dữ liệu từ gợi ý.
      */
     fun onSuggestionClick(reference: SupplementReference) {
+        val normalized = TimeStrings.normalizeString(reference.preferredTime)
         _state.update {
             it.copy(
                 name = reference.name,
-                intakeTime = reference.preferredTime,
+                intakeTime = normalized,
                 dailyDose = reference.preferredDose ?: it.dailyDose,
                 isContinuous = reference.defaultCycle.isContinuous,
                 daysOn = reference.defaultCycle.daysOn.toString(),
@@ -94,7 +99,7 @@ class AddSupplementViewModel(
     }
 
     fun onTimeChange(time: String) {
-        _state.update { it.copy(intakeTime = time) }
+        _state.update { it.copy(intakeTime = TimeStrings.normalizeString(time)) }
     }
 
     fun onStartDateChange(date: LocalDate) {
@@ -152,12 +157,13 @@ class AddSupplementViewModel(
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
             val weekly = supplement.cycleConfig.weeklyRecurrence
+            val normalizedTime = TimeStrings.normalizeString(supplement.intakeTime)
             _state.update {
                 it.copy(
                     editingSupplementId = supplement.id.toString(),
                     name = supplement.name,
                     startDate = supplement.startDate,
-                    intakeTime = supplement.intakeTime,
+                    intakeTime = normalizedTime,
                     isContinuous = supplement.cycleConfig.isContinuous,
                     daysOn = supplement.cycleConfig.daysOn.toString(),
                     daysOff = supplement.cycleConfig.daysOff.toString(),
@@ -180,6 +186,12 @@ class AddSupplementViewModel(
         val currentState = _state.value
         val name = currentState.name.trim()
         if (name.isEmpty()) return
+
+        val normalizedTime = TimeStrings.normalizeString(currentState.intakeTime)
+        if (normalizedTime.isBlank()) {
+            _state.update { it.copy(error = context.getString(R.string.add_supplement_error_invalid_time)) }
+            return
+        }
         
         val daysOn = if (currentState.isContinuous) null else currentState.daysOn.toIntOrNull()
         val daysOff = if (currentState.isContinuous) null else currentState.daysOff.toIntOrNull()
@@ -187,7 +199,7 @@ class AddSupplementViewModel(
         if (!currentState.isContinuous) {
             val isInvalid = (daysOn == null || daysOn <= 0) || (daysOff == null || daysOff < 0)
             if (isInvalid) {
-                _state.update { it.copy(error = "Please enter valid On/Off days.") }
+                _state.update { it.copy(error = context.getString(R.string.add_supplement_error_invalid_cycle_days)) }
                 return
             }
         }
@@ -195,7 +207,7 @@ class AddSupplementViewModel(
         viewModelScope.launch {
             val clientId = activeClientManager.currentClientId.value
             if (clientId == null) {
-                _state.update { it.copy(error = "Select a client first.") }
+                _state.update { it.copy(error = context.getString(R.string.missing_active_client)) }
                 return@launch
             }
 
@@ -223,7 +235,7 @@ class AddSupplementViewModel(
                         )
                     },
                     dailyDose = currentState.dailyDose,
-                    intakeTime = currentState.intakeTime,
+                    intakeTime = normalizedTime,
                     updatedAtEpochMs = System.currentTimeMillis()
                 )
                 if (currentState.editingSupplementId == null) {
@@ -234,11 +246,22 @@ class AddSupplementViewModel(
                 
                 // Enqueue Worker để kiểm tra chu kỳ hàng ngày
                 enqueueCycleCheckWorker()
+
+                val supplements = repository.getAllSupplements(clientId.toString()).first()
+                NotificationSchedulerImpl(context).rescheduleAll(supplements)
                 
                 _state.update { it.copy(isLoading = false) }
                 onSuccess()
             } catch (e: Exception) {
-                _state.update { it.copy(isLoading = false, error = "Failed to save: ${e.message}") }
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = context.getString(
+                            R.string.add_supplement_error_save_failed_format,
+                            e.message ?: context.getString(R.string.error_unknown)
+                        )
+                    )
+                }
             }
         }
     }

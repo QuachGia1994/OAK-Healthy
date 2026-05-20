@@ -71,7 +71,7 @@ fun NotificationCheckScreen(onBack: () -> Unit) {
     var upcoming by remember { mutableStateOf(emptyList<ScheduledAlarmInfo>()) }
     val grouped = remember(upcoming) { groupByDate(upcoming) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy") }
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("H:mm") }
 
     val reload: () -> Unit = { upcoming = NotificationDebugStore.getUpcoming(context) }
     LaunchedEffect(Unit) { reload() }

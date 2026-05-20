@@ -25,6 +25,39 @@
     <string name="settings_author">Tác giả: Mr. Phong (Personal Trader)</string>
     <string name="settings_copyright">© 2026 OAK Healthy. All rights reserved.</string>
     <string name="settings_dedication">Bằng cả tâm huyết và nghiên cứu trong hành trình gym &amp; trading.</string>
+    <string name="settings_section_multidevice_sync">Đồng bộ đa thiết bị</string>
+    <string name="settings_section_about_and_copyright">Giới thiệu &amp; Bản quyền</string>
+    <string name="settings_row_notification_list">Kiểm tra danh sách thông báo</string>
+    <string name="settings_share_error_missing_activity">Lỗi chia sẻ: Thiếu Activity</string>
+    <string name="settings_share_error_missing_saved_state_registry_owner">Lỗi chia sẻ: Thiếu SavedStateRegistryOwner</string>
+    <string name="settings_share_error_missing_view_model_store_owner">Lỗi chia sẻ: Thiếu ViewModelStoreOwner</string>
+    <string name="settings_share_error_format">Lỗi chia sẻ: %1$s</string>
+    <string name="settings_notifications_title">Thông báo</string>
+    <string name="notification_permission_toggle">Cho phép gửi thông báo</string>
+    <string name="notification_reschedule_now">Đặt lịch lại thông báo</string>
+    <string name="notification_clear_pending">Xoá thông báo đang chờ</string>
+    <string name="notification_pending_label">Đang chờ</string>
+    <string name="notification_clear_pending_confirm_title">Xoá thông báo đang chờ?</string>
+    <string name="notification_clear_pending_confirm_message">Hành động này sẽ xoá toàn bộ lịch nhắc trên thiết bị này. Tiếp tục?</string>
+    <string name="backup_copied_to_clipboard">Đã copy vào clipboard</string>
+    <string name="backup_json_label">Backup JSON</string>
+    <string name="backup_paste_from_clipboard">Dán từ clipboard</string>
+    <string name="backup_preview_action">Xem trước</string>
+    <string name="backup_preview_title">Xem trước</string>
+    <string name="backup_preview_schema_label">Schema</string>
+    <string name="backup_preview_updated_label">Cập nhật</string>
+    <string name="backup_preview_device_label">Thiết bị</string>
+    <string name="backup_preview_stack_label">Stack</string>
+    <string name="backup_preview_history_label">Lịch sử</string>
+    <string name="export_failed">Xuất dữ liệu thất bại</string>
+    <string name="settings_exact_alarm_tip">Để nhận thông báo chính xác, vui lòng bật Báo thức chính xác (Exact alarm) cho OAK Healthy.</string>
+    <string name="settings_exact_alarm_enable_title">Bật Báo thức chính xác</string>
+    <string name="settings_exact_alarm_status_title">Báo thức chính xác</string>
+    <string name="settings_battery_opt_tip">Để nhận thông báo chính xác, vui lòng tắt Tối ưu hoá pin cho OAK Healthy.</string>
+    <string name="settings_battery_opt_disable_title">Tắt Tối ưu hoá pin</string>
+    <string name="settings_battery_opt_on">Đang bật</string>
+    <string name="settings_battery_opt_status_title">Tối ưu hoá pin</string>
+    <string name="settings_battery_opt_off">Đã tắt</string>
 
     <string name="appearance_title">Giao diện</string>
     <string name="appearance_light">Sáng</string>
@@ -34,6 +67,8 @@
     <string name="cycle_status_off">Đang trong kỳ nghỉ</string>
     <string name="cycle_continuous">Uống liên tục</string>
     <string name="cycle_summary_format">%1$s: %2$d ngày uống / %3$d ngày nghỉ</string>
+    <string name="cycle_label_day_format">Ngày %1$d/%2$d</string>
+    <string name="cycle_label_rest_format">Nghỉ %1$d/%2$d</string>
 
     <string name="today_intake_title">Cần uống hôm nay</string>
     <string name="resting_title">Đang nghỉ</string>
@@ -51,6 +86,7 @@
     <string name="save">Lưu</string>
     <string name="edit">Chỉnh sửa</string>
     <string name="delete">Xóa</string>
+    <string name="delete_confirm_message">Hành động này sẽ xóa mục này. Bạn có chắc không?</string>
     <string name="name_hint">Tên chất (VD: Vitamin D3)</string>
     <string name="daily_dose_hint">Liều lượng hàng ngày</string>
     <string name="schedule_cycle_title">Lịch trình &amp; Chu kỳ</string>
@@ -72,6 +108,11 @@
     <string name="manage_stack">Quản lý Stack</string>
 
     <string name="history_title">Lịch sử</string>
+    <string name="history_today">Hôm nay</string>
+    <string name="history_yesterday">Hôm qua</string>
+    <string name="history_not_available">N/A</string>
+    <string name="history_search_placeholder">Tìm theo tên chất</string>
+    <string name="history_filter_all">Tất cả</string>
     <string name="intake_frequency_last_7">Tần suất uống (7 ngày qua)</string>
     <string name="log_details">Chi tiết nhật ký</string>
     <string name="no_logs_yet">Chưa có nhật ký nào.</string>
@@ -81,9 +122,17 @@
     <string name="notification_default_name">Thực phẩm bổ sung</string>
     <string name="notification_title">Đến giờ uống rồi! 🌿</string>
     <string name="notification_body_format">Bạn cần nạp %1$s - Liều lượng: %2$s. Chúc bạn một phiên giao dịch/làm việc hiệu quả!</string>
+    <string name="notif_action_taken">Đã uống</string>
+    <string name="notif_action_skip">Bỏ qua</string>
+    <string name="home_status_planned">Chưa uống</string>
+    <string name="home_status_missed">Trễ</string>
+    <string name="home_streak_format">Chuỗi: %1$d</string>
+    <string name="home_due_soon">Sắp tới</string>
+    <string name="home_almost_missed">Sắp trễ</string>
 
     <string name="client_management">Quản lý học viên</string>
     <string name="add_a_client">Thêm học viên</string>
+    <string name="client_name_label">Tên</string>
     <string name="student_prefix">Học viên: %1$s</string>
     <string name="select">Chuyển</string>
     <string name="add_client_to_start">Thêm học viên để bắt đầu.</string>
@@ -106,10 +155,128 @@
     <string name="export_data">Xuất dữ liệu</string>
     <string name="import_data">Nhập dữ liệu</string>
     <string name="share_stack">Chia sẻ danh sách</string>
+    <string name="stack_share_my_stack">Danh sách của tôi</string>
+    <string name="stack_share_footer">oakhealthy.app</string>
     <string name="data_tools">Dữ liệu</string>
     <string name="missing_active_client">Vui lòng chọn học viên trước.</string>
     <string name="invalid_json">File JSON không hợp lệ.</string>
     <string name="import_success">Đã nhập dữ liệu.</string>
+
+    <string name="sync_center_tab_host">Host</string>
+    <string name="sync_center_tab_link">Link</string>
+
+    <string name="sync_center_revoke_title">Thu hồi mã liên kết?</string>
+    <string name="sync_center_revoke_message">Thiết bị khác sẽ không còn sync được với mã hiện tại.</string>
+    <string name="sync_center_rotate_title">Rotate key?</string>
+    <string name="sync_center_rotate_message">Thiết bị khác cần import key mới để đọc dữ liệu upload sau khi rotate.</string>
+    <string name="sync_center_disable_encryption_title">Tắt mã hoá?</string>
+    <string name="sync_center_disable_encryption_message">Dữ liệu sẽ upload dạng plaintext JSON. Hãy chắc chắn bạn hiểu rủi ro bảo mật.</string>
+    <string name="sync_center_rehost_title">Phát dữ liệu lại?</string>
+    <string name="sync_center_rehost_message">Mã hiện tại sẽ bị thu hồi và tạo mã mới. Thiết bị khác phải nhập mã mới để sync.</string>
+    <string name="sync_center_import_key_title">Import key?</string>
+    <string name="sync_center_clear_log_title">Xoá log sync?</string>
+    <string name="sync_center_clear_log_message">Hành động này chỉ xoá log trên thiết bị hiện tại.</string>
+    <string name="sync_center_export_log_title">Export log?</string>
+    <string name="sync_center_export_log_message">Log sẽ được copy vào clipboard để bạn dán gửi đi.</string>
+
+    <string name="sync_center_device_a_title">Thiết bị A (Host)</string>
+    <string name="sync_center_device_a_desc">Bấm Phát dữ liệu để tạo mã. Thiết bị B dùng mã này để link.</string>
+    <string name="sync_center_step_host_1">Bật Mã hoá dữ liệu cloud nếu muốn bảo mật (khuyến nghị).</string>
+    <string name="sync_center_step_host_2">Bấm Phát dữ liệu để tạo mã liên kết.</string>
+    <string name="sync_center_step_host_3">Copy mã và gửi sang thiết bị B (tab Link).</string>
+    <string name="sync_center_action_host_data">Phát dữ liệu</string>
+    <string name="sync_center_link_code_label">Mã liên kết:</string>
+    <string name="sync_center_action_hide">Ẩn</string>
+    <string name="sync_center_action_show">Hiện</string>
+
+    <string name="sync_center_device_b_title">Thiết bị B (Link)</string>
+    <string name="sync_center_device_b_desc">Nhập mã từ thiết bị A rồi bấm Tải về.</string>
+    <string name="sync_center_step_link_1">Nhập mã liên kết từ thiết bị A.</string>
+    <string name="sync_center_step_link_2">Bấm Tải về để pull + merge dữ liệu.</string>
+    <string name="sync_center_step_link_3">Nếu đang bật mã hoá, import key tương ứng để đọc dữ liệu cloud.</string>
+    <string name="sync_center_link_code_input_label">Mã liên kết</string>
+    <string name="sync_center_action_download">Tải về</string>
+    <string name="sync_center_auto_sync_label">Tự động đồng bộ</string>
+
+    <string name="sync_center_status_title">Trạng thái sync</string>
+    <string name="sync_center_not_yet">Chưa có</string>
+    <string name="sync_center_status_code_format">Mã: %1$s</string>
+    <string name="sync_center_status_last_sync_format">Lần sync gần nhất: %1$s</string>
+    <string name="sync_center_status_last_attempt_format">Lần thử gần nhất: %1$s</string>
+    <string name="sync_center_status_pending_changes">Có thay đổi cục bộ chưa upload</string>
+    <string name="sync_center_status_no_pending_changes">Không có thay đổi cục bộ</string>
+    <string name="sync_center_status_bytes_format">Download: %1$s • Upload: %2$s</string>
+    <string name="sync_center_status_timings_format">Pull %1$dms • Merge %2$dms • Push %3$dms • Total %4$dms</string>
+    <string name="sync_center_status_last_error_format">Lỗi lần trước: %1$s</string>
+    <string name="sync_center_status_hint_missing_key">Gợi ý: có thể thiếu sync key. Hãy Copy key từ thiết bị Host và Import key tại mục Mã hoá.</string>
+
+    <string name="sync_center_encryption_title">Mã hoá dữ liệu cloud</string>
+    <string name="sync_center_export_key_label">Sync key (copy sang thiết bị khác)</string>
+    <string name="sync_center_import_key_input_label">Nhập key (keyId:base64)</string>
+    <string name="sync_center_logs_title">Sync log (gần đây)</string>
+    <string name="sync_center_logs_search_label">Tìm trong log</string>
+
+    <string name="sync_center_import_key_note_invalid_format">Key format không hợp lệ (cần keyId:base64).</string>
+    <string name="sync_center_import_key_note_same_current">KeyId này trùng với current key.</string>
+    <string name="sync_center_import_key_note_same_previous">KeyId này trùng với previous key.</string>
+    <string name="sync_center_import_key_note_keyid_format">KeyId: %1$s</string>
+
+    <string name="sync_center_action_revoke">Thu hồi</string>
+    <string name="sync_center_action_rotate">Rotate</string>
+    <string name="sync_center_action_disable">Tắt</string>
+    <string name="sync_center_action_keep_encryption">Giữ mã hoá</string>
+    <string name="sync_center_action_create_new_code">Tạo mã mới</string>
+    <string name="sync_center_action_import">Import</string>
+    <string name="sync_center_action_delete">Xoá</string>
+    <string name="sync_center_action_copy">Copy</string>
+    <string name="sync_center_action_paste">Dán</string>
+    <string name="sync_center_action_cancel">Hủy</string>
+    <string name="sync_center_action_sync_now">Sync ngay</string>
+    <string name="sync_center_action_copy_key">Copy key</string>
+    <string name="sync_center_action_import_key">Import key</string>
+    <string name="sync_center_action_export">Export</string>
+    <string name="sync_center_action_clear">Clear</string>
+
+    <string name="sync_center_toast_code_copied">Đã sao chép mã</string>
+    <string name="sync_center_toast_key_copied">Đã sao chép key</string>
+    <string name="sync_center_toast_key_imported">Đã import key</string>
+    <string name="sync_center_toast_log_cleared">Đã xoá log</string>
+    <string name="sync_center_toast_log_copied">Đã copy log</string>
+
+    <string name="sync_center_filter_all">Tất cả</string>
+    <string name="sync_center_filter_error">Lỗi</string>
+    <string name="sync_center_filter_host">Host</string>
+    <string name="sync_center_filter_done">Xong</string>
+    <string name="sync_center_phase_label">Giai đoạn</string>
+    <string name="sync_center_stack_id_label_format">Stack: %1$s</string>
+    <string name="sync_center_history_id_label_format">History: %1$s</string>
+
+    <string name="cloud_host_export_stack_failed">Xuất stack thất bại</string>
+    <string name="cloud_host_export_history_failed">Xuất lịch sử thất bại</string>
+    <string name="cloud_host_encrypt_stack_failed">Mã hoá stack thất bại</string>
+    <string name="cloud_host_encrypt_history_failed">Mã hoá lịch sử thất bại</string>
+    <string name="cloud_host_load_manifest_failed">Tải manifest thất bại</string>
+    <string name="cloud_host_decrypt_manifest_failed">Giải mã manifest thất bại</string>
+    <string name="cloud_host_decode_manifest_failed">Đọc manifest thất bại</string>
+    <string name="cloud_host_export_failed">Xuất dữ liệu thất bại</string>
+    <string name="cloud_host_encrypt_failed">Mã hoá thất bại</string>
+    <string name="cloud_host_encrypt_manifest_failed">Mã hoá manifest thất bại</string>
+    <string name="cloud_host_upload_stack_failed">Upload stack thất bại</string>
+    <string name="cloud_host_upload_history_failed">Upload lịch sử thất bại</string>
+    <string name="cloud_host_upload_manifest_failed">Upload manifest thất bại</string>
+    <string name="cloud_host_update_existing_success">Đã cập nhật dữ liệu lên mã hiện tại.</string>
+    <string name="cloud_host_failed_format">Phát dữ liệu thất bại: %1$s</string>
+    <string name="cloud_host_success">Phát dữ liệu thành công!</string>
+    <string name="cloud_encryption_enabled">Đã bật mã hoá cloud sync</string>
+    <string name="cloud_encryption_disabled">Đã tắt mã hoá cloud sync</string>
+    <string name="cloud_encryption_failed">Cấu hình mã hoá thất bại</string>
+    <string name="cloud_rotate_success">Đã rotate key (hãy copy key mới sang thiết bị khác)</string>
+    <string name="cloud_rotate_failed">Rotate key thất bại</string>
+    <string name="cloud_import_key_success_format">Đã import key: %1$s</string>
+    <string name="cloud_import_key_failed">Import key thất bại</string>
+    <string name="cloud_revoke_missing_code">Không có mã để thu hồi.</string>
+    <string name="cloud_revoke_success">Đã vô hiệu hóa mã.</string>
+    <string name="cloud_revoke_failed_format">Thu hồi mã thất bại: %1$s</string>
 
     <string name="notification_check_title">Danh sách thông báo</string>
     <string name="notification_check_reload">Làm mới danh sách</string>
@@ -127,7 +294,11 @@
     <string name="home_intake_confirm_title">Xác nhận uống</string>
     <string name="home_intake_confirm_message">Bạn đã uống chất này? Hành động này sẽ được ghi vào Lịch sử và không thể hoàn tác.</string>
     <string name="home_intake_confirm_taken">Đã uống</string>
+    <string name="home_intake_confirm_skip">Bỏ qua</string>
     <string name="home_intake_confirm_cancel">Hủy</string>
 
-    <string name="client_name_label">Tên</string>
+    <string name="error_unknown">Lỗi không xác định</string>
+    <string name="add_supplement_error_invalid_time">Vui lòng nhập giờ hợp lệ (VD: 09:00 hoặc 9:00).</string>
+    <string name="add_supplement_error_invalid_cycle_days">Vui lòng nhập số ngày Uống/Nghỉ hợp lệ.</string>
+    <string name="add_supplement_error_save_failed_format">Lưu thất bại: %1$s</string>
 </resources>

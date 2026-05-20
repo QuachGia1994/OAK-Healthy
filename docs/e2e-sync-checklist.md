@@ -37,6 +37,29 @@ Mục tiêu: verify runtime end-to-end sau các thay đổi sync/encryption/mani
 - B: chỉ thêm record (history) → sync.
 - A: sync → verify nhận thay đổi.
 
+**2.4 DoseKey/LWW hội tụ (không duplicate record)**
+- Chuẩn bị 1 supplement có multi-time: `08:00, 20:00` trên cả A/B (sync trước để 2 bên cùng state).
+- Tạo conflict offline:
+  - B: tắt mạng.
+  - A: đúng giờ `08:00` → mark Taken → sync.
+  - B: (offline) đúng giờ `08:00` → mark Skipped.
+  - B: bật mạng → sync.
+  - A: sync.
+- Verify:
+  - Chỉ có 1 record cho dose event `08:00` (không được xuất hiện 2 dòng Taken/Skipped cho cùng giờ).
+  - Trạng thái cuối cùng theo LWW (record có `updatedAt` mới hơn thắng).
+- Lặp lại nhanh cho mốc `20:00` để đảm bảo multi-time không overwrite nhau.
+
+**2.5 Notification reschedule sau edit/delete/sync (không orphan/không giờ cũ)**
+- A: với supplement `08:00, 20:00` → edit thành `09:00, 20:00` → save.
+- Verify ngay trên A:
+  - Android: mở “Notification List / Notification Check” để confirm không còn `08:00`, có `09:00`.
+  - iOS: mở “Notification Debug” để confirm không còn `08:00`, có `09:00`.
+- B: sync → verify nhận intakeTime mới và list notifications reflect state mới (không còn giờ cũ).
+- Delete:
+  - A: delete supplement → sync.
+  - B: sync → verify không còn pending notifications thuộc supplement đó (không orphan).
+
 ## 3) Encryption on/off + import/rotate
 **3.1 Enable**
 - A: bật encryption → export key.
@@ -71,4 +94,3 @@ Mục tiêu: verify runtime end-to-end sau các thay đổi sync/encryption/mani
 - Android: Export log (copy clipboard) → dán gửi.
 - iOS: Export log (ShareLink) → gửi text raw JSON.
 - Kèm: thiết bị A/B, bước checklist, trạng thái encryption (on/off), có rotate/import không, link code loại nào (legacy/manifest).
-

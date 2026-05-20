@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,7 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.supplementtracker.R
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -154,14 +156,14 @@ private fun StackShareCapture(
                 .padding(20.dp)
         ) {
             Text(
-                text = "OAK Healthy",
+                text = stringResource(R.string.app_name),
                 color = titleColor,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "My Stack",
+                text = stringResource(R.string.stack_share_my_stack),
                 color = secondaryColor,
                 fontSize = 14.sp
             )
@@ -205,7 +207,7 @@ private fun StackShareCapture(
 
             Spacer(modifier = Modifier.height(32.dp))
             Text(
-                text = "oakhealthy.app",
+                text = stringResource(R.string.stack_share_footer),
                 color = tertiaryColor,
                 fontSize = 12.sp
             )

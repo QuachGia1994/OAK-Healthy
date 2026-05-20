@@ -9,6 +9,16 @@ import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
 
 object SupplementExportJson {
+    private fun stableSupplementId(name: String, startDate: String, intakeTime: String): String {
+        return "s-" + com.example.supplementtracker.domain.util.StableId.hexSha256(
+            listOf(name.trim(), startDate.trim(), intakeTime.trim()).joinToString("|")
+        ).take(32)
+    }
+
+    private fun stableHistoryId(supplementId: String, dateEpochMs: Long): String {
+        return com.example.supplementtracker.domain.util.DoseEventKey.make(supplementId = supplementId, scheduledAtEpochMs = dateEpochMs)
+    }
+
     fun encode(file: SupplementExportFileDTO): String {
         val root = JSONObject()
         root.put("schemaVersion", file.schemaVersion)
@@ -93,6 +103,36 @@ object SupplementExportJson {
 object OAKBackupJson {
     private const val HISTORY_COMPRESS_THRESHOLD = 200
 
+    private fun stableSupplementId(name: String, startDate: String, intakeTime: String): String {
+        return "s-" + com.example.supplementtracker.domain.util.StableId.hexSha256(
+            listOf(name.trim(), startDate.trim(), intakeTime.trim()).joinToString("|")
+        ).take(32)
+    }
+
+    private fun stableHistoryId(supplementId: String, dateEpochMs: Long): String {
+        return com.example.supplementtracker.domain.util.DoseEventKey.make(
+            supplementId = supplementId,
+            scheduledAtEpochMs = dateEpochMs
+        )
+    }
+
+    private fun stableLegacySupplementId(dto: SupplementExportSupplementDTO): String {
+        val key = listOf(
+            dto.name.trim(),
+            dto.dailyDose.trim(),
+            dto.intakeTime.trim(),
+            dto.startDate.trim(),
+            dto.cycle.isContinuous.toString(),
+            dto.cycle.daysOn.toString(),
+            dto.cycle.daysOff.toString(),
+            dto.cycle.durationMonths?.toString().orEmpty(),
+            dto.cycle.weeklyWeekdaysMask?.toString().orEmpty(),
+            dto.cycle.weeklyIntervalWeeks?.toString().orEmpty(),
+            dto.cycle.weeklyAnchorDate?.trim().orEmpty()
+        ).joinToString("|")
+        return "s-" + com.example.supplementtracker.domain.util.StableId.hexSha256(key).take(32)
+    }
+
     fun encode(data: OAKBackupDataDTO): String {
         val root = JSONObject()
         root.put("version", data.version)
@@ -135,7 +175,7 @@ object OAKBackupJson {
                     version = OAKBackupSchema.VERSION,
                     stack = legacy.supplements.map { legacyDto ->
                         OAKBackupSupplementDTO(
-                            id = java.util.UUID.randomUUID().toString(),
+                            id = stableLegacySupplementId(legacyDto),
                             name = legacyDto.name,
                             dailyDose = legacyDto.dailyDose,
                             intakeTime = legacyDto.intakeTime,
@@ -154,7 +194,7 @@ object OAKBackupJson {
                     version = OAKBackupSchema.VERSION,
                     stack = legacy.supplements.map { legacyDto ->
                         OAKBackupSupplementDTO(
-                            id = java.util.UUID.randomUUID().toString(),
+                            id = stableLegacySupplementId(legacyDto),
                             name = legacyDto.name,
                             dailyDose = legacyDto.dailyDose,
                             intakeTime = legacyDto.intakeTime,
@@ -259,12 +299,15 @@ object OAKBackupJson {
     }
 
     private fun decodeSupplement(obj: JSONObject): OAKBackupSupplementDTO {
+        val name = obj.optString("name", "")
+        val startDate = obj.optString("startDate", "1970-01-01")
+        val intakeTime = obj.optString("intakeTime", "08:00")
         return OAKBackupSupplementDTO(
-            id = obj.optString("id", java.util.UUID.randomUUID().toString()),
-            name = obj.optString("name", ""),
+            id = obj.optString("id", "").ifBlank { stableSupplementId(name, startDate, intakeTime) },
+            name = name,
             dailyDose = obj.optString("dailyDose", ""),
-            intakeTime = obj.optString("intakeTime", "08:00"),
-            startDate = obj.optString("startDate", "1970-01-01"),
+            intakeTime = intakeTime,
+            startDate = startDate,
             cycle = decodeCycle(obj.optJSONObject("cycle") ?: JSONObject()),
             updatedAtEpochMs = obj.optLong("updatedAtEpochMs", 0L),
             deletedAtEpochMs = obj.optLong("deletedAtEpochMs", -1L).takeIf { it >= 0L }
@@ -284,10 +327,11 @@ object OAKBackupJson {
     private fun decodeHistory(obj: JSONObject): OAKBackupHistoryDTO {
         val supplementId = obj.optString("supplementId", "")
         if (supplementId.isBlank()) error("Missing supplementId")
+        val dateEpochMs = obj.optLong("dateEpochMs", 0L)
         return OAKBackupHistoryDTO(
-            id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+            id = obj.optString("id", "").ifBlank { stableHistoryId(supplementId, dateEpochMs) },
             supplementId = supplementId,
-            dateEpochMs = obj.optLong("dateEpochMs", 0L),
+            dateEpochMs = dateEpochMs,
             status = obj.optString("status", "Taken"),
             updatedAtEpochMs = obj.optLong("updatedAtEpochMs", 0L)
         )

@@ -78,6 +78,9 @@ interface SupplementDao {
     @Query("DELETE FROM intake_records WHERE supplementId = :supplementId AND date >= :startOfDay AND date <= :endOfDay")
     suspend fun deleteRecordByDate(supplementId: String, startOfDay: Long, endOfDay: Long)
 
+    @Query("DELETE FROM intake_records WHERE supplementId = :supplementId AND date = :date AND id != :keepId")
+    suspend fun deleteDuplicateIntakeRecords(supplementId: String, date: Long, keepId: String)
+
     @Query(
         """
         SELECT
@@ -94,6 +97,15 @@ interface SupplementDao {
             s.weeklyWeekdaysMask AS weeklyWeekdaysMask,
             s.weeklyIntervalWeeks AS weeklyIntervalWeeks,
             s.weeklyAnchorDate AS weeklyAnchorDate,
+            (
+                SELECT r.status
+                FROM intake_records r
+                WHERE r.supplementId = s.id
+                AND r.date >= :startOfDay
+                AND r.date <= :endOfDay
+                ORDER BY r.updatedAtEpochMs DESC
+                LIMIT 1
+            ) AS todayStatus,
             CASE
                 WHEN EXISTS (
                     SELECT 1
@@ -175,6 +187,18 @@ interface SupplementDao {
 
     @Query("DELETE FROM supplements WHERE clientId = :clientId")
     suspend fun deleteAllSupplementsByClient(clientId: String)
+
+    @Transaction
+    suspend fun importBackupAtomic(
+        clientId: String,
+        supplements: List<SupplementEntity>,
+        records: List<IntakeRecordEntity>
+    ) {
+        deleteAllIntakeRecordsByClient(clientId)
+        deleteAllSupplementsByClient(clientId)
+        supplements.forEach { insertSupplement(it) }
+        records.forEach { insertIntakeRecord(it) }
+    }
 }
 
 data class IntakeRecordWithSupplementEntity(
@@ -201,5 +225,6 @@ data class SupplementWithTakenTodayEntity(
     val weeklyWeekdaysMask: Int?,
     val weeklyIntervalWeeks: Int?,
     val weeklyAnchorDate: String?,
+    val todayStatus: String?,
     val isTakenToday: Boolean
 )

@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -62,6 +63,10 @@ import org.json.JSONArray
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +89,7 @@ fun SyncCenterScreen(
     var isEncryptionEnabled by remember { mutableStateOf(prefs.getBoolean("cloudSyncEncryptionEnabled", false)) }
     var encryptionKeyInput by remember { mutableStateOf("") }
     var isBinIdVisible by remember { mutableStateOf(false) }
+    var isLinkedBinIdVisible by remember { mutableStateOf(false) }
     var isRevokeConfirmVisible by remember { mutableStateOf(false) }
     var isRotateConfirmVisible by remember { mutableStateOf(false) }
     var isDisableEncryptionConfirmVisible by remember { mutableStateOf(false) }
@@ -95,6 +101,8 @@ fun SyncCenterScreen(
     var logPhaseFilter by remember { mutableStateOf("ALL") }
     var isPhaseMenuExpanded by remember { mutableStateOf(false) }
     var isExportLogConfirmVisible by remember { mutableStateOf(false) }
+    var isStatusBinIdVisible by remember { mutableStateOf(false) }
+    var isManifestPartsVisible by remember { mutableStateOf(false) }
 
     val activeBinId = remember(hostedBinId, linkedBinId) {
         val hosted = (hostedBinId ?: "").trim()
@@ -112,6 +120,8 @@ fun SyncCenterScreen(
     }
 
     LaunchedEffect(activeBinId) {
+        isStatusBinIdVisible = false
+        isManifestPartsVisible = false
         if (activeBinId.isNotEmpty()) homeViewModel.refreshCloudSyncUi(activeBinId)
     }
 
@@ -293,8 +303,9 @@ fun SyncCenterScreen(
                             val id = activeBinId.trim()
                             if (id.isNotEmpty()) {
                                 val raw = prefs.getString("cloudSyncLog_$id", "[]").orEmpty()
+                                val pretty = formatLogPretty(raw, formatter)
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncLog", raw))
+                                clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncLog", pretty))
                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_log_copied), Toast.LENGTH_SHORT).show()
                             }
                             isExportLogConfirmVisible = false
@@ -415,12 +426,36 @@ fun SyncCenterScreen(
                                     onValueChange = { linkedBinId = it },
                                     label = { Text(stringResource(R.string.sync_center_link_code_input_label)) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
+                                    singleLine = true,
+                                    visualTransformation = if (isLinkedBinIdVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    trailingIcon = {
+                                        IconButton(onClick = { isLinkedBinIdVisible = !isLinkedBinIdVisible }) {
+                                            Icon(
+                                                imageVector = if (isLinkedBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    }
                                 )
-                                OutlinedButton(
-                                    onClick = { homeViewModel.receiveData(linkedBinId) },
-                                    enabled = linkedBinId.trim().isNotEmpty() && !cloudSyncLoading
-                                ) { Text(stringResource(R.string.sync_center_action_download)) }
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedButton(onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val pasted = clipboard.primaryClip
+                                            ?.getItemAt(0)
+                                            ?.coerceToText(context)
+                                            ?.toString()
+                                            .orEmpty()
+                                            .trim()
+                                        if (pasted.isNotEmpty()) linkedBinId = pasted
+                                    }) { Text(stringResource(R.string.sync_center_action_paste)) }
+                                    OutlinedButton(
+                                        onClick = { homeViewModel.receiveData(linkedBinId) },
+                                        enabled = linkedBinId.trim().isNotEmpty() && !cloudSyncLoading
+                                    ) { Text(stringResource(R.string.sync_center_action_download)) }
+                                }
                             }
 
                             Divider()
@@ -450,7 +485,27 @@ fun SyncCenterScreen(
                         ) {
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(stringResource(R.string.sync_center_status_title), style = MaterialTheme.typography.titleMedium)
-                                Text(stringResource(R.string.sync_center_status_code_format, status.binId), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.sync_center_status_code_format,
+                                            if (isStatusBinIdVisible) status.binId else "•".repeat(24)
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = { isStatusBinIdVisible = !isStatusBinIdVisible }) {
+                                        Icon(
+                                            imageVector = if (isStatusBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                                 Text(stringResource(R.string.sync_center_status_last_sync_format, lastSyncText), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(stringResource(R.string.sync_center_status_last_attempt_format, lastAttemptText), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(
@@ -480,6 +535,57 @@ fun SyncCenterScreen(
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                                val stackId = prefs.getString("cloudSyncStackBinId_${status.binId}", "").orEmpty().trim()
+                                val historyId = prefs.getString("cloudSyncHistoryBinId_${status.binId}", "").orEmpty().trim()
+                                if (stackId.isNotEmpty() || historyId.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            if (stackId.isNotEmpty()) {
+                                                Text(
+                                                    text = stringResource(
+                                                        R.string.sync_center_stack_id_label_format,
+                                                        if (isManifestPartsVisible) stackId else "•".repeat(16)
+                                                    ),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            if (historyId.isNotEmpty()) {
+                                                Text(
+                                                    text = stringResource(
+                                                        R.string.sync_center_history_id_label_format,
+                                                        if (isManifestPartsVisible) historyId else "•".repeat(16)
+                                                    ),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        IconButton(onClick = { isManifestPartsVisible = !isManifestPartsVisible }) {
+                                            Icon(
+                                                imageVector = if (isManifestPartsVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        IconButton(onClick = {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            val text = buildString {
+                                                if (stackId.isNotEmpty()) append("stack: ").append(stackId).append('\n')
+                                                if (historyId.isNotEmpty()) append("history: ").append(historyId)
+                                            }.trim()
+                                            if (text.isNotEmpty()) {
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncParts", text))
+                                                Toast.makeText(context, context.getString(R.string.sync_center_toast_code_copied), Toast.LENGTH_SHORT).show()
+                                            }
+                                        }) {
+                                            Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
                                 if (!status.lastError.isNullOrBlank()) {
                                     Text(
                                         stringResource(R.string.sync_center_status_last_error_format, status.lastError.orEmpty()),
@@ -600,7 +706,7 @@ fun SyncCenterScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Phase",
+                                text = stringResource(R.string.sync_center_phase_label),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -662,7 +768,13 @@ fun SyncCenterScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             val time = if (item.ts > 0L) formatter.format(Instant.ofEpochMilli(item.ts)) else ""
-                            Text("$time • ${item.phase}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            val phaseText = when (item.phase.uppercase()) {
+                                "ERROR" -> stringResource(R.string.sync_center_filter_error)
+                                "HOST" -> stringResource(R.string.sync_center_filter_host)
+                                "DONE" -> stringResource(R.string.sync_center_filter_done)
+                                else -> item.phase
+                            }
+                            Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(item.msg, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
                         }
                     }
@@ -677,6 +789,21 @@ private data class CloudSyncLogUiItem(
     val phase: String,
     val msg: String
 )
+
+private fun formatLogPretty(raw: String, formatter: DateTimeFormatter): String {
+    val array = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
+    if (array.length() <= 0) return raw
+    val out = ArrayList<String>(array.length())
+    for (i in 0 until array.length()) {
+        val obj = array.optJSONObject(i) ?: continue
+        val ts = obj.optLong("ts", 0L)
+        val phase = obj.optString("phase", "").orEmpty()
+        val msg = obj.optString("msg", "").orEmpty()
+        val whenText = if (ts > 0L) formatter.format(Instant.ofEpochMilli(ts)) else ""
+        out.add(listOf(whenText, phase, msg).filter { it.isNotBlank() }.joinToString(" • "))
+    }
+    return out.joinToString("\n")
+}
 
 @Composable
 private fun StepRow(number: Int, text: String) {

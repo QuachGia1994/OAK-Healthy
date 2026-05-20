@@ -61,6 +61,7 @@ import com.example.supplementtracker.domain.export.SupplementExportFileDTO
 import com.example.supplementtracker.domain.export.SupplementExportJson
 import com.example.supplementtracker.domain.export.SupplementExportSchema
 import com.example.supplementtracker.domain.export.SupplementExportSupplementDTO
+import com.example.supplementtracker.domain.export.OAKBackupJson
 import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
@@ -83,6 +84,9 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.supplementtracker.service.NotificationDebugStore
+import com.example.supplementtracker.service.CloudSyncPayloadCodec
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,6 +101,7 @@ fun SettingsScreen(
     onNavigateToSyncCenter: () -> Unit
 ) {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
@@ -123,6 +128,49 @@ fun SettingsScreen(
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
+    var isNotificationEnabledByUser by remember { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
+    var isClearNotificationsDialogVisible by remember { mutableStateOf(false) }
+    var lastBackupExportEpochMs by remember { mutableStateOf(prefs.getLong("oakLastBackupExportEpochMs", 0L)) }
+    var lastBackupImportEpochMs by remember { mutableStateOf(prefs.getLong("oakLastBackupImportEpochMs", 0L)) }
+    var isImportBackupDialogVisible by remember { mutableStateOf(false) }
+    var backupImportInput by remember { mutableStateOf("") }
+    var backupPreview by remember { mutableStateOf<BackupPreviewUi?>(null) }
+    var backupPreviewError by remember { mutableStateOf<String?>(null) }
+    val timestampFormatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault()) }
+    var notificationSnapshotVersion by remember { mutableStateOf(0) }
+    val pendingNotificationsCount = remember(notificationSnapshotVersion) {
+        NotificationDebugStore.getUpcoming(context).size
+    }
+    val refreshPendingNotificationCount: () -> Unit = {
+        notificationSnapshotVersion += 1
+        coroutineScope.launch {
+            delay(450)
+            notificationSnapshotVersion += 1
+        }
+    }
+    val runBackupPreview: () -> Unit = preview@{
+        val raw = backupImportInput.trim()
+        if (raw.isEmpty()) return@preview
+        val prepared = runCatching { CloudSyncPayloadCodec.decompressIfNeeded(raw) }.getOrElse {
+            backupPreview = null
+            backupPreviewError = context.getString(R.string.invalid_json)
+            return@preview
+        }
+        val decoded = OAKBackupJson.decodeCompat(prepared).getOrElse {
+            backupPreview = null
+            backupPreviewError = context.getString(R.string.invalid_json)
+            return@preview
+        }
+        val meta = decoded.meta
+        backupPreview = BackupPreviewUi(
+            schemaVersion = meta?.schemaVersion?.takeIf { it > 0 },
+            updatedAtEpochMs = meta?.updatedAtEpochMs?.takeIf { it > 0L },
+            deviceId = meta?.deviceId.orEmpty(),
+            stackCount = decoded.stack.size,
+            historyCount = decoded.history.size
+        )
+        backupPreviewError = null
+    }
 
     val allSupplements by remember(uiState, currentClientId) {
         derivedStateOf {
@@ -136,8 +184,15 @@ fun SettingsScreen(
 
     LaunchedEffect(dataTransferMessage) {
         val message = dataTransferMessage ?: return@LaunchedEffect
+        if (message == context.getString(R.string.import_success)) {
+            lastBackupImportEpochMs = prefs.getLong("oakLastBackupImportEpochMs", 0L)
+        }
         snackbarHostState.showSnackbar(message)
         homeViewModel.clearDataTransferMessage()
+    }
+    
+    LaunchedEffect(Unit) {
+        refreshPendingNotificationCount()
     }
 
     Box(
@@ -164,7 +219,7 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
-                    SettingsSection(title = "Quản lý học viên") {
+                    SettingsSection(title = stringResource(R.string.client_management)) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -284,7 +339,7 @@ fun SettingsScreen(
                                     try {
                                         val activity = context as? Activity
                                         if (activity == null) {
-                                            Toast.makeText(context, "Lỗi chia sẻ: Missing Activity", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, context.getString(R.string.settings_share_error_missing_activity), Toast.LENGTH_LONG).show()
                                             return@launch
                                         }
 
@@ -294,13 +349,13 @@ fun SettingsScreen(
 
                                         val savedStateRegistryOwner = hostView.findViewTreeSavedStateRegistryOwner()
                                         if (savedStateRegistryOwner == null) {
-                                            Toast.makeText(context, "Lỗi chia sẻ: Missing SavedStateRegistryOwner", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, context.getString(R.string.settings_share_error_missing_saved_state_registry_owner), Toast.LENGTH_LONG).show()
                                             return@launch
                                         }
 
                                         val viewModelStoreOwner = localViewModelStoreOwner
                                         if (viewModelStoreOwner == null) {
-                                            Toast.makeText(context, "Lỗi chia sẻ: Missing ViewModelStoreOwner", Toast.LENGTH_LONG).show()
+                                            Toast.makeText(context, context.getString(R.string.settings_share_error_missing_view_model_store_owner), Toast.LENGTH_LONG).show()
                                             return@launch
                                         }
 
@@ -340,22 +395,63 @@ fun SettingsScreen(
                                         context.startActivity(Intent.createChooser(intent, shareStackTitle))
                                     } catch (e: Exception) {
                                         Log.e("ShareStack", "Error sharing stack", e)
-                                        Toast.makeText(context, "Lỗi chia sẻ: ${e.message ?: "Unknown"}", Toast.LENGTH_LONG).show()
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.settings_share_error_format, e.message ?: context.getString(R.string.error_unknown)),
+                                            Toast.LENGTH_LONG
+                                        ).show()
                                     }
                                 }
                             }
                         )
                         Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
                         SettingsRow(
-                            title = "Kiểm tra danh sách thông báo",
+                            title = stringResource(R.string.settings_row_notification_list),
                             onClick = onNavigateToNotificationDebug
+                        )
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        SettingsRow(
+                            title = stringResource(R.string.export_data),
+                            trailing = if (lastBackupExportEpochMs <= 0L) {
+                                stringResource(R.string.history_not_available)
+                            } else {
+                                timestampFormatter.format(Instant.ofEpochMilli(lastBackupExportEpochMs))
+                            },
+                            onClick = {
+                                homeViewModel.exportFullBackupJson { result ->
+                                    result.onSuccess { json ->
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("oakBackupJson", json))
+                                        val now = System.currentTimeMillis()
+                                        prefs.edit().putLong("oakLastBackupExportEpochMs", now).apply()
+                                        lastBackupExportEpochMs = now
+                                        Toast.makeText(context, context.getString(R.string.backup_copied_to_clipboard), Toast.LENGTH_SHORT).show()
+                                    }.onFailure { error ->
+                                        Toast.makeText(
+                                            context,
+                                            error.message ?: context.getString(R.string.export_failed),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        )
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        SettingsRow(
+                            title = stringResource(R.string.import_data),
+                            trailing = if (lastBackupImportEpochMs <= 0L) {
+                                stringResource(R.string.history_not_available)
+                            } else {
+                                timestampFormatter.format(Instant.ofEpochMilli(lastBackupImportEpochMs))
+                            },
+                            onClick = { isImportBackupDialogVisible = true }
                         )
                     }
                 }
 
                 item {
-                    SettingsSection(title = "Đồng bộ đa thiết bị") {
-                        SettingsRow(title = "Sync Center", onClick = onNavigateToSyncCenter)
+                    SettingsSection(title = stringResource(R.string.settings_section_multidevice_sync)) {
+                        SettingsRow(title = stringResource(R.string.sync_center_title), onClick = onNavigateToSyncCenter)
                     }
                 }
 
@@ -377,7 +473,7 @@ fun SettingsScreen(
                 }
 
                 item {
-                    SettingsSection(title = "Giới thiệu & Bản quyền") {
+                    SettingsSection(title = stringResource(R.string.settings_section_about_and_copyright)) {
                         Text(
                             text = stringResource(R.string.settings_intro_content),
                             style = MaterialTheme.typography.bodyMedium,
@@ -419,17 +515,54 @@ fun SettingsScreen(
                         true
                     }
                     
-                    SettingsSection(title = "Thông báo") {
+                    SettingsSection(title = stringResource(R.string.settings_notifications_title)) {
+                        SettingsSwitchRow(
+                            title = stringResource(R.string.notification_permission_toggle),
+                            checked = isNotificationEnabledByUser,
+                            onCheckedChange = { checked ->
+                                isNotificationEnabledByUser = checked
+                                prefs.edit().putBoolean("isNotificationEnabledByUser", checked).apply()
+                                homeViewModel.refreshNotificationSchedules()
+                                refreshPendingNotificationCount()
+                            }
+                        )
+                        
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        
+                        SettingsRow(
+                            title = stringResource(R.string.notification_pending_label),
+                            trailing = "$pendingNotificationsCount",
+                            onClick = null
+                        )
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        
+                        SettingsRow(
+                            title = stringResource(R.string.notification_reschedule_now),
+                            onClick = {
+                                homeViewModel.refreshNotificationSchedules()
+                                refreshPendingNotificationCount()
+                            }
+                        )
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                        SettingsRow(
+                            title = stringResource(R.string.notification_clear_pending),
+                            onClick = {
+                                isClearNotificationsDialogVisible = true
+                            }
+                        )
+                        
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        
                         if (!canScheduleExactAlarms) {
                             Text(
-                                text = "Để nhận thông báo chính xác 100%, vui lòng bật Báo thức chính xác (Exact alarm) cho OAK Healthy.",
+                                text = stringResource(R.string.settings_exact_alarm_tip),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             SettingsRow(
-                                title = "Bật Báo thức chính xác",
-                                trailing = "Chưa bật",
+                                title = stringResource(R.string.settings_exact_alarm_enable_title),
+                                trailing = stringResource(R.string.notification_check_exact_alarms_disabled),
                                 onClick = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                                         runCatching {
@@ -442,8 +575,8 @@ fun SettingsScreen(
                             )
                         } else {
                             SettingsRow(
-                                title = "Báo thức chính xác",
-                                trailing = "Đã bật",
+                                title = stringResource(R.string.settings_exact_alarm_status_title),
+                                trailing = stringResource(R.string.notification_check_exact_alarms_enabled),
                                 onClick = null
                             )
                         }
@@ -452,14 +585,14 @@ fun SettingsScreen(
                         
                         if (!isIgnoringBatteryOptimizations) {
                             Text(
-                                text = "Để nhận thông báo chính xác 100%, vui lòng tắt Tối ưu hóa pin cho OAK Healthy.",
+                                text = stringResource(R.string.settings_battery_opt_tip),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             SettingsRow(
-                                title = "Tắt Tối ưu hóa pin",
-                                trailing = "Đang bật",
+                                title = stringResource(R.string.settings_battery_opt_disable_title),
+                                trailing = stringResource(R.string.settings_battery_opt_on),
                                 onClick = {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                         val uri = Uri.parse("package:$packageName")
@@ -477,8 +610,8 @@ fun SettingsScreen(
                             )
                         } else {
                             SettingsRow(
-                                title = "Tối ưu hóa pin",
-                                trailing = "Đã tắt",
+                                title = stringResource(R.string.settings_battery_opt_status_title),
+                                trailing = stringResource(R.string.settings_battery_opt_off),
                                 onClick = null
                             )
                         }
@@ -584,7 +717,119 @@ fun SettingsScreen(
             )
         }
     }
+
+    if (isClearNotificationsDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isClearNotificationsDialogVisible = false },
+            title = { Text(stringResource(R.string.notification_clear_pending_confirm_title)) },
+            text = { Text(stringResource(R.string.notification_clear_pending_confirm_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    homeViewModel.clearPendingNotifications()
+                    refreshPendingNotificationCount()
+                    isClearNotificationsDialogVisible = false
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { isClearNotificationsDialogVisible = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (isImportBackupDialogVisible) {
+        AlertDialog(
+            onDismissRequest = { isImportBackupDialogVisible = false },
+            title = { Text(stringResource(R.string.import_data)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = backupImportInput,
+                        onValueChange = {
+                            backupImportInput = it
+                            backupPreview = null
+                            backupPreviewError = null
+                        },
+                        label = { Text(stringResource(R.string.backup_json_label)) },
+                        minLines = 6
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val pasted = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+                            if (pasted.isNotBlank()) {
+                                backupImportInput = pasted
+                                backupPreview = null
+                                backupPreviewError = null
+                                runBackupPreview()
+                            }
+                        }) {
+                            Text(stringResource(R.string.backup_paste_from_clipboard))
+                        }
+                        OutlinedButton(onClick = {
+                            runBackupPreview()
+                        }) {
+                            Text(stringResource(R.string.backup_preview_action))
+                        }
+                    }
+                    val preview = backupPreview
+                    val err = backupPreviewError
+                    if (preview != null || err != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        ElevatedCard {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.backup_preview_title), fontWeight = FontWeight.SemiBold)
+                                if (preview != null) {
+                                    val schema = preview.schemaVersion?.toString() ?: context.getString(R.string.history_not_available)
+                                    val updatedAt = preview.updatedAtEpochMs?.let { timestampFormatter.format(Instant.ofEpochMilli(it)) }
+                                        ?: context.getString(R.string.history_not_available)
+                                    val device = preview.deviceId.ifBlank { context.getString(R.string.history_not_available) }
+                                    Text("${stringResource(R.string.backup_preview_schema_label)}: $schema", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${stringResource(R.string.backup_preview_updated_label)}: $updatedAt", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${stringResource(R.string.backup_preview_device_label)}: $device", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${stringResource(R.string.backup_preview_stack_label)}: ${preview.stackCount}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${stringResource(R.string.backup_preview_history_label)}: ${preview.historyCount}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (err != null) {
+                                    Text(err, color = Color(0xFFD32F2F))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trimmed = backupImportInput.trim()
+                    if (trimmed.isEmpty()) return@TextButton
+                    homeViewModel.importBackupFromJson(trimmed)
+                    backupImportInput = ""
+                    backupPreview = null
+                    backupPreviewError = null
+                    isImportBackupDialogVisible = false
+                }, enabled = backupPreview != null) { Text(stringResource(R.string.import_data)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    backupImportInput = ""
+                    backupPreview = null
+                    backupPreviewError = null
+                    isImportBackupDialogVisible = false
+                }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
 }
+
+private data class BackupPreviewUi(
+    val schemaVersion: Int?,
+    val updatedAtEpochMs: Long?,
+    val deviceId: String,
+    val stackCount: Int,
+    val historyCount: Int
+)
 
 @Composable
 private fun SettingsSection(
@@ -669,6 +914,24 @@ private fun SettingsRow(
         if (trailing != null) {
             Text(text = trailing, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = title, style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

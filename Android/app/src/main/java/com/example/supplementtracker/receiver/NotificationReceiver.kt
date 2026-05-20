@@ -30,6 +30,8 @@ class NotificationReceiver : BroadcastReceiver() {
         val name = intent.getStringExtra("SUPPLEMENT_NAME") ?: context.getString(R.string.notification_default_name)
         val dose = intent.getStringExtra("DAILY_DOSE") ?: ""
         val id = intent.getStringExtra("SUPPLEMENT_ID") ?: ""
+        val intakeTime = intent.getStringExtra("INTAKE_TIME") ?: ""
+        val scheduledAtMillis = intent.getLongExtra("SCHEDULED_AT_MILLIS", 0L)
 
         if (id.isEmpty()) return
 
@@ -50,20 +52,30 @@ class NotificationReceiver : BroadcastReceiver() {
             
             val supplementEntity = db.supplementDao.getSupplementById(id)
             if (supplementEntity != null) {
+                if (supplementEntity.deletedAtEpochMs != null) return@launch
                 val supplement = supplementEntity.toDomain()
                 val calculateCycleUseCase = CalculateCycleUseCase()
                 val status = calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, LocalDate.now())
                 
                 if (status == com.example.supplementtracker.domain.model.CycleStatus.ON) {
-                    showNotification(context, name, dose, id.hashCode())
+                    showNotification(context, name, dose, id, intakeTime, scheduledAtMillis)
                 }
             }
         }
     }
 
-    private fun showNotification(context: Context, name: String, dose: String, notificationId: Int) {
+    private fun showNotification(
+        context: Context,
+        name: String,
+        dose: String,
+        supplementId: String,
+        intakeTime: String,
+        scheduledAtMillis: Long
+    ) {
         val channelId = "supplement_reminders"
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        val notificationId = "$supplementId|$intakeTime|$scheduledAtMillis".hashCode()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -83,15 +95,37 @@ class NotificationReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val body = "Liều lượng: $dose. Chúc bạn một phiên giao dịch/làm việc hiệu quả!"
+        val takenIntent = MainActivity.buildIntakeActionIntent(
+            context = context,
+            supplementId = supplementId,
+            intakeTime = intakeTime,
+            scheduledAtMillis = scheduledAtMillis,
+            action = MainActivity.IntakeAction.TAKEN,
+            notificationId = notificationId
+        )
+        val skippedIntent = MainActivity.buildIntakeActionIntent(
+            context = context,
+            supplementId = supplementId,
+            intakeTime = intakeTime,
+            scheduledAtMillis = scheduledAtMillis,
+            action = MainActivity.IntakeAction.SKIPPED,
+            notificationId = notificationId
+        )
+        val actionFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val takenPendingIntent = PendingIntent.getActivity(context, takenIntent.requestCode, takenIntent.intent, actionFlags)
+        val skippedPendingIntent = PendingIntent.getActivity(context, skippedIntent.requestCode, skippedIntent.intent, actionFlags)
+
+        val body = context.getString(R.string.notification_body_format, name, dose)
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Thay bằng icon của app
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(name)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .addAction(R.drawable.ic_action_taken, context.getString(R.string.notif_action_taken), takenPendingIntent)
+            .addAction(R.drawable.ic_action_skipped, context.getString(R.string.notif_action_skip), skippedPendingIntent)
             .build()
 
         notificationManager.notify(notificationId, notification)

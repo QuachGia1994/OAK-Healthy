@@ -10,6 +10,7 @@ public final class AddSupplementViewModel {
     public var name: String = ""
     public var startDate: Date = .now
     public var selectedTime: Date = Calendar.current.date(bySettingHour: 8, minute: 0, second: 0, of: .now) ?? .now
+    public var intakeTimes: String = "08:00"
     public var daysOn: String = "30"
     public var daysOff: String = "7"
     public var durationMonths: String = ""
@@ -55,19 +56,18 @@ public final class AddSupplementViewModel {
                 weekdaysMask = weekly.weekdaysMask
                 intervalWeeks = String(weekly.intervalWeeks)
             }
-            
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            if let timeDate = formatter.date(from: supplement.intakeTime) {
-                let calendar = Calendar.current
-                let components = calendar.dateComponents([.hour, .minute], from: timeDate)
-                selectedTime = calendar.date(
-                    bySettingHour: components.hour ?? 8,
-                    minute: components.minute ?? 0,
+            intakeTimes = TimeStrings.normalizeString(supplement.intakeTime)
+            if let first = TimeStrings.normalizeList(supplement.intakeTime).first,
+               let minutes = TimeStrings.parseLenientTime(first) {
+                selectedTime = Calendar.current.date(
+                    bySettingHour: minutes / 60,
+                    minute: minutes % 60,
                     second: 0,
                     of: .now
                 ) ?? .now
             }
+        } else {
+            intakeTimes = TimeStrings.normalizeString(intakeTimes)
         }
     }
     
@@ -96,6 +96,9 @@ public final class AddSupplementViewModel {
         do {
             try modelContext.save()
             
+            if editingSupplement != nil {
+                await notificationService.cancelReminders(for: supplement)
+            }
             try await notificationService.scheduleReminders(for: supplement)
             
             return supplement
@@ -127,17 +130,16 @@ public final class AddSupplementViewModel {
         if let dose = reference.preferredDose {
             dailyDose = dose
         }
-        
-        // Chuyển đổi String HH:mm sang Date
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        if let date = formatter.date(from: reference.preferredTime) {
-            let calendar = Calendar.current
-            let components = calendar.dateComponents([.hour, .minute], from: date)
-            selectedTime = calendar.date(bySettingHour: components.hour ?? 8, 
-                                       minute: components.minute ?? 0, 
-                                       second: 0, 
-                                       of: .now) ?? .now
+        let normalized = TimeStrings.normalizeString(reference.preferredTime)
+        intakeTimes = normalized.isEmpty ? intakeTimes : normalized
+        if let first = TimeStrings.normalizeList(intakeTimes).first,
+           let minutes = TimeStrings.parseLenientTime(first) {
+            selectedTime = Calendar.current.date(
+                bySettingHour: minutes / 60,
+                minute: minutes % 60,
+                second: 0,
+                of: .now
+            ) ?? .now
         }
         
         isContinuous = reference.defaultCycle.isContinuous
@@ -172,10 +174,8 @@ public final class AddSupplementViewModel {
                 durationMonths: Int(durationMonths),
                 weeklyRecurrence: weekly
             )
-        
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        let timeString = formatter.string(from: selectedTime)
+        let timeString = TimeStrings.normalizeString(intakeTimes)
+        guard !timeString.isEmpty else { return nil }
         
         return UserSupplement(
             id: id,
@@ -188,6 +188,15 @@ public final class AddSupplementViewModel {
             deletedAtEpochMs: nil,
             client: activeClient
         )
+    }
+
+    public func addSelectedTime() {
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: selectedTime)
+        let minute = calendar.component(.minute, from: selectedTime)
+        let candidate = String(format: "%02d:%02d", hour, minute)
+        let merged = intakeTimes.isEmpty ? candidate : "\(intakeTimes), \(candidate)"
+        intakeTimes = TimeStrings.normalizeString(merged)
     }
     
     private func makeWeeklyRecurrenceIfNeeded() -> WeeklyRecurrenceConfig? {
