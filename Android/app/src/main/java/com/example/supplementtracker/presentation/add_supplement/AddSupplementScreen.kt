@@ -60,7 +60,7 @@ fun AddSupplementScreen(
         TimePickerDialog(
             context,
             { _, hour, minute ->
-                viewModel.onTimeChange(String.format("%02d:%02d", hour, minute))
+                viewModel.onSelectedTimeChange(String.format("%02d:%02d", hour, minute))
             },
             8, 0, true
         )
@@ -210,19 +210,35 @@ fun AddSupplementScreen(
                 }
             }
 
-            Card(
-                onClick = { timePickerDialog.show() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                shape = timeShape,
-                colors = CardDefaults.cardColors(containerColor = timeContainerColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            OutlinedTextField(
+                value = state.intakeTime,
+                onValueChange = viewModel::onIntakeTimesChange,
+                label = { Text(stringResource(R.string.intake_times_label)) },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.intake_time, state.intakeTime))
+                Card(
+                    onClick = { timePickerDialog.show() },
+                    modifier = Modifier.weight(1f),
+                    shape = timeShape,
+                    colors = CardDefaults.cardColors(containerColor = timeContainerColor),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.selected_time_format, state.selectedTime))
+                    }
+                }
+                Button(onClick = viewModel::addSelectedTime) {
+                    Text(stringResource(R.string.add_time))
                 }
             }
 

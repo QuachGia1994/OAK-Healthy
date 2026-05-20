@@ -235,18 +235,31 @@ private fun InsightsWindowCard(title: String, summary: InsightsSummary?, modifie
         }
         val completion = (summary.completionRate * 100f).toInt()
         Text(stringResource(R.string.insights_completion_format, completion), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Text(
+            stringResource(R.string.insights_taken_skipped_format, summary.takenCount, summary.skippedCount),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
         Text(stringResource(R.string.insights_late_format, summary.lateCount), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         val hour = summary.topLateHour
         if (hour != null) {
             Text(stringResource(R.string.insights_top_late_hour_format, hour.title, hour.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         val topLate = summary.topLate
-        if (topLate != null) {
-            Text(stringResource(R.string.insights_top_late_format, topLate.title, topLate.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (topLate.isNotEmpty()) {
+            val first = topLate.first()
+            Text(stringResource(R.string.insights_top_late_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            topLate.drop(1).forEach { item ->
+                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
         val skipped = summary.topSkipped
-        if (skipped != null) {
-            Text(stringResource(R.string.insights_top_skipped_format, skipped.title, skipped.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (skipped.isNotEmpty()) {
+            val first = skipped.first()
+            Text(stringResource(R.string.insights_top_skipped_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            skipped.drop(1).forEach { item ->
+                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }

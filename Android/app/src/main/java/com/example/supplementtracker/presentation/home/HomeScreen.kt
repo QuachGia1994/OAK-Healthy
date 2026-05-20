@@ -509,6 +509,12 @@ private fun DismissibleSupplementCard(
         }
     })
 
+    LaunchedEffect(item.supplement.id, item.timeString) {
+        if (dismissState.currentValue != DismissValue.Default || dismissState.dismissDirection != null) {
+            dismissState.reset()
+        }
+    }
+
     LaunchedEffect(dismissState.currentValue) {
         if (dismissState.currentValue != DismissValue.Default) {
             dismissState.reset()

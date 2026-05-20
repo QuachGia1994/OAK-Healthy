@@ -10,6 +10,7 @@ data class AddSupplementState(
     val editingSupplementId: String? = null,
     val name: String = "",
     val startDate: LocalDate = LocalDate.now(),
+    val selectedTime: String = "08:00",
     val intakeTime: String = "08:00",
     val daysOn: String = "30",
     val daysOff: String = "7",

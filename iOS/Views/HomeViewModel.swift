@@ -64,6 +64,7 @@ public final class HomeViewModel {
     }
     
     public func streakDays(supplements: [UserSupplement], now: Date = .now) -> Int {
+        guard !supplements.isEmpty else { return 0 }
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
         let seed = isDayComplete(day: today, supplements: supplements) ? today : (calendar.date(byAdding: .day, value: -1, to: today) ?? today)

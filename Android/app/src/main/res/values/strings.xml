@@ -110,6 +110,9 @@
     <string name="daily_dose_hint">Daily dose</string>
     <string name="schedule_cycle_title">Schedule &amp; Cycle</string>
     <string name="intake_time">Intake time: %1$s</string>
+    <string name="intake_times_label">Intake times</string>
+    <string name="selected_time_format">Selected: %1$s</string>
+    <string name="add_time">Add time</string>
     <string name="start_date_format">Start date: %1$s</string>
     <string name="repeat_weekly">Repeat by weekdays</string>
     <string name="repeat_on_weekdays">Repeat on</string>
@@ -138,10 +141,12 @@
     <string name="insights_last_30">Last 30 days</string>
     <string name="insights_no_data">Not enough data.</string>
     <string name="insights_completion_format">Completion: %1$d%%</string>
+    <string name="insights_taken_skipped_format">Taken: %1$d • Skipped: %2$d</string>
     <string name="insights_late_format">Late: %1$d</string>
     <string name="insights_top_late_hour_format">Late hour: %1$s (%2$d)</string>
     <string name="insights_top_late_format">Top late: %1$s (%2$d)</string>
     <string name="insights_top_skipped_format">Top skipped: %1$s (%2$d)</string>
+    <string name="insights_item_bullet_format">• %1$s (%2$d)</string>
     <string name="log_details">Log Details</string>
     <string name="no_logs_yet">No logs yet.</string>
     <string name="taken">Taken</string>

@@ -82,9 +82,11 @@ class AddSupplementViewModel(
      */
     fun onSuggestionClick(reference: SupplementReference) {
         val normalized = TimeStrings.normalizeString(reference.preferredTime)
+        val firstTime = TimeStrings.normalizeList(normalized).firstOrNull() ?: "08:00"
         _state.update {
             it.copy(
                 name = reference.name,
+                selectedTime = firstTime,
                 intakeTime = normalized,
                 dailyDose = reference.preferredDose ?: it.dailyDose,
                 isContinuous = reference.defaultCycle.isContinuous,
@@ -96,6 +98,32 @@ class AddSupplementViewModel(
                 suggestions = emptyList()
             )
         }
+    }
+
+    fun onSelectedTimeChange(time: String) {
+        val normalized = TimeStrings.normalizeString(time)
+        if (normalized.isBlank()) return
+        _state.update { it.copy(selectedTime = normalized, error = null) }
+    }
+
+    fun addSelectedTime() {
+        val current = _state.value
+        val candidate = TimeStrings.normalizeString(current.selectedTime)
+        if (candidate.isBlank()) {
+            _state.update { it.copy(error = context.getString(R.string.add_supplement_error_invalid_time)) }
+            return
+        }
+        val merged = if (current.intakeTime.isBlank()) candidate else "${current.intakeTime}, $candidate"
+        val normalized = TimeStrings.normalizeString(merged)
+        if (normalized.isBlank()) {
+            _state.update { it.copy(error = context.getString(R.string.add_supplement_error_invalid_time)) }
+            return
+        }
+        _state.update { it.copy(intakeTime = normalized, error = null) }
+    }
+
+    fun onIntakeTimesChange(raw: String) {
+        _state.update { it.copy(intakeTime = raw, error = null) }
     }
 
     fun onTimeChange(time: String) {
@@ -158,11 +186,13 @@ class AddSupplementViewModel(
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
             val weekly = supplement.cycleConfig.weeklyRecurrence
             val normalizedTime = TimeStrings.normalizeString(supplement.intakeTime)
+            val firstTime = TimeStrings.normalizeList(normalizedTime).firstOrNull() ?: "08:00"
             _state.update {
                 it.copy(
                     editingSupplementId = supplement.id.toString(),
                     name = supplement.name,
                     startDate = supplement.startDate,
+                    selectedTime = firstTime,
                     intakeTime = normalizedTime,
                     isContinuous = supplement.cycleConfig.isContinuous,
                     daysOn = supplement.cycleConfig.daysOn.toString(),

@@ -294,17 +294,20 @@ class HomeViewModel(
             hasRecordByDose.add(DoseEventKey.make(record.supplementId, record.date))
         }
 
-        val seedDay = if (isDayComplete(today, supplements, hasRecordByDose)) today else today.minusDays(1)
+        val liveSupplements = supplements.filter { it.deletedAtEpochMs == null }
+        if (liveSupplements.isEmpty()) return HomeUiState.Success(emptyMap(), emptyList(), 0)
+
+        val seedDay = if (isDayComplete(today, liveSupplements, hasRecordByDose)) today else today.minusDays(1)
         var streakDays = 0
         var cursor = seedDay
         var remaining = 120
-        while (remaining > 0 && isDayComplete(cursor, supplements, hasRecordByDose)) {
+        while (remaining > 0 && isDayComplete(cursor, liveSupplements, hasRecordByDose)) {
             streakDays += 1
             cursor = cursor.minusDays(1)
             remaining -= 1
         }
 
-        val activeItems = supplements
+        val activeItems = liveSupplements
             .filter {
                 calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.ON &&
                     matchesWeeklyRecurrenceIfNeeded(it, today)
@@ -341,7 +344,7 @@ class HomeViewModel(
             .groupBy { it.timeString }
             .toSortedMap()
 
-        val restingList = supplements
+        val restingList = liveSupplements
             .filter { calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF }
             .map { RestingSupplementInfo(it, calculateDaysRemaining(it, today)) }
 

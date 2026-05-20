@@ -52,9 +52,11 @@ data class InsightsItem(
 data class InsightsSummary(
     val windowDays: Int,
     val completionRate: Float,
+    val takenCount: Int,
+    val skippedCount: Int,
     val lateCount: Int,
-    val topSkipped: InsightsItem?,
-    val topLate: InsightsItem?,
+    val topSkipped: List<InsightsItem>,
+    val topLate: List<InsightsItem>,
     val topLateHour: InsightsItem?
 )
 
@@ -145,9 +147,11 @@ class HistoryViewModel(
         return InsightsSummary(
             windowDays = windowDays.toInt(),
             completionRate = completion,
+            takenCount = taken,
+            skippedCount = skipped,
             lateCount = late,
-            topSkipped = topBySupplement(window, "Skipped"),
-            topLate = topLateBySupplement(window),
+            topSkipped = topListBySupplement(window, "Skipped", limit = 3),
+            topLate = topLateBySupplement(window, limit = 3),
             topLateHour = topLateHour(window, zoneId)
         )
     }
@@ -159,12 +163,15 @@ class HistoryViewModel(
         return record.updatedAtEpochMs > threshold
     }
 
-    private fun topBySupplement(records: List<IntakeRecord>, status: String): InsightsItem? {
+    private fun topListBySupplement(records: List<IntakeRecord>, status: String, limit: Int): List<InsightsItem> {
+        if (limit <= 0) return emptyList()
         val grouped = records.filter { it.status == status }
             .groupBy { it.supplementName ?: "N/A" }
             .mapValues { it.value.size }
-        val best = grouped.maxByOrNull { it.value } ?: return null
-        return InsightsItem(title = best.key, count = best.value)
+            .entries
+            .sortedByDescending { it.value }
+            .take(limit)
+        return grouped.map { InsightsItem(title = it.key, count = it.value) }
     }
 
     private fun topLateHour(records: List<IntakeRecord>, zoneId: ZoneId): InsightsItem? {
@@ -178,12 +185,16 @@ class HistoryViewModel(
         return InsightsItem(title = best.key, count = best.value)
     }
 
-    private fun topLateBySupplement(records: List<IntakeRecord>): InsightsItem? {
+    private fun topLateBySupplement(records: List<IntakeRecord>, limit: Int): List<InsightsItem> {
+        if (limit <= 0) return emptyList()
         val late = records.filter { isLateTaken(it) }
-        if (late.isEmpty()) return null
-        val grouped = late.groupBy { it.supplementName ?: "N/A" }.mapValues { it.value.size }
-        val best = grouped.maxByOrNull { it.value } ?: return null
-        return InsightsItem(title = best.key, count = best.value)
+        if (late.isEmpty()) return emptyList()
+        val grouped = late.groupBy { it.supplementName ?: "N/A" }
+            .mapValues { it.value.size }
+            .entries
+            .sortedByDescending { it.value }
+            .take(limit)
+        return grouped.map { InsightsItem(title = it.key, count = it.value) }
     }
 
     private fun dayLabel(date: LocalDate): String {
