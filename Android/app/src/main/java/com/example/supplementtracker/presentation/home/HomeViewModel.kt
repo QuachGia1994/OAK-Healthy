@@ -120,7 +120,7 @@ class HomeViewModel(
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HomeUiState.NoClient)
             combine(
                 repository.getAllSupplements(id),
-                repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 29), getEndOfTomorrow())
+                repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 119), getEndOfTomorrow())
             ) { supplements, records ->
                 processSupplements(supplements, records)
             }
@@ -288,19 +288,20 @@ class HomeViewModel(
         records.forEach { record ->
             recordStatusByDose[DoseEventKey.make(record.supplementId, record.date)] = record.status
         }
-        
-        val takenDays = HashSet<LocalDate>()
+
+        val hasRecordByDose = HashSet<String>(records.size)
         records.forEach { record ->
-            if (record.status != RecordStatus.TAKEN.raw) return@forEach
-            val day = Instant.ofEpochMilli(record.date).atZone(ZoneId.systemDefault()).toLocalDate()
-            takenDays.add(day)
+            hasRecordByDose.add(DoseEventKey.make(record.supplementId, record.date))
         }
-        val streakStart = if (takenDays.contains(today)) today else today.minusDays(1)
+
+        val seedDay = if (isDayComplete(today, supplements, hasRecordByDose)) today else today.minusDays(1)
         var streakDays = 0
-        var cursor = streakStart
-        while (takenDays.contains(cursor)) {
+        var cursor = seedDay
+        var remaining = 120
+        while (remaining > 0 && isDayComplete(cursor, supplements, hasRecordByDose)) {
             streakDays += 1
             cursor = cursor.minusDays(1)
+            remaining -= 1
         }
 
         val activeItems = supplements
@@ -347,6 +348,23 @@ class HomeViewModel(
         return HomeUiState.Success(activeItems, restingList, streakDays)
     }
 
+    private fun isDayComplete(
+        day: LocalDate,
+        supplements: List<UserSupplement>,
+        hasRecordByDose: Set<String>
+    ): Boolean {
+        for (supplement in supplements) {
+            if (supplement.deletedAtEpochMs != null) continue
+            if (calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, day) != CycleStatus.ON) continue
+            if (!matchesWeeklyRecurrenceIfNeeded(supplement, day)) continue
+            for (time in parseTimes(supplement.intakeTime)) {
+                val scheduledAt = scheduledAtEpochMs(day, time) ?: continue
+                if (!hasRecordByDose.contains(DoseEventKey.make(supplement.id.toString(), scheduledAt))) return false
+            }
+        }
+        return true
+    }
+
     private fun doseStatus(scheduledAtEpochMs: Long, recordedStatus: String?, nowEpochMs: Long): DoseStatus {
         if (recordedStatus == RecordStatus.SKIPPED.raw) return DoseStatus.SKIPPED
         if (recordedStatus == RecordStatus.TAKEN.raw) return DoseStatus.TAKEN
@@ -361,9 +379,13 @@ class HomeViewModel(
         return TimeStrings.normalizeList(raw)
     }
 
-    private fun scheduledAtEpochMs(timeString: String): Long? {
+    private fun scheduledAtEpochMs(date: LocalDate, timeString: String): Long? {
         val parsed = TimeStrings.parseLenient(timeString) ?: return null
-        return LocalDate.now().atTime(parsed).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return date.atTime(parsed).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+
+    private fun scheduledAtEpochMs(timeString: String): Long? {
+        return scheduledAtEpochMs(LocalDate.now(), timeString)
     }
     
     private fun matchesWeeklyRecurrenceIfNeeded(supplement: UserSupplement, date: LocalDate): Boolean {

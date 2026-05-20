@@ -65,22 +65,32 @@ public final class HomeViewModel {
     
     public func streakDays(supplements: [UserSupplement], now: Date = .now) -> Int {
         let calendar = Calendar.current
-        var takenDays: Set<Date> = []
-        for supplement in supplements {
-            for record in supplement.intakeRecords {
-                guard record.status == IntakeStatus.taken.rawValue else { continue }
-                takenDays.insert(calendar.startOfDay(for: record.date))
-            }
-        }
         let today = calendar.startOfDay(for: now)
-        let start = takenDays.contains(today) ? today : (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
+        let seed = isDayComplete(day: today, supplements: supplements) ? today : (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
         var streak = 0
-        var cursor = start
-        while takenDays.contains(cursor) {
+        var cursor = seed
+        for _ in 0..<120 {
+            guard isDayComplete(day: cursor, supplements: supplements) else { break }
             streak += 1
-            cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor.addingTimeInterval(-86_400)
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
         }
         return streak
+    }
+
+    private func isDayComplete(day: Date, supplements: [UserSupplement]) -> Bool {
+        let calendar = isoWeekCalendar()
+        for supplement in supplements {
+            if supplement.deletedAtEpochMs != nil { continue }
+            let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: supplement.cycleConfig, at: day)
+            guard status == .on else { continue }
+            guard matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: day, calendar: calendar) else { continue }
+            for time in intakeTimes(from: supplement.intakeTime) {
+                guard let scheduledAt = scheduledAtLocal(for: day, timeString: time) else { continue }
+                if todayRecord(for: supplement, scheduledAt: scheduledAt, timeString: time) == nil { return false }
+            }
+        }
+        return true
     }
     
     public func doseUrgency(_ supplement: UserSupplement, timeString: String, now: Date = .now) -> DoseUrgency {

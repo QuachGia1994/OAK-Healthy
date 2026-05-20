@@ -42,6 +42,9 @@ interface SupplementDao {
     
     @Query("SELECT * FROM supplements WHERE clientId = :clientId ORDER BY name ASC")
     suspend fun getSupplementsByClientForSync(clientId: String): List<SupplementEntity>
+    
+    @Query("SELECT * FROM supplements WHERE deletedAtEpochMs IS NULL ORDER BY name ASC")
+    suspend fun getAllActiveSupplements(): List<SupplementEntity>
 
     // --- Intake Records ---
 

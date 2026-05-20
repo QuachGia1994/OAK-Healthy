@@ -33,13 +33,29 @@ sealed class HistoryUiState {
     data object NoClient : HistoryUiState()
     data class Success(
         val chartData: List<HistoryChartData>,
-        val sections: List<HistorySection>
+        val sections: List<HistorySection>,
+        val insights7: InsightsSummary?,
+        val insights30: InsightsSummary?
     ) : HistoryUiState()
 }
 
 data class HistorySection(
     val date: LocalDate,
     val records: List<IntakeRecord>
+)
+
+data class InsightsItem(
+    val title: String,
+    val count: Int
+)
+
+data class InsightsSummary(
+    val windowDays: Int,
+    val completionRate: Float,
+    val lateCount: Int,
+    val topSkipped: InsightsItem?,
+    val topLate: InsightsItem?,
+    val topLateHour: InsightsItem?
 )
 
 /**
@@ -99,7 +115,75 @@ class HistoryViewModel(
             chartData.add(HistoryChartData(label = dayLabel(date), count = counts[date] ?: 0))
         }
 
-        return HistoryUiState.Success(chartData = chartData, sections = sections)
+        val insights7 = buildInsights(records = orderedRecords, windowDays = 7, zoneId = zoneId)
+        val insights30 = buildInsights(records = orderedRecords, windowDays = 30, zoneId = zoneId)
+        return HistoryUiState.Success(
+            chartData = chartData,
+            sections = sections,
+            insights7 = insights7,
+            insights30 = insights30
+        )
+    }
+
+    private fun buildInsights(
+        records: List<IntakeRecord>,
+        windowDays: Long,
+        zoneId: ZoneId
+    ): InsightsSummary? {
+        val today = LocalDate.now(zoneId)
+        val start = today.minusDays(windowDays - 1)
+        val window = records.filter {
+            val day = java.time.Instant.ofEpochMilli(it.date).atZone(zoneId).toLocalDate()
+            !day.isBefore(start) && !day.isAfter(today)
+        }
+        if (window.isEmpty()) return null
+        val taken = window.count { it.status == "Taken" }
+        val skipped = window.count { it.status == "Skipped" }
+        val late = window.count { isLateTaken(it) }
+        val denom = (taken + skipped).coerceAtLeast(1)
+        val completion = taken.toFloat() / denom.toFloat()
+        return InsightsSummary(
+            windowDays = windowDays.toInt(),
+            completionRate = completion,
+            lateCount = late,
+            topSkipped = topBySupplement(window, "Skipped"),
+            topLate = topLateBySupplement(window),
+            topLateHour = topLateHour(window, zoneId)
+        )
+    }
+
+    private fun isLateTaken(record: IntakeRecord): Boolean {
+        if (record.status != "Taken") return false
+        if (record.updatedAtEpochMs <= 0L) return false
+        val threshold = record.date + 20 * 60 * 1000
+        return record.updatedAtEpochMs > threshold
+    }
+
+    private fun topBySupplement(records: List<IntakeRecord>, status: String): InsightsItem? {
+        val grouped = records.filter { it.status == status }
+            .groupBy { it.supplementName ?: "N/A" }
+            .mapValues { it.value.size }
+        val best = grouped.maxByOrNull { it.value } ?: return null
+        return InsightsItem(title = best.key, count = best.value)
+    }
+
+    private fun topLateHour(records: List<IntakeRecord>, zoneId: ZoneId): InsightsItem? {
+        val late = records.filter { isLateTaken(it) }
+        if (late.isEmpty()) return null
+        val grouped = late.groupBy {
+            val hour = java.time.Instant.ofEpochMilli(it.updatedAtEpochMs).atZone(zoneId).hour
+            "%02d:00".format(hour)
+        }.mapValues { it.value.size }
+        val best = grouped.maxByOrNull { it.value } ?: return null
+        return InsightsItem(title = best.key, count = best.value)
+    }
+
+    private fun topLateBySupplement(records: List<IntakeRecord>): InsightsItem? {
+        val late = records.filter { isLateTaken(it) }
+        if (late.isEmpty()) return null
+        val grouped = late.groupBy { it.supplementName ?: "N/A" }.mapValues { it.value.size }
+        val best = grouped.maxByOrNull { it.value } ?: return null
+        return InsightsItem(title = best.key, count = best.value)
     }
 
     private fun dayLabel(date: LocalDate): String {

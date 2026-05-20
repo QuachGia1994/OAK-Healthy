@@ -112,16 +112,16 @@ public struct NotificationService: NotificationManaging {
         let calendar = isoWeekCalendar()
         let horizonDays = schedulingHorizonDays(for: supplement)
         for timeString in intakeTimes(from: supplement.intakeTime) {
-            guard let timeComponents = intakeTimeComponents(from: timeString, calendar: calendar) else { continue }
-            for triggerDate in upcomingTriggerDates(calendar: calendar, timeComponents: timeComponents, horizonDays: horizonDays) {
-                guard matchesWeeklyRecurrenceIfNeeded(supplement: supplement, date: triggerDate, calendar: calendar) else { continue }
+            guard let timeComponents = intakeTimeComponents(from: timeString) else { continue }
+            for plan in upcomingTriggerPlans(calendar: calendar, timeComponents: timeComponents, horizonDays: horizonDays) {
+                guard matchesWeeklyRecurrenceIfNeeded(supplement: supplement, date: plan.scheduledAt, calendar: calendar) else { continue }
                 let status = try? cycleCalculator.determineStatus(
                     for: supplement.startDate,
                     config: supplement.cycleConfig,
-                    at: triggerDate
+                    at: plan.scheduledAt
                 )
                 guard status == .on else { continue }
-                try await createNotificationRequest(for: supplement, at: triggerDate, timeString: timeString)
+                try await createNotificationRequest(for: supplement, triggerAt: plan.triggerAt, scheduledAt: plan.scheduledAt, timeString: timeString)
             }
         }
     }
@@ -158,26 +158,48 @@ public struct NotificationService: NotificationManaging {
     
     // MARK: - Private Helpers
     
-    private func intakeTimeComponents(from time: String, calendar: Calendar) -> DateComponents? {
+    private struct TriggerPlan: Sendable, Hashable {
+        let scheduledAt: Date
+        let triggerAt: Date
+    }
+
+    private func intakeTimeComponents(from time: String) -> DateComponents? {
         let trimmed = time.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let minutes = TimeStrings.parseLenientTime(trimmed) else { return nil }
         return DateComponents(hour: minutes / 60, minute: minutes % 60)
     }
     
-    private func upcomingTriggerDates(
+    private func upcomingTriggerPlans(
         calendar: Calendar,
         timeComponents: DateComponents,
         horizonDays: Int
-    ) -> [Date] {
+    ) -> [TriggerPlan] {
         let maxDays = max(1, min(56, horizonDays))
         return (0..<maxDays).compactMap { dayOffset in
             guard let day = calendar.date(byAdding: .day, value: dayOffset, to: .now) else { return nil }
             let hour = timeComponents.hour ?? 8
             let minute = timeComponents.minute ?? 0
-            let date = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day)
-            guard let date, date > .now else { return nil }
-            return date
+            guard let scheduledAt = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) else { return nil }
+            let triggerAt = applyQuietHoursIfNeeded(scheduledAt: scheduledAt, calendar: calendar)
+            guard triggerAt > .now else { return nil }
+            return TriggerPlan(scheduledAt: scheduledAt, triggerAt: triggerAt)
         }
+    }
+
+    private func applyQuietHoursIfNeeded(scheduledAt: Date, calendar: Calendar) -> Date {
+        let quietStartMinutes = 22 * 60
+        let quietEndMinutes = 7 * 60
+        let hour = calendar.component(.hour, from: scheduledAt)
+        let minute = calendar.component(.minute, from: scheduledAt)
+        let minutesSinceMidnight = hour * 60 + minute
+        if minutesSinceMidnight >= quietStartMinutes {
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: scheduledAt) else { return scheduledAt }
+            return calendar.date(bySettingHour: quietEndMinutes / 60, minute: quietEndMinutes % 60, second: 0, of: nextDay) ?? scheduledAt
+        }
+        if minutesSinceMidnight < quietEndMinutes {
+            return calendar.date(bySettingHour: quietEndMinutes / 60, minute: quietEndMinutes % 60, second: 0, of: scheduledAt) ?? scheduledAt
+        }
+        return scheduledAt
     }
     
     @MainActor
@@ -189,14 +211,15 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     private func createNotificationRequest(
         for supplement: UserSupplement,
-        at date: Date,
+        triggerAt: Date,
+        scheduledAt: Date,
         timeString: String
     ) async throws(NotificationError) {
-        let content = notificationContent(for: supplement, timeString: timeString, scheduledAt: date)
-        let triggerComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let content = notificationContent(for: supplement, timeString: timeString, scheduledAt: scheduledAt)
+        let triggerComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: triggerAt)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
         
-        let identifier = requestIdentifier(supplementId: supplement.id, timeString: timeString, day: date)
+        let identifier = requestIdentifier(supplementId: supplement.id, timeString: timeString, day: scheduledAt)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         await logShadowEntry(from: request)
         
@@ -286,7 +309,13 @@ public struct NotificationService: NotificationManaging {
     
     private func requestIdentifier(supplementId: UUID, timeString: String, day: Date) -> String {
         let dayKey = dayKeyString(day)
-        let safeTime = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = timeString.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeTime: String
+        if let minutes = TimeStrings.parseLenientTime(trimmed) {
+            safeTime = TimeStrings.formatTime(minutes)
+        } else {
+            safeTime = trimmed
+        }
         return "\(supplementId.uuidString)-\(safeTime)-\(dayKey)"
     }
     
@@ -299,6 +328,8 @@ public struct NotificationService: NotificationManaging {
     private func intakeTimes(from raw: String) -> [String] {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
+        let normalized = TimeStrings.normalizeList(trimmed)
+        if !normalized.isEmpty { return normalized }
         let parts = trimmed.split(whereSeparator: { ",;|".contains($0) })
         let times = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         return times.isEmpty ? [trimmed] : times

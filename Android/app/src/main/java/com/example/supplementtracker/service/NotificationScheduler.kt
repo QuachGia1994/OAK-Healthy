@@ -140,15 +140,16 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
 
             for (timeString in times) {
                 val time = parseTime(timeString) ?: continue
-                val scheduledTime = LocalDateTime.of(date, time)
                 val requestCode = requestCode(supplement, date, timeString)
+                val plan = applyQuietHoursIfNeeded(date = date, time = time)
 
-                if (scheduledTime.isBefore(now) || status != CycleStatus.ON) {
+                if (plan.triggerAt.isBefore(now) || status != CycleStatus.ON) {
                     cancelByRequestCode(requestCode)
                     continue
                 }
 
-                val scheduledAtMillis = scheduledTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val scheduledAtMillis = plan.scheduledAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val triggerAtMillis = plan.triggerAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                 val pendingIntent = PendingIntent.getBroadcast(
                     context,
                     requestCode,
@@ -157,7 +158,7 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
                 )
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
-                    scheduledAtMillis,
+                    triggerAtMillis,
                     pendingIntent
                 )
                 NotificationDebugStore.recordScheduled(
@@ -168,11 +169,28 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
                         title = supplement.name,
                         dose = supplement.dailyDose,
                         cycleText = cycleLabel(supplement, date),
-                        scheduledAtMillis = scheduledAtMillis
+                        scheduledAtMillis = triggerAtMillis
                     )
                 )
             }
         }
+    }
+
+    private data class QuietHoursPlan(
+        val scheduledAt: LocalDateTime,
+        val triggerAt: LocalDateTime
+    )
+
+    private fun applyQuietHoursIfNeeded(date: LocalDate, time: LocalTime): QuietHoursPlan {
+        val quietStart = LocalTime.of(22, 0)
+        val quietEnd = LocalTime.of(7, 0)
+        val scheduledAt = LocalDateTime.of(date, time)
+        val triggerAt = when {
+            !time.isBefore(quietStart) -> LocalDateTime.of(date.plusDays(1), quietEnd)
+            time.isBefore(quietEnd) -> LocalDateTime.of(date, quietEnd)
+            else -> scheduledAt
+        }
+        return QuietHoursPlan(scheduledAt = scheduledAt, triggerAt = triggerAt)
     }
 
     override fun cancel(supplement: UserSupplement) {
@@ -297,6 +315,7 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
             java.time.DayOfWeek.FRIDAY -> 4
             java.time.DayOfWeek.SATURDAY -> 5
             java.time.DayOfWeek.SUNDAY -> 6
+            else -> null
         }
     }
     

@@ -114,7 +114,7 @@ class MainActivity : ComponentActivity() {
 
         // Đăng ký TimeZoneChangeReceiver
         timeZoneReceiver = TimeZoneChangeReceiver {
-            homeViewModel?.refresh()
+            homeViewModel?.refreshNotificationSchedules()
         }
         registerReceiver(timeZoneReceiver, IntentFilter(Intent.ACTION_TIMEZONE_CHANGED))
 

@@ -130,6 +130,13 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                 PremiumBarChart(data = state.chartData)
             }
         }
+
+        item(
+            key = "insights",
+            contentType = "insights"
+        ) {
+            InsightsPanel(insights7 = state.insights7, insights30 = state.insights30)
+        }
         
         item(
             key = "details_title",
@@ -187,6 +194,59 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     HistoryRecordItem(record)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun InsightsPanel(insights7: InsightsSummary?, insights30: InsightsSummary?) {
+    val shape = RoundedCornerShape(28.dp)
+    val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    Text(stringResource(R.string.insights_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            InsightsWindowCard(title = stringResource(R.string.insights_last_7), summary = insights7, modifier = Modifier.weight(1f))
+            InsightsWindowCard(title = stringResource(R.string.insights_last_30), summary = insights30, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun InsightsWindowCard(title: String, summary: InsightsSummary?, modifier: Modifier = Modifier) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    Column(
+        modifier = modifier
+            .background(base, RoundedCornerShape(18.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(title, fontWeight = FontWeight.SemiBold)
+        if (summary == null) {
+            Text(stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            return
+        }
+        val completion = (summary.completionRate * 100f).toInt()
+        Text(stringResource(R.string.insights_completion_format, completion), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Text(stringResource(R.string.insights_late_format, summary.lateCount), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        val hour = summary.topLateHour
+        if (hour != null) {
+            Text(stringResource(R.string.insights_top_late_hour_format, hour.title, hour.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        val topLate = summary.topLate
+        if (topLate != null) {
+            Text(stringResource(R.string.insights_top_late_format, topLate.title, topLate.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        val skipped = summary.topSkipped
+        if (skipped != null) {
+            Text(stringResource(R.string.insights_top_skipped_format, skipped.title, skipped.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

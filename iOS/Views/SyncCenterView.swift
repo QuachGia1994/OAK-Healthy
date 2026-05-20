@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UIKit
 
 public struct SyncCenterView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -259,20 +258,6 @@ public struct SyncCenterView: View {
                                     .foregroundStyle(.gray)
                             }
                             .buttonStyle(.borderless)
-                            Button(action: {
-                                var text = ""
-                                if !stackId.isEmpty { text += "stack: \(stackId)\n" }
-                                if !historyId.isEmpty { text += "history: \(historyId)" }
-                                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                                if !trimmed.isEmpty {
-                                    UIPasteboard.general.string = trimmed
-                                    showToast("sync_center_toast_code_copied".localized)
-                                }
-                            }) {
-                                Image(systemName: "doc.on.doc")
-                                    .foregroundStyle(.gray)
-                            }
-                            .buttonStyle(.borderless)
                         }
                     }
                     
@@ -386,15 +371,6 @@ public struct SyncCenterView: View {
                         .foregroundStyle(.gray)
                 }
                 .buttonStyle(.borderless)
-                
-                Button(action: {
-                    UIPasteboard.general.string = binId
-                    showToast("sync_center_toast_code_copied".localized)
-                }) {
-                    Image(systemName: "doc.on.doc")
-                        .foregroundStyle(.gray)
-                }
-                .buttonStyle(.borderless)
             }
             
             Button(role: .destructive) {
@@ -434,14 +410,6 @@ public struct SyncCenterView: View {
             }
             Button(action: { isInputCodeVisible.toggle() }) {
                 Image(systemName: isInputCodeVisible ? "eye.slash" : "eye")
-                    .foregroundStyle(.gray)
-            }
-            .buttonStyle(.borderless)
-            
-            Button(action: {
-                linkedBinId = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            }) {
-                Image(systemName: "clipboard")
                     .foregroundStyle(.gray)
             }
             .buttonStyle(.borderless)

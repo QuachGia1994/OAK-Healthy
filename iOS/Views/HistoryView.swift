@@ -27,6 +27,12 @@ public struct HistoryView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
+                        InsightsCard(insights7: viewModel.insights7, insights30: viewModel.insights30)
+                            .padding()
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
+                            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+
                         VStack(alignment: .leading) {
                             Text("intake_frequency_last_7".localized)
                                 .font(.headline)
@@ -202,6 +208,67 @@ public struct HistoryView: View {
                     }
                 return HistorySectionModel(date: item.date, title: title, rows: rows)
             }
+    }
+}
+
+private struct InsightsCard: View {
+    let insights7: InsightsSummary?
+    let insights30: InsightsSummary?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("insights_title".localized)
+                .font(.headline)
+            HStack(spacing: 12) {
+                InsightsWindowCard(titleKey: "insights_last_7", summary: insights7)
+                InsightsWindowCard(titleKey: "insights_last_30", summary: insights30)
+            }
+        }
+    }
+}
+
+private struct InsightsWindowCard: View {
+    let titleKey: String
+    let summary: InsightsSummary?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(titleKey.localized)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            if let summary {
+                let completion = Int((summary.completionRate * 100).rounded())
+                Text(String(format: "insights_completion_format".localized, completion))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(String(format: "insights_late_format".localized, summary.lateCount))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let top = summary.topLate.first {
+                    Text(String(format: "insights_top_late_format".localized, top.title, top.count))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let hour = summary.topLateHour {
+                    Text(String(format: "insights_top_late_hour_format".localized, hour.title, hour.count))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let top = summary.topSkipped.first {
+                    Text(String(format: "insights_top_skipped_format".localized, top.title, top.count))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("insights_no_data".localized)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.secondary.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
