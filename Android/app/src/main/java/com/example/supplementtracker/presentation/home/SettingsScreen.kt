@@ -2,8 +2,6 @@ package com.example.supplementtracker.presentation.home
 
 import android.app.Activity
 import android.app.AlarmManager
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -56,20 +54,11 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
-import com.example.supplementtracker.domain.export.SupplementExportCycleDTO
-import com.example.supplementtracker.domain.export.SupplementExportFileDTO
-import com.example.supplementtracker.domain.export.SupplementExportJson
-import com.example.supplementtracker.domain.export.SupplementExportSchema
-import com.example.supplementtracker.domain.export.SupplementExportSupplementDTO
-import com.example.supplementtracker.domain.export.OAKBackupJson
 import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
 import java.io.FileOutputStream
-import java.time.Instant
 import java.util.UUID
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.FileProvider
@@ -84,9 +73,6 @@ import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import com.example.supplementtracker.service.NotificationDebugStore
-import com.example.supplementtracker.service.CloudSyncPayloadCodec
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,7 +82,6 @@ fun SettingsScreen(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit,
     onNavigateToStackManager: () -> Unit,
-    onNavigateToNotificationDebug: () -> Unit,
     onNavigateToUserGuide: () -> Unit,
     onNavigateToSyncCenter: () -> Unit
 ) {
@@ -106,7 +91,6 @@ fun SettingsScreen(
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
-    val dataTransferMessage by homeViewModel.dataTransferMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val hostView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -129,48 +113,6 @@ fun SettingsScreen(
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
     var isNotificationEnabledByUser by remember { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
-    var isClearNotificationsDialogVisible by remember { mutableStateOf(false) }
-    var lastBackupExportEpochMs by remember { mutableStateOf(prefs.getLong("oakLastBackupExportEpochMs", 0L)) }
-    var lastBackupImportEpochMs by remember { mutableStateOf(prefs.getLong("oakLastBackupImportEpochMs", 0L)) }
-    var isImportBackupDialogVisible by remember { mutableStateOf(false) }
-    var backupImportInput by remember { mutableStateOf("") }
-    var backupPreview by remember { mutableStateOf<BackupPreviewUi?>(null) }
-    var backupPreviewError by remember { mutableStateOf<String?>(null) }
-    val timestampFormatter = remember { DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault()) }
-    var notificationSnapshotVersion by remember { mutableStateOf(0) }
-    val pendingNotificationsCount = remember(notificationSnapshotVersion) {
-        NotificationDebugStore.getUpcoming(context).size
-    }
-    val refreshPendingNotificationCount: () -> Unit = {
-        notificationSnapshotVersion += 1
-        coroutineScope.launch {
-            delay(450)
-            notificationSnapshotVersion += 1
-        }
-    }
-    val runBackupPreview: () -> Unit = preview@{
-        val raw = backupImportInput.trim()
-        if (raw.isEmpty()) return@preview
-        val prepared = runCatching { CloudSyncPayloadCodec.decompressIfNeeded(raw) }.getOrElse {
-            backupPreview = null
-            backupPreviewError = context.getString(R.string.invalid_json)
-            return@preview
-        }
-        val decoded = OAKBackupJson.decodeCompat(prepared).getOrElse {
-            backupPreview = null
-            backupPreviewError = context.getString(R.string.invalid_json)
-            return@preview
-        }
-        val meta = decoded.meta
-        backupPreview = BackupPreviewUi(
-            schemaVersion = meta?.schemaVersion?.takeIf { it > 0 },
-            updatedAtEpochMs = meta?.updatedAtEpochMs?.takeIf { it > 0L },
-            deviceId = meta?.deviceId.orEmpty(),
-            stackCount = decoded.stack.size,
-            historyCount = decoded.history.size
-        )
-        backupPreviewError = null
-    }
 
     val allSupplements by remember(uiState, currentClientId) {
         derivedStateOf {
@@ -180,19 +122,6 @@ fun SettingsScreen(
                 .distinctBy { it.id }
                 .sortedBy { it.name }
         }
-    }
-
-    LaunchedEffect(dataTransferMessage) {
-        val message = dataTransferMessage ?: return@LaunchedEffect
-        if (message == context.getString(R.string.import_success)) {
-            lastBackupImportEpochMs = prefs.getLong("oakLastBackupImportEpochMs", 0L)
-        }
-        snackbarHostState.showSnackbar(message)
-        homeViewModel.clearDataTransferMessage()
-    }
-    
-    LaunchedEffect(Unit) {
-        refreshPendingNotificationCount()
     }
 
     Box(
@@ -404,48 +333,6 @@ fun SettingsScreen(
                                 }
                             }
                         )
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        SettingsRow(
-                            title = stringResource(R.string.settings_row_notification_list),
-                            onClick = onNavigateToNotificationDebug
-                        )
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        SettingsRow(
-                            title = stringResource(R.string.export_data),
-                            trailing = if (lastBackupExportEpochMs <= 0L) {
-                                stringResource(R.string.history_not_available)
-                            } else {
-                                timestampFormatter.format(Instant.ofEpochMilli(lastBackupExportEpochMs))
-                            },
-                            onClick = {
-                                homeViewModel.exportFullBackupJson { result ->
-                                    result.onSuccess { json ->
-                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        clipboard.setPrimaryClip(ClipData.newPlainText("oakBackupJson", json))
-                                        val now = System.currentTimeMillis()
-                                        prefs.edit().putLong("oakLastBackupExportEpochMs", now).apply()
-                                        lastBackupExportEpochMs = now
-                                        Toast.makeText(context, context.getString(R.string.backup_copied_to_clipboard), Toast.LENGTH_SHORT).show()
-                                    }.onFailure { error ->
-                                        Toast.makeText(
-                                            context,
-                                            error.message ?: context.getString(R.string.export_failed),
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    }
-                                }
-                            }
-                        )
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        SettingsRow(
-                            title = stringResource(R.string.import_data),
-                            trailing = if (lastBackupImportEpochMs <= 0L) {
-                                stringResource(R.string.history_not_available)
-                            } else {
-                                timestampFormatter.format(Instant.ofEpochMilli(lastBackupImportEpochMs))
-                            },
-                            onClick = { isImportBackupDialogVisible = true }
-                        )
                     }
                 }
 
@@ -523,31 +410,6 @@ fun SettingsScreen(
                                 isNotificationEnabledByUser = checked
                                 prefs.edit().putBoolean("isNotificationEnabledByUser", checked).apply()
                                 homeViewModel.refreshNotificationSchedules()
-                                refreshPendingNotificationCount()
-                            }
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-                        
-                        SettingsRow(
-                            title = stringResource(R.string.notification_pending_label),
-                            trailing = "$pendingNotificationsCount",
-                            onClick = null
-                        )
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        
-                        SettingsRow(
-                            title = stringResource(R.string.notification_reschedule_now),
-                            onClick = {
-                                homeViewModel.refreshNotificationSchedules()
-                                refreshPendingNotificationCount()
-                            }
-                        )
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-                        SettingsRow(
-                            title = stringResource(R.string.notification_clear_pending),
-                            onClick = {
-                                isClearNotificationsDialogVisible = true
                             }
                         )
                         
@@ -718,118 +580,7 @@ fun SettingsScreen(
         }
     }
 
-    if (isClearNotificationsDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { isClearNotificationsDialogVisible = false },
-            title = { Text(stringResource(R.string.notification_clear_pending_confirm_title)) },
-            text = { Text(stringResource(R.string.notification_clear_pending_confirm_message)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    homeViewModel.clearPendingNotifications()
-                    refreshPendingNotificationCount()
-                    isClearNotificationsDialogVisible = false
-                }) { Text(stringResource(R.string.delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { isClearNotificationsDialogVisible = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
-
-    if (isImportBackupDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { isImportBackupDialogVisible = false },
-            title = { Text(stringResource(R.string.import_data)) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = backupImportInput,
-                        onValueChange = {
-                            backupImportInput = it
-                            backupPreview = null
-                            backupPreviewError = null
-                        },
-                        label = { Text(stringResource(R.string.backup_json_label)) },
-                        minLines = 6
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val pasted = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-                            if (pasted.isNotBlank()) {
-                                backupImportInput = pasted
-                                backupPreview = null
-                                backupPreviewError = null
-                                runBackupPreview()
-                            }
-                        }) {
-                            Text(stringResource(R.string.backup_paste_from_clipboard))
-                        }
-                        OutlinedButton(onClick = {
-                            runBackupPreview()
-                        }) {
-                            Text(stringResource(R.string.backup_preview_action))
-                        }
-                    }
-                    val preview = backupPreview
-                    val err = backupPreviewError
-                    if (preview != null || err != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        ElevatedCard {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(stringResource(R.string.backup_preview_title), fontWeight = FontWeight.SemiBold)
-                                if (preview != null) {
-                                    val schema = preview.schemaVersion?.toString() ?: context.getString(R.string.history_not_available)
-                                    val updatedAt = preview.updatedAtEpochMs?.let { timestampFormatter.format(Instant.ofEpochMilli(it)) }
-                                        ?: context.getString(R.string.history_not_available)
-                                    val device = preview.deviceId.ifBlank { context.getString(R.string.history_not_available) }
-                                    Text("${stringResource(R.string.backup_preview_schema_label)}: $schema", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${stringResource(R.string.backup_preview_updated_label)}: $updatedAt", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${stringResource(R.string.backup_preview_device_label)}: $device", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${stringResource(R.string.backup_preview_stack_label)}: ${preview.stackCount}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text("${stringResource(R.string.backup_preview_history_label)}: ${preview.historyCount}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                if (err != null) {
-                                    Text(err, color = Color(0xFFD32F2F))
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val trimmed = backupImportInput.trim()
-                    if (trimmed.isEmpty()) return@TextButton
-                    homeViewModel.importBackupFromJson(trimmed)
-                    backupImportInput = ""
-                    backupPreview = null
-                    backupPreviewError = null
-                    isImportBackupDialogVisible = false
-                }, enabled = backupPreview != null) { Text(stringResource(R.string.import_data)) }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    backupImportInput = ""
-                    backupPreview = null
-                    backupPreviewError = null
-                    isImportBackupDialogVisible = false
-                }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
 }
-
-private data class BackupPreviewUi(
-    val schemaVersion: Int?,
-    val updatedAtEpochMs: Long?,
-    val deviceId: String,
-    val stackCount: Int,
-    val historyCount: Int
-)
 
 @Composable
 private fun SettingsSection(
