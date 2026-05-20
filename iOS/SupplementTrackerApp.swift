@@ -123,7 +123,6 @@ private struct RootLaunchView: View {
     }
 }
 
-@MainActor
 @preconcurrency
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationDelegate()
