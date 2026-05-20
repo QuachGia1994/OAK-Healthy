@@ -21,8 +21,6 @@ public struct SettingsView: View {
     @State private var isShowingError = false
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
-    @State private var isShowingClearNotificationsConfirm: Bool = false
-    @State private var pendingNotificationCount: Int = 0
     @State private var isShowingImportBackupSheet: Bool = false
     @State private var importBackupText: String = ""
     @State private var importBackupPreview: BackupPreview = .empty
@@ -52,7 +50,6 @@ public struct SettingsView: View {
         }
         .task(id: activeClientManager.currentClientId) {
             await reloadClientCaches()
-            await refreshPendingNotificationCount()
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
             ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
@@ -78,21 +75,6 @@ public struct SettingsView: View {
             Button("ok".localized) {}
         } message: {
             Text(importErrorMessage)
-        }
-        .confirmationDialog(
-            "notification_clear_pending_confirm_title".localized,
-            isPresented: $isShowingClearNotificationsConfirm,
-            titleVisibility: .visible
-        ) {
-            Button("delete".localized, role: .destructive) {
-                Task {
-                    await NotificationService.shared.clearAllPendingNotifications()
-                    await refreshPendingNotificationCount()
-                }
-            }
-            Button("cancel".localized, role: .cancel) {}
-        } message: {
-            Text("notification_clear_pending_confirm_message".localized)
         }
         .sheet(isPresented: $isShowingImportBackupSheet) {
             NavigationStack {
@@ -195,31 +177,13 @@ public struct SettingsView: View {
                             let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
                             guard granted else { return }
                             await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
-                            await refreshPendingNotificationCount()
                         }
                         return
                     }
                     Task {
                         await NotificationService.shared.clearAllPendingNotifications()
-                        await refreshPendingNotificationCount()
                     }
                 }
-            
-            Text(String(format: "notification_pending_format".localized, pendingNotificationCount))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Button("notification_reschedule_now".localized) {
-                Task {
-                    await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
-                    await refreshPendingNotificationCount()
-                }
-            }
-            .disabled(!isNotificationEnabledByUser)
-            
-            Button("notification_clear_pending".localized, role: .destructive) {
-                isShowingClearNotificationsConfirm = true
-            }
             
             if let shareStackPNGURL {
                 ShareLink(item: shareStackPNGURL) {
@@ -556,12 +520,6 @@ public struct SettingsView: View {
     }
     
     @MainActor
-    private func refreshPendingNotificationCount() async {
-        let snapshots = await NotificationService.shared.pendingRequestSnapshots()
-        pendingNotificationCount = snapshots.count
-    }
-    
-    @MainActor
     private func exportBackupToClipboard() async {
         guard let clientId = activeClientManager.currentClientId else {
             showError(message: "missing_active_client".localized)
@@ -605,7 +563,6 @@ public struct SettingsView: View {
             if isNotificationEnabledByUser {
                 await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
             }
-            await refreshPendingNotificationCount()
             isShowingImportBackupSheet = false
         } catch {
             showError(message: "import_failed".localized)

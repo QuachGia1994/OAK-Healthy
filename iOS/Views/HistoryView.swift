@@ -85,10 +85,13 @@ public struct HistoryView: View {
                             }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
                 }
             }
             .navigationTitle("history_title".localized)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .task(id: activeClientManager.currentClientId) {

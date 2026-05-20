@@ -62,10 +62,10 @@ public struct HomeView: View {
                         TodayHeaderView(
                             title: "today_intake_title".localized,
                             streakDays: viewModel.streakDays(supplements: supplements),
-                            counts: viewModel.todayCounts(),
-                            onAdd: { isShowingAddSheet = true }
+                            counts: viewModel.todayCounts()
                         )
                     }
+                    
                     
                     let sortedTimes = viewModel.activeSupplements.keys.sorted()
                     ForEach(sortedTimes, id: \.self) { time in
@@ -170,6 +170,7 @@ public struct HomeView: View {
                     .scrollContentBackground(.hidden)
                     .listStyle(.plain)
                     .navigationTitle("dashboard_title".localized)
+                    .navigationBarTitleDisplayMode(.inline)
                     .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
                     .toolbarBackground(.visible, for: .navigationBar)
                     .toolbar {
@@ -296,7 +297,6 @@ private struct TodayHeaderView: View {
     let title: String
     let streakDays: Int
     let counts: HomeViewModel.TodayCounts
-    let onAdd: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -308,15 +308,6 @@ private struct TodayHeaderView: View {
                     StreakChip(streakDays: streakDays)
                 }
                 Spacer()
-                Button(action: onAdd) {
-                    Image(systemName: "plus")
-                        .font(.headline)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
-                .background(.thinMaterial)
-                .clipShape(Capsule())
             }
             
             HStack(spacing: 8) {
@@ -326,7 +317,6 @@ private struct TodayHeaderView: View {
                 CountChip(title: "dose_status_missed".localized, value: counts.missed, tint: .red)
             }
         }
-        .padding(.top, 4)
     }
 }
 
