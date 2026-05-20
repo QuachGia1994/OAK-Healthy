@@ -423,7 +423,7 @@ struct SupplementExportCodec {
                     startDate: dto.startDate,
                     cycle: dto.cycle
                 )
-                OAKBackupSupplement(
+                return OAKBackupSupplement(
                     id: DoseEventKey.stableUUID(from: key).uuidString,
                     name: dto.name,
                     dailyDose: dto.dailyDose,
