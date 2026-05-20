@@ -234,8 +234,14 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeViewModel?.refreshNotificationSchedules()
-        
         val prefs = applicationContext.getSharedPreferences("oak_settings", MODE_PRIVATE)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            val stored = prefs.getBoolean("isNotificationEnabledByUser", false)
+            if (granted != stored) prefs.edit().putBoolean("isNotificationEnabledByUser", granted).apply()
+        }
+
         val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
         if (!enabled) return
         
@@ -256,6 +262,15 @@ class MainActivity : ComponentActivity() {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
             }
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != 101) return
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        val prefs = applicationContext.getSharedPreferences("oak_settings", MODE_PRIVATE)
+        prefs.edit().putBoolean("isNotificationEnabledByUser", granted).apply()
+        homeViewModel?.refreshNotificationSchedules()
     }
 
     private fun capturePendingIntakeAction(intent: Intent?) {

@@ -2,8 +2,10 @@ package com.example.supplementtracker.presentation.home
 
 import android.app.Activity
 import android.app.AlarmManager
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
@@ -62,12 +64,16 @@ import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.content.FileProvider
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -113,6 +119,34 @@ fun SettingsScreen(
     var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
     var isNotificationEnabledByUser by remember { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
+    var hasNotificationPermission by remember { mutableStateOf(hasNotificationPermission(context)) }
+
+    fun refreshNotificationPermissionUi() {
+        val granted = hasNotificationPermission(context)
+        hasNotificationPermission = granted
+        val stored = prefs.getBoolean("isNotificationEnabledByUser", false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val next = stored && granted
+            if (next != isNotificationEnabledByUser) {
+                isNotificationEnabledByUser = next
+                prefs.edit().putBoolean("isNotificationEnabledByUser", next).apply()
+            }
+            return
+        }
+        if (stored != isNotificationEnabledByUser) isNotificationEnabledByUser = stored
+    }
+
+    LaunchedEffect(Unit) {
+        refreshNotificationPermissionUi()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshNotificationPermissionUi()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val allSupplements by remember(uiState, currentClientId) {
         derivedStateOf {
@@ -391,7 +425,7 @@ fun SettingsScreen(
                     val packageName = context.packageName
                     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
                     val isIgnoringBatteryOptimizations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        powerManager.isIgnoringBatteryOptimizations(packageName)
+                        runCatching { powerManager.isIgnoringBatteryOptimizations(packageName) }.getOrElse { true }
                     } else {
                         true
                     }
@@ -403,13 +437,31 @@ fun SettingsScreen(
                     }
                     
                     SettingsSection(title = stringResource(R.string.settings_notifications_title)) {
+                        val notificationChecked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            isNotificationEnabledByUser && hasNotificationPermission
+                        } else {
+                            isNotificationEnabledByUser
+                        }
                         SettingsSwitchRow(
                             title = stringResource(R.string.notification_permission_toggle),
-                            checked = isNotificationEnabledByUser,
+                            checked = notificationChecked,
                             onCheckedChange = { checked ->
-                                isNotificationEnabledByUser = checked
+                                if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    if (!hasNotificationPermission(context)) {
+                                        val activity = context as? Activity
+                                        if (activity != null) {
+                                            ActivityCompat.requestPermissions(
+                                                activity,
+                                                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                                101
+                                            )
+                                        }
+                                    }
+                                }
                                 prefs.edit().putBoolean("isNotificationEnabledByUser", checked).apply()
+                                isNotificationEnabledByUser = checked
                                 homeViewModel.refreshNotificationSchedules()
+                                refreshNotificationPermissionUi()
                             }
                         )
                         
@@ -430,6 +482,7 @@ fun SettingsScreen(
                                         runCatching {
                                             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
                                                 .setData(Uri.parse("package:$packageName"))
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                             context.startActivity(intent)
                                         }
                                     }
@@ -460,13 +513,31 @@ fun SettingsScreen(
                                         val uri = Uri.parse("package:$packageName")
                                         runCatching {
                                             context.startActivity(
-                                                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).setData(uri)
+                                                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                                                    .setData(uri)
+                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                             )
                                         }.onFailure {
                                             runCatching {
-                                                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                                                context.startActivity(
+                                                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                )
                                             }
                                         }
+                                    }
+                                }
+                            )
+                            Divider(modifier = Modifier.padding(vertical = 8.dp))
+                            SettingsRow(
+                                title = stringResource(R.string.settings_open_app_settings),
+                                onClick = {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                                .setData(Uri.parse("package:$packageName"))
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
                                     }
                                 }
                             )
@@ -1090,4 +1161,9 @@ private fun LogoCard() {
             )
         }
     }
+}
+
+private fun hasNotificationPermission(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+    return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 }

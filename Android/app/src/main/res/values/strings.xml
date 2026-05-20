@@ -59,6 +59,7 @@
     <string name="settings_battery_opt_on">On</string>
     <string name="settings_battery_opt_status_title">Battery Optimization</string>
     <string name="settings_battery_opt_off">Off</string>
+    <string name="settings_open_app_settings">Open app settings</string>
 
     <string name="client_management">Client Management</string>
     <string name="add_a_client">Add a Client</string>

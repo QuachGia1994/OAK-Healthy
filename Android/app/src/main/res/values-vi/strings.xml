@@ -58,6 +58,7 @@
     <string name="settings_battery_opt_on">Đang bật</string>
     <string name="settings_battery_opt_status_title">Tối ưu hoá pin</string>
     <string name="settings_battery_opt_off">Đã tắt</string>
+    <string name="settings_open_app_settings">Mở cài đặt ứng dụng</string>
 
     <string name="appearance_title">Giao diện</string>
     <string name="appearance_light">Sáng</string>
