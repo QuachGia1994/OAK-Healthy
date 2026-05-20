@@ -310,7 +310,11 @@ private struct TodayHeaderView: View {
                 Spacer()
             }
             
-            HStack(spacing: 8) {
+            let columns = [
+                GridItem(.flexible(), spacing: 8),
+                GridItem(.flexible(), spacing: 8)
+            ]
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                 CountChip(title: "notif_action_taken".localized, value: counts.taken, tint: .green)
                 CountChip(title: "dose_status_planned".localized, value: counts.planned, tint: .gray)
                 CountChip(title: "dose_status_skipped".localized, value: counts.skipped, tint: .orange)
@@ -352,11 +356,14 @@ private struct CountChip: View {
             Text("\(title) \(value)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(.ultraThinMaterial)
         .clipShape(Capsule())
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
