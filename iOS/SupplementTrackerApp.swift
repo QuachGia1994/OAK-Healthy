@@ -124,7 +124,7 @@ private struct RootLaunchView: View {
 }
 
 @preconcurrency
-final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = NotificationDelegate()
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
@@ -645,7 +645,6 @@ struct MainTabView: View {
         do {
             return try modelContext.fetch(descriptor).first
         } catch {
-            errorMessage = error.localizedDescription
             DebugReporter.report("dose_action_fetch_failed", fields: ["error": error.localizedDescription])
             return nil
         }
@@ -674,7 +673,6 @@ struct MainTabView: View {
             try modelContext.save()
             return true
         } catch {
-            errorMessage = error.localizedDescription
             DebugReporter.report("dose_action_save_failed", fields: ["error": error.localizedDescription])
             return false
         }
