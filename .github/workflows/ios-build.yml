@@ -179,6 +179,14 @@ jobs:
       - name: Build iOS App with Fastlane
         working-directory: ./iOS
         run: bundle exec fastlane build
+      
+      - name: Dump gym log (on failure)
+        if: ${{ failure() }}
+        run: |
+          echo "=== /Users/runner/Library/Logs/gym ==="
+          ls -la /Users/runner/Library/Logs/gym || true
+          echo "=== tail -n 250 OAKHealthy-OAKHealthy.log ==="
+          tail -n 250 /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
 
       - name: Package Unsigned IPA
         working-directory: ./iOS
