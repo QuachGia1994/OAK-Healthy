@@ -251,6 +251,7 @@ private fun NotificationCheckContent(
             DiagnosticsCard(
                 diagnosisTitle = diagnosisTitle,
                 diagnosisHint = diagnosisHint,
+                diagnosis = diagnosis,
                 hasNotificationPermission = hasNotificationPermission,
                 isNotificationEnabledByUser = isNotificationEnabledByUser,
                 activeClientId = activeClientId,
