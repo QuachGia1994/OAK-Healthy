@@ -11,6 +11,7 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -279,13 +281,23 @@ private fun ClientStep(
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxWidth().height(220.dp)) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 240.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         items(items = clients, key = { it.id }) { client ->
             val selected = client.id == currentClientId
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.10f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .clickable { onSelectClient(client.id) }
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = client.name, modifier = Modifier.weight(1f))
@@ -297,9 +309,11 @@ private fun ClientStep(
                         modifier = Modifier.size(20.dp)
                     )
                 } else {
-                    TextButton(onClick = { onSelectClient(client.id) }) {
-                        Text(stringResource(R.string.select))
-                    }
+                    Text(
+                        text = stringResource(R.string.select),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }

@@ -3,10 +3,8 @@ package com.example.supplementtracker.presentation.home
 import android.app.AlarmManager
 import android.content.Context.MODE_PRIVATE
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
-import android.provider.Settings
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
@@ -27,7 +25,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Medication
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material3.ElevatedCard
@@ -261,13 +258,6 @@ private fun NotificationCheckContent(
                 scheduledCount = scheduledCount
             )
         }
-        item {
-            StatusCards(
-                context = context,
-                canScheduleExactAlarms = canScheduleExactAlarms,
-                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations
-            )
-        }
         item { OutlinedButton(onClick = onReload) { Text(stringResource(R.string.notification_check_reload)) } }
         if (grouped.isEmpty()) item { EmptyNotificationCard() }
         grouped.forEach { group ->
@@ -295,19 +285,6 @@ private fun EmptyNotificationCard() {
             modifier = Modifier.padding(16.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    }
-}
-
-@Composable
-private fun StatusCards(
-    context: Context,
-    canScheduleExactAlarms: Boolean,
-    isIgnoringBatteryOptimizations: Boolean
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ExactAlarmStatusCard(canScheduleExactAlarms = canScheduleExactAlarms)
-        BatteryOptimizationCard(isIgnoring = isIgnoringBatteryOptimizations)
-        if (!isIgnoringBatteryOptimizations) BatteryOptimizationButton(context = context)
     }
 }
 
@@ -343,25 +320,13 @@ private fun DiagnosticsCard(
     } else {
         stringResource(R.string.notification_check_active_client_yes)
     }
-    val exactAlarmText = if (canScheduleExactAlarms) {
-        stringResource(R.string.notification_check_exact_alarms_enabled)
-    } else {
-        stringResource(R.string.notification_check_exact_alarms_disabled)
-    }
-    val batteryOptText = if (isIgnoringBatteryOptimizations) {
-        stringResource(R.string.notification_check_battery_opt_ignored)
-    } else {
-        stringResource(R.string.notification_check_battery_opt_optimized)
-    }
     val diagnosticsText = listOf(
         "diagnosis=$diagnosisTitle",
         "permission=$permissionText",
         "enabledByUser=$enabledText",
         "activeClient=${activeClientId?.toString() ?: "nil"}",
         "activeSupplements=$activeSupplementCount",
-        "scheduledCount=$scheduledCount",
-        "exactAlarms=$exactAlarmText",
-        "batteryOptimization=$batteryOptText"
+        "scheduledCount=$scheduledCount"
     ).joinToString("\n")
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -396,8 +361,6 @@ private fun DiagnosticsCard(
             KeyValueRow(label = stringResource(R.string.notification_check_active_client_label), value = activeClientText)
             KeyValueRow(label = stringResource(R.string.notification_check_active_supplements_label), value = activeSupplementCount.toString())
             KeyValueRow(label = stringResource(R.string.notification_check_scheduled_count_label), value = scheduledCount.toString())
-            KeyValueRow(label = stringResource(R.string.notification_check_exact_alarms_label), value = exactAlarmText)
-            KeyValueRow(label = stringResource(R.string.notification_check_battery_opt_label), value = batteryOptText)
             Text(stringResource(R.string.notification_check_diagnostics_label), style = MaterialTheme.typography.titleSmall)
             SelectionContainer {
                 Text(
@@ -440,54 +403,6 @@ private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
         powerManager.isIgnoringBatteryOptimizations(packageName)
     } else {
         true
-    }
-}
-
-@Composable
-private fun ExactAlarmStatusCard(canScheduleExactAlarms: Boolean) {
-    ElevatedCard {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Default.Notifications, contentDescription = null)
-            Spacer(modifier = Modifier.size(10.dp))
-            val status = if (canScheduleExactAlarms) {
-                stringResource(R.string.notification_check_exact_alarms_enabled)
-            } else {
-                stringResource(R.string.notification_check_exact_alarms_disabled)
-            }
-            Text(stringResource(R.string.notification_check_exact_alarms_format, status))
-        }
-    }
-}
-
-@Composable
-private fun BatteryOptimizationCard(isIgnoring: Boolean) {
-    ElevatedCard {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(imageVector = Icons.Default.Bolt, contentDescription = null)
-            Spacer(modifier = Modifier.size(10.dp))
-            val status = if (isIgnoring) {
-                stringResource(R.string.notification_check_battery_opt_ignored)
-            } else {
-                stringResource(R.string.notification_check_battery_opt_optimized)
-            }
-            Text(stringResource(R.string.notification_check_battery_opt_format, status))
-        }
-    }
-}
-
-@Composable
-private fun BatteryOptimizationButton(context: Context) {
-    OutlinedButton(
-        onClick = {
-            runCatching {
-                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-            }
-        }
-    ) {
-        Text(stringResource(R.string.notification_check_open_battery_opt_settings))
     }
 }
 

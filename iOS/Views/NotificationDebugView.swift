@@ -14,7 +14,6 @@ public struct NotificationDebugScreen: View {
     @State private var pendingOnlyCount: Int = 0
     @State private var shadowOnlyCount: Int = 0
     @State private var shadowErrorCount: Int = 0
-    @State private var message: String?
     
     public let activeClientManager: ActiveClientManager
     
@@ -47,80 +46,18 @@ public struct NotificationDebugScreen: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 
-                LabeledContent("Permission") { Text(authorizationStatusText) }
-                LabeledContent("Enabled (User)") { Text(isNotificationEnabledByUser ? "ON" : "OFF") }
-                LabeledContent("Active client") { Text(activeClientManager.currentClientId == nil ? "NO" : "YES") }
-                LabeledContent("Active supplements") { Text("\(activeSupplementCount)") }
-                LabeledContent("Pending (OS)") { Text("\(pendingEntries.count)") }
-                LabeledContent("Shadow") { Text("\(shadowEntries.count)") }
-                LabeledContent("Pending only") { Text("\(pendingOnlyCount)") }
-                LabeledContent("Shadow only") { Text("\(shadowOnlyCount)") }
-                LabeledContent("Shadow errors") { Text("\(shadowErrorCount)") }
-                
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
-                    spacing: 12
-                ) {
-                    Button {
-                        Task { await refresh() }
-                    } label: {
-                        VStack(spacing: 8) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.title3)
-                            Text("Refresh")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Button {
-                        Task { await clearPending() }
-                    } label: {
-                        VStack(spacing: 8) {
-                            Image(systemName: "trash")
-                                .font(.title3)
-                            Text("Clear")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.bordered)
-                    
-                    Button {
-                        Task { await rescheduleForActiveClient() }
-                    } label: {
-                        VStack(spacing: 8) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.title3)
-                            Text("Reschedule")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                
-                if let message {
-                    Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                LabeledContent("onboarding_permission_status".localized) { Text(authorizationStatusText) }
+                LabeledContent("notification_debug_enabled_user_label".localized) { Text(enabledText) }
+                LabeledContent("notification_debug_active_client_label".localized) { Text(activeClientText) }
+                LabeledContent("notification_debug_active_supplements_label".localized) { Text("\(activeSupplementCount)") }
+                LabeledContent("notification_debug_pending_os_label".localized) { Text("\(pendingEntries.count)") }
+                LabeledContent("notification_debug_shadow_label".localized) { Text("\(shadowEntries.count)") }
+                LabeledContent("notification_debug_pending_only_label".localized) { Text("\(pendingOnlyCount)") }
+                LabeledContent("notification_debug_shadow_only_label".localized) { Text("\(shadowOnlyCount)") }
+                LabeledContent("notification_debug_shadow_errors_label".localized) { Text("\(shadowErrorCount)") }
             }
             
-            Section("Diagnostics") {
+            Section("notification_debug_diagnostics_section".localized) {
                 Text(diagnosticsText)
                     .font(.system(.footnote, design: .monospaced))
                     .textSelection(.enabled)
@@ -141,6 +78,9 @@ public struct NotificationDebugScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .refreshable {
+            await refresh()
+        }
     }
     
     private func refresh() async {
@@ -162,29 +102,6 @@ public struct NotificationDebugScreen: View {
             shadowErrorCount = errorCount
             message = nil
             isLoading = false
-        }
-    }
-    
-    private func clearPending() async {
-        await NotificationService.shared.clearAllPendingNotifications()
-        await refresh()
-    }
-    
-    private func rescheduleForActiveClient() async {
-        guard let clientId = activeClientManager.currentClientId else {
-            await MainActor.run { message = "No active client" }
-            return
-        }
-        do {
-            let descriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate { $0.deletedAtEpochMs == nil && $0.client?.id == clientId },
-                sortBy: [SortDescriptor(\UserSupplement.name)]
-            )
-            let supplements = try modelContext.fetch(descriptor)
-            await NotificationService.shared.replaceAllSchedules(supplements: supplements)
-            await refresh()
-        } catch {
-            await MainActor.run { message = error.localizedDescription }
         }
     }
     
@@ -220,32 +137,32 @@ public struct NotificationDebugScreen: View {
     }
     
     private var diagnosisTitle: String {
-        if authorizationStatus == .denied { return "DENIED" }
-        if !isNotificationEnabledByUser { return "OFF" }
-        if activeClientManager.currentClientId == nil { return "NO ACTIVE CLIENT" }
-        if activeSupplementCount == 0 { return "NO SUPPLEMENTS" }
-        if pendingEntries.isEmpty { return "SCHEDULED = 0" }
-        if pendingOnlyCount > 0 || shadowOnlyCount > 0 || shadowErrorCount > 0 { return "MISMATCH" }
-        return "OK"
+        if authorizationStatus == .denied { return "notification_debug_diag_denied_title".localized }
+        if !isNotificationEnabledByUser { return "notification_debug_diag_off_title".localized }
+        if activeClientManager.currentClientId == nil { return "notification_debug_diag_no_active_client_title".localized }
+        if activeSupplementCount == 0 { return "notification_debug_diag_no_supplements_title".localized }
+        if pendingEntries.isEmpty { return "notification_debug_diag_scheduled_zero_title".localized }
+        if pendingOnlyCount > 0 || shadowOnlyCount > 0 || shadowErrorCount > 0 { return "notification_debug_diag_mismatch_title".localized }
+        return "notification_debug_diag_ok_title".localized
     }
     
     private var diagnosisHint: String {
-        if authorizationStatus == .denied { return "Permission denied. Enable notifications in Settings." }
-        if authorizationStatus == .notDetermined { return "Permission not requested yet. Turn ON the toggle to request." }
-        if !isNotificationEnabledByUser { return "User toggle is OFF. Turn ON to schedule reminders." }
-        if activeClientManager.currentClientId == nil { return "Select an active client first." }
-        if activeSupplementCount == 0 { return "Add at least one supplement for the active client." }
-        if pendingEntries.isEmpty { return "No pending requests. Try Reschedule; check cycle/weekly/quiet-hours rules." }
-        if shadowErrorCount > 0 { return "Some schedules failed. Check Shadow errors in the list/log." }
-        if pendingOnlyCount > 0 { return "Pending has entries not found in Shadow. Try Clear pending then Reschedule." }
-        if shadowOnlyCount > 0 { return "Shadow has entries missing in Pending. Reschedule may have failed or been cleared." }
-        return "Healthy state."
+        if authorizationStatus == .denied { return "notification_debug_diag_denied_hint".localized }
+        if authorizationStatus == .notDetermined { return "notification_debug_diag_not_determined_hint".localized }
+        if !isNotificationEnabledByUser { return "notification_debug_diag_off_hint".localized }
+        if activeClientManager.currentClientId == nil { return "notification_debug_diag_no_active_client_hint".localized }
+        if activeSupplementCount == 0 { return "notification_debug_diag_no_supplements_hint".localized }
+        if pendingEntries.isEmpty { return "notification_debug_diag_scheduled_zero_hint".localized }
+        if shadowErrorCount > 0 { return "notification_debug_diag_shadow_error_hint".localized }
+        if pendingOnlyCount > 0 { return "notification_debug_diag_pending_only_hint".localized }
+        if shadowOnlyCount > 0 { return "notification_debug_diag_shadow_only_hint".localized }
+        return "notification_debug_diag_ok_hint".localized
     }
     
     private var diagnosticsText: String {
         [
             "permission=\(authorizationStatusText)",
-            "enabledByUser=\(isNotificationEnabledByUser)",
+            "enabledByUser=\(enabledText)",
             "activeClient=\(activeClientManager.currentClientId?.uuidString ?? "nil")",
             "activeSupplements=\(activeSupplementCount)",
             "pendingCount=\(pendingEntries.count)",
@@ -258,13 +175,21 @@ public struct NotificationDebugScreen: View {
     
     private var authorizationStatusText: String {
         switch authorizationStatus {
-        case .authorized: return "authorized"
-        case .provisional: return "provisional"
-        case .denied: return "denied"
-        case .notDetermined: return "notDetermined"
-        case .ephemeral: return "ephemeral"
-        @unknown default: return "unknown"
+        case .authorized, .provisional:
+            return "onboarding_permission_granted".localized
+        case .denied:
+            return "onboarding_permission_denied".localized
+        default:
+            return "onboarding_permission_not_determined".localized
         }
+    }
+    
+    private var enabledText: String {
+        isNotificationEnabledByUser ? "status_on".localized : "status_off".localized
+    }
+    
+    private var activeClientText: String {
+        activeClientManager.currentClientId == nil ? "status_no".localized : "status_yes".localized
     }
     
     fileprivate enum Source: String, Hashable {
@@ -306,7 +231,7 @@ public struct NotificationDebugScreen: View {
     }
     
     private func groupHeader(_ key: GroupKey) -> String {
-        let sourceText = key.source == .pending ? "Pending" : "Shadow"
+        let sourceText = key.source == .pending ? "notification_debug_source_pending".localized : "notification_debug_source_shadow".localized
         return "\(sourceText) • \(dayHeader(key.day))"
     }
     
@@ -375,7 +300,7 @@ private struct NotificationRow: View {
     }
     
     private var detailText: String {
-        let origin = source == .pending ? "Pending" : "Shadow"
+        let origin = source == .pending ? "notification_debug_source_pending".localized : "notification_debug_source_shadow".localized
         let dose = entry.dose.trimmingCharacters(in: .whitespacesAndNewlines)
         let cycle = entry.cycleText.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedDose = dose.isEmpty ? "—" : dose
