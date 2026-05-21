@@ -505,6 +505,7 @@ struct MainTabView: View {
     let notificationService: NotificationService
     
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -547,6 +548,14 @@ struct MainTabView: View {
             Task { @MainActor in
                 await rescheduleNotificationsIfEnabled()
             }
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { !hasCompletedOnboarding },
+                set: { _ in }
+            )
+        ) {
+            OnboardingView(activeClientManager: activeClientManager, notificationService: notificationService)
         }
     }
     

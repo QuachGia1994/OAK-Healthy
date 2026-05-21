@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+@preconcurrency import UserNotifications
 
 /// Màn hình Cài đặt và Thông tin ứng dụng (iOS).
 public struct SettingsView: View {
@@ -94,7 +95,10 @@ public struct SettingsView: View {
                         Task {
                             let center = UNUserNotificationCenter.current()
                             let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-                            guard granted else { return }
+                            guard granted else {
+                                isNotificationEnabledByUser = false
+                                return
+                            }
                             await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
                         }
                         return
