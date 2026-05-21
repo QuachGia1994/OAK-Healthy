@@ -102,6 +102,7 @@ public struct LocalizationService: Sendable {
         "onboarding_test_sent_format": ("Sent: %@", "Đã gửi: %@"),
         "onboarding_test_ack_format": ("Opened: %@", "Đã mở: %@"),
         "onboarding_reschedule_now": ("Reschedule now", "Đặt lại lịch ngay"),
+        "settings_clear_pending_notifications": ("Clear pending notifications", "Xoá lịch nhắc (pending)"),
         "onboarding_step_done_title": ("All set", "Hoàn tất"),
         "onboarding_step_done_body": ("You can change these settings anytime in Settings.", "Bạn có thể đổi các thiết lập này bất cứ lúc nào trong Cài đặt."),
         "import_failed": ("Import failed.", "Nhập dữ liệu thất bại."),

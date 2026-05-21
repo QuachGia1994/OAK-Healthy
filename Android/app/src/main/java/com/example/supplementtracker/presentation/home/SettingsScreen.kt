@@ -443,6 +443,32 @@ fun SettingsScreen(
                             onClick = onNavigateToNotificationCheck
                         )
 
+                        SettingsRow(
+                            title = stringResource(R.string.notification_check_reschedule_now),
+                            onClick = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission(context)) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(stringResource(R.string.notification_check_snackbar_permission_required))
+                                    }
+                                    return@SettingsRow
+                                }
+                                homeViewModel.refreshNotificationSchedules()
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(stringResource(R.string.notification_check_snackbar_rescheduled))
+                                }
+                            }
+                        )
+
+                        SettingsRow(
+                            title = stringResource(R.string.notification_check_clear_pending),
+                            onClick = {
+                                homeViewModel.clearPendingNotifications()
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(stringResource(R.string.notification_check_snackbar_cleared))
+                                }
+                            }
+                        )
+
                         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
                         val notificationChecked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

@@ -326,6 +326,11 @@
     <string name="notification_check_active_supplements_format">Số chất đang dùng: %1$d</string>
     <string name="notification_check_scheduled_count_format">Đã lên lịch (Debug): %1$d</string>
     <string name="notification_check_diagnostics_label">Diagnostics</string>
+    <string name="notification_check_reschedule_now">Đặt lại lịch ngay</string>
+    <string name="notification_check_clear_pending">Xóa lịch nhắc (pending)</string>
+    <string name="notification_check_snackbar_permission_required">Cần cấp quyền thông báo.</string>
+    <string name="notification_check_snackbar_rescheduled">Đã đặt lại lịch.</string>
+    <string name="notification_check_snackbar_cleared">Đã xoá.</string>
     <string name="notification_check_hint_permission_denied">Bạn đã từ chối quyền thông báo. Hãy bật lại trong Cài đặt hệ thống.</string>
     <string name="notification_check_hint_toggle_off">Bạn đang tắt công tắc thông báo. Bật lên để app lên lịch nhắc.</string>
     <string name="notification_check_hint_no_active_client">Hãy chọn học viên trước.</string>

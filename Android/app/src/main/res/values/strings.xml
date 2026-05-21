@@ -322,6 +322,11 @@
     <string name="notification_check_active_supplements_format">Active supplements: %1$d</string>
     <string name="notification_check_scheduled_count_format">Scheduled (Debug): %1$d</string>
     <string name="notification_check_diagnostics_label">Diagnostics</string>
+    <string name="notification_check_reschedule_now">Reschedule now</string>
+    <string name="notification_check_clear_pending">Clear pending notifications</string>
+    <string name="notification_check_snackbar_permission_required">Notification permission is required.</string>
+    <string name="notification_check_snackbar_rescheduled">Rescheduled.</string>
+    <string name="notification_check_snackbar_cleared">Cleared.</string>
     <string name="notification_check_hint_permission_denied">Permission denied. Enable notifications in Settings.</string>
     <string name="notification_check_hint_toggle_off">User toggle is OFF. Turn ON to schedule reminders.</string>
     <string name="notification_check_hint_no_active_client">Select an active client first.</string>
