@@ -57,25 +57,58 @@ public struct NotificationDebugScreen: View {
                 LabeledContent("Shadow only") { Text("\(shadowOnlyCount)") }
                 LabeledContent("Shadow errors") { Text("\(shadowErrorCount)") }
                 
-                HStack(spacing: 12) {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
+                    spacing: 12
+                ) {
                     Button {
                         Task { await refresh() }
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                        VStack(spacing: 8) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.title3)
+                            Text("Refresh")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                     }
                     .buttonStyle(.bordered)
                     
                     Button {
                         Task { await clearPending() }
                     } label: {
-                        Label("Clear pending", systemImage: "trash")
+                        VStack(spacing: 8) {
+                            Image(systemName: "trash")
+                                .font(.title3)
+                            Text("Clear")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                     }
                     .buttonStyle(.bordered)
                     
                     Button {
                         Task { await rescheduleForActiveClient() }
                     } label: {
-                        Label("Reschedule", systemImage: "arrow.triangle.2.circlepath")
+                        VStack(spacing: 8) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.title3)
+                            Text("Reschedule")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
                     }
                     .buttonStyle(.borderedProminent)
                 }
