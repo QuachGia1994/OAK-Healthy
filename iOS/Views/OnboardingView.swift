@@ -31,16 +31,21 @@ public struct OnboardingView: View {
     
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                switch step {
-                case .client:
-                    clientStep
-                case .notifications:
-                    notificationsStep
-                case .done:
-                    doneStep
+            VStack(spacing: 14) {
+                OnboardingHero(step: step)
+                ScrollView {
+                    VStack(spacing: 14) {
+                        switch step {
+                        case .client:
+                            clientStep
+                        case .notifications:
+                            notificationsStep
+                        case .done:
+                            doneStep
+                        }
+                    }
+                    .padding(.vertical, 2)
                 }
-                Spacer(minLength: 0)
                 footer
             }
             .padding(16)
@@ -91,24 +96,35 @@ public struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent)
             } else {
-                List {
+                VStack(spacing: 0) {
                     ForEach(clients) { client in
                         Button {
                             activeClientManager.setCurrentClientId(client.id)
                         } label: {
-                            HStack {
+                            HStack(spacing: 10) {
                                 Text(client.name)
+                                    .font(.headline)
                                 Spacer()
                                 if client.id == activeClientManager.currentClientId {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.green)
+                                } else {
+                                    Image(systemName: "circle")
+                                        .foregroundStyle(.secondary)
                                 }
                             }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.plain)
+                        if client.id != clients.last?.id {
+                            Divider()
+                                .opacity(0.25)
+                                .padding(.leading, 12)
                         }
                     }
                 }
-                .listStyle(.plain)
-                .frame(maxHeight: 260)
+                .onboardingCard()
                 
                 Button("add_client".localized) {
                     isShowingAddClient = true
@@ -133,28 +149,30 @@ public struct OnboardingView: View {
             Text("onboarding_step_notifications_body".localized)
                 .foregroundStyle(.secondary)
             
-            HStack {
-                Text("onboarding_permission_status".localized)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(permissionLabel)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Toggle(
-                "notification_permission_toggle".localized,
-                isOn: Binding(
-                    get: { isNotificationEnabledByUser },
-                    set: { newValue in
-                        guard authorizationStatus != .denied else {
-                            isNotificationEnabledByUser = false
-                            permissionMessage = "onboarding_notifications_denied".localized
-                            return
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("onboarding_permission_status".localized)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(permissionLabel)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Toggle(
+                    "notification_permission_toggle".localized,
+                    isOn: Binding(
+                        get: { isNotificationEnabledByUser },
+                        set: { newValue in
+                            guard authorizationStatus != .denied else {
+                                isNotificationEnabledByUser = false
+                                permissionMessage = "onboarding_notifications_denied".localized
+                                return
+                            }
+                            isNotificationEnabledByUser = newValue
                         }
-                        isNotificationEnabledByUser = newValue
-                    }
+                    )
                 )
-            )
                 .onChange(of: isNotificationEnabledByUser) { _, newValue in
                     guard newValue else {
                         permissionMessage = nil
@@ -163,12 +181,25 @@ public struct OnboardingView: View {
                     }
                     Task { await requestNotificationsIfNeeded() }
                 }
+            }
+            .onboardingCard()
             
             if isSystemNotificationGranted, isNotificationEnabledByUser {
-                Button("onboarding_send_test_notification".localized) {
-                    Task { await sendTestNotification() }
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await sendTestNotification() }
+                    } label: {
+                        Label("onboarding_send_test_notification".localized, systemImage: "paperplane.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    
+                    Button {
+                        Task { await scheduleNotificationsForActiveClient() }
+                    } label: {
+                        Label("onboarding_reschedule_now".localized, systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.borderedProminent)
                 
                 if lastTestSentEpochMs > 0 {
                     Text(String(format: "onboarding_test_sent_format".localized, formatEpochMs(lastTestSentEpochMs)))
@@ -180,21 +211,21 @@ public struct OnboardingView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                
-                Button("onboarding_reschedule_now".localized) {
-                    Task { await scheduleNotificationsForActiveClient() }
-                }
-                .buttonStyle(.bordered)
             }
             
             if let permissionMessage {
-                Text(permissionMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Button("onboarding_open_settings".localized) {
-                    openAppSettings()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(permissionMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Button {
+                        openAppSettings()
+                    } label: {
+                        Label("onboarding_open_settings".localized, systemImage: "gearshape")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
+                .onboardingCard()
             }
         }
     }
@@ -212,14 +243,18 @@ public struct OnboardingView: View {
     private var footer: some View {
         HStack {
             if step != .client {
-                Button("back".localized) {
+                Button {
                     step = step.previous
+                } label: {
+                    Label("back".localized, systemImage: "chevron.left")
                 }
                 .buttonStyle(.bordered)
             }
             Spacer()
-            Button(step.primaryButtonTitle) {
+            Button {
                 handlePrimary()
+            } label: {
+                Label(step.primaryButtonTitle, systemImage: step == .done ? "checkmark" : "chevron.right")
             }
             .buttonStyle(.borderedProminent)
             .disabled(step == .client && activeClientManager.currentClientId == nil)
@@ -324,9 +359,7 @@ public struct OnboardingView: View {
     private func formatEpochMs(_ epochMs: Int) -> String {
         guard epochMs > 0 else { return "" }
         let date = Date(timeIntervalSince1970: TimeInterval(epochMs) / 1000)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: date)
+        return OnboardingFormatters.timestamp.string(from: date)
     }
 
     private func readEpochMs(forKey key: String) -> Int {
@@ -346,6 +379,60 @@ public struct OnboardingView: View {
         if isSystemNotificationGranted { return "onboarding_permission_granted".localized }
         if authorizationStatus == .denied { return "onboarding_permission_denied".localized }
         return "onboarding_permission_not_determined".localized
+    }
+}
+
+private enum OnboardingFormatters {
+    static let timestamp: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
+    }()
+}
+
+private struct OnboardingHero: View {
+    let step: OnboardingStep
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.title2)
+                .foregroundStyle(.tint)
+            OnboardingProgress(step: step)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct OnboardingProgress: View {
+    let step: OnboardingStep
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Dot(isActive: true)
+            Dot(isActive: step != .client)
+            Dot(isActive: step == .done)
+        }
+    }
+    
+    private struct Dot: View {
+        let isActive: Bool
+        
+        var body: some View {
+            Circle()
+                .fill(isActive ? Color.accentColor : Color.secondary.opacity(0.25))
+                .frame(width: 8, height: 8)
+        }
+    }
+}
+
+private extension View {
+    func onboardingCard() -> some View {
+        padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 6)
     }
 }
 

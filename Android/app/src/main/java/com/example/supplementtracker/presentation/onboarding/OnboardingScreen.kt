@@ -10,6 +10,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -84,6 +86,12 @@ fun OnboardingScreen(
         } else {
             Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
         }
+    }
+    val cardBase = remember(isDark) {
+        if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    }
+    val cardStroke = remember(isDark) {
+        if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.28f)
     }
 
     var step by remember { mutableStateOf(OnboardingStep.CLIENT) }
@@ -137,14 +145,22 @@ fun OnboardingScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
+            OnboardingProgress(step = step)
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, cardStroke, RoundedCornerShape(28.dp)),
                 shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                colors = CardDefaults.cardColors(containerColor = cardBase),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     when (step) {
                         OnboardingStep.CLIENT -> ClientStep(
                             clients = clients,
@@ -187,7 +203,7 @@ fun OnboardingScreen(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (step != OnboardingStep.CLIENT) {
-                    TextButton(onClick = { step = step.previous() }) {
+                    OutlinedButton(onClick = { step = step.previous() }) {
                         Text(stringResource(R.string.back))
                     }
                 } else {
@@ -397,6 +413,39 @@ private enum class OnboardingStep {
             BATTERY -> EXACT_ALARM
             DONE -> BATTERY
         }
+    }
+}
+
+@Composable
+private fun OnboardingProgress(step: OnboardingStep) {
+    val total = 5
+    val index = when (step) {
+        OnboardingStep.CLIENT -> 0
+        OnboardingStep.NOTIFICATIONS -> 1
+        OnboardingStep.EXACT_ALARM -> 2
+        OnboardingStep.BATTERY -> 3
+        OnboardingStep.DONE -> 4
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            repeat(total) { i ->
+                val active = i <= index
+                val color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+                Surface(shape = RoundedCornerShape(99.dp), color = color, modifier = Modifier.size(width = 18.dp, height = 6.dp)) {}
+            }
+        }
+        val title = when (step) {
+            OnboardingStep.CLIENT -> stringResource(R.string.onboarding_step_client_title)
+            OnboardingStep.NOTIFICATIONS -> stringResource(R.string.onboarding_step_notifications_title)
+            OnboardingStep.EXACT_ALARM -> stringResource(R.string.onboarding_step_exact_alarm_title)
+            OnboardingStep.BATTERY -> stringResource(R.string.onboarding_step_battery_title)
+            OnboardingStep.DONE -> stringResource(R.string.onboarding_step_done_title)
+        }
+        Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
     }
 }
 
