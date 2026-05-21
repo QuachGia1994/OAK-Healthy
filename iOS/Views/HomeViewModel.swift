@@ -11,6 +11,8 @@ public final class HomeViewModel {
     public var activeSupplementTimes: [String] = []
     public var restingSupplements: [RestingSupplementInfo] = []
     public var errorMessage: String?
+    private var todayRecordStatusById: [UUID: String] = [:]
+    private var recentRecordIds: Set<UUID> = []
     
     // MARK: - Dependencies
     private let cycleEngine: any CycleCalculating
@@ -92,7 +94,9 @@ public final class HomeViewModel {
             guard matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: day, calendar: calendar) else { continue }
             for time in intakeTimes(from: supplement.intakeTime) {
                 guard let scheduledAt = scheduledAtLocal(for: day, timeString: time) else { continue }
-                if todayRecord(for: supplement, scheduledAt: scheduledAt, timeString: time) == nil { return false }
+                let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
+                let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+                if !recentRecordIds.contains(recordId) { return false }
             }
         }
         return true
@@ -102,7 +106,9 @@ public final class HomeViewModel {
         guard let time = normalizedTimeString(timeString) else { return .none }
         guard doseStatus(supplement, timeString: time, now: now) == .planned else { return .none }
         guard let scheduledAt = scheduledAtLocal(for: now, timeString: time) else { return .none }
-        if todayRecord(for: supplement, scheduledAt: scheduledAt, timeString: time) != nil { return .none }
+        let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
+        let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+        if todayRecordStatusById[recordId] != nil { return .none }
         let dueSoonSeconds: TimeInterval = 20 * 60
         if scheduledAt > now && scheduledAt.timeIntervalSince(now) <= dueSoonSeconds { return .dueSoon }
         let missedAfter = scheduledAt.addingTimeInterval(2 * 60 * 60)
@@ -136,11 +142,10 @@ public final class HomeViewModel {
         
         let scheduledAt = scheduledAtLocal(for: .now, timeString: time)
         guard let scheduledAt else { return }
-        guard todayRecord(for: supplement, scheduledAt: scheduledAt, timeString: time) == nil else { return }
         
         let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
-        let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
-        let recordId = DoseEventKey.stableUUID(from: key)
+        let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+        guard todayRecordStatusById[recordId] == nil else { return }
         let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         let status: String = switch action {
         case .taken: IntakeStatus.taken.rawValue
@@ -163,6 +168,11 @@ public final class HomeViewModel {
             errorMessage = error.localizedDescription
             return
         }
+
+        todayRecordStatusById[recordId] = status
+        recentRecordIds.insert(recordId)
+        cachedTodayCounts = todayCounts(now: .now)
+        cachedStreakDays = streakDays(supplements: supplementsSnapshot(), now: .now)
         
         Task { await notificationService.cancelReminder(for: supplement, timeString: time, day: scheduledAt) }
         Task { await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id) }
@@ -174,8 +184,10 @@ public final class HomeViewModel {
         let scheduledAt = scheduledAtLocal(for: now, timeString: time)
         guard let scheduledAt else { return .planned }
         
-        if let record = todayRecord(for: supplement, scheduledAt: scheduledAt, timeString: time) {
-            if record.status == IntakeStatus.skipped.rawValue { return .skipped }
+        let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
+        let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+        if let status = todayRecordStatusById[recordId] {
+            if status == IntakeStatus.skipped.rawValue { return .skipped }
             return .taken
         }
         
@@ -187,6 +199,20 @@ public final class HomeViewModel {
     private func scheduledAtLocal(for day: Date, timeString: String) -> Date? {
         guard let minutes = TimeStrings.parseLenientTime(timeString) else { return nil }
         return Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: day)
+    }
+
+    private func recordIdForDose(supplementId: UUID, scheduledAtEpochMs: Int64) -> UUID {
+        let key = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: scheduledAtEpochMs)
+        return DoseEventKey.stableUUID(from: key)
+    }
+
+    private func supplementsSnapshot() -> [UserSupplement] {
+        var map: [UUID: UserSupplement] = [:]
+        for supplements in activeSupplements.values {
+            for supplement in supplements { map[supplement.id] = supplement }
+        }
+        for info in restingSupplements { map[info.supplement.id] = info.supplement }
+        return Array(map.values)
     }
     
     private func todayRecord(for supplement: UserSupplement, scheduledAt: Date, timeString: String) -> IntakeRecord? {
@@ -226,11 +252,21 @@ public final class HomeViewModel {
     public func processSupplements(_ supplements: [UserSupplement]) {
         let today = Date.now
         let calendar = isoWeekCalendar()
+        let todayStart = Calendar.current.startOfDay(for: today)
+        let minDate = Calendar.current.date(byAdding: .day, value: -130, to: todayStart) ?? todayStart
+        var todayStatus: [UUID: String] = [:]
+        var recent: Set<UUID> = []
         var active: [String: [UserSupplement]] = [:]
         var resting: [RestingSupplementInfo] = []
         
         for supplement in supplements {
             if supplement.deletedAtEpochMs != nil { continue }
+            for record in supplement.intakeRecords {
+                if record.date >= minDate { recent.insert(record.id) }
+                if Calendar.current.isDate(record.date, inSameDayAs: todayStart) {
+                    todayStatus[record.id] = record.status
+                }
+            }
             let status = try? cycleEngine.determineStatus(
                 for: supplement.startDate,
                 config: supplement.cycleConfig,
@@ -250,6 +286,8 @@ public final class HomeViewModel {
         self.activeSupplements = active
         self.activeSupplementTimes = active.keys.sorted()
         self.restingSupplements = resting
+        self.todayRecordStatusById = todayStatus
+        self.recentRecordIds = recent
         self.cachedTodayCounts = todayCounts(now: today)
         self.cachedStreakDays = streakDays(supplements: supplements, now: today)
     }

@@ -66,14 +66,33 @@ public final class HistoryViewModel {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
         guard let start = calendar.date(byAdding: .day, value: -(windowDays - 1), to: todayStart) else { return nil }
-        let windowRecords = records.filter {
-            let day = calendar.startOfDay(for: $0.date)
-            return day >= start && day <= todayStart
+        var taken = 0
+        var skipped = 0
+        var late = 0
+        var skippedCounts: [String: Int] = [:]
+        var lateCounts: [String: Int] = [:]
+        var lateHourCounts: [Int: Int] = [:]
+        for record in records {
+            let day = calendar.startOfDay(for: record.date)
+            if day < start || day > todayStart { continue }
+            let name = record.supplement?.name ?? "not_available".localized
+            if record.status == IntakeStatus.taken.rawValue {
+                taken += 1
+                if isLateTaken(record) {
+                    late += 1
+                    lateCounts[name, default: 0] += 1
+                    let updatedAt = Date(timeIntervalSince1970: TimeInterval(record.updatedAtEpochMs) / 1000)
+                    let hour = calendar.component(.hour, from: updatedAt)
+                    lateHourCounts[hour, default: 0] += 1
+                }
+                continue
+            }
+            if record.status == IntakeStatus.skipped.rawValue {
+                skipped += 1
+                skippedCounts[name, default: 0] += 1
+            }
         }
-        if windowRecords.isEmpty { return nil }
-        let taken = windowRecords.filter { $0.status == IntakeStatus.taken.rawValue }.count
-        let skipped = windowRecords.filter { $0.status == IntakeStatus.skipped.rawValue }.count
-        let late = windowRecords.filter(isLateTaken).count
+        if taken == 0, skipped == 0 { return nil }
         let denom = max(1, taken + skipped)
         let completionRate = Double(taken) / Double(denom)
         return InsightsSummary(
@@ -82,9 +101,9 @@ public final class HistoryViewModel {
             skippedCount: skipped,
             lateCount: late,
             completionRate: completionRate,
-            topSkipped: topItems(records: windowRecords, status: IntakeStatus.skipped.rawValue),
-            topLate: topLateItems(records: windowRecords),
-            topLateHour: topLateHour(records: windowRecords)
+            topSkipped: topItemsFromCounts(skippedCounts),
+            topLate: topItemsFromCounts(lateCounts),
+            topLateHour: topLateHourFromCounts(lateHourCounts)
         )
     }
 
@@ -96,35 +115,17 @@ public final class HistoryViewModel {
         return record.updatedAtEpochMs > threshold
     }
 
-    private func topItems(records: [IntakeRecord], status: String) -> [InsightsItem] {
-        let groups = Dictionary(grouping: records.filter { $0.status == status }) { $0.supplement?.name ?? "not_available".localized }
-        return groups
-            .map { InsightsItem(title: $0.key, count: $0.value.count) }
+    private func topItemsFromCounts(_ counts: [String: Int]) -> [InsightsItem] {
+        counts
+            .map { InsightsItem(title: $0.key, count: $0.value) }
             .sorted { $0.count > $1.count }
             .prefix(3)
             .map { $0 }
     }
 
-    private func topLateItems(records: [IntakeRecord]) -> [InsightsItem] {
-        let groups = Dictionary(grouping: records.filter(isLateTaken)) { $0.supplement?.name ?? "not_available".localized }
-        return groups
-            .map { InsightsItem(title: $0.key, count: $0.value.count) }
-            .sorted { $0.count > $1.count }
-            .prefix(3)
-            .map { $0 }
-    }
-
-    private func topLateHour(records: [IntakeRecord]) -> InsightsItem? {
-        let calendar = Calendar.current
-        let late = records.filter(isLateTaken)
-        if late.isEmpty { return nil }
-        let groups = Dictionary(grouping: late) {
-            let date = Date(timeIntervalSince1970: TimeInterval($0.updatedAtEpochMs) / 1000)
-            return calendar.component(.hour, from: date)
-        }
-        let best = groups.max { $0.value.count < $1.value.count }
-        guard let best else { return nil }
+    private func topLateHourFromCounts(_ counts: [Int: Int]) -> InsightsItem? {
+        guard let best = counts.max(by: { $0.value < $1.value }) else { return nil }
         let label = String(format: "%02d:00", best.key)
-        return InsightsItem(title: label, count: best.value.count)
+        return InsightsItem(title: label, count: best.value)
     }
 }
