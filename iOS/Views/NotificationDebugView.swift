@@ -121,11 +121,9 @@ public struct NotificationDebugScreen: View {
     private func fetchActiveSupplementCount(clientId: UUID?) -> Int {
         guard let clientId else { return 0 }
         do {
-            let descriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
-            )
+            let descriptor = FetchDescriptor<UserSupplement>()
             let supplements = try modelContext.fetch(descriptor)
-            return supplements.count
+            return supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }.count
         } catch {
             return 0
         }

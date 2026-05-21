@@ -194,43 +194,9 @@ public struct HistoryView: View {
             return name.localizedCaseInsensitiveContains(query)
         }
     }
-
-    private func sectionTitle(for day: Date, calendar: Calendar, formatter: DateFormatter) -> String {
-        if calendar.isDateInToday(day) { return "history_today".localized }
-        if calendar.isDateInYesterday(day) { return "history_yesterday".localized }
-        return formatter.string(from: day)
-    }
     
     private func makeSections(records: [IntakeRecord]) -> [HistorySectionModel] {
-        let calendar = Calendar.current
-        let formatter = HistoryFormatters.dayHeader
-        var sections: [HistorySectionModel] = []
-        var currentDay: Date? = nil
-        var currentRows: [HistoryRowModel] = []
-        for record in records {
-            let day = calendar.startOfDay(for: record.date)
-            if currentDay != nil && day != currentDay {
-                if let currentDay {
-                    let title = sectionTitle(for: currentDay, calendar: calendar, formatter: formatter)
-                    sections.append(HistorySectionModel(date: currentDay, title: title, rows: currentRows))
-                }
-                currentRows = []
-            }
-            currentDay = day
-            currentRows.append(
-                HistoryRowModel(
-                    id: record.id,
-                    timeText: HistoryFormatters.timeShort.string(from: record.date),
-                    supplementName: record.supplement?.name ?? "not_available".localized,
-                    status: record.status
-                )
-            )
-        }
-        if let currentDay {
-            let title = sectionTitle(for: currentDay, calendar: calendar, formatter: formatter)
-            sections.append(HistorySectionModel(date: currentDay, title: title, rows: currentRows))
-        }
-        return sections
+        HistorySectionBuilder.makeSections(records: records)
     }
 
     private struct ReloadKey: Hashable {
@@ -372,21 +338,57 @@ private struct HistoryFilterBar: View {
     }
 }
 
-private struct HistorySectionModel: Identifiable, Equatable {
+struct HistorySectionModel: Identifiable, Equatable {
     var id: Date { date }
     let date: Date
     let title: String
     let rows: [HistoryRowModel]
 }
 
-private struct HistoryRowModel: Identifiable, Equatable {
+struct HistoryRowModel: Identifiable, Equatable {
     let id: UUID
     let timeText: String
     let supplementName: String
     let status: String
 }
 
-private enum HistoryFormatters {
+enum HistorySectionBuilder {
+    static func makeSections(records: [IntakeRecord], calendar: Calendar = .current) -> [HistorySectionModel] {
+        let headerFormatter = HistoryFormatters.dayHeader
+        let timeFormatter = HistoryFormatters.timeShort
+        var sections: [HistorySectionModel] = []
+        var currentDay: Date? = nil
+        var currentRows: [HistoryRowModel] = []
+        for record in records {
+            let day = calendar.startOfDay(for: record.date)
+            if currentDay != nil && day != currentDay {
+                if let currentDay {
+                    sections.append(HistorySectionModel(date: currentDay, title: sectionTitle(for: currentDay, calendar: calendar, formatter: headerFormatter), rows: currentRows))
+                }
+                currentRows = []
+            }
+            currentDay = day
+            currentRows.append(HistoryRowModel(
+                id: record.id,
+                timeText: timeFormatter.string(from: record.date),
+                supplementName: record.supplement?.name ?? "not_available".localized,
+                status: record.status
+            ))
+        }
+        if let currentDay {
+            sections.append(HistorySectionModel(date: currentDay, title: sectionTitle(for: currentDay, calendar: calendar, formatter: headerFormatter), rows: currentRows))
+        }
+        return sections
+    }
+
+    private static func sectionTitle(for day: Date, calendar: Calendar, formatter: DateFormatter) -> String {
+        if calendar.isDateInToday(day) { return "history_today".localized }
+        if calendar.isDateInYesterday(day) { return "history_yesterday".localized }
+        return formatter.string(from: day)
+    }
+}
+
+enum HistoryFormatters {
     static let dayHeader: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.autoupdatingCurrent

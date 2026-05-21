@@ -393,12 +393,21 @@ enum CloudSyncAutoSync {
         UserDefaults.standard.set(now, forKey: ctx.lastSyncKey)
         UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
         markActivity()
+        DebugReporter.report("cloud_sync_success", fields: [
+            "binId": ctx.id,
+            "clientId": ctx.clientId.uuidString
+        ])
     }
 
     private static func markFailure(ctx: SyncContext, error: Error) {
         UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
         UserDefaults.standard.set(error.localizedDescription, forKey: ctx.lastErrorKey)
         print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
+        DebugReporter.report("cloud_sync_failure", fields: [
+            "binId": ctx.id,
+            "clientId": ctx.clientId.uuidString,
+            "error": error.localizedDescription
+        ])
     }
     
     private static func hasLocalChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {

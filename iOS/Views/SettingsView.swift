@@ -462,12 +462,9 @@ public struct SettingsView: View {
             return
         }
         do {
-            let supplementsDescriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate { $0.client?.id == clientId },
-                sortBy: [SortDescriptor(\UserSupplement.name)]
-            )
+            let supplementsDescriptor = FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
             let supplements = try modelContext.fetch(supplementsDescriptor)
-            cachedActiveSupplements = supplements.filter { $0.deletedAtEpochMs == nil }
+            cachedActiveSupplements = supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
         } catch {
             cachedActiveSupplements = []
         }
