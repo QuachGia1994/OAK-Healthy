@@ -905,7 +905,7 @@ class HomeViewModel(
         prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
         appendCloudSyncLog(prefs, manifestId, "ERROR", logMessage)
         _cloudSyncLoading.value = false
-        updateCloudSyncUiStatus(manifestId)
+        viewModelScope.launch { updateCloudSyncUiStatus(manifestId) }
     }
 
     private fun totalMsKeyFor(manifestId: String): String {
