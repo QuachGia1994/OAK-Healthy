@@ -877,6 +877,60 @@ class HomeViewModel(
         for (i in start until array.length()) trimmed.put(array.getJSONObject(i))
         prefs.edit().putString(key, trimmed.toString()).apply()
     }
+
+    private fun decryptAndPrepare(recordJson: String): String {
+        val decrypted = CloudSyncCrypto.unwrapDownloadedIfNeeded(context, recordJson)
+        return CloudSyncPayloadCodec.decompressIfNeeded(decrypted)
+    }
+
+    private fun encryptAndPrepare(plaintextJson: String): String {
+        val prepared = CloudSyncPayloadCodec.compressIfUseful(plaintextJson)
+        return CloudSyncCrypto.wrapForUploadIfEnabled(context, prepared)
+    }
+
+    private fun abortCloudSync(
+        prefs: android.content.SharedPreferences,
+        manifestId: String,
+        lastErrorKey: String,
+        phaseKey: String,
+        stageMsKey: String,
+        stageStartedAt: Long,
+        startedAt: Long,
+        errorMessage: String,
+        logMessage: String
+    ) {
+        prefs.edit().putString(lastErrorKey, errorMessage).apply()
+        prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
+        prefs.edit().putLong(stageMsKey, SystemClock.elapsedRealtime() - stageStartedAt).apply()
+        prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
+        appendCloudSyncLog(prefs, manifestId, "ERROR", logMessage)
+        _cloudSyncLoading.value = false
+        updateCloudSyncUiStatus(manifestId)
+    }
+
+    private fun totalMsKeyFor(manifestId: String): String {
+        val id = manifestId.trim()
+        return "cloudSyncTotalMs_$id"
+    }
+
+    private suspend fun finishCloudSyncNoChanges(
+        prefs: android.content.SharedPreferences,
+        manifestId: String,
+        lastSyncKey: String,
+        lastErrorKey: String,
+        phaseKey: String,
+        startedAt: Long
+    ) {
+        prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
+        prefs.edit().remove(lastErrorKey).apply()
+        prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
+        prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
+        markSyncActivity()
+        _cloudSyncLoading.value = false
+        appendCloudSyncLog(prefs, manifestId, "DONE", "No changes")
+        updateCloudSyncUiStatus(manifestId)
+        rescheduleNotificationsNow()
+    }
     
     private suspend fun syncTwoWay(binId: String) {
         val clientId = activeClientManager.currentClientId.value ?: return
@@ -921,40 +975,38 @@ class HomeViewModel(
         appendCloudSyncLog(prefs, manifestId, "START", "Sync start")
         updateCloudSyncUiStatus(manifestId)
 
-        fun decryptAndPrepare(recordJson: String): String {
-            val decrypted = CloudSyncCrypto.unwrapDownloadedIfNeeded(context, recordJson)
-            return CloudSyncPayloadCodec.decompressIfNeeded(decrypted)
-        }
-        
-        fun encryptAndPrepare(plaintextJson: String): String {
-            val prepared = CloudSyncPayloadCodec.compressIfUseful(plaintextJson)
-            return CloudSyncCrypto.wrapForUploadIfEnabled(context, prepared)
-        }
-
         var stackId = prefs.getString(stackIdKey, "").orEmpty().trim()
         var historyId = prefs.getString(historyIdKey, "").orEmpty().trim()
         val pullStartedAt = SystemClock.elapsedRealtime()
         val previousManifestEtag = prefs.getString(etagManifestKey, "").orEmpty().trim()
         val manifestDownload = if (stackId.isEmpty() || historyId.isEmpty()) {
             CloudSyncManager().downloadBackupAlways(manifestId).getOrElse { error ->
-                prefs.edit().putString(lastErrorKey, error.message ?: "Manifest load failed").apply()
-                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
-                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                appendCloudSyncLog(prefs, manifestId, "ERROR", "Manifest load failed")
-                _cloudSyncLoading.value = false
-                updateCloudSyncUiStatus(manifestId)
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = pullMsKey,
+                    stageStartedAt = pullStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = error.message ?: "Manifest load failed",
+                    logMessage = "Manifest load failed"
+                )
                 return
             }
         } else {
             CloudSyncManager().downloadBackupIfChanged(manifestId, previousManifestEtag).getOrElse { error ->
-                prefs.edit().putString(lastErrorKey, error.message ?: "Manifest pull failed").apply()
-                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
-                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                appendCloudSyncLog(prefs, manifestId, "ERROR", "Manifest pull failed")
-                _cloudSyncLoading.value = false
-                updateCloudSyncUiStatus(manifestId)
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = pullMsKey,
+                    stageStartedAt = pullStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = error.message ?: "Manifest pull failed",
+                    logMessage = "Manifest pull failed"
+                )
                 return
             }
         }
@@ -962,14 +1014,18 @@ class HomeViewModel(
         if (manifestEtag.isNotEmpty()) prefs.edit().putString(etagManifestKey, manifestEtag).apply()
         if (!manifestDownload.json.isNullOrBlank()) {
             val manifestJson = manifestDownload.json.orEmpty()
-            val prepared = runCatching { decryptAndPrepare(manifestJson) }.getOrElse {
-                prefs.edit().putString(lastErrorKey, it.message ?: "Manifest decrypt failed").apply()
-                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
-                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                appendCloudSyncLog(prefs, manifestId, "ERROR", "Manifest decrypt failed")
-                _cloudSyncLoading.value = false
-                updateCloudSyncUiStatus(manifestId)
+            val prepared = runCatching { decryptAndPrepare(manifestJson) }.getOrElse { t ->
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = pullMsKey,
+                    stageStartedAt = pullStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = t.message ?: "Manifest decrypt failed",
+                    logMessage = "Manifest decrypt failed"
+                )
                 return
             }
             val decoded = runCatching { CloudSyncManifestCodec.decode(prepared) }.getOrNull()
@@ -979,75 +1035,90 @@ class HomeViewModel(
                 prefs.edit().putString(phaseKey, CloudSyncPhase.MERGING.name).apply()
                 updateCloudSyncUiStatus(manifestId)
                 val mergeStartedAt = SystemClock.elapsedRealtime()
-                val legacyPlain = runCatching { decryptAndPrepare(manifestJson) }.getOrElse {
-                    prefs.edit().putString(lastErrorKey, it.message ?: "Decrypt failed").apply()
-                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                    prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
-                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Decrypt failed")
-                    _cloudSyncLoading.value = false
-                    updateCloudSyncUiStatus(manifestId)
+                val legacyPlain = runCatching { decryptAndPrepare(manifestJson) }.getOrElse { t ->
+                    abortCloudSync(
+                        prefs = prefs,
+                        manifestId = manifestId,
+                        lastErrorKey = lastErrorKey,
+                        phaseKey = phaseKey,
+                        stageMsKey = mergeMsKey,
+                        stageStartedAt = mergeStartedAt,
+                        startedAt = startedAt,
+                        errorMessage = t.message ?: "Decrypt failed",
+                        logMessage = "Decrypt failed"
+                    )
                     return
                 }
                 mergeRemoteIntoLocal(legacyPlain, clientId)
                 prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
                 val remoteChanged = manifestJson.isNotBlank()
                 if (!remoteChanged && !localStackChanged && !localHistoryChanged) {
-                    prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
-                    prefs.edit().remove(lastErrorKey).apply()
-                    prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
-                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                    markSyncActivity()
-                    _cloudSyncLoading.value = false
-                    appendCloudSyncLog(prefs, manifestId, "DONE", "No changes")
-                    updateCloudSyncUiStatus(manifestId)
-                    rescheduleNotificationsNow()
+                    finishCloudSyncNoChanges(
+                        prefs = prefs,
+                        manifestId = manifestId,
+                        lastSyncKey = lastSyncKey,
+                        lastErrorKey = lastErrorKey,
+                        phaseKey = phaseKey,
+                        startedAt = startedAt
+                    )
                     return
                 }
                 prefs.edit().putString(phaseKey, CloudSyncPhase.PUSHING.name).apply()
                 updateCloudSyncUiStatus(manifestId)
                 val pushStartedAt = SystemClock.elapsedRealtime()
                 val fullPlain = buildFullBackupJson().getOrElse {
-                    prefs.edit().putString(lastErrorKey, it.message ?: "Export failed").apply()
-                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                    prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
-                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Export failed")
-                    _cloudSyncLoading.value = false
-                    updateCloudSyncUiStatus(manifestId)
+                    abortCloudSync(
+                        prefs = prefs,
+                        manifestId = manifestId,
+                        lastErrorKey = lastErrorKey,
+                        phaseKey = phaseKey,
+                        stageMsKey = pushMsKey,
+                        stageStartedAt = pushStartedAt,
+                        startedAt = startedAt,
+                        errorMessage = it.message ?: "Export failed",
+                        logMessage = "Export failed"
+                    )
                     return
                 }
-                val fullEnc = runCatching { encryptAndPrepare(fullPlain) }.getOrElse {
-                    prefs.edit().putString(lastErrorKey, it.message ?: "Encrypt failed").apply()
-                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                    prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
-                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Encrypt failed")
-                    _cloudSyncLoading.value = false
-                    updateCloudSyncUiStatus(manifestId)
+                val fullEnc = runCatching { encryptAndPrepare(fullPlain) }.getOrElse { t ->
+                    abortCloudSync(
+                        prefs = prefs,
+                        manifestId = manifestId,
+                        lastErrorKey = lastErrorKey,
+                        phaseKey = phaseKey,
+                        stageMsKey = pushMsKey,
+                        stageStartedAt = pushStartedAt,
+                        startedAt = startedAt,
+                        errorMessage = t.message ?: "Encrypt failed",
+                        logMessage = "Encrypt failed"
+                    )
                     return
                 }
                 val bytesUp = fullEnc.toByteArray(Charsets.UTF_8).size.toLong()
                 prefs.edit().putLong(bytesUploadedKey, bytesUp).apply()
                 val upsert = CloudSyncManager().upsertBackup(manifestId, fullEnc, manifestEtag.takeIf { it.isNotEmpty() })
                 upsert.getOrElse { error ->
-                    prefs.edit().putString(lastErrorKey, error.message ?: "Upload failed").apply()
-                    prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                    prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
-                    prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                    appendCloudSyncLog(prefs, manifestId, "ERROR", "Upload failed")
-                    _cloudSyncLoading.value = false
-                    updateCloudSyncUiStatus(manifestId)
+                    abortCloudSync(
+                        prefs = prefs,
+                        manifestId = manifestId,
+                        lastErrorKey = lastErrorKey,
+                        phaseKey = phaseKey,
+                        stageMsKey = pushMsKey,
+                        stageStartedAt = pushStartedAt,
+                        startedAt = startedAt,
+                        errorMessage = error.message ?: "Upload failed",
+                        logMessage = "Upload failed"
+                    )
                     return
                 }?.orEmpty()?.trim()?.let { if (it.isNotEmpty()) prefs.edit().putString(etagManifestKey, it).apply() }
                 prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
                 prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
                 prefs.edit().remove(lastErrorKey).apply()
                 prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
-                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+                prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
                 markSyncActivity()
                 _cloudSyncLoading.value = false
-                appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKey, 0L)}ms")
+                appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKeyFor(manifestId), 0L)}ms")
                 updateCloudSyncUiStatus(manifestId)
                 rescheduleNotificationsNow()
                 return
@@ -1057,36 +1128,48 @@ class HomeViewModel(
             prefs.edit().putString(stackIdKey, stackId).putString(historyIdKey, historyId).apply()
         }
         if (stackId.isEmpty() || historyId.isEmpty()) {
-            prefs.edit().putString(lastErrorKey, "Missing stack/history id").apply()
-            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-            prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
-            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-            appendCloudSyncLog(prefs, manifestId, "ERROR", "Missing stack/history id")
-            _cloudSyncLoading.value = false
-            updateCloudSyncUiStatus(manifestId)
+            abortCloudSync(
+                prefs = prefs,
+                manifestId = manifestId,
+                lastErrorKey = lastErrorKey,
+                phaseKey = phaseKey,
+                stageMsKey = pullMsKey,
+                stageStartedAt = pullStartedAt,
+                startedAt = startedAt,
+                errorMessage = "Missing stack/history id",
+                logMessage = "Missing stack/history id"
+            )
             return
         }
 
         val prevStackEtag = prefs.getString(etagStackKey, "").orEmpty().trim()
         val prevHistoryEtag = prefs.getString(etagHistoryKey, "").orEmpty().trim()
         val stackDownload = CloudSyncManager().downloadBackupIfChanged(stackId, prevStackEtag).getOrElse { error ->
-            prefs.edit().putString(lastErrorKey, error.message ?: "Stack pull failed").apply()
-            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-            prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
-            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-            appendCloudSyncLog(prefs, manifestId, "ERROR", "Stack pull failed")
-            _cloudSyncLoading.value = false
-            updateCloudSyncUiStatus(manifestId)
+            abortCloudSync(
+                prefs = prefs,
+                manifestId = manifestId,
+                lastErrorKey = lastErrorKey,
+                phaseKey = phaseKey,
+                stageMsKey = pullMsKey,
+                stageStartedAt = pullStartedAt,
+                startedAt = startedAt,
+                errorMessage = error.message ?: "Stack pull failed",
+                logMessage = "Stack pull failed"
+            )
             return
         }
         val historyDownload = CloudSyncManager().downloadBackupIfChanged(historyId, prevHistoryEtag).getOrElse { error ->
-            prefs.edit().putString(lastErrorKey, error.message ?: "History pull failed").apply()
-            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-            prefs.edit().putLong(pullMsKey, SystemClock.elapsedRealtime() - pullStartedAt).apply()
-            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-            appendCloudSyncLog(prefs, manifestId, "ERROR", "History pull failed")
-            _cloudSyncLoading.value = false
-            updateCloudSyncUiStatus(manifestId)
+            abortCloudSync(
+                prefs = prefs,
+                manifestId = manifestId,
+                lastErrorKey = lastErrorKey,
+                phaseKey = phaseKey,
+                stageMsKey = pullMsKey,
+                stageStartedAt = pullStartedAt,
+                startedAt = startedAt,
+                errorMessage = error.message ?: "History pull failed",
+                logMessage = "History pull failed"
+            )
             return
         }
 
@@ -1106,27 +1189,35 @@ class HomeViewModel(
         updateCloudSyncUiStatus(manifestId)
         val mergeStartedAt = SystemClock.elapsedRealtime()
         if (!stackDownload.json.isNullOrBlank()) {
-            val prepared = runCatching { decryptAndPrepare(stackDownload.json.orEmpty()) }.getOrElse {
-                prefs.edit().putString(lastErrorKey, it.message ?: "Decrypt failed").apply()
-                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
-                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                appendCloudSyncLog(prefs, manifestId, "ERROR", "Decrypt stack failed")
-                _cloudSyncLoading.value = false
-                updateCloudSyncUiStatus(manifestId)
+            val prepared = runCatching { decryptAndPrepare(stackDownload.json.orEmpty()) }.getOrElse { t ->
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = mergeMsKey,
+                    stageStartedAt = mergeStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = t.message ?: "Decrypt failed",
+                    logMessage = "Decrypt stack failed"
+                )
                 return
             }
             mergeRemoteIntoLocal(prepared, clientId)
         }
         if (!historyDownload.json.isNullOrBlank()) {
-            val prepared = runCatching { decryptAndPrepare(historyDownload.json.orEmpty()) }.getOrElse {
-                prefs.edit().putString(lastErrorKey, it.message ?: "Decrypt failed").apply()
-                prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-                prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
-                prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-                appendCloudSyncLog(prefs, manifestId, "ERROR", "Decrypt history failed")
-                _cloudSyncLoading.value = false
-                updateCloudSyncUiStatus(manifestId)
+            val prepared = runCatching { decryptAndPrepare(historyDownload.json.orEmpty()) }.getOrElse { t ->
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = mergeMsKey,
+                    stageStartedAt = mergeStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = t.message ?: "Decrypt failed",
+                    logMessage = "Decrypt history failed"
+                )
                 return
             }
             mergeRemoteIntoLocal(prepared, clientId)
@@ -1136,15 +1227,14 @@ class HomeViewModel(
 
         val remoteChanged = !stackDownload.json.isNullOrBlank() || !historyDownload.json.isNullOrBlank()
         if (!remoteChanged && !localStackChanged && !localHistoryChanged) {
-            prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
-            prefs.edit().remove(lastErrorKey).apply()
-            prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
-            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-            markSyncActivity()
-            _cloudSyncLoading.value = false
-            appendCloudSyncLog(prefs, manifestId, "DONE", "No changes")
-            updateCloudSyncUiStatus(manifestId)
-            rescheduleNotificationsNow()
+            finishCloudSyncNoChanges(
+                prefs = prefs,
+                manifestId = manifestId,
+                lastSyncKey = lastSyncKey,
+                lastErrorKey = lastErrorKey,
+                phaseKey = phaseKey,
+                startedAt = startedAt
+            )
             return
         }
 
@@ -1194,13 +1284,17 @@ class HomeViewModel(
                 if (!newEtag.isNullOrBlank()) prefs.edit().putString(etagHistoryKey, newEtag).apply()
             }
         } catch (t: Throwable) {
-            prefs.edit().putString(lastErrorKey, t.message ?: "Upload failed").apply()
-            prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
-            prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
-            prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
-            _cloudSyncLoading.value = false
-            appendCloudSyncLog(prefs, manifestId, "ERROR", "Upload failed")
-            updateCloudSyncUiStatus(manifestId)
+            abortCloudSync(
+                prefs = prefs,
+                manifestId = manifestId,
+                lastErrorKey = lastErrorKey,
+                phaseKey = phaseKey,
+                stageMsKey = pushMsKey,
+                stageStartedAt = pushStartedAt,
+                startedAt = startedAt,
+                errorMessage = t.message ?: "Upload failed",
+                logMessage = "Upload failed"
+            )
             return
         }
 
@@ -1209,10 +1303,10 @@ class HomeViewModel(
         prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
         prefs.edit().remove(lastErrorKey).apply()
         prefs.edit().putString(phaseKey, CloudSyncPhase.DONE.name).apply()
-        prefs.edit().putLong(totalMsKey, SystemClock.elapsedRealtime() - startedAt).apply()
+        prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
         markSyncActivity()
         _cloudSyncLoading.value = false
-        appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKey, 0L)}ms")
+        appendCloudSyncLog(prefs, manifestId, "DONE", "OK • up ${bytesUp}B • down ${bytesDown}B • total ${prefs.getLong(totalMsKeyFor(manifestId), 0L)}ms")
         updateCloudSyncUiStatus(manifestId)
         rescheduleNotificationsNow()
     }
