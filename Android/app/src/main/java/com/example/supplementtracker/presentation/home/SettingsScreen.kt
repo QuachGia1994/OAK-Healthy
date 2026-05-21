@@ -153,9 +153,12 @@ fun SettingsScreen(
         derivedStateOf {
             if (currentClientId == null) return@derivedStateOf emptyList<UserSupplement>()
             val success = uiState as? HomeUiState.Success ?: return@derivedStateOf emptyList()
-            (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
-                .distinctBy { it.id }
-                .sortedBy { it.name }
+            val byId = LinkedHashMap<java.util.UUID, UserSupplement>()
+            success.activeSupplements.values.forEach { items ->
+                items.forEach { byId[it.supplement.id] = it.supplement }
+            }
+            success.restingSupplements.forEach { byId[it.supplement.id] = it.supplement }
+            byId.values.sortedBy { it.name }
         }
     }
 

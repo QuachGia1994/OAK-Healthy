@@ -61,14 +61,13 @@ public struct HomeView: View {
                     } header: {
                         TodayHeaderView(
                             title: "today_intake_title".localized,
-                            streakDays: viewModel.streakDays(supplements: supplements),
-                            counts: viewModel.todayCounts()
+                            streakDays: viewModel.cachedStreakDays,
+                            counts: viewModel.cachedTodayCounts
                         )
                     }
                     
                     
-                    let sortedTimes = viewModel.activeSupplements.keys.sorted()
-                    ForEach(sortedTimes, id: \.self) { time in
+                    ForEach(viewModel.activeSupplementTimes, id: \.self) { time in
                         if let items = viewModel.activeSupplements[time] {
                             Section {
                                 ForEach(items) { supplement in

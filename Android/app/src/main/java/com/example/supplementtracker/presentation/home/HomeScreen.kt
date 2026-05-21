@@ -274,12 +274,14 @@ private fun HomeContent(
                 var taken = 0
                 var skipped = 0
                 var missed = 0
-                state.activeSupplements.values.flatten().forEach { item ->
-                    when (item.doseStatus) {
-                        DoseStatus.PLANNED -> planned += 1
-                        DoseStatus.TAKEN -> taken += 1
-                        DoseStatus.SKIPPED -> skipped += 1
-                        DoseStatus.MISSED -> missed += 1
+                state.activeSupplements.values.forEach { items ->
+                    items.forEach { item ->
+                        when (item.doseStatus) {
+                            DoseStatus.PLANNED -> planned += 1
+                            DoseStatus.TAKEN -> taken += 1
+                            DoseStatus.SKIPPED -> skipped += 1
+                            DoseStatus.MISSED -> missed += 1
+                        }
                     }
                 }
                 TodayCounts(planned = planned, taken = taken, skipped = skipped, missed = missed)

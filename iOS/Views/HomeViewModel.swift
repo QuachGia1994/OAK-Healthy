@@ -8,6 +8,7 @@ import SwiftData
 public final class HomeViewModel {
     // MARK: - State
     public var activeSupplements: [String: [UserSupplement]] = [:]
+    public var activeSupplementTimes: [String] = []
     public var restingSupplements: [RestingSupplementInfo] = []
     public var errorMessage: String?
     
@@ -38,6 +39,9 @@ public final class HomeViewModel {
         public var skipped: Int
         public var missed: Int
     }
+
+    public var cachedTodayCounts: TodayCounts = TodayCounts(planned: 0, taken: 0, skipped: 0, missed: 0)
+    public var cachedStreakDays: Int = 0
     
     public enum DoseUrgency: Sendable, Hashable {
         case none
@@ -244,7 +248,10 @@ public final class HomeViewModel {
         }
         
         self.activeSupplements = active
+        self.activeSupplementTimes = active.keys.sorted()
         self.restingSupplements = resting
+        self.cachedTodayCounts = todayCounts(now: today)
+        self.cachedStreakDays = streakDays(supplements: supplements, now: today)
     }
     
     private func intakeTimes(from raw: String) -> [String] {

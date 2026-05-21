@@ -107,10 +107,12 @@ fun NotificationCheckScreen(
         derivedStateOf {
             if (currentClientId == null) return@derivedStateOf 0
             val success = uiState as? HomeUiState.Success ?: return@derivedStateOf 0
-            val supplements = (success.activeSupplements.values.flatten().map { it.supplement } +
-                success.restingSupplements.map { it.supplement })
-                .distinctBy { it.id }
-            supplements.size
+            val ids = HashSet<java.util.UUID>(64)
+            success.activeSupplements.values.forEach { items ->
+                items.forEach { ids.add(it.supplement.id) }
+            }
+            success.restingSupplements.forEach { ids.add(it.supplement.id) }
+            ids.size
         }
     }
 

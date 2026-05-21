@@ -280,11 +280,24 @@ public struct NotificationDebugScreen: View {
     }
     
     private func dayHeader(_ day: Date) -> String {
+        NotificationDebugFormatters.dayHeader.string(from: day)
+    }
+}
+
+private enum NotificationDebugFormatters {
+    static let dayHeader: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateFormat = "EEEE, dd/MM/yyyy"
-        return formatter.string(from: day)
-    }
+        return formatter
+    }()
+    
+    static let time: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 }
 
 private struct NotificationRow: View {
@@ -309,9 +322,7 @@ private struct NotificationRow: View {
     }
     
     private var timeText: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: entry.scheduledAt)
+        NotificationDebugFormatters.time.string(from: entry.scheduledAt)
     }
     
     private var iconName: String {
