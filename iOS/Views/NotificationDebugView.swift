@@ -354,6 +354,13 @@ public struct NotificationDebugEntry: Identifiable, Hashable {
     
     private static func parseOne(_ raw: String) -> NotificationDebugEntry? {
         let parts = raw.components(separatedBy: "||")
+        if parts.count >= 5, let date = parseDate(parts[4]) {
+            let id = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+            let dose = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let cycleText = parts[3].trimmingCharacters(in: .whitespacesAndNewlines)
+            return NotificationDebugEntry(id: id, name: name, dose: dose, cycleText: cycleText, scheduledAt: date)
+        }
         if parts.count >= 4, let date = parseDate(parts[3]) {
             let name = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
             let dose = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)

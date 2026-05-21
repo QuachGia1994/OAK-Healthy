@@ -39,6 +39,19 @@ actor NotificationShadowLogStore {
         UserDefaults.standard.set(items, forKey: key)
     }
     
+    func removeEntries(withPrefixes prefixes: [String]) {
+        guard !prefixes.isEmpty else { return }
+        let items = read()
+        let filtered = items.compactMap { raw -> String? in
+            let parts = raw.components(separatedBy: "||")
+            guard parts.count >= 5 else { return nil }
+            let identifier = parts[0]
+            guard prefixes.contains(where: { identifier.hasPrefix($0) }) else { return raw }
+            return nil
+        }
+        UserDefaults.standard.set(filtered, forKey: key)
+    }
+    
     func clear() {
         UserDefaults.standard.removeObject(forKey: key)
     }
@@ -148,8 +161,13 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func scheduleAll(supplements: [UserSupplement]) async {
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
-        center.removeAllPendingNotificationRequests()
-        await NotificationShadowLogStore.shared.clear()
+        let prefixes = supplements.map { "\($0.id.uuidString)-" }
+        if !prefixes.isEmpty {
+            let requests = await center.pendingNotificationRequests()
+            let ids = requests.map(\.identifier).filter { id in prefixes.contains(where: { id.hasPrefix($0) }) }
+            if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
+            await NotificationShadowLogStore.shared.removeEntries(withPrefixes: prefixes)
+        }
         for supplement in supplements {
             do {
                 try await scheduleReminders(for: supplement)
@@ -305,13 +323,13 @@ public struct NotificationService: NotificationManaging {
         let formatted = shadowDateFormatter().string(from: scheduled)
         let dose = (request.content.userInfo["dailyDose"] as? String) ?? ""
         let cycleText = (request.content.userInfo["cycleText"] as? String) ?? ""
-        let entry = "\(request.content.title)||\(dose)||\(cycleText)||\(formatted)"
+        let entry = "\(request.identifier)||\(request.content.title)||\(dose)||\(cycleText)||\(formatted)"
         await NotificationShadowLogStore.shared.append(entry: entry)
     }
     
     private func logShadowScheduleFailure(supplement: UserSupplement, error: Error) async {
         let formatted = shadowDateFormatter().string(from: .now)
-        let entry = "\(supplement.name)||ERROR||\(String(describing: error))||\(formatted)"
+        let entry = "\(supplement.id.uuidString)-ERROR||\(supplement.name)||ERROR||\(String(describing: error))||\(formatted)"
         await NotificationShadowLogStore.shared.append(entry: entry)
     }
     
