@@ -13,6 +13,7 @@ public struct HistoryView: View {
     @State private var allRecords: [IntakeRecord] = []
     @State private var searchText: String = ""
     @State private var filter: HistoryFilter = .all
+    @State private var rebuildTask: Task<Void, Never>? = nil
     
     public let activeClientManager: ActiveClientManager
     
@@ -114,7 +115,7 @@ public struct HistoryView: View {
                 await reload()
             }
             .onChange(of: searchText) {
-                withAnimation(.snappy) { rebuildSections() }
+                scheduleSearchRebuild()
             }
             .onChange(of: filter) {
                 withAnimation(.snappy) { rebuildSections() }
@@ -171,6 +172,15 @@ public struct HistoryView: View {
     private func rebuildSections() {
         sections = makeSections(records: filteredRecords(from: allRecords))
     }
+
+    @MainActor
+    private func scheduleSearchRebuild() {
+        rebuildTask?.cancel()
+        rebuildTask = Task {
+            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+            await MainActor.run { rebuildSections() }
+        }
+    }
     
     private func filteredRecords(from records: [IntakeRecord]) -> [IntakeRecord] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -184,31 +194,43 @@ public struct HistoryView: View {
             return name.localizedCaseInsensitiveContains(query)
         }
     }
+
+    private func sectionTitle(for day: Date, calendar: Calendar, formatter: DateFormatter) -> String {
+        if calendar.isDateInToday(day) { return "history_today".localized }
+        if calendar.isDateInYesterday(day) { return "history_yesterday".localized }
+        return formatter.string(from: day)
+    }
     
     private func makeSections(records: [IntakeRecord]) -> [HistorySectionModel] {
         let calendar = Calendar.current
         let formatter = HistoryFormatters.dayHeader
-        
-        let grouped = Dictionary(grouping: records) { calendar.startOfDay(for: $0.date) }
-        return grouped
-            .map { (date: $0.key, records: $0.value) }
-            .sorted { $0.date > $1.date }
-            .map { item in
-                let title: String = {
-                    if calendar.isDateInToday(item.date) { return "history_today".localized }
-                    if calendar.isDateInYesterday(item.date) { return "history_yesterday".localized }
-                    return formatter.string(from: item.date)
-                }()
-                let rows = item.records.map { record in
-                    HistoryRowModel(
-                        id: record.id,
-                        timeText: record.date.formatted(date: .omitted, time: .shortened),
-                        supplementName: record.supplement?.name ?? "not_available".localized,
-                        status: record.status
-                    )
+        var sections: [HistorySectionModel] = []
+        var currentDay: Date? = nil
+        var currentRows: [HistoryRowModel] = []
+        for record in records {
+            let day = calendar.startOfDay(for: record.date)
+            if currentDay != nil && day != currentDay {
+                if let currentDay {
+                    let title = sectionTitle(for: currentDay, calendar: calendar, formatter: formatter)
+                    sections.append(HistorySectionModel(date: currentDay, title: title, rows: currentRows))
                 }
-                return HistorySectionModel(date: item.date, title: title, rows: rows)
+                currentRows = []
             }
+            currentDay = day
+            currentRows.append(
+                HistoryRowModel(
+                    id: record.id,
+                    timeText: HistoryFormatters.timeShort.string(from: record.date),
+                    supplementName: record.supplement?.name ?? "not_available".localized,
+                    status: record.status
+                )
+            )
+        }
+        if let currentDay {
+            let title = sectionTitle(for: currentDay, calendar: calendar, formatter: formatter)
+            sections.append(HistorySectionModel(date: currentDay, title: title, rows: currentRows))
+        }
+        return sections
     }
 
     private struct ReloadKey: Hashable {
@@ -370,6 +392,14 @@ private enum HistoryFormatters {
         formatter.locale = Locale.autoupdatingCurrent
         formatter.dateStyle = .long
         formatter.timeStyle = .none
+        return formatter
+    }()
+
+    static let timeShort: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.autoupdatingCurrent
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
         return formatter
     }()
 }

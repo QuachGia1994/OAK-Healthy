@@ -239,9 +239,6 @@ public struct HomeView: View {
                         try? await Task.sleep(for: .seconds(1))
                         await updateService.checkForUpdates()
                     }
-                    .onAppear {
-                        viewModel.processSupplements(supplementsForActiveClient)
-                    }
                     .onChange(of: supplements) {
                         viewModel.processSupplements(supplementsForActiveClient)
                     }

@@ -10,7 +10,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
@@ -73,7 +76,7 @@ class HistoryViewModel(
         .flatMapLatest { clientId ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HistoryUiState.NoClient)
             repository.observeAllRecordsByClient(id)
-                .map { records -> processHistory(records) }
+                .mapLatest { records -> withContext(Dispatchers.Default) { processHistory(records) } }
         }
         .stateIn(
             scope = viewModelScope,

@@ -15,10 +15,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -56,6 +59,7 @@ import kotlinx.coroutines.isActive
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * ViewModel xử lý logic cho màn hình chính Dashboard.
@@ -111,6 +115,7 @@ class HomeViewModel(
     private var autoSyncJob: Job? = null
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
+    private val intakeTimesCache = ConcurrentHashMap<String, List<String>>()
 
     val uiState: StateFlow<HomeUiState> = combine(
         activeClientManager.currentClientId,
@@ -121,9 +126,10 @@ class HomeViewModel(
             combine(
                 repository.getAllSupplements(id),
                 repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 119), getEndOfTomorrow())
-            ) { supplements, records ->
-                processSupplements(supplements, records)
-            }
+            ) { supplements, records -> supplements to records }
+                .mapLatest { (supplements, records) ->
+                    withContext(Dispatchers.Default) { processSupplements(supplements, records) }
+                }
         }
         .stateIn(
             scope = viewModelScope,
@@ -411,7 +417,9 @@ class HomeViewModel(
     }
 
     private fun parseTimes(raw: String): List<String> {
-        return TimeStrings.normalizeList(raw)
+        val key = raw.trim()
+        if (key.isEmpty()) return emptyList()
+        return intakeTimesCache.computeIfAbsent(key) { TimeStrings.normalizeList(it) }
     }
 
     private fun scheduledAtEpochMs(date: LocalDate, timeString: String): Long? {

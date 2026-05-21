@@ -500,6 +500,6 @@ private fun historySectionTitle(date: LocalDate): String {
     if (date == today) return stringResource(R.string.history_today)
     if (date == today.minusDays(1)) return stringResource(R.string.history_yesterday)
     
-    val formatter = DateTimeFormatter.ofPattern("d MMMM, yyyy", locale)
+    val formatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM, yyyy", locale) }
     return date.format(formatter)
 }

@@ -82,6 +82,7 @@ fun HomeScreen(
     var isClientMenuExpanded by remember { mutableStateOf(false) }
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
     var newClientName by remember { mutableStateOf("") }
+    val dateHeaderFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd MMMM") }
 
     LaunchedEffect(Unit) {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -182,7 +183,7 @@ fun HomeScreen(
                                 }
                             }
                             Text(
-                                text = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, dd MMMM")),
+                                text = LocalDate.now().format(dateHeaderFormatter),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
