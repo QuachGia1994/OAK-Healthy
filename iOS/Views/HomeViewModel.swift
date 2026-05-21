@@ -13,6 +13,9 @@ public final class HomeViewModel {
     public var errorMessage: String?
     private var todayRecordStatusById: [UUID: String] = [:]
     private var recentRecordIds: Set<UUID> = []
+    private var doseIdCache: [DoseIdKey: UUID] = [:]
+    private var intakeTimesCache: [UUID: IntakeTimesCacheEntry] = [:]
+    private var supplementsCache: [UserSupplement] = []
     
     // MARK: - Dependencies
     private let cycleEngine: any CycleCalculating
@@ -86,6 +89,11 @@ public final class HomeViewModel {
         return streak
     }
 
+    private func isDayComplete(day: Date, supplements: [UserSupplement]) -> Bool {
+        var cache: [DoseIdKey: UUID] = [:]
+        return isDayComplete(day: day, supplements: supplements, cache: &cache)
+    }
+
     private func isDayComplete(day: Date, supplements: [UserSupplement], cache: inout [DoseIdKey: UUID]) -> Bool {
         let calendar = isoWeekCalendar()
         for supplement in supplements {
@@ -93,10 +101,10 @@ public final class HomeViewModel {
             let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: supplement.cycleConfig, at: day)
             guard status == .on else { continue }
             guard matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: day, calendar: calendar) else { continue }
-            for time in intakeTimes(from: supplement.intakeTime) {
+            for time in intakeTimes(for: supplement) {
                 guard let scheduledAt = scheduledAtLocal(for: day, timeString: time) else { continue }
                 let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
-                let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs, cache: &cache)
+                let recordId = recordIdForDoseCachedLocal(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs, cache: &cache)
                 if !recentRecordIds.contains(recordId) { return false }
             }
         }
@@ -108,7 +116,7 @@ public final class HomeViewModel {
         guard doseStatus(supplement, timeString: time, now: now) == .planned else { return .none }
         guard let scheduledAt = scheduledAtLocal(for: now, timeString: time) else { return .none }
         let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
-        let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+        let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
         if todayRecordStatusById[recordId] != nil { return .none }
         let dueSoonSeconds: TimeInterval = 20 * 60
         if scheduledAt > now && scheduledAt.timeIntervalSince(now) <= dueSoonSeconds { return .dueSoon }
@@ -143,9 +151,10 @@ public final class HomeViewModel {
         
         let scheduledAt = scheduledAtLocal(for: .now, timeString: time)
         guard let scheduledAt else { return }
+        let previous = doseStatus(supplement, timeString: time, now: .now)
         
         let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
-        let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+        let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
         guard todayRecordStatusById[recordId] == nil else { return }
         let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         let status: String = switch action {
@@ -172,8 +181,8 @@ public final class HomeViewModel {
 
         todayRecordStatusById[recordId] = status
         recentRecordIds.insert(recordId)
-        cachedTodayCounts = todayCounts(now: .now)
-        cachedStreakDays = streakDays(supplements: supplementsSnapshot(), now: .now)
+        cachedTodayCounts = updateCountsAfterMark(previous: previous, action: action, current: cachedTodayCounts)
+        cachedStreakDays = streakDays(supplements: supplementsCache, now: .now)
         
         Task { await notificationService.cancelReminder(for: supplement, timeString: time, day: scheduledAt) }
         Task { await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id) }
@@ -186,7 +195,7 @@ public final class HomeViewModel {
         guard let scheduledAt else { return .planned }
         
         let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
-        let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+        let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
         if let status = todayRecordStatusById[recordId] {
             if status == IntakeStatus.skipped.rawValue { return .skipped }
             return .taken
@@ -207,7 +216,15 @@ public final class HomeViewModel {
         return DoseEventKey.stableUUID(from: key)
     }
 
-    private func recordIdForDoseCached(
+    private func recordIdForDoseCached(supplementId: UUID, scheduledAtEpochMs: Int64) -> UUID {
+        let key = DoseIdKey(supplementId: supplementId, scheduledAtEpochMs: scheduledAtEpochMs)
+        if let cached = doseIdCache[key] { return cached }
+        let computed = recordIdForDose(supplementId: supplementId, scheduledAtEpochMs: scheduledAtEpochMs)
+        doseIdCache[key] = computed
+        return computed
+    }
+
+    private func recordIdForDoseCachedLocal(
         supplementId: UUID,
         scheduledAtEpochMs: Int64,
         cache: inout [DoseIdKey: UUID]
@@ -219,32 +236,14 @@ public final class HomeViewModel {
         return computed
     }
 
-    private func supplementsSnapshot() -> [UserSupplement] {
-        var map: [UUID: UserSupplement] = [:]
-        for supplements in activeSupplements.values {
-            for supplement in supplements { map[supplement.id] = supplement }
-        }
-        for info in restingSupplements { map[info.supplement.id] = info.supplement }
-        return Array(map.values)
-    }
-
     private struct DoseIdKey: Hashable {
         let supplementId: UUID
         let scheduledAtEpochMs: Int64
     }
     
-    private func todayRecord(for supplement: UserSupplement, scheduledAt: Date, timeString: String) -> IntakeRecord? {
-        let calendar = Calendar.current
-        return supplement.intakeRecords.first { record in
-            guard calendar.isDate(record.date, inSameDayAs: scheduledAt) else { return false }
-            if record.intakeTime.isEmpty { return true }
-            let recordTime = record.intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !recordTime.isEmpty else { return true }
-            if let recordNormalized = normalizedTimeString(recordTime), let scheduledNormalized = normalizedTimeString(timeString) {
-                return recordNormalized == scheduledNormalized
-            }
-            return recordTime == timeString
-        }
+    private struct IntakeTimesCacheEntry: Hashable {
+        let raw: String
+        let times: [String]
     }
     
     /// Xóa thực phẩm bổ sung.
@@ -277,9 +276,12 @@ public final class HomeViewModel {
         var recent: Set<UUID> = []
         var active: [String: [UserSupplement]] = [:]
         var resting: [RestingSupplementInfo] = []
+        var all: [UserSupplement] = []
+        doseIdCache.removeAll(keepingCapacity: true)
         
         for supplement in supplements {
             if supplement.deletedAtEpochMs != nil { continue }
+            all.append(supplement)
             for record in supplement.intakeRecords {
                 if record.date >= minDate { recent.insert(record.id) }
                 if calendarCurrent.isDate(record.date, inSameDayAs: todayStart) {
@@ -293,7 +295,7 @@ public final class HomeViewModel {
             )
             
             if status == .on, matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: today, calendar: calendar) {
-                for time in intakeTimes(from: supplement.intakeTime) {
+                for time in intakeTimes(for: supplement) {
                     active[time, default: []].append(supplement)
                 }
             } else if status == .off {
@@ -307,10 +309,19 @@ public final class HomeViewModel {
         self.restingSupplements = resting
         self.todayRecordStatusById = todayStatus
         self.recentRecordIds = recent
+        self.supplementsCache = all
         self.cachedTodayCounts = todayCounts(now: today)
-        self.cachedStreakDays = streakDays(supplements: supplements, now: today)
+        self.cachedStreakDays = streakDays(supplements: all, now: today)
     }
     
+    private func intakeTimes(for supplement: UserSupplement) -> [String] {
+        let raw = supplement.intakeTime
+        if let cached = intakeTimesCache[supplement.id], cached.raw == raw { return cached.times }
+        let computed = intakeTimes(from: raw)
+        intakeTimesCache[supplement.id] = IntakeTimesCacheEntry(raw: raw, times: computed)
+        return computed
+    }
+
     private func intakeTimes(from raw: String) -> [String] {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
@@ -319,6 +330,15 @@ public final class HomeViewModel {
         let parts = trimmed.split(whereSeparator: { ",;|".contains($0) })
         let times = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         return times.isEmpty ? [trimmed] : times
+    }
+
+    private func updateCountsAfterMark(previous: DoseStatus, action: DoseAction, current: TodayCounts) -> TodayCounts {
+        var updated = current
+        if previous == .planned { updated.planned = max(0, updated.planned - 1) }
+        if previous == .missed { updated.missed = max(0, updated.missed - 1) }
+        if action == .taken { updated.taken += 1 }
+        if action == .skipped { updated.skipped += 1 }
+        return updated
     }
 
     private func normalizedTimeString(_ raw: String) -> String? {
