@@ -14,8 +14,8 @@ public struct OnboardingView: View {
     
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
-    @AppStorage("oakLastTestNotificationSentEpochMs") private var lastTestSentEpochMs: Int64 = 0
-    @AppStorage("oakLastTestNotificationAckEpochMs") private var lastTestAckEpochMs: Int64 = 0
+    @AppStorage("oakLastTestNotificationSentEpochMs") private var lastTestSentEpochMs: Int = 0
+    @AppStorage("oakLastTestNotificationAckEpochMs") private var lastTestAckEpochMs: Int = 0
     
     @State private var step: OnboardingStep = .client
     @State private var isShowingAddClient: Bool = false
@@ -303,7 +303,7 @@ public struct OnboardingView: View {
             return
         }
         
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let now = Int(Date().timeIntervalSince1970 * 1000)
         await MainActor.run { lastTestSentEpochMs = now }
         
         let content = UNMutableNotificationContent()
@@ -321,7 +321,7 @@ public struct OnboardingView: View {
         }
     }
     
-    private func formatEpochMs(_ epochMs: Int64) -> String {
+    private func formatEpochMs(_ epochMs: Int) -> String {
         guard epochMs > 0 else { return "" }
         let date = Date(timeIntervalSince1970: TimeInterval(epochMs) / 1000)
         let formatter = DateFormatter()
@@ -329,12 +329,12 @@ public struct OnboardingView: View {
         return formatter.string(from: date)
     }
 
-    private func readEpochMs(forKey key: String) -> Int64 {
+    private func readEpochMs(forKey key: String) -> Int {
         guard let value = UserDefaults.standard.object(forKey: key) else { return 0 }
-        if let number = value as? NSNumber { return number.int64Value }
-        if let int = value as? Int { return Int64(int) }
-        if let int64 = value as? Int64 { return int64 }
-        if let double = value as? Double { return Int64(double) }
+        if let number = value as? NSNumber { return number.intValue }
+        if let int = value as? Int { return int }
+        if let int64 = value as? Int64 { return Int(int64) }
+        if let double = value as? Double { return Int(double) }
         return 0
     }
     

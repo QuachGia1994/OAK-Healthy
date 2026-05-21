@@ -130,7 +130,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         if (info["oakTestNotification"] as? Bool) == true {
-            UserDefaults.standard.set(Int64(Date().timeIntervalSince1970 * 1000), forKey: "oakLastTestNotificationAckEpochMs")
+            UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1000), forKey: "oakLastTestNotificationAckEpochMs")
         }
         if response.actionIdentifier == NotificationService.Action.taken.rawValue || response.actionIdentifier == NotificationService.Action.skipped.rawValue {
             let scheduledAtEpochMs = (info["scheduledAtEpochMs"] as? NSNumber)?.int64Value
