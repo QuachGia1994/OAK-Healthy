@@ -183,9 +183,7 @@ public struct NotificationDebugScreen: View {
     }
     
     private func entryKey(_ entry: NotificationDebugEntry) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMddHHmm"
-        return "\(entry.id)|\(formatter.string(from: entry.scheduledAt))"
+        "\(entry.id)|\(NotificationDebugFormatters.entryKey.string(from: entry.scheduledAt))"
     }
     
     private var diagnosisTitle: String {
@@ -285,6 +283,13 @@ public struct NotificationDebugScreen: View {
 }
 
 private enum NotificationDebugFormatters {
+    static let entryKey: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMddHHmm"
+        return formatter
+    }()
+    
     static let dayHeader: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
@@ -296,6 +301,13 @@ private enum NotificationDebugFormatters {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+    
+    static let shadowDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter
     }()
 }
@@ -411,8 +423,6 @@ public struct NotificationDebugEntry: Identifiable, Hashable {
     }
     
     private static func parseDate(_ raw: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.date(from: raw.trimmingCharacters(in: .whitespacesAndNewlines))
+        NotificationDebugFormatters.shadowDate.date(from: raw.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }

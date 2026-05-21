@@ -46,6 +46,7 @@ fun AddSupplementScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val backgroundBrush = remember(isDark) {
         if (isDark) {
@@ -86,6 +87,11 @@ fun AddSupplementScreen(
         }
         viewModel.loadSupplementForEdit(supplementId)
     }
+    
+    LaunchedEffect(state.error) {
+        val message = state.error ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+    }
 
     Box(
         modifier = Modifier
@@ -94,6 +100,7 @@ fun AddSupplementScreen(
     ) {
         Scaffold(
             containerColor = Color.Transparent,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -104,7 +111,15 @@ fun AddSupplementScreen(
                         }
                     },
                     actions = {
-                        Button(onClick = onSave, enabled = isFormValid) {
+                        Button(onClick = onSave, enabled = isFormValid && !state.isLoading) {
+                            if (state.isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
                             Text(stringResource(R.string.save))
                         }
                     }
@@ -117,6 +132,10 @@ fun AddSupplementScreen(
                     .padding(paddingValues)
                     .padding(16.dp)
             ) {
+            if (state.isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             // Section: Thông tin cơ bản
             OutlinedTextField(
                 value = state.name,

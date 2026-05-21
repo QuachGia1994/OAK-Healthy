@@ -205,7 +205,20 @@ fun HomeScreen(
                         onDelete = viewModel::deleteItem,
                         onEdit = onNavigateToEdit
                     )
-                    is HomeUiState.NoClient -> Text(stringResource(R.string.add_client_to_start), modifier = Modifier.align(Alignment.Center))
+                    is HomeUiState.NoClient -> {
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(stringResource(R.string.add_client_to_start), style = MaterialTheme.typography.titleMedium)
+                            Button(onClick = { isAddClientDialogVisible = true }) {
+                                Text(stringResource(R.string.add_a_client))
+                            }
+                        }
+                    }
                     is HomeUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
                 }
             }

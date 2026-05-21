@@ -63,8 +63,16 @@ public struct HistoryView: View {
                                 .padding(.top, 8)
                             
                             if recordsCount == 0 {
-                                Text("no_logs_yet".localized)
-                                    .foregroundStyle(.secondary)
+                                VStack(spacing: 10) {
+                                    Image(systemName: "clock")
+                                        .font(.title2)
+                                        .foregroundStyle(.secondary)
+                                    Text("no_logs_yet".localized)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 18)
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 12) {
                                     ForEach(sections) { section in

@@ -78,7 +78,16 @@ fun HistoryScreen(
                 when (val state = uiState) {
                     is HistoryUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     is HistoryUiState.Success -> HistoryContent(state)
-                    is HistoryUiState.NoClient -> Text(stringResource(R.string.add_client_to_start), modifier = Modifier.align(Alignment.Center))
+                    is HistoryUiState.NoClient -> {
+                        Text(
+                            text = stringResource(R.string.add_client_to_start),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(horizontal = 24.dp),
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -161,7 +170,25 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             item(
                 key = "empty",
                 contentType = "empty"
-            ) { Text(stringResource(R.string.no_logs_yet), color = Color.Gray) }
+            ) {
+                val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = base),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray)
+                        Text(stringResource(R.string.no_logs_yet), color = Color.Gray, textAlign = TextAlign.Center)
+                    }
+                }
+            }
         } else {
             filteredSections.forEach { section ->
                 val date = section.date

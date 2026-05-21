@@ -34,6 +34,7 @@ public struct AddSupplementView: View {
                     cycleSection
                 }
                 .scrollContentBackground(.hidden)
+                .listStyle(.insetGrouped)
                 .navigationTitle("add_supplement_title".localized)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -48,7 +49,32 @@ public struct AddSupplementView: View {
                                 }
                             }
                         }
-                        .disabled(viewModel.name.isEmpty)
+                        .disabled(viewModel.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isSaving)
+                    }
+                }
+                .alert(
+                    "error_title".localized,
+                    isPresented: Binding(
+                        get: { viewModel.errorMessage != nil },
+                        set: { isPresented in
+                            if !isPresented { viewModel.errorMessage = nil }
+                        }
+                    )
+                ) {
+                    Button("ok".localized, role: .cancel) {}
+                } message: {
+                    Text(viewModel.errorMessage ?? "")
+                }
+            }
+            .overlay {
+                if viewModel.isSaving {
+                    ZStack {
+                        Color.black.opacity(0.2).ignoresSafeArea()
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.white)
+                            .padding(16)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                     }
                 }
             }
@@ -68,10 +94,12 @@ public struct AddSupplementView: View {
                 .onChange(of: viewModel.name) {
                     Task { await viewModel.updateSuggestions() }
                 }
+                .listRowBackground(glassRowBackground)
             
             suggestionsSection
             
             TextField("dose_hint".localized, text: $viewModel.dailyDose)
+                .listRowBackground(glassRowBackground)
         } header: {
             Text("basic_info_title".localized)
         }
@@ -102,6 +130,7 @@ public struct AddSupplementView: View {
                         Image(systemName: "plus.circle")
                     }
                 }
+                .listRowBackground(glassRowBackground)
             }
         }
     }
@@ -109,20 +138,25 @@ public struct AddSupplementView: View {
     private var cycleSection: some View {
         Section {
             DatePicker("start_date".localized, selection: $viewModel.startDate, displayedComponents: .date)
+                .listRowBackground(glassRowBackground)
             TextField("intake_time".localized, text: $viewModel.intakeTimes)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onSubmit {
                     viewModel.intakeTimes = TimeStrings.normalizeString(viewModel.intakeTimes)
                 }
+                .listRowBackground(glassRowBackground)
             HStack {
                 DatePicker("", selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
                 Spacer()
                 Button("add_time".localized) { viewModel.addSelectedTime() }
             }
+            .listRowBackground(glassRowBackground)
             weeklyRecurrenceControls
+                .listRowBackground(glassRowBackground)
             Toggle("continuous".localized, isOn: $viewModel.isContinuous)
+                .listRowBackground(glassRowBackground)
             
             if !viewModel.isContinuous {
                 HStack {
@@ -133,6 +167,7 @@ public struct AddSupplementView: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
                 }
+                .listRowBackground(glassRowBackground)
                 
                 HStack {
                     Text("off_days".localized)
@@ -142,6 +177,7 @@ public struct AddSupplementView: View {
                         .multilineTextAlignment(.trailing)
                         .frame(width: 80)
                 }
+                .listRowBackground(glassRowBackground)
             }
             
             HStack {
@@ -152,11 +188,13 @@ public struct AddSupplementView: View {
                     .multilineTextAlignment(.trailing)
                     .frame(width: 80)
             }
+            .listRowBackground(glassRowBackground)
             
             if !viewModel.durationMonths.isEmpty {
                 Text("months".localized)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .listRowBackground(glassRowBackground)
             }
         } header: {
             Text("schedule_cycle_title".localized)
@@ -207,6 +245,10 @@ public struct AddSupplementView: View {
                 }
             }
         }
+    }
+    
+    private var glassRowBackground: some View {
+        Color.clear.background(.ultraThinMaterial)
     }
     
     private var weekdayLabels: [String] {

@@ -21,6 +21,7 @@ public struct SettingsView: View {
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
     @State private var cachedActiveSupplements: [UserSupplement] = []
+    @State private var notificationAuthorizationStatus: UNAuthorizationStatus = .notDetermined
     
     public let activeClientManager: ActiveClientManager
     
@@ -91,7 +92,8 @@ public struct SettingsView: View {
             clientManagementSection
             appHeaderSection
             themeSelectionSection
-            dataTransferSection
+            notificationsSection
+            dataToolsSection
             syncCenterSection
             supplementListSection
             userGuideSection
@@ -104,8 +106,15 @@ public struct SettingsView: View {
     }
     
     @ViewBuilder
-    private var dataTransferSection: some View {
+    private var notificationsSection: some View {
         Section {
+            HStack {
+                Text("onboarding_permission_status".localized)
+                Spacer()
+                Text(notificationPermissionText)
+                    .foregroundStyle(.secondary)
+            }
+            
             Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
                 .onChange(of: isNotificationEnabledByUser) {
                     if isNotificationEnabledByUser {
@@ -151,6 +160,15 @@ public struct SettingsView: View {
             } label: {
                 Label("settings_clear_pending_notifications".localized, systemImage: "trash")
             }
+        } header: {
+            Text("settings_notifications_title".localized)
+        }
+        .listRowBackground(glassRowBackground)
+    }
+    
+    @ViewBuilder
+    private var dataToolsSection: some View {
+        Section {
             
             if let shareStackPNGURL {
                 ShareLink(item: shareStackPNGURL) {
@@ -458,9 +476,21 @@ public struct SettingsView: View {
     @MainActor
     private func syncNotificationPermissionState() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
+        notificationAuthorizationStatus = settings.authorizationStatus
         let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
         if !authorized, isNotificationEnabledByUser {
             isNotificationEnabledByUser = false
+        }
+    }
+    
+    private var notificationPermissionText: String {
+        switch notificationAuthorizationStatus {
+        case .authorized, .provisional:
+            "onboarding_permission_granted".localized
+        case .denied:
+            "onboarding_permission_denied".localized
+        default:
+            "onboarding_permission_not_determined".localized
         }
     }
     

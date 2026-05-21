@@ -441,6 +441,34 @@ fun SettingsScreen(
                     }
                     
                     SettingsSection(title = stringResource(R.string.settings_notifications_title)) {
+                        val permissionStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            if (hasNotificationPermission) {
+                                stringResource(R.string.notification_check_permission_granted)
+                            } else {
+                                stringResource(R.string.notification_check_permission_denied)
+                            }
+                        } else {
+                            stringResource(R.string.notification_check_permission_not_required)
+                        }
+                        SettingsRow(
+                            title = stringResource(R.string.notification_check_permission_label),
+                            trailing = permissionStatus,
+                            onClick = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                                {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                                .setData(Uri.parse("package:$packageName"))
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }
+                                }
+                            } else {
+                                null
+                            }
+                        )
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        
                         SettingsRow(
                             title = stringResource(R.string.notification_check_open_diagnostics),
                             onClick = onNavigateToNotificationCheck

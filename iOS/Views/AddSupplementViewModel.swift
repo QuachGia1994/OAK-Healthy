@@ -6,6 +6,30 @@ import SwiftData
 @Observable
 @MainActor
 public final class AddSupplementViewModel {
+    public enum SaveFailure: Error {
+        case missingActiveClient
+        case invalidName
+        case invalidIntakeTime
+        case invalidCycleDays
+        case modelSaveFailed(Error)
+        case notificationSyncFailed(Error)
+        
+        fileprivate var message: String {
+            switch self {
+            case .missingActiveClient:
+                return "missing_active_client".localized
+            case .invalidName:
+                return "add_supplement_error_invalid_name".localized
+            case .invalidIntakeTime:
+                return "add_supplement_error_invalid_time".localized
+            case .invalidCycleDays:
+                return "add_supplement_error_invalid_cycle_days".localized
+            case .modelSaveFailed(let error), .notificationSyncFailed(let error):
+                return String(format: "add_supplement_error_save_failed_format".localized, error.localizedDescription)
+            }
+        }
+    }
+    
     // MARK: - State
     public var name: String = ""
     public var startDate: Date = .now
@@ -22,6 +46,8 @@ public final class AddSupplementViewModel {
     
     public var suggestions: [SupplementReference] = []
     public var isLoading: Bool = false
+    public var isSaving: Bool = false
+    public var errorMessage: String? = nil
     
     // MARK: - Dependencies
     private let suggestService: any AutoSuggestService
@@ -75,36 +101,21 @@ public final class AddSupplementViewModel {
 
     /// Lưu thực phẩm bổ sung và thiết lập thông báo.
     public func saveSupplement() async -> UserSupplement? {
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        let supplement: UserSupplement
-        if let existing = editingSupplement {
-            guard let updated = createSupplement(id: existing.id) else { return nil }
-            existing.name = updated.name
-            existing.startDate = updated.startDate
-            existing.cycleConfig = updated.cycleConfig
-            existing.dailyDose = updated.dailyDose
-            existing.intakeTime = updated.intakeTime
-            existing.updatedAtEpochMs = now
-            existing.deletedAtEpochMs = nil
-            supplement = existing
-        } else {
-            guard let created = createSupplement(id: UUID()) else { return nil }
-            modelContext.insert(created)
-            supplement = created
-        }
+        guard !isSaving else { return nil }
+        errorMessage = nil
+        isSaving = true
+        defer { isSaving = false }
         
         do {
-            try modelContext.save()
-            
-            if editingSupplement != nil {
-                await notificationService.cancelReminders(for: supplement)
-            }
-            try await notificationService.scheduleReminders(for: supplement)
-            
-            return supplement
+            let result = try persistSupplement()
+            try await syncNotifications(for: result.supplement, wasEditing: result.wasEditing)
+            return result.supplement
+        } catch let failure as SaveFailure {
+            errorMessage = failure.message
+            return nil
         } catch {
-            print("Lỗi khi lưu và đồng bộ: \(error)")
-            return supplement
+            errorMessage = String(format: "add_supplement_error_save_failed_format".localized, error.localizedDescription)
+            return nil
         }
     }
     
@@ -161,33 +172,15 @@ public final class AddSupplementViewModel {
     
     /// Tạo đối tượng UserSupplement hoàn chỉnh.
     public func createSupplement(id: UUID) -> UserSupplement? {
-        guard !name.isEmpty else { return nil }
-        guard let activeClient else { return nil }
-        
-        let weekly = makeWeeklyRecurrenceIfNeeded()
-        let config = isContinuous
-            ? CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, durationMonths: nil, weeklyRecurrence: weekly)
-            : CycleConfig(
-                daysOn: Int(daysOn) ?? 1,
-                daysOff: Int(daysOff) ?? 0,
-                isContinuous: false,
-                durationMonths: Int(durationMonths),
-                weeklyRecurrence: weekly
-            )
-        let timeString = TimeStrings.normalizeString(intakeTimes)
-        guard !timeString.isEmpty else { return nil }
-        
-        return UserSupplement(
-            id: id,
-            name: name,
-            startDate: startDate,
-            cycleConfig: config,
-            dailyDose: dailyDose,
-            intakeTime: timeString,
-            updatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
-            deletedAtEpochMs: nil,
-            client: activeClient
-        )
+        do {
+            return try buildSupplementOrThrow(id: id)
+        } catch let failure as SaveFailure {
+            errorMessage = failure.message
+            return nil
+        } catch {
+            errorMessage = String(format: "add_supplement_error_save_failed_format".localized, error.localizedDescription)
+            return nil
+        }
     }
 
     public func addSelectedTime() {
@@ -213,5 +206,112 @@ public final class AddSupplementViewModel {
     private func sanitizedWeekdaysMask() -> Int {
         let clamped = max(1, min(127, weekdaysMask))
         return clamped
+    }
+    
+    private func isValidTimeString(_ timeString: String) -> Bool {
+        let list = TimeStrings.normalizeList(timeString)
+        guard !list.isEmpty else { return false }
+        for item in list {
+            guard TimeStrings.parseLenientTime(item) != nil else { return false }
+        }
+        return true
+    }
+    
+    private struct PersistResult {
+        let supplement: UserSupplement
+        let wasEditing: Bool
+    }
+    
+    private func persistSupplement() throws -> PersistResult {
+        guard editingSupplement != nil || activeClient != nil else { throw SaveFailure.missingActiveClient }
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        
+        if let existing = editingSupplement {
+            let updated = try buildSupplementOrThrow(id: existing.id)
+            existing.name = updated.name
+            existing.startDate = updated.startDate
+            existing.cycleConfig = updated.cycleConfig
+            existing.dailyDose = updated.dailyDose
+            existing.intakeTime = updated.intakeTime
+            existing.updatedAtEpochMs = now
+            existing.deletedAtEpochMs = nil
+            do {
+                try modelContext.save()
+            } catch {
+                throw SaveFailure.modelSaveFailed(error)
+            }
+            return PersistResult(supplement: existing, wasEditing: true)
+        }
+        
+        let created = try buildSupplementOrThrow(id: UUID())
+        modelContext.insert(created)
+        do {
+            try modelContext.save()
+        } catch {
+            throw SaveFailure.modelSaveFailed(error)
+        }
+        editingSupplement = created
+        return PersistResult(supplement: created, wasEditing: false)
+    }
+    
+    private func syncNotifications(for supplement: UserSupplement, wasEditing: Bool) async throws {
+        do {
+            if wasEditing {
+                await notificationService.cancelReminders(for: supplement)
+            }
+            try await notificationService.scheduleReminders(for: supplement)
+        } catch {
+            throw SaveFailure.notificationSyncFailed(error)
+        }
+    }
+    
+    private func buildSupplementOrThrow(id: UUID) throws -> UserSupplement {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { throw SaveFailure.invalidName }
+        let client = try resolveClientOrThrow()
+        
+        let weekly = makeWeeklyRecurrenceIfNeeded()
+        let config = try buildCycleConfigOrThrow(weekly: weekly)
+        let timeString = try buildIntakeTimesOrThrow()
+        
+        return UserSupplement(
+            id: id,
+            name: trimmedName,
+            startDate: startDate,
+            cycleConfig: config,
+            dailyDose: dailyDose,
+            intakeTime: timeString,
+            updatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
+            deletedAtEpochMs: nil,
+            client: client
+        )
+    }
+    
+    private func resolveClientOrThrow() throws -> ClientProfile {
+        if let activeClient { return activeClient }
+        if let client = editingSupplement?.client { return client }
+        throw SaveFailure.missingActiveClient
+    }
+    
+    private func buildCycleConfigOrThrow(weekly: WeeklyRecurrenceConfig?) throws -> CycleConfig {
+        if isContinuous {
+            return CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, durationMonths: nil, weeklyRecurrence: weekly)
+        }
+        let parsedDaysOn = Int(daysOn) ?? -1
+        let parsedDaysOff = Int(daysOff) ?? -1
+        guard parsedDaysOn > 0, parsedDaysOff >= 0 else { throw SaveFailure.invalidCycleDays }
+        return CycleConfig(
+            daysOn: parsedDaysOn,
+            daysOff: parsedDaysOff,
+            isContinuous: false,
+            durationMonths: Int(durationMonths),
+            weeklyRecurrence: weekly
+        )
+    }
+    
+    private func buildIntakeTimesOrThrow() throws -> String {
+        let timeString = TimeStrings.normalizeString(intakeTimes)
+        guard isValidTimeString(timeString) else { throw SaveFailure.invalidIntakeTime }
+        return timeString
     }
 }
