@@ -171,6 +171,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                 key = "empty",
                 contentType = "empty"
             ) {
+                val muted = MaterialTheme.colorScheme.onSurfaceVariant
                 val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
                 val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
                 Card(
@@ -184,8 +185,8 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = Color.Gray)
-                        Text(stringResource(R.string.no_logs_yet), color = Color.Gray, textAlign = TextAlign.Center)
+                        Icon(Icons.Default.Search, contentDescription = null, tint = muted)
+                        Text(stringResource(R.string.no_logs_yet), color = muted, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -248,7 +249,8 @@ private fun InsightsPanel(insights7: InsightsSummary?, insights30: InsightsSumma
 @Composable
 private fun InsightsWindowCard(title: String, summary: InsightsSummary?, modifier: Modifier = Modifier) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         modifier = modifier
             .background(base, RoundedCornerShape(18.dp))
@@ -257,35 +259,35 @@ private fun InsightsWindowCard(title: String, summary: InsightsSummary?, modifie
     ) {
         Text(title, fontWeight = FontWeight.SemiBold)
         if (summary == null) {
-            Text(stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Text(stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodySmall, color = muted)
             return
         }
         val completion = (summary.completionRate * 100f).toInt()
-        Text(stringResource(R.string.insights_completion_format, completion), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Text(stringResource(R.string.insights_completion_format, completion), style = MaterialTheme.typography.bodySmall, color = muted)
         Text(
             stringResource(R.string.insights_taken_skipped_format, summary.takenCount, summary.skippedCount),
             style = MaterialTheme.typography.bodySmall,
-            color = Color.Gray
+            color = muted
         )
-        Text(stringResource(R.string.insights_late_format, summary.lateCount), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+        Text(stringResource(R.string.insights_late_format, summary.lateCount), style = MaterialTheme.typography.bodySmall, color = muted)
         val hour = summary.topLateHour
         if (hour != null) {
-            Text(stringResource(R.string.insights_top_late_hour_format, hour.title, hour.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.insights_top_late_hour_format, hour.title, hour.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         val topLate = summary.topLate
         if (topLate.isNotEmpty()) {
             val first = topLate.first()
-            Text(stringResource(R.string.insights_top_late_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.insights_top_late_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             topLate.drop(1).forEach { item ->
-                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         val skipped = summary.topSkipped
         if (skipped.isNotEmpty()) {
             val first = skipped.first()
-            Text(stringResource(R.string.insights_top_skipped_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.insights_top_skipped_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             skipped.drop(1).forEach { item ->
-                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -350,9 +352,9 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
     }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val gridColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f)
-    val axisTextColor = if (isDark) Color.White.copy(alpha = 0.75f) else Color(0xFF374151)
-    val barColor = if (isDark) Color(0xFF64B5F6) else Color(0xFF2196F3)
+    val gridColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f) }
+    val axisTextColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.75f) else Color(0xFF374151) }
+    val barColor = remember(isDark) { if (isDark) Color(0xFF64B5F6) else Color(0xFF2196F3) }
     val axisWidth = 40.dp
     val chartHeight = 180.dp
 
@@ -463,7 +465,8 @@ private fun HistoryRecordItem(record: IntakeRecord) {
     }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
+    val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f) }
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val isSkipped = record.status == "Skipped"
 
     Card(
@@ -476,7 +479,7 @@ private fun HistoryRecordItem(record: IntakeRecord) {
             Text(
                 text = displayTime,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray,
+                color = muted,
                 modifier = Modifier.width(56.dp)
             )
             Column(modifier = Modifier.weight(1f)) {

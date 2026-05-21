@@ -51,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -58,7 +59,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -95,6 +101,7 @@ fun OnboardingScreen(
     val cardStroke = remember(isDark) {
         if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.28f)
     }
+    val cardShape = remember { RoundedCornerShape(28.dp) }
 
     var step by remember { mutableStateOf(OnboardingStep.CLIENT) }
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
@@ -152,9 +159,11 @@ fun OnboardingScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, cardStroke, RoundedCornerShape(28.dp)),
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBase),
+                    .clip(cardShape)
+                    .background(cardBase, cardShape)
+                    .border(1.dp, cardStroke, cardShape),
+                shape = cardShape,
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
@@ -269,6 +278,8 @@ private fun ClientStep(
     onSelectClient: (UUID) -> Unit,
     onAddClient: () -> Unit
 ) {
+    val itemShape = remember { RoundedCornerShape(16.dp) }
+    val rowBase = MaterialTheme.colorScheme.surface.copy(alpha = 0.10f)
     Text(
         text = stringResource(R.string.onboarding_step_client_title),
         style = MaterialTheme.typography.titleLarge,
@@ -293,9 +304,13 @@ private fun ClientStep(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.10f),
-                        shape = RoundedCornerShape(16.dp)
+                        color = rowBase,
+                        shape = itemShape
                     )
+                    .semantics {
+                        role = Role.Button
+                        this.selected = selected
+                    }
                     .clickable { onSelectClient(client.id) }
                     .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -459,7 +474,13 @@ private fun OnboardingProgress(step: OnboardingStep) {
             OnboardingStep.BATTERY -> stringResource(R.string.onboarding_step_battery_title)
             OnboardingStep.DONE -> stringResource(R.string.onboarding_step_done_title)
         }
-        Text(title, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Text(
+            title,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
