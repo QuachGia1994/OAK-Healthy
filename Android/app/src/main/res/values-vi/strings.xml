@@ -59,6 +59,23 @@
     <string name="settings_battery_opt_status_title">Tối ưu hoá pin</string>
     <string name="settings_battery_opt_off">Đã tắt</string>
     <string name="settings_open_app_settings">Mở cài đặt ứng dụng</string>
+    <string name="back">Quay lại</string>
+
+    <string name="onboarding_title">Thiết lập</string>
+    <string name="onboarding_next">Tiếp tục</string>
+    <string name="onboarding_done">Xong</string>
+    <string name="onboarding_open_settings">Mở Cài đặt</string>
+    <string name="onboarding_step_client_title">Chọn học viên</string>
+    <string name="onboarding_step_client_body">Chọn học viên hiện có hoặc tạo mới để bắt đầu theo dõi.</string>
+    <string name="onboarding_step_notifications_title">Bật thông báo</string>
+    <string name="onboarding_step_notifications_body">Bật thông báo để nhắc uống hoạt động ổn định.</string>
+    <string name="onboarding_notifications_denied">Bạn đã tắt quyền thông báo. Hãy bật lại trong Cài đặt để nhận nhắc uống.</string>
+    <string name="onboarding_step_exact_alarm_title">Bật báo thức chính xác</string>
+    <string name="onboarding_step_exact_alarm_body">Bật Báo thức chính xác để thông báo nhắc uống đúng giờ.</string>
+    <string name="onboarding_step_battery_title">Tắt tối ưu hoá pin</string>
+    <string name="onboarding_step_battery_body">Tắt Tối ưu hoá pin để app chạy ngầm ổn định (tuỳ từng dòng máy).</string>
+    <string name="onboarding_step_done_title">Hoàn tất</string>
+    <string name="onboarding_step_done_body">Bạn có thể thay đổi các thiết lập này bất cứ lúc nào trong Cài đặt.</string>
 
     <string name="appearance_title">Giao diện</string>
     <string name="appearance_light">Sáng</string>
