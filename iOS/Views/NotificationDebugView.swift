@@ -166,7 +166,7 @@ public struct NotificationDebugScreen: View {
     private func entryKey(_ entry: NotificationDebugEntry) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMddHHmm"
-        return "\(entry.name.lowercased())|\(formatter.string(from: entry.scheduledAt))"
+        return "\(entry.id)|\(formatter.string(from: entry.scheduledAt))"
     }
     
     private var diagnosisTitle: String {
