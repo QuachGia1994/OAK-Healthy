@@ -222,10 +222,14 @@ private struct InsightsCard: View {
 }
 
 private struct InsightsWindowCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     let titleKey: String
     let summary: InsightsSummary?
 
     var body: some View {
+        let base: Color = colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.62)
+        let border: Color = colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)
         VStack(alignment: .leading, spacing: 8) {
             Text(titleKey.localized)
                 .font(.subheadline)
@@ -234,24 +238,24 @@ private struct InsightsWindowCard: View {
                 let completion = Int((summary.completionRate * 100).rounded())
                 Text(String.localizedStringWithFormat("insights_completion_format".localized, completion))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                 Text(String.localizedStringWithFormat("insights_late_format".localized, summary.lateCount))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary)
                 if let top = summary.topLate.first {
                     Text(String.localizedStringWithFormat("insights_top_late_format".localized, top.title, top.count))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
                 if let hour = summary.topLateHour {
                     Text(String.localizedStringWithFormat("insights_top_late_hour_format".localized, hour.title, hour.count))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
                 if let top = summary.topSkipped.first {
                     Text(String.localizedStringWithFormat("insights_top_skipped_format".localized, top.title, top.count))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary)
                 }
             } else {
                 Text("insights_no_data".localized)
@@ -261,7 +265,11 @@ private struct InsightsWindowCard: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.secondary.opacity(0.10))
+        .background(base)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(border, lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }

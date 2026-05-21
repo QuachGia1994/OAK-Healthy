@@ -353,11 +353,13 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
     val gridColor = if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f)
     val axisTextColor = if (isDark) Color.White.copy(alpha = 0.75f) else Color(0xFF374151)
     val barColor = if (isDark) Color(0xFF64B5F6) else Color(0xFF2196F3)
+    val axisWidth = 40.dp
+    val chartHeight = 180.dp
 
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().height(chartHeight)) {
             Column(
-                modifier = Modifier.width(32.dp),
+                modifier = Modifier.width(axisWidth).fillMaxHeight(),
                 horizontalAlignment = Alignment.End
             ) {
                 axis.yLabels.reversed().forEach { value ->
@@ -375,7 +377,7 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
 
             Canvas(
                 modifier = Modifier
-                    .height(180.dp)
+                    .fillMaxHeight()
                     .weight(1f)
                     .padding(start = 10.dp)
             ) {
@@ -419,7 +421,7 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 32.dp + 10.dp)
+                .padding(start = axisWidth + 10.dp)
         ) {
             data.forEach { item ->
                 Text(
