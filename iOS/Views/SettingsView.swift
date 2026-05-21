@@ -6,6 +6,7 @@ import SwiftData
 public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
@@ -34,6 +35,10 @@ public struct SettingsView: View {
                 settingsList
             }
         }
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task { await syncNotificationPermissionState() }
+        }
         .task {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
@@ -42,19 +47,31 @@ public struct SettingsView: View {
         .task(id: activeClientManager.currentClientId) {
             await reloadClientCaches()
         }
+        .task {
+            await syncNotificationPermissionState()
+        }
         .sheet(isPresented: $isShowingAddClientSheet) {
             ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
                 guard !name.isEmpty else { return }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
-                try? modelContext.save()
-                activeClientManager.setCurrentClientId(created.id)
+                do {
+                    try modelContext.save()
+                    activeClientManager.setCurrentClientId(created.id)
+                } catch {
+                    modelContext.delete(created)
+                    showError(message: error.localizedDescription)
+                }
             }
         }
         .sheet(item: $editingClient) { client in
             ClientEditorSheet(title: "edit_client".localized, initialName: client.name) { name in
                 client.name = name
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    showError(message: error.localizedDescription)
+                }
             }
         }
         .alert("error_title".localized, isPresented: $isShowingError) {
@@ -306,7 +323,12 @@ public struct SettingsView: View {
     private func deleteClient(_ client: ClientProfile) {
         let deletingActive = client.id == activeClientManager.currentClientId
         modelContext.delete(client)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            showError(message: error.localizedDescription)
+            return
+        }
         
         guard deletingActive else { return }
         let fallback = clients.first { $0.id != client.id }?.id
@@ -401,6 +423,15 @@ public struct SettingsView: View {
             cachedActiveSupplements = supplements.filter { $0.deletedAtEpochMs == nil }
         } catch {
             cachedActiveSupplements = []
+        }
+    }
+    
+    @MainActor
+    private func syncNotificationPermissionState() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        if !authorized, isNotificationEnabledByUser {
+            isNotificationEnabledByUser = false
         }
     }
     

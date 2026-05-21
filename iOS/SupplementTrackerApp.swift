@@ -129,6 +129,9 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
     
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
+        if (info["oakTestNotification"] as? Bool) == true {
+            UserDefaults.standard.set(Int64(Date().timeIntervalSince1970 * 1000), forKey: "oakLastTestNotificationAckEpochMs")
+        }
         if response.actionIdentifier == NotificationService.Action.taken.rawValue || response.actionIdentifier == NotificationService.Action.skipped.rawValue {
             let scheduledAtEpochMs = (info["scheduledAtEpochMs"] as? NSNumber)?.int64Value
                 ?? (info["scheduledAtEpochMs"] as? Int64)
@@ -236,7 +239,7 @@ private struct SafeBootView: View {
             "currentClientId": manager.currentClientId?.uuidString ?? ""
         ])
         
-        let notificationService = NotificationService()
+        let notificationService = NotificationService.shared
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
         await notificationService.registerNotificationActions()
         onReady(
@@ -579,16 +582,17 @@ struct MainTabView: View {
     private func rescheduleNotificationsIfEnabled() async {
         guard isNotificationEnabledByUser else { return }
         guard let clientId = activeClientManager.currentClientId else { return }
-        let descriptor = FetchDescriptor<UserSupplement>(predicate: #Predicate { $0.deletedAtEpochMs == nil })
-        let all: [UserSupplement]
         do {
-            all = try modelContext.fetch(descriptor)
+            let descriptor = FetchDescriptor<UserSupplement>(
+                predicate: #Predicate { $0.deletedAtEpochMs == nil && $0.client?.id == clientId },
+                sortBy: [SortDescriptor(\UserSupplement.name)]
+            )
+            let supplements = try modelContext.fetch(descriptor)
+            await notificationService.scheduleAll(supplements: supplements)
         } catch {
             DebugReporter.report("auto_reschedule_fetch_failed", fields: ["error": error.localizedDescription])
             return
         }
-        let supplements = all.filter { $0.client?.id == clientId }
-        await notificationService.scheduleAll(supplements: supplements)
     }
     
     private func handleDoseAction(_ userInfo: [AnyHashable: Any]?) {

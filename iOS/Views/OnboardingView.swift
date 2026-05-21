@@ -6,6 +6,7 @@ public struct OnboardingView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     
     public let activeClientManager: ActiveClientManager
@@ -13,11 +14,15 @@ public struct OnboardingView: View {
     
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
+    @AppStorage("oakLastTestNotificationSentEpochMs") private var lastTestSentEpochMs: Int64 = 0
+    @AppStorage("oakLastTestNotificationAckEpochMs") private var lastTestAckEpochMs: Int64 = 0
     
     @State private var step: OnboardingStep = .client
     @State private var isShowingAddClient: Bool = false
     @State private var permissionMessage: String?
+    @State private var clientMessage: String?
     @State private var isRequestingPermission: Bool = false
+    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
     
     public init(activeClientManager: ActiveClientManager, notificationService: NotificationService) {
         self.activeClientManager = activeClientManager
@@ -45,16 +50,29 @@ public struct OnboardingView: View {
                 AddClientSheet { name in
                     let created = ClientProfile(name: name)
                     modelContext.insert(created)
-                    try? modelContext.save()
-                    activeClientManager.setCurrentClientId(created.id)
+                    do {
+                        try modelContext.save()
+                        clientMessage = nil
+                        activeClientManager.setCurrentClientId(created.id)
+                    } catch {
+                        modelContext.delete(created)
+                        clientMessage = error.localizedDescription
+                    }
                 }
             }
         }
         .interactiveDismissDisabled()
+        .onChange(of: scenePhase) { _, newValue in
+            guard newValue == .active else { return }
+            Task { await refreshAuthorizationState() }
+        }
         .task {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
+        }
+        .task {
+            await refreshAuthorizationState()
         }
     }
     
@@ -97,6 +115,12 @@ public struct OnboardingView: View {
                 }
                 .buttonStyle(.bordered)
             }
+            
+            if let clientMessage {
+                Text(clientMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
     
@@ -109,15 +133,59 @@ public struct OnboardingView: View {
             Text("onboarding_step_notifications_body".localized)
                 .foregroundStyle(.secondary)
             
-            Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
+            HStack {
+                Text("onboarding_permission_status".localized)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(permissionLabel)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Toggle(
+                "notification_permission_toggle".localized,
+                isOn: Binding(
+                    get: { isNotificationEnabledByUser },
+                    set: { newValue in
+                        guard authorizationStatus != .denied else {
+                            isNotificationEnabledByUser = false
+                            permissionMessage = "onboarding_notifications_denied".localized
+                            return
+                        }
+                        isNotificationEnabledByUser = newValue
+                    }
+                )
+            )
                 .onChange(of: isNotificationEnabledByUser) { _, newValue in
                     guard newValue else {
                         permissionMessage = nil
-                        Task { await NotificationService.shared.clearAllPendingNotifications() }
+                        Task { await notificationService.clearAllPendingNotifications() }
                         return
                     }
                     Task { await requestNotificationsIfNeeded() }
                 }
+            
+            if isSystemNotificationGranted, isNotificationEnabledByUser {
+                Button("onboarding_send_test_notification".localized) {
+                    Task { await sendTestNotification() }
+                }
+                .buttonStyle(.borderedProminent)
+                
+                if lastTestSentEpochMs > 0 {
+                    Text(String(format: "onboarding_test_sent_format".localized, formatEpochMs(lastTestSentEpochMs)))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                if lastTestAckEpochMs > 0 {
+                    Text(String(format: "onboarding_test_ack_format".localized, formatEpochMs(lastTestAckEpochMs)))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Button("onboarding_reschedule_now".localized) {
+                    Task { await scheduleNotificationsForActiveClient() }
+                }
+                .buttonStyle(.bordered)
+            }
             
             if let permissionMessage {
                 Text(permissionMessage)
@@ -183,29 +251,101 @@ public struct OnboardingView: View {
         guard granted else {
             isNotificationEnabledByUser = false
             permissionMessage = "onboarding_notifications_denied".localized
+            await refreshAuthorizationState()
             return
         }
         permissionMessage = nil
+        await refreshAuthorizationState()
         await scheduleNotificationsForActiveClient()
     }
     
     @MainActor
     private func scheduleNotificationsForActiveClient() async {
         guard let clientId = activeClientManager.currentClientId else { return }
-        let descriptor = FetchDescriptor<UserSupplement>(predicate: #Predicate { $0.deletedAtEpochMs == nil })
-        let all: [UserSupplement]
         do {
-            all = try modelContext.fetch(descriptor)
+            let descriptor = FetchDescriptor<UserSupplement>(
+                predicate: #Predicate { $0.deletedAtEpochMs == nil && $0.client?.id == clientId },
+                sortBy: [SortDescriptor(\UserSupplement.name)]
+            )
+            let supplements = try modelContext.fetch(descriptor)
+            await notificationService.scheduleAll(supplements: supplements)
         } catch {
             return
         }
-        let supplements = all.filter { $0.client?.id == clientId }
-        await notificationService.scheduleAll(supplements: supplements)
     }
     
     private func openAppSettings() {
         guard let url = URL(string: "app-settings:") else { return }
         openURL(url)
+    }
+    
+    private func refreshAuthorizationState() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        await MainActor.run {
+            authorizationStatus = settings.authorizationStatus
+            if authorizationStatus == .denied { isNotificationEnabledByUser = false }
+            let ack = readEpochMs(forKey: "oakLastTestNotificationAckEpochMs")
+            if ack != lastTestAckEpochMs { lastTestAckEpochMs = ack }
+        }
+    }
+    
+    private func sendTestNotification() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        guard authorized else {
+            await MainActor.run {
+                isNotificationEnabledByUser = false
+                permissionMessage = "onboarding_notifications_denied".localized
+            }
+            await refreshAuthorizationState()
+            return
+        }
+        
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        await MainActor.run { lastTestSentEpochMs = now }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "OAK Healthy"
+        content.body = "onboarding_test_notification_body".localized
+        content.sound = .default
+        content.userInfo = ["oakTestNotification": true]
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        let request = UNNotificationRequest(identifier: "OAK_TEST_\(now)", content: content, trigger: trigger)
+        do {
+            try await center.add(request)
+        } catch {
+            await MainActor.run { permissionMessage = error.localizedDescription }
+        }
+    }
+    
+    private func formatEpochMs(_ epochMs: Int64) -> String {
+        guard epochMs > 0 else { return "" }
+        let date = Date(timeIntervalSince1970: TimeInterval(epochMs) / 1000)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private func readEpochMs(forKey key: String) -> Int64 {
+        guard let value = UserDefaults.standard.object(forKey: key) else { return 0 }
+        if let number = value as? NSNumber { return number.int64Value }
+        if let int = value as? Int { return Int64(int) }
+        if let int64 = value as? Int64 { return int64 }
+        if let double = value as? Double { return Int64(double) }
+        return 0
+    }
+    
+    private var isSystemNotificationGranted: Bool {
+        authorizationStatus == .authorized || authorizationStatus == .provisional
+    }
+    
+    private var permissionLabel: String {
+        if isSystemNotificationGranted { return "onboarding_permission_granted".localized }
+        if authorizationStatus == .denied { return "onboarding_permission_denied".localized }
+        return "onboarding_permission_not_determined".localized
     }
 }
 
@@ -258,4 +398,3 @@ private struct AddClientSheet: View {
         }
     }
 }
-
