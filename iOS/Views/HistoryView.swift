@@ -144,17 +144,17 @@ public struct HistoryView: View {
         ])
         do {
             var descriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate { $0.supplement?.client?.id == clientId },
                 sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
             )
             descriptor.fetchLimit = 5_000
             let fetched = try modelContext.fetch(descriptor)
-            recordsCount = fetched.count
-            allRecords = fetched
+            let filtered = fetched.filter { $0.supplement?.client?.id == clientId }
+            recordsCount = filtered.count
+            allRecords = filtered
             rebuildSections()
-            viewModel.processHistory(records: fetched)
+            viewModel.processHistory(records: filtered)
             DebugReporter.report("history_reload_success", fields: [
-                "count": String(fetched.count)
+                "count": String(filtered.count)
             ])
         } catch {
             recordsCount = 0
