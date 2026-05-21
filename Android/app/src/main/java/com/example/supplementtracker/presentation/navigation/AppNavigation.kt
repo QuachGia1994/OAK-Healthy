@@ -161,6 +161,8 @@ fun AppNavigation(
                 }
                 composable(Screen.NotificationCheck.route) {
                     NotificationCheckScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
                         onBack = { navController.popBackStack() }
                     )
                 }

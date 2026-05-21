@@ -1,11 +1,14 @@
 package com.example.supplementtracker.presentation.home
 
 import android.app.AlarmManager
+import android.content.Context.MODE_PRIVATE
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
@@ -38,9 +42,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +57,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontFamily
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.service.NotificationDebugStore
 import com.example.supplementtracker.service.ScheduledAlarmInfo
 import java.time.Instant
@@ -66,19 +75,102 @@ private data class NotificationDayGroup(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotificationCheckScreen(onBack: () -> Unit) {
+fun NotificationCheckScreen(
+    homeViewModel: HomeViewModel,
+    activeClientManager: ActiveClientManager,
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("oak_settings", MODE_PRIVATE) }
+    val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+
     var upcoming by remember { mutableStateOf(emptyList<ScheduledAlarmInfo>()) }
+    var isNotificationEnabledByUser by rememberSaveable { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
+    var hasNotificationPermission by rememberSaveable { mutableStateOf(hasNotificationPermission(context)) }
+    var canScheduleExactAlarms by rememberSaveable { mutableStateOf(canScheduleExactAlarms(context)) }
+    var isIgnoringBatteryOptimizations by rememberSaveable { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+
+    val activeSupplementCount by remember(uiState, currentClientId) {
+        derivedStateOf {
+            if (currentClientId == null) return@derivedStateOf 0
+            val success = uiState as? HomeUiState.Success ?: return@derivedStateOf 0
+            val supplements = (success.activeSupplements.values.flatten().map { it.supplement } +
+                success.restingSupplements.map { it.supplement })
+                .distinctBy { it.id }
+            supplements.size
+        }
+    }
+
+    val diagnosisTitle by remember(
+        hasNotificationPermission,
+        isNotificationEnabledByUser,
+        currentClientId,
+        activeSupplementCount,
+        canScheduleExactAlarms,
+        isIgnoringBatteryOptimizations,
+        upcoming
+    ) {
+        derivedStateOf {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) return@derivedStateOf "DENIED"
+            if (!isNotificationEnabledByUser) return@derivedStateOf "OFF"
+            if (currentClientId == null) return@derivedStateOf "NO ACTIVE CLIENT"
+            if (activeSupplementCount == 0) return@derivedStateOf "NO SUPPLEMENTS"
+            if (!canScheduleExactAlarms) return@derivedStateOf "EXACT ALARM OFF"
+            if (!isIgnoringBatteryOptimizations) return@derivedStateOf "BATTERY OPTIMIZED"
+            if (upcoming.isEmpty()) return@derivedStateOf "SCHEDULED = 0"
+            "OK"
+        }
+    }
+
+    val diagnosisHint by remember(
+        hasNotificationPermission,
+        isNotificationEnabledByUser,
+        currentClientId,
+        activeSupplementCount,
+        canScheduleExactAlarms,
+        isIgnoringBatteryOptimizations,
+        upcoming
+    ) {
+        derivedStateOf {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
+                return@derivedStateOf stringResource(R.string.notification_check_hint_permission_denied)
+            }
+            if (!isNotificationEnabledByUser) return@derivedStateOf stringResource(R.string.notification_check_hint_toggle_off)
+            if (currentClientId == null) return@derivedStateOf stringResource(R.string.notification_check_hint_no_active_client)
+            if (activeSupplementCount == 0) return@derivedStateOf stringResource(R.string.notification_check_hint_no_supplements)
+            if (!canScheduleExactAlarms) return@derivedStateOf stringResource(R.string.notification_check_hint_exact_alarm_off)
+            if (!isIgnoringBatteryOptimizations) return@derivedStateOf stringResource(R.string.notification_check_hint_battery_opt)
+            if (upcoming.isEmpty()) return@derivedStateOf stringResource(R.string.notification_check_hint_scheduled_zero)
+            stringResource(R.string.notification_check_hint_ok)
+        }
+    }
+
     val grouped = remember(upcoming) { groupByDate(upcoming) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy") }
     val timeFormatter = remember { DateTimeFormatter.ofPattern("H:mm") }
 
-    val reload: () -> Unit = { upcoming = NotificationDebugStore.getUpcoming(context) }
+    val reload: () -> Unit = {
+        upcoming = NotificationDebugStore.getUpcoming(context)
+        isNotificationEnabledByUser = prefs.getBoolean("isNotificationEnabledByUser", false)
+        hasNotificationPermission = hasNotificationPermission(context)
+        canScheduleExactAlarms = canScheduleExactAlarms(context)
+        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+    }
     LaunchedEffect(Unit) { reload() }
 
     NotificationCheckScaffold(onBack = onBack) { padding ->
         NotificationCheckContent(
             context = context,
+            diagnosisTitle = diagnosisTitle,
+            diagnosisHint = diagnosisHint,
+            hasNotificationPermission = hasNotificationPermission,
+            isNotificationEnabledByUser = isNotificationEnabledByUser,
+            activeClientId = currentClientId,
+            activeSupplementCount = activeSupplementCount,
+            canScheduleExactAlarms = canScheduleExactAlarms,
+            isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+            scheduledCount = upcoming.size,
             grouped = grouped,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
@@ -120,6 +212,15 @@ private fun NotificationCheckTopBar(onBack: () -> Unit) {
 @Composable
 private fun NotificationCheckContent(
     context: Context,
+    diagnosisTitle: String,
+    diagnosisHint: String,
+    hasNotificationPermission: Boolean,
+    isNotificationEnabledByUser: Boolean,
+    activeClientId: java.util.UUID?,
+    activeSupplementCount: Int,
+    canScheduleExactAlarms: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
+    scheduledCount: Int,
     grouped: List<NotificationDayGroup>,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
@@ -131,7 +232,26 @@ private fun NotificationCheckContent(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { StatusCards(context = context) }
+        item {
+            DiagnosticsCard(
+                diagnosisTitle = diagnosisTitle,
+                diagnosisHint = diagnosisHint,
+                hasNotificationPermission = hasNotificationPermission,
+                isNotificationEnabledByUser = isNotificationEnabledByUser,
+                activeClientId = activeClientId,
+                activeSupplementCount = activeSupplementCount,
+                canScheduleExactAlarms = canScheduleExactAlarms,
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                scheduledCount = scheduledCount
+            )
+        }
+        item {
+            StatusCards(
+                context = context,
+                canScheduleExactAlarms = canScheduleExactAlarms,
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations
+            )
+        }
         item { OutlinedButton(onClick = onReload) { Text(stringResource(R.string.notification_check_reload)) } }
         if (grouped.isEmpty()) item { EmptyNotificationCard() }
         grouped.forEach { group ->
@@ -163,13 +283,91 @@ private fun EmptyNotificationCard() {
 }
 
 @Composable
-private fun StatusCards(context: Context) {
-    val canScheduleExactAlarms = canScheduleExactAlarms(context)
-    val isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+private fun StatusCards(
+    context: Context,
+    canScheduleExactAlarms: Boolean,
+    isIgnoringBatteryOptimizations: Boolean
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ExactAlarmStatusCard(canScheduleExactAlarms = canScheduleExactAlarms)
         BatteryOptimizationCard(isIgnoring = isIgnoringBatteryOptimizations)
         if (!isIgnoringBatteryOptimizations) BatteryOptimizationButton(context = context)
+    }
+}
+
+@Composable
+private fun DiagnosticsCard(
+    diagnosisTitle: String,
+    diagnosisHint: String,
+    hasNotificationPermission: Boolean,
+    isNotificationEnabledByUser: Boolean,
+    activeClientId: java.util.UUID?,
+    activeSupplementCount: Int,
+    canScheduleExactAlarms: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
+    scheduledCount: Int
+) {
+    val permissionText = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        stringResource(R.string.notification_check_permission_not_required)
+    } else {
+        if (hasNotificationPermission) {
+            stringResource(R.string.notification_check_permission_granted)
+        } else {
+            stringResource(R.string.notification_check_permission_denied)
+        }
+    }
+    val enabledText = if (isNotificationEnabledByUser) {
+        stringResource(R.string.notification_check_enabled_on)
+    } else {
+        stringResource(R.string.notification_check_enabled_off)
+    }
+    val activeClientText = if (activeClientId == null) {
+        stringResource(R.string.notification_check_active_client_no)
+    } else {
+        stringResource(R.string.notification_check_active_client_yes)
+    }
+    val exactAlarmText = if (canScheduleExactAlarms) {
+        stringResource(R.string.notification_check_exact_alarms_enabled)
+    } else {
+        stringResource(R.string.notification_check_exact_alarms_disabled)
+    }
+    val batteryOptText = if (isIgnoringBatteryOptimizations) {
+        stringResource(R.string.notification_check_battery_opt_ignored)
+    } else {
+        stringResource(R.string.notification_check_battery_opt_optimized)
+    }
+    val diagnosticsText = listOf(
+        "diagnosis=$diagnosisTitle",
+        "permission=$permissionText",
+        "enabledByUser=$enabledText",
+        "activeClient=${activeClientId?.toString() ?: "nil"}",
+        "activeSupplements=$activeSupplementCount",
+        "scheduledCount=$scheduledCount",
+        "exactAlarms=$exactAlarmText",
+        "batteryOptimization=$batteryOptText"
+    ).joinToString("\n")
+
+    ElevatedCard {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(text = diagnosisTitle, style = MaterialTheme.typography.titleMedium)
+            Text(text = diagnosisHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.notification_check_permission_format, permissionText))
+            Text(stringResource(R.string.notification_check_enabled_format, enabledText))
+            Text(stringResource(R.string.notification_check_active_client_format, activeClientText))
+            Text(stringResource(R.string.notification_check_active_supplements_format, activeSupplementCount))
+            Text(stringResource(R.string.notification_check_scheduled_count_format, scheduledCount))
+            Text(stringResource(R.string.notification_check_exact_alarms_format, exactAlarmText))
+            Text(stringResource(R.string.notification_check_battery_opt_format, batteryOptText))
+            Text(stringResource(R.string.notification_check_diagnostics_label), style = MaterialTheme.typography.titleSmall)
+            SelectionContainer {
+                Text(
+                    text = diagnosticsText,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -290,4 +488,9 @@ private fun iconForName(name: String): ImageVector {
     if (n.contains("creatine")) return Icons.Default.FitnessCenter
     if (n.contains("caffeine")) return Icons.Default.Bolt
     return Icons.Default.Science
+}
+
+private fun hasNotificationPermission(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+    return context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 }
