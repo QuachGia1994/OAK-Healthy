@@ -76,8 +76,9 @@ public final class HomeViewModel {
         let seed = isDayComplete(day: today, supplements: supplements) ? today : (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
         var streak = 0
         var cursor = seed
+        var cache: [DoseIdKey: UUID] = [:]
         for _ in 0..<120 {
-            guard isDayComplete(day: cursor, supplements: supplements) else { break }
+            guard isDayComplete(day: cursor, supplements: supplements, cache: &cache) else { break }
             streak += 1
             guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
             cursor = previous
@@ -85,7 +86,7 @@ public final class HomeViewModel {
         return streak
     }
 
-    private func isDayComplete(day: Date, supplements: [UserSupplement]) -> Bool {
+    private func isDayComplete(day: Date, supplements: [UserSupplement], cache: inout [DoseIdKey: UUID]) -> Bool {
         let calendar = isoWeekCalendar()
         for supplement in supplements {
             if supplement.deletedAtEpochMs != nil { continue }
@@ -95,7 +96,7 @@ public final class HomeViewModel {
             for time in intakeTimes(from: supplement.intakeTime) {
                 guard let scheduledAt = scheduledAtLocal(for: day, timeString: time) else { continue }
                 let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
-                let recordId = recordIdForDose(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+                let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs, cache: &cache)
                 if !recentRecordIds.contains(recordId) { return false }
             }
         }
@@ -206,6 +207,18 @@ public final class HomeViewModel {
         return DoseEventKey.stableUUID(from: key)
     }
 
+    private func recordIdForDoseCached(
+        supplementId: UUID,
+        scheduledAtEpochMs: Int64,
+        cache: inout [DoseIdKey: UUID]
+    ) -> UUID {
+        let key = DoseIdKey(supplementId: supplementId, scheduledAtEpochMs: scheduledAtEpochMs)
+        if let cached = cache[key] { return cached }
+        let computed = recordIdForDose(supplementId: supplementId, scheduledAtEpochMs: scheduledAtEpochMs)
+        cache[key] = computed
+        return computed
+    }
+
     private func supplementsSnapshot() -> [UserSupplement] {
         var map: [UUID: UserSupplement] = [:]
         for supplements in activeSupplements.values {
@@ -213,6 +226,11 @@ public final class HomeViewModel {
         }
         for info in restingSupplements { map[info.supplement.id] = info.supplement }
         return Array(map.values)
+    }
+
+    private struct DoseIdKey: Hashable {
+        let supplementId: UUID
+        let scheduledAtEpochMs: Int64
     }
     
     private func todayRecord(for supplement: UserSupplement, scheduledAt: Date, timeString: String) -> IntakeRecord? {
@@ -251,9 +269,10 @@ public final class HomeViewModel {
     /// - Parameter supplements: Danh sách từ SwiftData.
     public func processSupplements(_ supplements: [UserSupplement]) {
         let today = Date.now
+        let calendarCurrent = Calendar.current
         let calendar = isoWeekCalendar()
-        let todayStart = Calendar.current.startOfDay(for: today)
-        let minDate = Calendar.current.date(byAdding: .day, value: -130, to: todayStart) ?? todayStart
+        let todayStart = calendarCurrent.startOfDay(for: today)
+        let minDate = calendarCurrent.date(byAdding: .day, value: -130, to: todayStart) ?? todayStart
         var todayStatus: [UUID: String] = [:]
         var recent: Set<UUID> = []
         var active: [String: [UserSupplement]] = [:]
@@ -263,7 +282,7 @@ public final class HomeViewModel {
             if supplement.deletedAtEpochMs != nil { continue }
             for record in supplement.intakeRecords {
                 if record.date >= minDate { recent.insert(record.id) }
-                if Calendar.current.isDate(record.date, inSameDayAs: todayStart) {
+                if calendarCurrent.isDate(record.date, inSameDayAs: todayStart) {
                     todayStatus[record.id] = record.status
                 }
             }

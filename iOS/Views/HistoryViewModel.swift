@@ -49,10 +49,16 @@ public final class HistoryViewModel {
     private func weeklyChartData(records: [IntakeRecord]) -> [ChartData] {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
+        let start = calendar.date(byAdding: .day, value: -6, to: todayStart) ?? todayStart
+        let isDescending = (records.first?.date ?? .distantPast) >= (records.last?.date ?? .distantPast)
         var counts: [Date: Int] = [:]
         counts.reserveCapacity(7)
         for record in records {
             let day = calendar.startOfDay(for: record.date)
+            if day < start {
+                if isDescending { break }
+                continue
+            }
             counts[day, default: 0] += 1
         }
         return (0..<7).reversed().compactMap { offset in
@@ -66,6 +72,7 @@ public final class HistoryViewModel {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: .now)
         guard let start = calendar.date(byAdding: .day, value: -(windowDays - 1), to: todayStart) else { return nil }
+        let isDescending = (records.first?.date ?? .distantPast) >= (records.last?.date ?? .distantPast)
         var taken = 0
         var skipped = 0
         var late = 0
@@ -74,7 +81,11 @@ public final class HistoryViewModel {
         var lateHourCounts: [Int: Int] = [:]
         for record in records {
             let day = calendar.startOfDay(for: record.date)
-            if day < start || day > todayStart { continue }
+            if day > todayStart { continue }
+            if day < start {
+                if isDescending { break }
+                continue
+            }
             let name = record.supplement?.name ?? "not_available".localized
             if record.status == IntakeStatus.taken.rawValue {
                 taken += 1
