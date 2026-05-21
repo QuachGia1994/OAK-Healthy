@@ -29,12 +29,9 @@ public struct SupplementAutoSuggester: AutoSuggestService {
         // Trả về mảng rỗng nếu query quá ngắn để tối ưu hiệu năng
         guard query.count >= 2 else { return [] }
         
-        // Giả lập xử lý bất đồng bộ (Swift Concurrency)
-        return await Task.detached {
-            let filtered = dictionary.filter { reference in
-                reference.name.localizedCaseInsensitiveContains(query)
-            }
-            return filtered
-        }.value
+        let filtered = dictionary.filter { reference in
+            reference.name.localizedCaseInsensitiveContains(query)
+        }
+        return filtered
     }
 }

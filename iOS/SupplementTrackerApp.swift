@@ -43,7 +43,9 @@ enum DebugReporter {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = data
         
-        URLSession.shared.dataTask(with: request).resume()
+        Task {
+            _ = try? await URLSession.shared.data(for: request)
+        }
     }
 }
 // #endregion debug-point ios-tab-crash-reporter
@@ -105,7 +107,11 @@ private struct RootLaunchView: View {
                 ])
                 UserDefaults.standard.set(BootKeys.uiReady, forKey: BootKeys.stage)
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
-                try? await Task.sleep(for: .seconds(3))
+                do {
+                    try await Task.sleep(for: .seconds(3))
+                } catch {
+                    return
+                }
                 UserDefaults.standard.set(BootKeys.uiStable, forKey: BootKeys.stage)
                 UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
                 DebugReporter.report("ui_task_stable")
@@ -217,7 +223,11 @@ private struct SafeBootView: View {
     
     @MainActor
     private func bootstrap() async {
-        try? await Task.sleep(for: .seconds(2))
+        do {
+            try await Task.sleep(for: .seconds(2))
+        } catch {
+            return
+        }
         attemptCrashRecoveryIfNeeded()
         DebugReporter.report("bootstrap_start")
         UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)

@@ -58,6 +58,7 @@ interface SupplementDao {
             r.supplementId AS supplementId,
             r.date AS date,
             r.status AS status,
+            r.updatedAtEpochMs AS updatedAtEpochMs,
             s.name AS supplementName,
             s.dailyDose AS dailyDose,
             s.intakeTime AS intakeTime
@@ -138,6 +139,7 @@ interface SupplementDao {
             r.supplementId AS supplementId,
             r.date AS date,
             r.status AS status,
+            r.updatedAtEpochMs AS updatedAtEpochMs,
             s.name AS supplementName,
             s.dailyDose AS dailyDose,
             s.intakeTime AS intakeTime
@@ -167,6 +169,7 @@ interface SupplementDao {
             r.supplementId AS supplementId,
             r.date AS date,
             r.status AS status,
+            r.updatedAtEpochMs AS updatedAtEpochMs,
             s.name AS supplementName,
             s.dailyDose AS dailyDose,
             s.intakeTime AS intakeTime
@@ -209,6 +212,7 @@ data class IntakeRecordWithSupplementEntity(
     val supplementId: String,
     val date: Long,
     val status: String,
+    val updatedAtEpochMs: Long,
     val supplementName: String,
     val dailyDose: String,
     val intakeTime: String

@@ -1,6 +1,7 @@
 package com.example.supplementtracker.data.repository
 
 import com.example.supplementtracker.data.local.IntakeRecordEntity
+import com.example.supplementtracker.data.local.IntakeRecordWithSupplementEntity
 import com.example.supplementtracker.data.local.SupplementDao
 import com.example.supplementtracker.data.local.ClientProfileEntity
 import com.example.supplementtracker.data.mapper.toDomain
@@ -154,51 +155,18 @@ class SupplementRepositoryImpl(
 
     override fun getRecordsByDateRange(clientId: String, startDate: Long, endDate: Long): Flow<List<IntakeRecord>> {
         return dao.getRecordsByDateRange(clientId, startDate, endDate).map { records ->
-            records.map { record ->
-                IntakeRecord(
-                    id = record.id,
-                    supplementId = record.supplementId,
-                    date = record.date,
-                    status = record.status,
-                    updatedAtEpochMs = record.date,
-                    supplementName = record.supplementName,
-                    dailyDose = record.dailyDose,
-                    intakeTime = record.intakeTime
-                )
-            }
+            records.map { it.toDomain() }
         }
     }
 
     override fun observeAllRecordsByClient(clientId: String): Flow<List<IntakeRecord>> {
         return dao.observeAllRecordsByClient(clientId).map { records ->
-            records.map { record ->
-                IntakeRecord(
-                    id = record.id,
-                    supplementId = record.supplementId,
-                    date = record.date,
-                    status = record.status,
-                    updatedAtEpochMs = record.date,
-                    supplementName = record.supplementName,
-                    dailyDose = record.dailyDose,
-                    intakeTime = record.intakeTime
-                )
-            }
+            records.map { it.toDomain() }
         }
     }
 
     override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = withContext(Dispatchers.IO) {
-        dao.getAllRecordsByClient(clientId).map { record ->
-            IntakeRecord(
-                id = record.id,
-                supplementId = record.supplementId,
-                date = record.date,
-                status = record.status,
-                updatedAtEpochMs = record.date,
-                supplementName = record.supplementName,
-                dailyDose = record.dailyDose,
-                intakeTime = record.intakeTime
-            )
-        }
+        dao.getAllRecordsByClient(clientId).map { it.toDomain() }
     }
     
     override suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement> = withContext(Dispatchers.IO) {
@@ -261,5 +229,18 @@ private fun ClientProfileEntity.toDomain(): ClientProfile {
         name = name,
         avatarColorArgb = avatarColorArgb,
         createdAt = createdAt
+    )
+}
+
+internal fun IntakeRecordWithSupplementEntity.toDomain(): IntakeRecord {
+    return IntakeRecord(
+        id = id,
+        supplementId = supplementId,
+        date = date,
+        status = status,
+        updatedAtEpochMs = updatedAtEpochMs,
+        supplementName = supplementName,
+        dailyDose = dailyDose,
+        intakeTime = intakeTime
     )
 }
