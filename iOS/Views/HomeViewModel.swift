@@ -147,43 +147,88 @@ public final class HomeViewModel {
         context: ModelContext,
         notificationService: NotificationService
     ) {
-        guard let time = normalizedTimeString(timeString) else { return }
-        
-        let scheduledAt = scheduledAtLocal(for: .now, timeString: time)
-        guard let scheduledAt else { return }
+        guard let ctx = makeMarkDoseContext(supplement: supplement, timeString: timeString, action: action) else { return }
+        let newRecord = IntakeRecord(
+            id: ctx.recordId,
+            date: ctx.scheduledAt,
+            status: ctx.status,
+            intakeTime: ctx.time,
+            updatedAtEpochMs: ctx.nowEpochMs,
+            supplement: supplement
+        )
+        guard insertAndSave(newRecord, context: context) else { return }
+        applyMarkToCaches(ctx: ctx, action: action)
+        scheduleMarkSideEffects(
+            supplement: supplement,
+            time: ctx.time,
+            scheduledAt: ctx.scheduledAt,
+            context: context,
+            notificationService: notificationService
+        )
+    }
+
+    private struct MarkDoseContext: Sendable {
+        let time: String
+        let scheduledAt: Date
+        let scheduledAtEpochMs: Int64
+        let recordId: UUID
+        let previous: DoseStatus
+        let status: String
+        let nowEpochMs: Int64
+    }
+
+    private func makeMarkDoseContext(
+        supplement: UserSupplement,
+        timeString: String,
+        action: DoseAction
+    ) -> MarkDoseContext? {
+        guard let time = normalizedTimeString(timeString) else { return nil }
+        guard let scheduledAt = scheduledAtLocal(for: .now, timeString: time) else { return nil }
         let previous = doseStatus(supplement, timeString: time, now: .now)
-        
         let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
         let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
-        guard todayRecordStatusById[recordId] == nil else { return }
+        guard todayRecordStatusById[recordId] == nil else { return nil }
         let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         let status: String = switch action {
         case .taken: IntakeStatus.taken.rawValue
         case .skipped: IntakeStatus.skipped.rawValue
         }
-        
-        let newRecord = IntakeRecord(
-            id: recordId,
-            date: scheduledAt,
+        return MarkDoseContext(
+            time: time,
+            scheduledAt: scheduledAt,
+            scheduledAtEpochMs: scheduledAtEpochMs,
+            recordId: recordId,
+            previous: previous,
             status: status,
-            intakeTime: time,
-            updatedAtEpochMs: nowEpochMs,
-            supplement: supplement
+            nowEpochMs: nowEpochMs
         )
-        context.insert(newRecord)
-        
+    }
+
+    private func insertAndSave(_ record: IntakeRecord, context: ModelContext) -> Bool {
+        context.insert(record)
         do {
             try context.save()
+            return true
         } catch {
             errorMessage = error.localizedDescription
-            return
+            return false
         }
+    }
 
-        todayRecordStatusById[recordId] = status
-        recentRecordIds.insert(recordId)
-        cachedTodayCounts = updateCountsAfterMark(previous: previous, action: action, current: cachedTodayCounts)
+    private func applyMarkToCaches(ctx: MarkDoseContext, action: DoseAction) {
+        todayRecordStatusById[ctx.recordId] = ctx.status
+        recentRecordIds.insert(ctx.recordId)
+        cachedTodayCounts = updateCountsAfterMark(previous: ctx.previous, action: action, current: cachedTodayCounts)
         cachedStreakDays = streakDays(supplements: supplementsCache, now: .now)
-        
+    }
+
+    private func scheduleMarkSideEffects(
+        supplement: UserSupplement,
+        time: String,
+        scheduledAt: Date,
+        context: ModelContext,
+        notificationService: NotificationService
+    ) {
         Task { await notificationService.cancelReminder(for: supplement, timeString: time, day: scheduledAt) }
         Task { await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id) }
     }

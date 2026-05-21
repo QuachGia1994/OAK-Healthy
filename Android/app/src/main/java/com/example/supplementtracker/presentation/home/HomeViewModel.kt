@@ -284,71 +284,103 @@ class HomeViewModel(
     ): HomeUiState {
         val today = LocalDate.now()
         val nowEpochMs = System.currentTimeMillis()
-        val recordStatusByDose = HashMap<String, String>(records.size)
-        records.forEach { record ->
-            recordStatusByDose[DoseEventKey.make(record.supplementId, record.date)] = record.status
-        }
-
-        val hasRecordByDose = HashSet<String>(records.size)
-        records.forEach { record ->
-            hasRecordByDose.add(DoseEventKey.make(record.supplementId, record.date))
-        }
-
+        val recordIndex = buildRecordIndex(records)
         val liveSupplements = supplements.filter { it.deletedAtEpochMs == null }
         if (liveSupplements.isEmpty()) return HomeUiState.Success(emptyMap(), emptyList(), 0)
+        val streakDays = computeStreakDays(today, liveSupplements, recordIndex.hasRecordByDose)
+        val activeItems = buildActiveItems(liveSupplements, today, nowEpochMs, recordIndex.statusByDose)
+        val restingList = buildRestingList(liveSupplements, today)
+        return HomeUiState.Success(activeItems, restingList, streakDays)
+    }
 
-        val seedDay = if (isDayComplete(today, liveSupplements, hasRecordByDose)) today else today.minusDays(1)
+    private data class RecordIndex(
+        val statusByDose: Map<String, String>,
+        val hasRecordByDose: Set<String>
+    )
+
+    private fun buildRecordIndex(records: List<IntakeRecord>): RecordIndex {
+        val statusByDose = HashMap<String, String>(records.size)
+        val hasRecordByDose = HashSet<String>(records.size)
+        records.forEach { record ->
+            val key = DoseEventKey.make(record.supplementId, record.date)
+            statusByDose[key] = record.status
+            hasRecordByDose.add(key)
+        }
+        return RecordIndex(statusByDose = statusByDose, hasRecordByDose = hasRecordByDose)
+    }
+
+    private fun computeStreakDays(
+        today: LocalDate,
+        supplements: List<UserSupplement>,
+        hasRecordByDose: Set<String>
+    ): Int {
+        val seedDay = if (isDayComplete(today, supplements, hasRecordByDose)) today else today.minusDays(1)
         var streakDays = 0
         var cursor = seedDay
         var remaining = 120
-        while (remaining > 0 && isDayComplete(cursor, liveSupplements, hasRecordByDose)) {
+        while (remaining > 0 && isDayComplete(cursor, supplements, hasRecordByDose)) {
             streakDays += 1
             cursor = cursor.minusDays(1)
             remaining -= 1
         }
+        return streakDays
+    }
 
-        val activeItems = liveSupplements
+    private fun buildActiveItems(
+        supplements: List<UserSupplement>,
+        today: LocalDate,
+        nowEpochMs: Long,
+        statusByDose: Map<String, String>
+    ): Map<String, List<SupplementUiItem>> {
+        val items = supplements
             .filter {
                 calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.ON &&
                     matchesWeeklyRecurrenceIfNeeded(it, today)
             }
             .flatMap { supplement ->
-                val advice = adviceByName[supplement.name]
-                parseTimes(supplement.intakeTime).map { time ->
-                    val scheduledAt = scheduledAtEpochMs(time) ?: 0L
-                    val status = recordStatusByDose[DoseEventKey.make(supplement.id.toString(), scheduledAt)]
-                    val doseStatus = doseStatus(
-                        scheduledAtEpochMs = scheduledAt,
-                        recordedStatus = status,
-                        nowEpochMs = nowEpochMs
-                    )
-                    val dueSoonMs = 20 * 60 * 1000L
-                    val missedAfter = scheduledAt + (2 * 60 * 60 * 1000L)
-                    val isDueSoon = doseStatus == DoseStatus.PLANNED &&
-                        scheduledAt > nowEpochMs &&
-                        (scheduledAt - nowEpochMs) <= dueSoonMs
-                    val isMissedSoon = doseStatus == DoseStatus.PLANNED &&
-                        scheduledAt > 0L &&
-                        nowEpochMs in (missedAfter - dueSoonMs) until missedAfter
-                    SupplementUiItem(
-                        supplement = supplement,
-                        timeString = time,
-                        scheduledAtEpochMs = scheduledAt,
-                        doseStatus = doseStatus,
-                        advice = advice,
-                        isDueSoon = isDueSoon,
-                        isMissedSoon = isMissedSoon
-                    )
-                }
+                buildUiItemsForSupplement(supplement, today, nowEpochMs, statusByDose)
             }
-            .groupBy { it.timeString }
-            .toSortedMap()
+        return items.groupBy { it.timeString }.toSortedMap()
+    }
 
-        val restingList = liveSupplements
+    private fun buildUiItemsForSupplement(
+        supplement: UserSupplement,
+        today: LocalDate,
+        nowEpochMs: Long,
+        statusByDose: Map<String, String>
+    ): List<SupplementUiItem> {
+        val advice = adviceByName[supplement.name]
+        return parseTimes(supplement.intakeTime).map { time ->
+            val scheduledAt = scheduledAtEpochMs(today, time) ?: 0L
+            val status = statusByDose[DoseEventKey.make(supplement.id.toString(), scheduledAt)]
+            val doseStatus = doseStatus(scheduledAtEpochMs = scheduledAt, recordedStatus = status, nowEpochMs = nowEpochMs)
+            val dueSoonMs = 20 * 60 * 1000L
+            val missedAfter = scheduledAt + (2 * 60 * 60 * 1000L)
+            val isDueSoon = doseStatus == DoseStatus.PLANNED &&
+                scheduledAt > nowEpochMs &&
+                (scheduledAt - nowEpochMs) <= dueSoonMs
+            val isMissedSoon = doseStatus == DoseStatus.PLANNED &&
+                scheduledAt > 0L &&
+                nowEpochMs in (missedAfter - dueSoonMs) until missedAfter
+            SupplementUiItem(
+                supplement = supplement,
+                timeString = time,
+                scheduledAtEpochMs = scheduledAt,
+                doseStatus = doseStatus,
+                advice = advice,
+                isDueSoon = isDueSoon,
+                isMissedSoon = isMissedSoon
+            )
+        }
+    }
+
+    private fun buildRestingList(
+        supplements: List<UserSupplement>,
+        today: LocalDate
+    ): List<RestingSupplementInfo> {
+        return supplements
             .filter { calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF }
             .map { RestingSupplementInfo(it, calculateDaysRemaining(it, today)) }
-
-        return HomeUiState.Success(activeItems, restingList, streakDays)
     }
 
     private fun isDayComplete(

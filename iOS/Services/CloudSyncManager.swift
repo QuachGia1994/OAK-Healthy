@@ -46,7 +46,11 @@ public actor CloudSyncManager {
         guard autoSyncTask == nil else { return }
         autoSyncTask = Task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15 * 60))
+                do {
+                    try await Task.sleep(for: .seconds(15 * 60))
+                } catch {
+                    break
+                }
             }
         }
     }
@@ -148,7 +152,7 @@ public actor CloudSyncManager {
         request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
         if let etag = storedEtag(binId: id) { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
         
-        let (data, http) = try await fetchAny(request: request)
+        let (data, http) = try await fetch(request: request)
         if http.statusCode == 304 { return nil }
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
@@ -193,18 +197,6 @@ public actor CloudSyncManager {
     }
 
     private func fetch(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
-            return (data, http)
-        } catch let error as CloudSyncError {
-            throw error
-        } catch {
-            throw CloudSyncError.networkError(message: error.localizedDescription)
-        }
-    }
-    
-    private func fetchAny(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
@@ -305,7 +297,11 @@ enum CloudSyncAutoSync {
     ) async {
         while !Task.isCancelled {
             await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
-            try? await Task.sleep(for: pollInterval())
+            do {
+                try await Task.sleep(for: pollInterval())
+            } catch {
+                return
+            }
         }
     }
     
