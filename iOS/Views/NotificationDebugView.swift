@@ -100,7 +100,6 @@ public struct NotificationDebugScreen: View {
             pendingOnlyCount = pendingOnly
             shadowOnlyCount = shadowOnly
             shadowErrorCount = errorCount
-            message = nil
             isLoading = false
         }
     }
