@@ -110,10 +110,11 @@ public struct SettingsView: View {
                 .onChange(of: isNotificationEnabledByUser) {
                     if isNotificationEnabledByUser {
                         Task {
-                            let center = UNUserNotificationCenter.current()
-                            let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-                            guard granted else {
+                            do {
+                                try await NotificationService.shared.requestAuthorization()
+                            } catch {
                                 isNotificationEnabledByUser = false
+                                showError(message: error.localizedDescription)
                                 return
                             }
                             await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
@@ -124,6 +125,10 @@ public struct SettingsView: View {
                         await NotificationService.shared.clearAllPendingNotifications()
                     }
                 }
+            
+            NavigationLink("Notification diagnostics") {
+                NotificationDebugScreen(activeClientManager: activeClientManager)
+            }
             
             if let shareStackPNGURL {
                 ShareLink(item: shareStackPNGURL) {

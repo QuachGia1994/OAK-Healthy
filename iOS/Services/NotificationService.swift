@@ -151,7 +151,11 @@ public struct NotificationService: NotificationManaging {
         center.removeAllPendingNotificationRequests()
         await NotificationShadowLogStore.shared.clear()
         for supplement in supplements {
-            try? await scheduleReminders(for: supplement)
+            do {
+                try await scheduleReminders(for: supplement)
+            } catch {
+                await logShadowScheduleFailure(supplement: supplement, error: error)
+            }
         }
     }
 
@@ -226,12 +230,11 @@ public struct NotificationService: NotificationManaging {
         
         let identifier = requestIdentifier(supplementId: supplement.id, timeString: timeString, day: scheduledAt)
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
-        await logShadowEntry(from: request)
-        
         do {
             try await center.add(request)
+            await logShadowEntry(from: request)
         } catch {
-            throw NotificationError.schedulingFailed
+            throw NotificationError.unknown(error)
         }
     }
     
@@ -303,6 +306,12 @@ public struct NotificationService: NotificationManaging {
         let dose = (request.content.userInfo["dailyDose"] as? String) ?? ""
         let cycleText = (request.content.userInfo["cycleText"] as? String) ?? ""
         let entry = "\(request.content.title)||\(dose)||\(cycleText)||\(formatted)"
+        await NotificationShadowLogStore.shared.append(entry: entry)
+    }
+    
+    private func logShadowScheduleFailure(supplement: UserSupplement, error: Error) async {
+        let formatted = shadowDateFormatter().string(from: .now)
+        let entry = "\(supplement.name)||ERROR||\(String(describing: error))||\(formatted)"
         await NotificationShadowLogStore.shared.append(entry: entry)
     }
     

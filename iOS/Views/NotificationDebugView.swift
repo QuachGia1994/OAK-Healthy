@@ -1,46 +1,70 @@
 import SwiftUI
+import SwiftData
+@preconcurrency import UserNotifications
 
 public struct NotificationDebugScreen: View {
-    @State private var isLoading = true
-    @State private var entries: [NotificationDebugEntry] = []
+    @Environment(\.modelContext) private var modelContext
+    @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     
-    public init() {}
+    @State private var isLoading = true
+    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var pendingEntries: [NotificationDebugEntry] = []
+    @State private var shadowEntries: [NotificationDebugEntry] = []
+    @State private var message: String?
+    
+    public let activeClientManager: ActiveClientManager
+    
+    public init(activeClientManager: ActiveClientManager) {
+        self.activeClientManager = activeClientManager
+    }
     
     public var body: some View {
-        Group {
+        ZStack {
             if isLoading {
                 ProgressView()
             } else {
-                NotificationDebugView(entries: entries)
+                listContent
             }
         }
         .navigationTitle("notification_debug_title".localized)
         .task {
             guard isLoading else { return }
-            let items = await NotificationService().pendingRequestSnapshots()
-            entries = NotificationDebugEntry.parseMany(items)
-            isLoading = false
+            await refresh()
         }
     }
-}
-
-public struct NotificationDebugView: View {
-    let entries: [NotificationDebugEntry]
     
-    public init(entries: [NotificationDebugEntry]) {
-        self.entries = entries
-    }
-    
-    public var body: some View {
+    private var listContent: some View {
         List {
-            if entries.isEmpty {
+            Section {
+                LabeledContent("Permission") {
+                    Text(authorizationStatusText)
+                        .foregroundStyle(authorizationStatus == .authorized || authorizationStatus == .provisional ? .primary : .secondary)
+                }
+                LabeledContent("Enabled (User)") {
+                    Text(isNotificationEnabledByUser ? "ON" : "OFF")
+                }
+                LabeledContent("Pending (OS)") { Text("\(pendingEntries.count)") }
+                LabeledContent("Shadow") { Text("\(shadowEntries.count)") }
+                
+                Button("Refresh") { Task { await refresh() } }
+                Button("Clear pending") { Task { await clearPending() } }
+                Button("Reschedule (active client)") { Task { await rescheduleForActiveClient() } }
+                
+                if let message {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            if groupedItems.isEmpty {
                 Text("notification_debug_empty".localized)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(groupedKeys, id: \.self) { day in
-                    Section(header: Text(dayHeader(day))) {
-                        ForEach(grouped[day] ?? []) { item in
-                            NotificationRow(entry: item)
+                ForEach(groupedKeys, id: \.self) { key in
+                    Section(header: Text(groupHeader(key))) {
+                        ForEach(groupedItems[key] ?? []) { item in
+                            NotificationRow(entry: item.entry, source: item.source)
                         }
                     }
                 }
@@ -49,14 +73,95 @@ public struct NotificationDebugView: View {
         .scrollContentBackground(.hidden)
     }
     
-    private var grouped: [Date: [NotificationDebugEntry]] {
-        let calendar = Calendar.current
-        let groups = Dictionary(grouping: entries) { calendar.startOfDay(for: $0.scheduledAt) }
-        return groups.mapValues { $0.sorted { $0.scheduledAt < $1.scheduledAt } }
+    private func refresh() async {
+        let center = UNUserNotificationCenter.current()
+        let settings = await center.notificationSettings()
+        let pending = await NotificationService.shared.pendingRequestSnapshots()
+        let shadowRaw = await NotificationService.shared.shadowScheduledTimes()
+        await MainActor.run {
+            authorizationStatus = settings.authorizationStatus
+            pendingEntries = NotificationDebugEntry.parseMany(pending)
+            shadowEntries = NotificationDebugEntry.parseMany(shadowRaw)
+            message = nil
+            isLoading = false
+        }
     }
     
-    private var groupedKeys: [Date] {
-        grouped.keys.sorted()
+    private func clearPending() async {
+        await NotificationService.shared.clearAllPendingNotifications()
+        await refresh()
+    }
+    
+    private func rescheduleForActiveClient() async {
+        guard let clientId = activeClientManager.currentClientId else {
+            await MainActor.run { message = "No active client" }
+            return
+        }
+        do {
+            let descriptor = FetchDescriptor<UserSupplement>(
+                predicate: #Predicate { $0.deletedAtEpochMs == nil && $0.client?.id == clientId },
+                sortBy: [SortDescriptor(\UserSupplement.name)]
+            )
+            let supplements = try modelContext.fetch(descriptor)
+            await NotificationService.shared.scheduleAll(supplements: supplements)
+            await refresh()
+        } catch {
+            await MainActor.run { message = error.localizedDescription }
+        }
+    }
+    
+    private var authorizationStatusText: String {
+        switch authorizationStatus {
+        case .authorized: return "authorized"
+        case .provisional: return "provisional"
+        case .denied: return "denied"
+        case .notDetermined: return "notDetermined"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
+        }
+    }
+    
+    fileprivate enum Source: String, Hashable {
+        case pending
+        case shadow
+    }
+    
+    private struct Item: Identifiable, Hashable {
+        let source: Source
+        let entry: NotificationDebugEntry
+        
+        var id: String { "\(source.rawValue)-\(entry.id)" }
+    }
+    
+    private struct GroupKey: Hashable {
+        let source: Source
+        let day: Date
+    }
+    
+    private var items: [Item] {
+        let pending = pendingEntries.map { Item(source: .pending, entry: $0) }
+        let shadow = shadowEntries.map { Item(source: .shadow, entry: $0) }
+        return (pending + shadow).sorted { $0.entry.scheduledAt < $1.entry.scheduledAt }
+    }
+    
+    private var groupedItems: [GroupKey: [Item]] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: items) { item in
+            GroupKey(source: item.source, day: calendar.startOfDay(for: item.entry.scheduledAt))
+        }
+        return groups.mapValues { $0.sorted { $0.entry.scheduledAt < $1.entry.scheduledAt } }
+    }
+    
+    private var groupedKeys: [GroupKey] {
+        groupedItems.keys.sorted {
+            if $0.day != $1.day { return $0.day < $1.day }
+            return $0.source.rawValue < $1.source.rawValue
+        }
+    }
+    
+    private func groupHeader(_ key: GroupKey) -> String {
+        let sourceText = key.source == .pending ? "Pending" : "Shadow"
+        return "\(sourceText) • \(dayHeader(key.day))"
     }
     
     private func dayHeader(_ day: Date) -> String {
@@ -69,6 +174,7 @@ public struct NotificationDebugView: View {
 
 private struct NotificationRow: View {
     let entry: NotificationDebugEntry
+    let source: NotificationDebugScreen.Source
     
     var body: some View {
         HStack(spacing: 10) {
@@ -77,16 +183,11 @@ private struct NotificationRow: View {
                 .font(.title3)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(entry.name)
-                        .font(.headline)
+                    Text(entry.name).font(.headline)
                     Spacer()
-                    Text(timeText)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    Text(timeText).font(.subheadline).fontWeight(.semibold)
                 }
-                Text(detailText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(detailText).font(.caption).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -103,12 +204,13 @@ private struct NotificationRow: View {
     }
     
     private var detailText: String {
+        let origin = source == .pending ? "Pending" : "Shadow"
         let dose = entry.dose.trimmingCharacters(in: .whitespacesAndNewlines)
         let cycle = entry.cycleText.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedDose = dose.isEmpty ? "—" : dose
         let doseText = String(format: "notification_debug_dose_format".localized, resolvedDose)
-        guard !cycle.isEmpty else { return doseText }
-        return "\(doseText) • \(cycle)"
+        guard !cycle.isEmpty else { return "\(origin) • \(doseText)" }
+        return "\(origin) • \(doseText) • \(cycle)"
     }
     
     private func iconFor(substanceName: String) -> String {
