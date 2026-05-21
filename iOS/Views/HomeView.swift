@@ -6,7 +6,7 @@ public struct HomeView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
-    @Query private var supplements: [UserSupplement]
+    @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     
     @State private var viewModel = HomeViewModel()
     @State private var updateService = UpdateService()
@@ -23,17 +23,6 @@ public struct HomeView: View {
     ) {
         self.activeClientManager = activeClientManager
         self.notificationService = notificationService
-        if let id = activeClientManager.currentClientId {
-            _supplements = Query(
-                filter: #Predicate<UserSupplement> { $0.client?.id == id },
-                sort: [SortDescriptor(\UserSupplement.name)]
-            )
-        } else {
-            _supplements = Query(
-                filter: #Predicate<UserSupplement> { _ in false },
-                sort: [SortDescriptor(\UserSupplement.name)]
-            )
-        }
     }
     
     public var body: some View {
@@ -241,7 +230,7 @@ public struct HomeView: View {
                         let notes = updateService.updateInfo?.releaseNotes ?? ""
                         if notes.isEmpty {
                             Text("update_description".localized)
-                            Text(String(format: "update_available_message_format".localized, version))
+                            Text(String.localizedStringWithFormat("update_available_message_format".localized, version))
                         } else {
                             Text(notes)
                         }
@@ -251,10 +240,13 @@ public struct HomeView: View {
                         await updateService.checkForUpdates()
                     }
                     .onAppear {
-                        viewModel.processSupplements(supplements)
+                        viewModel.processSupplements(supplementsForActiveClient)
                     }
                     .onChange(of: supplements) {
-                        viewModel.processSupplements(supplements)
+                        viewModel.processSupplements(supplementsForActiveClient)
+                    }
+                    .task(id: activeClientManager.currentClientId) {
+                        viewModel.processSupplements(supplementsForActiveClient)
                     }
                     .alert(
                         "error_title".localized,
@@ -303,6 +295,11 @@ public struct HomeView: View {
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
         return clients.first { $0.id == id }
+    }
+
+    private var supplementsForActiveClient: [UserSupplement] {
+        guard let id = activeClientManager.currentClientId else { return [] }
+        return supplements.filter { $0.client?.id == id }
     }
     
     private var navigationTitle: String {
@@ -353,7 +350,7 @@ private struct StreakChip: View {
             Image(systemName: "flame.fill")
                 .font(.caption)
                 .foregroundStyle(.orange)
-            Text(String(format: "home_streak_format".localized, streakDays))
+            Text(String.localizedStringWithFormat("home_streak_format".localized, streakDays))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -437,7 +434,7 @@ private struct ActiveSupplementRow: View {
                     Text(timeString)
                         .font(.caption2)
                     Text("•")
-                    Text(String(format: "dose_format".localized, supplement.dailyDose))
+                    Text(String.localizedStringWithFormat("dose_format".localized, supplement.dailyDose))
                         .font(.caption)
                 }
                 .foregroundStyle(.secondary)
@@ -609,7 +606,7 @@ private struct RestingSupplementRow: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Text(String(format: "days_remaining_format".localized, info.daysRemaining))
+            Text(String.localizedStringWithFormat("days_remaining_format".localized, info.daysRemaining))
                 .font(.caption)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

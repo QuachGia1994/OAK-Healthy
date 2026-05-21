@@ -356,7 +356,9 @@ enum CloudSyncAutoSync {
                     }
                 }
             }
-            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastSyncKey)
+            let now = Double(Date().timeIntervalSince1970 * 1000)
+            UserDefaults.standard.set(now, forKey: lastSyncKey)
+            UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
             markActivity()
         } catch {
             UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastAttemptKey)

@@ -1010,7 +1010,9 @@ public struct SyncCenterView: View {
     @MainActor
     private func finalizeSuccess(keys: SyncKeys, startedAt: Date) {
         UserDefaults.standard.removeObject(forKey: keys.lastError)
-        UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: keys.lastSync)
+        let now = Double(Date().timeIntervalSince1970 * 1000)
+        UserDefaults.standard.set(now, forKey: keys.lastSync)
+        UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
         UserDefaults.standard.set(Int(startedAt.distance(to: Date()) * 1000), forKey: keys.totalMs)
         syncPhase = .done
         appendLog(binId: keys.binId, phase: "SYNC", message: "DONE")

@@ -6,6 +6,7 @@ import SwiftData
 public struct HistoryView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
+    @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     @State private var viewModel = HistoryViewModel()
     @State private var sections: [HistorySectionModel] = []
     @State private var recordsCount: Int = 0
@@ -106,7 +107,7 @@ public struct HistoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .task(id: activeClientManager.currentClientId) {
+            .task(id: ReloadKey(clientId: activeClientManager.currentClientId, syncEpochMs: lastSyncEpochMs)) {
                 DebugReporter.report("history_task_start", fields: [
                     "clientId": activeClientManager.currentClientId?.uuidString ?? ""
                 ])
@@ -143,11 +144,11 @@ public struct HistoryView: View {
         ])
         do {
             var descriptor = FetchDescriptor<IntakeRecord>(
+                predicate: #Predicate { $0.supplement?.client?.id == clientId },
                 sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
             )
             descriptor.fetchLimit = 5_000
-            let fetchedAll = try modelContext.fetch(descriptor)
-            let fetched = fetchedAll.filter { $0.supplement?.client?.id == clientId }
+            let fetched = try modelContext.fetch(descriptor)
             recordsCount = fetched.count
             allRecords = fetched
             rebuildSections()
@@ -172,25 +173,21 @@ public struct HistoryView: View {
     }
     
     private func filteredRecords(from records: [IntakeRecord]) -> [IntakeRecord] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         return records.filter { record in
             if filter != .all {
                 if filter == .taken && record.status != IntakeStatus.taken.rawValue { return false }
                 if filter == .skipped && record.status != IntakeStatus.skipped.rawValue { return false }
             }
             if query.isEmpty { return true }
-            let name = record.supplement?.name.lowercased() ?? ""
-            return name.contains(query)
+            let name = record.supplement?.name ?? ""
+            return name.localizedCaseInsensitiveContains(query)
         }
     }
     
     private func makeSections(records: [IntakeRecord]) -> [HistorySectionModel] {
-        let isVietnamese = (Locale.preferredLanguages.first ?? "").hasPrefix("vi")
         let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: isVietnamese ? "vi_VN" : "en_US")
-        formatter.dateStyle = .long
-        formatter.timeStyle = .none
+        let formatter = HistoryFormatters.dayHeader
         
         let grouped = Dictionary(grouping: records) { calendar.startOfDay(for: $0.date) }
         return grouped
@@ -202,18 +199,21 @@ public struct HistoryView: View {
                     if calendar.isDateInYesterday(item.date) { return "history_yesterday".localized }
                     return formatter.string(from: item.date)
                 }()
-                let rows = item.records
-                    .sorted { $0.date > $1.date }
-                    .map { record in
-                        HistoryRowModel(
-                            id: record.id,
-                            timeText: record.date.formatted(date: .omitted, time: .shortened),
-                            supplementName: record.supplement?.name ?? "not_available".localized,
-                            status: record.status
-                        )
-                    }
+                let rows = item.records.map { record in
+                    HistoryRowModel(
+                        id: record.id,
+                        timeText: record.date.formatted(date: .omitted, time: .shortened),
+                        supplementName: record.supplement?.name ?? "not_available".localized,
+                        status: record.status
+                    )
+                }
                 return HistorySectionModel(date: item.date, title: title, rows: rows)
             }
+    }
+
+    private struct ReloadKey: Hashable {
+        let clientId: UUID?
+        let syncEpochMs: Double
     }
 }
 
@@ -244,24 +244,24 @@ private struct InsightsWindowCard: View {
                 .fontWeight(.semibold)
             if let summary {
                 let completion = Int((summary.completionRate * 100).rounded())
-                Text(String(format: "insights_completion_format".localized, completion))
+                Text(String.localizedStringWithFormat("insights_completion_format".localized, completion))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(String(format: "insights_late_format".localized, summary.lateCount))
+                Text(String.localizedStringWithFormat("insights_late_format".localized, summary.lateCount))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let top = summary.topLate.first {
-                    Text(String(format: "insights_top_late_format".localized, top.title, top.count))
+                    Text(String.localizedStringWithFormat("insights_top_late_format".localized, top.title, top.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 if let hour = summary.topLateHour {
-                    Text(String(format: "insights_top_late_hour_format".localized, hour.title, hour.count))
+                    Text(String.localizedStringWithFormat("insights_top_late_hour_format".localized, hour.title, hour.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 if let top = summary.topSkipped.first {
-                    Text(String(format: "insights_top_skipped_format".localized, top.title, top.count))
+                    Text(String.localizedStringWithFormat("insights_top_skipped_format".localized, top.title, top.count))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -362,6 +362,16 @@ private struct HistoryRowModel: Identifiable, Equatable {
     let timeText: String
     let supplementName: String
     let status: String
+}
+
+private enum HistoryFormatters {
+    static let dayHeader: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.autoupdatingCurrent
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
 }
 
 #Preview {
