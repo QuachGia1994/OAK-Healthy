@@ -89,7 +89,8 @@ fun SettingsScreen(
     onThemeChange: (AppTheme) -> Unit,
     onNavigateToStackManager: () -> Unit,
     onNavigateToUserGuide: () -> Unit,
-    onNavigateToSyncCenter: () -> Unit
+    onNavigateToSyncCenter: () -> Unit,
+    onNavigateToNotificationCheck: () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
@@ -437,6 +438,13 @@ fun SettingsScreen(
                     }
                     
                     SettingsSection(title = stringResource(R.string.settings_notifications_title)) {
+                        SettingsRow(
+                            title = stringResource(R.string.notification_check_title),
+                            onClick = onNavigateToNotificationCheck
+                        )
+
+                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+
                         val notificationChecked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             isNotificationEnabledByUser && hasNotificationPermission
                         } else {

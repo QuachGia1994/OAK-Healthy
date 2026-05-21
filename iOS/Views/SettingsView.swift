@@ -37,7 +37,7 @@ public struct SettingsView: View {
         }
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
-            Task { await syncNotificationPermissionState() }
+            Task { @MainActor in await syncNotificationPermissionState() }
         }
         .task {
             guard activeClientManager.currentClientId == nil else { return }
@@ -109,7 +109,7 @@ public struct SettingsView: View {
             Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
                 .onChange(of: isNotificationEnabledByUser) {
                     if isNotificationEnabledByUser {
-                        Task {
+                        Task { @MainActor in
                             do {
                                 try await NotificationService.shared.requestAuthorization()
                             } catch {
@@ -117,11 +117,11 @@ public struct SettingsView: View {
                                 showError(message: error.localizedDescription)
                                 return
                             }
-                            await NotificationService.shared.scheduleAll(supplements: supplementsForActiveClient)
+                            await NotificationService.shared.replaceAllSchedules(supplements: supplementsForActiveClient)
                         }
                         return
                     }
-                    Task {
+                    Task { @MainActor in
                         await NotificationService.shared.clearAllPendingNotifications()
                     }
                 }
@@ -136,7 +136,7 @@ public struct SettingsView: View {
                 }
             } else {
                 Button {
-                    Task { await prepareShareStack() }
+                    Task { @MainActor in await prepareShareStack() }
                 } label: {
                     Label("share_stack".localized, systemImage: "square.and.arrow.up")
                 }
@@ -378,6 +378,7 @@ public struct SettingsView: View {
         activeClientManager.setCurrentClientId(nil)
     }
     
+    @MainActor
     private func refreshSharePayloads() {
         guard activeClientManager.currentClientId != nil else {
             shareStackPNGURL = nil
@@ -392,6 +393,7 @@ public struct SettingsView: View {
         }
     }
     
+    @MainActor
     private func prepareShareStack() async {
         guard activeClientManager.currentClientId != nil else { return }
         guard !isPreparingShareStack else { return }

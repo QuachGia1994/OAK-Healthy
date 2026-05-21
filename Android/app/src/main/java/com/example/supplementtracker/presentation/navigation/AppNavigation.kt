@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.home.MyStackListScreen
+import com.example.supplementtracker.presentation.home.NotificationCheckScreen
 import com.example.supplementtracker.presentation.home.SettingsScreen
 import com.example.supplementtracker.presentation.home.UserGuideScreen
 import com.example.supplementtracker.presentation.sync.SyncCenterScreen
@@ -56,6 +57,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = null) })
     data object MyStack : Screen("my_stack", R.string.manage_stack, { })
     data object UserGuide : Screen("user_guide", R.string.settings_guide_title, { })
+    data object NotificationCheck : Screen("notification_check", R.string.notification_check_title, { })
     data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
     data object EditSupplement : Screen("edit_supplement/{id}", R.string.app_name, { })
     data object SyncCenter : Screen("sync_center", R.string.sync_center_title, { })
@@ -153,7 +155,13 @@ fun AppNavigation(
                         onThemeChange = onThemeChange,
                         onNavigateToStackManager = { navController.navigate(Screen.MyStack.route) },
                         onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
-                        onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) }
+                        onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) },
+                        onNavigateToNotificationCheck = { navController.navigate(Screen.NotificationCheck.route) }
+                    )
+                }
+                composable(Screen.NotificationCheck.route) {
+                    NotificationCheckScreen(
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable(Screen.SyncCenter.route) {

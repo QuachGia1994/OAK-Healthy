@@ -246,9 +246,9 @@ public struct OnboardingView: View {
         isRequestingPermission = true
         defer { isRequestingPermission = false }
         
-        let center = UNUserNotificationCenter.current()
-        let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-        guard granted else {
+        do {
+            try await notificationService.requestAuthorization()
+        } catch {
             isNotificationEnabledByUser = false
             permissionMessage = "onboarding_notifications_denied".localized
             await refreshAuthorizationState()
@@ -268,7 +268,7 @@ public struct OnboardingView: View {
                 sortBy: [SortDescriptor(\UserSupplement.name)]
             )
             let supplements = try modelContext.fetch(descriptor)
-            await notificationService.scheduleAll(supplements: supplements)
+            await notificationService.replaceAllSchedules(supplements: supplements)
         } catch {
             return
         }

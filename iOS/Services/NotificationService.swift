@@ -44,9 +44,22 @@ actor NotificationShadowLogStore {
         let items = read()
         let filtered = items.compactMap { raw -> String? in
             let parts = raw.components(separatedBy: "||")
-            guard parts.count >= 5 else { return nil }
+            guard parts.count >= 5 else { return raw }
             let identifier = parts[0]
             guard prefixes.contains(where: { identifier.hasPrefix($0) }) else { return raw }
+            return nil
+        }
+        UserDefaults.standard.set(filtered, forKey: key)
+    }
+    
+    func removeEntries(withIdentifiers identifiers: [String]) {
+        guard !identifiers.isEmpty else { return }
+        let items = read()
+        let filtered = items.compactMap { raw -> String? in
+            let parts = raw.components(separatedBy: "||")
+            guard parts.count >= 5 else { return raw }
+            let identifier = parts[0]
+            guard identifiers.contains(identifier) else { return raw }
             return nil
         }
         UserDefaults.standard.set(filtered, forKey: key)
@@ -149,8 +162,8 @@ public struct NotificationService: NotificationManaging {
         let prefix = "\(supplement.id.uuidString)-"
         let requests = await center.pendingNotificationRequests()
         let ids = requests.map(\.identifier).filter { $0.hasPrefix(prefix) }
-        guard !ids.isEmpty else { return }
-        center.removePendingNotificationRequests(withIdentifiers: ids)
+        if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
+        await NotificationShadowLogStore.shared.removeEntries(withPrefixes: [prefix])
     }
     
     @MainActor
@@ -161,6 +174,9 @@ public struct NotificationService: NotificationManaging {
     @MainActor
     public func scheduleAll(supplements: [UserSupplement]) async {
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
+        let settings = await center.notificationSettings()
+        let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        guard authorized else { return }
         let prefixes = supplements.map { "\($0.id.uuidString)-" }
         if !prefixes.isEmpty {
             let requests = await center.pendingNotificationRequests()
@@ -168,6 +184,23 @@ public struct NotificationService: NotificationManaging {
             if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
             await NotificationShadowLogStore.shared.removeEntries(withPrefixes: prefixes)
         }
+        for supplement in supplements {
+            do {
+                try await scheduleReminders(for: supplement)
+            } catch {
+                await logShadowScheduleFailure(supplement: supplement, error: error)
+            }
+        }
+    }
+    
+    @MainActor
+    public func replaceAllSchedules(supplements: [UserSupplement]) async {
+        guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
+        let settings = await center.notificationSettings()
+        let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        guard authorized else { return }
+        center.removeAllPendingNotificationRequests()
+        await NotificationShadowLogStore.shared.clear()
         for supplement in supplements {
             do {
                 try await scheduleReminders(for: supplement)
@@ -233,6 +266,7 @@ public struct NotificationService: NotificationManaging {
     public func cancelReminder(for supplement: UserSupplement, timeString: String, day: Date = .now) async {
         let identifier = requestIdentifier(supplementId: supplement.id, timeString: timeString, day: day)
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        await NotificationShadowLogStore.shared.removeEntries(withIdentifiers: [identifier])
     }
     
     @MainActor

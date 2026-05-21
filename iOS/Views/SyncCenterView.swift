@@ -956,15 +956,13 @@ public struct SyncCenterView: View {
     @MainActor
     private func rescheduleNotificationsIfEnabled() async {
         guard isNotificationEnabledByUser else { return }
-        let center = UNUserNotificationCenter.current()
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-            guard granted else { return }
+            try await NotificationService.shared.requestAuthorization()
         } catch {
             return
         }
         let active = cachedSupplements.filter { $0.deletedAtEpochMs == nil }
-        await NotificationService.shared.scheduleAll(supplements: active)
+        await NotificationService.shared.replaceAllSchedules(supplements: active)
     }
     
     @MainActor

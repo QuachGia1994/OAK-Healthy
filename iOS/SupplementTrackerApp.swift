@@ -433,12 +433,13 @@ private struct SafeModeView: View {
                 UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
             }
             if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") {
-                let center = UNUserNotificationCenter.current()
-                let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-                if granted {
+                do {
+                    try await NotificationService.shared.requestAuthorization()
                     let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
                         .filter { $0.client?.id == client.id }
-                    await NotificationService.shared.scheduleAll(supplements: supplements)
+                    await NotificationService.shared.replaceAllSchedules(supplements: supplements)
+                } catch {
+                    return
                 }
             }
             clearPendingImport(at: url)
@@ -552,6 +553,11 @@ struct MainTabView: View {
                 await rescheduleNotificationsIfEnabled()
             }
         }
+        .onChange(of: activeClientManager.currentClientId, initial: false) { _, _ in
+            Task { @MainActor in
+                await rescheduleNotificationsIfEnabled()
+            }
+        }
         .sheet(
             isPresented: Binding(
                 get: { !hasCompletedOnboarding },
@@ -588,7 +594,7 @@ struct MainTabView: View {
                 sortBy: [SortDescriptor(\UserSupplement.name)]
             )
             let supplements = try modelContext.fetch(descriptor)
-            await notificationService.scheduleAll(supplements: supplements)
+            await notificationService.replaceAllSchedules(supplements: supplements)
         } catch {
             DebugReporter.report("auto_reschedule_fetch_failed", fields: ["error": error.localizedDescription])
             return

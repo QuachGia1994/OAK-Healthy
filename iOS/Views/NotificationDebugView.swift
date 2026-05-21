@@ -129,7 +129,7 @@ public struct NotificationDebugScreen: View {
                 sortBy: [SortDescriptor(\UserSupplement.name)]
             )
             let supplements = try modelContext.fetch(descriptor)
-            await NotificationService.shared.scheduleAll(supplements: supplements)
+            await NotificationService.shared.replaceAllSchedules(supplements: supplements)
             await refresh()
         } catch {
             await MainActor.run { message = error.localizedDescription }
