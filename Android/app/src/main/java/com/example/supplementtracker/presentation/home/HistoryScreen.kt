@@ -125,7 +125,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     .padding(top = 12.dp),
                 shape = shape,
                 colors = CardDefaults.cardColors(containerColor = containerColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 PremiumBarChart(data = state.chartData)
             }
@@ -209,7 +209,7 @@ private fun InsightsPanel(insights7: InsightsSummary?, insights30: InsightsSumma
             .padding(top = 12.dp),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             InsightsWindowCard(title = stringResource(R.string.insights_last_7), summary = insights7, modifier = Modifier.weight(1f))
@@ -441,7 +441,7 @@ private fun HistoryRecordItem(record: IntakeRecord) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = base),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(

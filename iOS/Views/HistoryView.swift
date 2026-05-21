@@ -29,9 +29,7 @@ public struct HistoryView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         InsightsCard(insights7: viewModel.insights7, insights30: viewModel.insights30)
                             .padding()
-                            .background(.ultraThinMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 14))
-                            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+                            .oakCard()
 
                         VStack(alignment: .leading) {
                             Text("intake_frequency_last_7".localized)
@@ -55,9 +53,7 @@ public struct HistoryView: View {
                             }
                         }
                         .padding()
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+                        .oakCard()
                         
                         VStack(alignment: .leading) {
                             Text("log_details".localized)
@@ -90,6 +86,8 @@ public struct HistoryView: View {
                                 }
                             }
                         }
+                        .padding()
+                        .oakCard()
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -281,20 +279,29 @@ private struct HistoryRow: View, Equatable {
         HStack {
             Text(row.timeText)
                 .font(.caption)
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
             
             Text(row.supplementName)
-                .font(.body)
+                .font(.callout)
                 .fontWeight(.medium)
             Spacer()
             Image(systemName: isSkipped ? "xmark.seal.fill" : "checkmark.seal.fill")
                 .foregroundStyle(isSkipped ? .orange : .green)
         }
         .padding()
-                        .background(.ultraThinMaterial)
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 5)
+    }
+}
+
+private extension View {
+    func oakCard() -> some View {
+        background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
     }
 }
 

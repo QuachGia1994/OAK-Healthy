@@ -57,6 +57,9 @@ public struct HomeView: View {
                         if viewModel.activeSupplements.isEmpty {
                             Text("no_intake_today".localized)
                                 .foregroundStyle(.secondary)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         }
                     } header: {
                         TodayHeaderView(
@@ -88,6 +91,7 @@ public struct HomeView: View {
                                     )
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                                     .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                         Button {
                                             editingSupplement = supplement
@@ -118,10 +122,18 @@ public struct HomeView: View {
                                     }
                                 }
                             } header: {
-                                Text(time)
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.blue)
+                                HStack {
+                                    Text(time)
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(.ultraThinMaterial)
+                                        .clipShape(Capsule())
+                                    Spacer()
+                                }
+                                .textCase(nil)
                             }
                         }
                     }
@@ -132,6 +144,7 @@ public struct HomeView: View {
                                 RestingSupplementRow(info: info, onEdit: { editingSupplement = $0 })
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
+                                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                         Button(role: .destructive) {
                                             viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)

@@ -346,11 +346,16 @@ private fun SectionHeader(title: String) {
 
 @Composable
 private fun TimeGroupHeader(time: String) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
     Text(
         text = time,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 8.dp)
+        modifier = Modifier
+            .padding(top = 10.dp)
+            .background(base, RoundedCornerShape(18.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     )
 }
 
