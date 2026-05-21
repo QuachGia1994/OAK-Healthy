@@ -478,14 +478,16 @@ fun SettingsScreen(
                             title = stringResource(R.string.notification_check_reschedule_now),
                             onClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission(context)) {
+                                    val message = context.getString(R.string.notification_check_snackbar_permission_required)
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(stringResource(R.string.notification_check_snackbar_permission_required))
+                                        snackbarHostState.showSnackbar(message)
                                     }
                                     return@SettingsRow
                                 }
                                 homeViewModel.refreshNotificationSchedules()
+                                val message = context.getString(R.string.notification_check_snackbar_rescheduled)
                                 coroutineScope.launch {
-                                    snackbarHostState.showSnackbar(stringResource(R.string.notification_check_snackbar_rescheduled))
+                                    snackbarHostState.showSnackbar(message)
                                 }
                             }
                         )
@@ -494,8 +496,9 @@ fun SettingsScreen(
                             title = stringResource(R.string.notification_check_clear_pending),
                             onClick = {
                                 homeViewModel.clearPendingNotifications()
+                                val message = context.getString(R.string.notification_check_snackbar_cleared)
                                 coroutineScope.launch {
-                                    snackbarHostState.showSnackbar(stringResource(R.string.notification_check_snackbar_cleared))
+                                    snackbarHostState.showSnackbar(message)
                                 }
                             }
                         )
