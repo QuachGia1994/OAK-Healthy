@@ -306,61 +306,99 @@ enum CloudSyncAutoSync {
     }
     
     static func syncIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
-        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else {
-            print("☁️ Auto-Sync: Skipped – auto sync disabled")
-            return
+        guard let ctx = makeSyncContext(modelContext: modelContext, clientId: clientId) else { return }
+        do {
+            markAttempt(ctx: ctx)
+            let remote = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: ctx.binId)
+            guard let client = fetchClient(modelContext: modelContext, clientId: ctx.clientId) else { return }
+            mergeRemoteIfNeeded(remote, client: client, modelContext: modelContext)
+            if shouldExitEarly(remoteChanged: remote != nil, localChanged: ctx.localChanged) { return }
+            if ctx.localChanged { try await uploadWithRetryIfConflicted(ctx: ctx, modelContext: modelContext, client: client) }
+            markSuccess(ctx: ctx)
+        } catch {
+            markFailure(ctx: ctx, error: error)
         }
-        guard let binId = activeBinId() else {
-            print("☁️ Auto-Sync: Skipped – no binId configured")
-            return
-        }
-        guard let clientId else {
-            print("☁️ Auto-Sync: Skipped – no active client")
-            return
-        }
+    }
+
+    private struct SyncContext: Sendable {
+        let binId: String
+        let id: String
+        let clientId: UUID
+        let lastSyncKey: String
+        let lastAttemptKey: String
+        let lastErrorKey: String
+        let localChanged: Bool
+    }
+
+    private static func makeSyncContext(modelContext: ModelContext, clientId: UUID?) -> SyncContext? {
+        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return nil }
+        guard let binId = activeBinId() else { return nil }
+        guard let clientId else { return nil }
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { return }
+        guard !id.isEmpty else { return nil }
         let lastSyncKey = "cloudSyncLastSyncEpochMs_\(id)"
         let lastAttemptKey = "cloudSyncLastAttemptEpochMs_\(id)"
         let lastErrorKey = "cloudSyncLastError_\(id)"
         let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: lastSyncKey))
         let localChanged = hasLocalChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
+        return SyncContext(
+            binId: binId,
+            id: id,
+            clientId: clientId,
+            lastSyncKey: lastSyncKey,
+            lastAttemptKey: lastAttemptKey,
+            lastErrorKey: lastErrorKey,
+            localChanged: localChanged
+        )
+    }
+
+    private static func markAttempt(ctx: SyncContext) {
+        UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
+    }
+
+    private static func fetchClient(modelContext: ModelContext, clientId: UUID) -> ClientProfile? {
+        (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
+    }
+
+    private static func mergeRemoteIfNeeded(_ data: Data?, client: ClientProfile, modelContext: ModelContext) {
+        guard let data else { return }
+        try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+    }
+
+    private static func shouldExitEarly(remoteChanged: Bool, localChanged: Bool) -> Bool {
+        !remoteChanged && !localChanged
+    }
+
+    private static func uploadWithRetryIfConflicted(
+        ctx: SyncContext,
+        modelContext: ModelContext,
+        client: ClientProfile
+    ) async throws {
+        let etag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(ctx.id)")
+        let backup = try? makeBackup(modelContext: modelContext, clientId: ctx.clientId)
+        guard let backup else { return }
         do {
-            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastAttemptKey)
-            let result = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: binId)
-            let remoteChanged = result != nil
-            let client = (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
-            guard let client else {
-                print("☁️ Auto-Sync: Client not found in local DB")
-                return
-            }
-            if let data = result { try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext) }
-            let shouldUpload = localChanged
-            if !remoteChanged, !shouldUpload { return }
-            if shouldUpload {
-                let etag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(id)")
-                let backup = try? makeBackup(modelContext: modelContext, clientId: clientId)
-                if let backup {
-                    do {
-                        try await CloudSyncManager.shared.upsertBackup(binId: id, jsonData: backup, ifMatchEtag: etag)
-                    } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 412 || statusCode == 409 {
-                        let latest = try await CloudSyncManager.shared.downloadBackup(binId: id)
-                        try? SupplementExportCodec.mergeBackup(data: latest, client: client, context: modelContext)
-                        let retryBackup = try? makeBackup(modelContext: modelContext, clientId: clientId)
-                        let retryEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(id)")
-                        if let retryBackup { try? await CloudSyncManager.shared.upsertBackup(binId: id, jsonData: retryBackup, ifMatchEtag: retryEtag) }
-                    }
-                }
-            }
-            let now = Double(Date().timeIntervalSince1970 * 1000)
-            UserDefaults.standard.set(now, forKey: lastSyncKey)
-            UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
-            markActivity()
-        } catch {
-            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: lastAttemptKey)
-            UserDefaults.standard.set(error.localizedDescription, forKey: lastErrorKey)
-            print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
+            try await CloudSyncManager.shared.upsertBackup(binId: ctx.id, jsonData: backup, ifMatchEtag: etag)
+        } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 412 || statusCode == 409 {
+            let latest = try await CloudSyncManager.shared.downloadBackup(binId: ctx.id)
+            try? SupplementExportCodec.mergeBackup(data: latest, client: client, context: modelContext)
+            let retryBackup = try? makeBackup(modelContext: modelContext, clientId: ctx.clientId)
+            let retryEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(ctx.id)")
+            if let retryBackup { try? await CloudSyncManager.shared.upsertBackup(binId: ctx.id, jsonData: retryBackup, ifMatchEtag: retryEtag) }
         }
+    }
+
+    private static func markSuccess(ctx: SyncContext) {
+        let now = Double(Date().timeIntervalSince1970 * 1000)
+        UserDefaults.standard.set(now, forKey: ctx.lastSyncKey)
+        UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
+        markActivity()
+    }
+
+    private static func markFailure(ctx: SyncContext, error: Error) {
+        UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
+        UserDefaults.standard.set(error.localizedDescription, forKey: ctx.lastErrorKey)
+        print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
     }
     
     private static func hasLocalChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {

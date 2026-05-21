@@ -16,6 +16,44 @@ data class CloudDownload(val json: String?, val etag: String?)
 
 class CloudSyncManager {
     private class HttpStatusError(val code: Int, val body: String) : Exception("Server error ($code): $body")
+
+    private data class HttpResponse(val code: Int, val body: String, val etag: String?)
+
+    private fun performRequest(
+        url: URL,
+        method: String,
+        key: String,
+        body: String? = null,
+        ifMatchEtag: String? = null,
+        ifNoneMatchEtag: String? = null
+    ): HttpResponse {
+        val connection = (url.openConnection() as HttpURLConnection)
+        try {
+            connection.requestMethod = method
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 12_000
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("X-Master-Key", key)
+            val match = ifMatchEtag.orEmpty().trim()
+            if (match.isNotEmpty()) connection.setRequestProperty("If-Match", match)
+            val noneMatch = ifNoneMatchEtag.orEmpty().trim()
+            if (noneMatch.isNotEmpty()) connection.setRequestProperty("If-None-Match", noneMatch)
+            if (body != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            } else {
+                connection.doInput = true
+            }
+            val code = connection.responseCode
+            val etag = connection.getHeaderField("ETag")?.trim()
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            return HttpResponse(code = code, body = responseBody, etag = etag)
+        } finally {
+            connection.disconnect()
+        }
+    }
     
     private suspend fun <T> executeWithRetry(block: () -> T): T {
         var attempt = 0
@@ -45,24 +83,9 @@ class CloudSyncManager {
             try {
                 Result.success(
                     executeWithRetry {
-                        val connection = (URL(BASE_URL).openConnection() as HttpURLConnection)
-                        try {
-                            connection.requestMethod = "POST"
-                            connection.doOutput = true
-                            connection.connectTimeout = 8_000
-                            connection.readTimeout = 12_000
-                            connection.setRequestProperty("Content-Type", "application/json")
-                            connection.setRequestProperty("X-Master-Key", key)
-                            connection.outputStream.use { it.write(jsonString.toByteArray(Charsets.UTF_8)) }
-                            val code = connection.responseCode
-                            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                            if (code !in 200..299) throw HttpStatusError(code, body)
-                            val root = JSONObject(body)
-                            root.getJSONObject("metadata").getString("id")
-                        } finally {
-                            connection.disconnect()
-                        }
+                        val response = performRequest(url = URL(BASE_URL), method = "POST", key = key, body = jsonString)
+                        if (response.code !in 200..299) throw HttpStatusError(response.code, response.body)
+                        JSONObject(response.body).getJSONObject("metadata").getString("id")
                     }
                 )
             } catch (t: Throwable) {
@@ -79,23 +102,8 @@ class CloudSyncManager {
         return withContext(Dispatchers.IO) {
             try {
                 executeWithRetry {
-                    val url = URL("$BASE_URL/$id")
-                    val connection = (url.openConnection() as HttpURLConnection)
-                    try {
-                        connection.requestMethod = "PUT"
-                        connection.doOutput = true
-                        connection.connectTimeout = 8_000
-                        connection.readTimeout = 12_000
-                        connection.setRequestProperty("Content-Type", "application/json")
-                        connection.setRequestProperty("X-Master-Key", key)
-                        connection.outputStream.use { it.write(jsonString.toByteArray(Charsets.UTF_8)) }
-                        val code = connection.responseCode
-                        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                        val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                        if (code !in 200..299) throw HttpStatusError(code, body)
-                    } finally {
-                        connection.disconnect()
-                    }
+                    val response = performRequest(url = URL("$BASE_URL/$id"), method = "PUT", key = key, body = jsonString)
+                    if (response.code !in 200..299) throw HttpStatusError(response.code, response.body)
                 }
                 Result.success(Unit)
             } catch (t: Throwable) {
@@ -114,26 +122,15 @@ class CloudSyncManager {
             try {
                 Result.success(
                     executeWithRetry {
-                        val url = URL("$BASE_URL/$id")
-                        val connection = (url.openConnection() as HttpURLConnection)
-                        try {
-                            connection.requestMethod = "PUT"
-                            connection.doOutput = true
-                            connection.connectTimeout = 8_000
-                            connection.readTimeout = 12_000
-                            connection.setRequestProperty("Content-Type", "application/json")
-                            connection.setRequestProperty("X-Master-Key", key)
-                            if (tag.isNotEmpty()) connection.setRequestProperty("If-Match", tag)
-                            connection.outputStream.use { it.write(jsonString.toByteArray(Charsets.UTF_8)) }
-                            val code = connection.responseCode
-                            val newEtag = connection.getHeaderField("ETag")?.trim()
-                            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                            if (code !in 200..299) throw HttpStatusError(code, body)
-                            newEtag
-                        } finally {
-                            connection.disconnect()
-                        }
+                        val response = performRequest(
+                            url = URL("$BASE_URL/$id"),
+                            method = "PUT",
+                            key = key,
+                            body = jsonString,
+                            ifMatchEtag = tag
+                        )
+                        if (response.code !in 200..299) throw HttpStatusError(response.code, response.body)
+                        response.etag
                     }
                 )
             } catch (t: Throwable) {
@@ -151,24 +148,9 @@ class CloudSyncManager {
             try {
                 Result.success(
                     executeWithRetry {
-                        val url = URL("$BASE_URL/$id/latest")
-                        val connection = (url.openConnection() as HttpURLConnection)
-                        try {
-                            connection.requestMethod = "GET"
-                            connection.doInput = true
-                            connection.connectTimeout = 8_000
-                            connection.readTimeout = 12_000
-                            connection.setRequestProperty("Accept", "application/json")
-                            connection.setRequestProperty("X-Master-Key", key)
-                            val code = connection.responseCode
-                            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                            if (code !in 200..299) throw HttpStatusError(code, body)
-                            val record = JSONObject(body).get("record")
-                            record.toString()
-                        } finally {
-                            connection.disconnect()
-                        }
+                        val response = performRequest(url = URL("$BASE_URL/$id/latest"), method = "GET", key = key)
+                        if (response.code !in 200..299) throw HttpStatusError(response.code, response.body)
+                        JSONObject(response.body).get("record").toString()
                     }
                 )
             } catch (t: Throwable) {
@@ -187,28 +169,17 @@ class CloudSyncManager {
             try {
                 Result.success(
                     executeWithRetry {
-                        val url = URL("$BASE_URL/$id/latest")
-                        val connection = (url.openConnection() as HttpURLConnection)
-                        try {
-                            connection.requestMethod = "GET"
-                            connection.doInput = true
-                            connection.connectTimeout = 8_000
-                            connection.readTimeout = 12_000
-                            connection.setRequestProperty("Accept", "application/json")
-                            connection.setRequestProperty("X-Master-Key", key)
-                            if (tag.isNotEmpty()) connection.setRequestProperty("If-None-Match", tag)
-                            val code = connection.responseCode
-                            val newEtag = connection.getHeaderField("ETag")?.trim()
-                            if (code == 304) return@executeWithRetry CloudDownload(null, newEtag ?: tag)
-                            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                            if (code !in 200..299) throw HttpStatusError(code, body)
-                            val record = JSONObject(body).get("record")
-                            val json = record.toString()
-                            CloudDownload(json, newEtag ?: tag)
-                        } finally {
-                            connection.disconnect()
-                        }
+                        val response = performRequest(
+                            url = URL("$BASE_URL/$id/latest"),
+                            method = "GET",
+                            key = key,
+                            ifNoneMatchEtag = tag
+                        )
+                        val newTag = response.etag ?: tag
+                        if (response.code == 304) return@executeWithRetry CloudDownload(null, newTag)
+                        if (response.code !in 200..299) throw HttpStatusError(response.code, response.body)
+                        val json = JSONObject(response.body).get("record").toString()
+                        CloudDownload(json, newTag)
                     }
                 )
             } catch (t: Throwable) {
@@ -226,26 +197,10 @@ class CloudSyncManager {
             try {
                 Result.success(
                     executeWithRetry {
-                        val url = URL("$BASE_URL/$id/latest")
-                        val connection = (url.openConnection() as HttpURLConnection)
-                        try {
-                            connection.requestMethod = "GET"
-                            connection.doInput = true
-                            connection.connectTimeout = 8_000
-                            connection.readTimeout = 12_000
-                            connection.setRequestProperty("Accept", "application/json")
-                            connection.setRequestProperty("X-Master-Key", key)
-                            val code = connection.responseCode
-                            val newEtag = connection.getHeaderField("ETag")?.trim()
-                            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                            if (code !in 200..299) throw HttpStatusError(code, body)
-                            val record = JSONObject(body).get("record")
-                            val json = record.toString()
-                            CloudDownload(json, newEtag)
-                        } finally {
-                            connection.disconnect()
-                        }
+                        val response = performRequest(url = URL("$BASE_URL/$id/latest"), method = "GET", key = key)
+                        if (response.code !in 200..299) throw HttpStatusError(response.code, response.body)
+                        val json = JSONObject(response.body).get("record").toString()
+                        CloudDownload(json, response.etag)
                     }
                 )
             } catch (t: Throwable) {
@@ -262,23 +217,9 @@ class CloudSyncManager {
         return withContext(Dispatchers.IO) {
             try {
                 executeWithRetry {
-                    val url = URL("$BASE_URL/$id")
-                    val connection = (url.openConnection() as HttpURLConnection)
-                    try {
-                        connection.requestMethod = "DELETE"
-                        connection.doInput = true
-                        connection.connectTimeout = 8_000
-                        connection.readTimeout = 12_000
-                        connection.setRequestProperty("Accept", "application/json")
-                        connection.setRequestProperty("X-Master-Key", key)
-                        val code = connection.responseCode
-                        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                        val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                        if (code == 404) return@executeWithRetry
-                        if (code !in 200..299) throw HttpStatusError(code, body)
-                    } finally {
-                        connection.disconnect()
-                    }
+                    val response = performRequest(url = URL("$BASE_URL/$id"), method = "DELETE", key = key)
+                    if (response.code == 404) return@executeWithRetry
+                    if (response.code !in 200..299) throw HttpStatusError(response.code, response.body)
                 }
                 Result.success(Unit)
             } catch (t: Throwable) {
