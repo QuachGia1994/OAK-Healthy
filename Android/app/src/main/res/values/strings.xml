@@ -309,6 +309,7 @@
     <string name="notification_check_title">Notification List</string>
     <string name="notification_check_reload">Reload</string>
     <string name="notification_check_empty">No scheduled notifications.</string>
+    <string name="notification_check_open_diagnostics">Notification diagnostics</string>
     <string name="notification_check_permission_granted">Granted</string>
     <string name="notification_check_permission_denied">Denied</string>
     <string name="notification_check_permission_not_required">Not required</string>
@@ -321,9 +322,24 @@
     <string name="notification_check_active_client_format">Active client: %1$s</string>
     <string name="notification_check_active_supplements_format">Active supplements: %1$d</string>
     <string name="notification_check_scheduled_count_format">Scheduled (Debug): %1$d</string>
+    <string name="notification_check_permission_label">Permission</string>
+    <string name="notification_check_enabled_label">Enabled (User)</string>
+    <string name="notification_check_active_client_label">Active client</string>
+    <string name="notification_check_active_supplements_label">Active supplements</string>
+    <string name="notification_check_scheduled_count_label">Scheduled (Debug)</string>
+    <string name="notification_check_exact_alarms_label">Exact alarms</string>
+    <string name="notification_check_battery_opt_label">Battery optimization</string>
     <string name="notification_check_diagnostics_label">Diagnostics</string>
+    <string name="notification_check_status_denied">Denied</string>
+    <string name="notification_check_status_off">OFF</string>
+    <string name="notification_check_status_no_active_client">No active client</string>
+    <string name="notification_check_status_no_supplements">No supplements</string>
+    <string name="notification_check_status_exact_alarm_off">Exact alarm OFF</string>
+    <string name="notification_check_status_battery_optimized">Battery optimized</string>
+    <string name="notification_check_status_scheduled_zero">Scheduled = 0</string>
+    <string name="notification_check_status_ok">OK</string>
     <string name="notification_check_reschedule_now">Reschedule now</string>
-    <string name="notification_check_clear_pending">Clear pending notifications</string>
+    <string name="notification_check_clear_pending">Clear pending</string>
     <string name="notification_check_snackbar_permission_required">Notification permission is required.</string>
     <string name="notification_check_snackbar_rescheduled">Rescheduled.</string>
     <string name="notification_check_snackbar_cleared">Cleared.</string>

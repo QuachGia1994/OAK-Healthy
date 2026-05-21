@@ -58,6 +58,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,6 +73,17 @@ private data class NotificationDayGroup(
     val day: LocalDate,
     val items: List<ScheduledAlarmInfo>
 )
+
+private enum class NotificationDiagnosis {
+    DENIED,
+    OFF,
+    NO_ACTIVE_CLIENT,
+    NO_SUPPLEMENTS,
+    EXACT_ALARM_OFF,
+    BATTERY_OPTIMIZED,
+    SCHEDULED_ZERO,
+    OK
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,7 +114,7 @@ fun NotificationCheckScreen(
         }
     }
 
-    val diagnosisTitle by remember(
+    val diagnosis by remember(
         hasNotificationPermission,
         isNotificationEnabledByUser,
         currentClientId,
@@ -112,38 +124,37 @@ fun NotificationCheckScreen(
         upcoming
     ) {
         derivedStateOf {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) return@derivedStateOf "DENIED"
-            if (!isNotificationEnabledByUser) return@derivedStateOf "OFF"
-            if (currentClientId == null) return@derivedStateOf "NO ACTIVE CLIENT"
-            if (activeSupplementCount == 0) return@derivedStateOf "NO SUPPLEMENTS"
-            if (!canScheduleExactAlarms) return@derivedStateOf "EXACT ALARM OFF"
-            if (!isIgnoringBatteryOptimizations) return@derivedStateOf "BATTERY OPTIMIZED"
-            if (upcoming.isEmpty()) return@derivedStateOf "SCHEDULED = 0"
-            "OK"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) return@derivedStateOf NotificationDiagnosis.DENIED
+            if (!isNotificationEnabledByUser) return@derivedStateOf NotificationDiagnosis.OFF
+            if (currentClientId == null) return@derivedStateOf NotificationDiagnosis.NO_ACTIVE_CLIENT
+            if (activeSupplementCount == 0) return@derivedStateOf NotificationDiagnosis.NO_SUPPLEMENTS
+            if (!canScheduleExactAlarms) return@derivedStateOf NotificationDiagnosis.EXACT_ALARM_OFF
+            if (!isIgnoringBatteryOptimizations) return@derivedStateOf NotificationDiagnosis.BATTERY_OPTIMIZED
+            if (upcoming.isEmpty()) return@derivedStateOf NotificationDiagnosis.SCHEDULED_ZERO
+            NotificationDiagnosis.OK
         }
     }
 
-    val diagnosisHint by remember(
-        hasNotificationPermission,
-        isNotificationEnabledByUser,
-        currentClientId,
-        activeSupplementCount,
-        canScheduleExactAlarms,
-        isIgnoringBatteryOptimizations,
-        upcoming
-    ) {
-        derivedStateOf {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) {
-                return@derivedStateOf stringResource(R.string.notification_check_hint_permission_denied)
-            }
-            if (!isNotificationEnabledByUser) return@derivedStateOf stringResource(R.string.notification_check_hint_toggle_off)
-            if (currentClientId == null) return@derivedStateOf stringResource(R.string.notification_check_hint_no_active_client)
-            if (activeSupplementCount == 0) return@derivedStateOf stringResource(R.string.notification_check_hint_no_supplements)
-            if (!canScheduleExactAlarms) return@derivedStateOf stringResource(R.string.notification_check_hint_exact_alarm_off)
-            if (!isIgnoringBatteryOptimizations) return@derivedStateOf stringResource(R.string.notification_check_hint_battery_opt)
-            if (upcoming.isEmpty()) return@derivedStateOf stringResource(R.string.notification_check_hint_scheduled_zero)
-            stringResource(R.string.notification_check_hint_ok)
-        }
+    val diagnosisTitle = when (diagnosis) {
+        NotificationDiagnosis.DENIED -> stringResource(R.string.notification_check_status_denied)
+        NotificationDiagnosis.OFF -> stringResource(R.string.notification_check_status_off)
+        NotificationDiagnosis.NO_ACTIVE_CLIENT -> stringResource(R.string.notification_check_status_no_active_client)
+        NotificationDiagnosis.NO_SUPPLEMENTS -> stringResource(R.string.notification_check_status_no_supplements)
+        NotificationDiagnosis.EXACT_ALARM_OFF -> stringResource(R.string.notification_check_status_exact_alarm_off)
+        NotificationDiagnosis.BATTERY_OPTIMIZED -> stringResource(R.string.notification_check_status_battery_optimized)
+        NotificationDiagnosis.SCHEDULED_ZERO -> stringResource(R.string.notification_check_status_scheduled_zero)
+        NotificationDiagnosis.OK -> stringResource(R.string.notification_check_status_ok)
+    }
+
+    val diagnosisHint = when (diagnosis) {
+        NotificationDiagnosis.DENIED -> stringResource(R.string.notification_check_hint_permission_denied)
+        NotificationDiagnosis.OFF -> stringResource(R.string.notification_check_hint_toggle_off)
+        NotificationDiagnosis.NO_ACTIVE_CLIENT -> stringResource(R.string.notification_check_hint_no_active_client)
+        NotificationDiagnosis.NO_SUPPLEMENTS -> stringResource(R.string.notification_check_hint_no_supplements)
+        NotificationDiagnosis.EXACT_ALARM_OFF -> stringResource(R.string.notification_check_hint_exact_alarm_off)
+        NotificationDiagnosis.BATTERY_OPTIMIZED -> stringResource(R.string.notification_check_hint_battery_opt)
+        NotificationDiagnosis.SCHEDULED_ZERO -> stringResource(R.string.notification_check_hint_scheduled_zero)
+        NotificationDiagnosis.OK -> stringResource(R.string.notification_check_hint_ok)
     }
 
     val grouped = remember(upcoming) { groupByDate(upcoming) }
@@ -164,6 +175,7 @@ fun NotificationCheckScreen(
             context = context,
             diagnosisTitle = diagnosisTitle,
             diagnosisHint = diagnosisHint,
+            diagnosis = diagnosis,
             hasNotificationPermission = hasNotificationPermission,
             isNotificationEnabledByUser = isNotificationEnabledByUser,
             activeClientId = currentClientId,
@@ -214,6 +226,7 @@ private fun NotificationCheckContent(
     context: Context,
     diagnosisTitle: String,
     diagnosisHint: String,
+    diagnosis: NotificationDiagnosis,
     hasNotificationPermission: Boolean,
     isNotificationEnabledByUser: Boolean,
     activeClientId: java.util.UUID?,
@@ -299,6 +312,7 @@ private fun StatusCards(
 private fun DiagnosticsCard(
     diagnosisTitle: String,
     diagnosisHint: String,
+    diagnosis: NotificationDiagnosis,
     hasNotificationPermission: Boolean,
     isNotificationEnabledByUser: Boolean,
     activeClientId: java.util.UUID?,
@@ -347,17 +361,40 @@ private fun DiagnosticsCard(
         "batteryOptimization=$batteryOptText"
     ).joinToString("\n")
 
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val chipContainerColor = when (diagnosis) {
+        NotificationDiagnosis.OK -> Color(0xFF2E7D32)
+        NotificationDiagnosis.DENIED -> Color(0xFFC62828)
+        NotificationDiagnosis.OFF -> if (isDark) Color(0xFF546E7A) else Color(0xFF607D8B)
+        else -> Color(0xFFEF6C00)
+    }
+    val chipTextColor = Color.White
+
     ElevatedCard {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(text = diagnosisTitle, style = MaterialTheme.typography.titleMedium)
-            Text(text = diagnosisHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(stringResource(R.string.notification_check_permission_format, permissionText))
-            Text(stringResource(R.string.notification_check_enabled_format, enabledText))
-            Text(stringResource(R.string.notification_check_active_client_format, activeClientText))
-            Text(stringResource(R.string.notification_check_active_supplements_format, activeSupplementCount))
-            Text(stringResource(R.string.notification_check_scheduled_count_format, scheduledCount))
-            Text(stringResource(R.string.notification_check_exact_alarms_format, exactAlarmText))
-            Text(stringResource(R.string.notification_check_battery_opt_format, batteryOptText))
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = diagnosisTitle,
+                    modifier = Modifier
+                        .background(chipContainerColor, shape = MaterialTheme.shapes.small)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    color = chipTextColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.size(10.dp))
+                Text(
+                    text = diagnosisHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            KeyValueRow(label = stringResource(R.string.notification_check_permission_label), value = permissionText)
+            KeyValueRow(label = stringResource(R.string.notification_check_enabled_label), value = enabledText)
+            KeyValueRow(label = stringResource(R.string.notification_check_active_client_label), value = activeClientText)
+            KeyValueRow(label = stringResource(R.string.notification_check_active_supplements_label), value = activeSupplementCount.toString())
+            KeyValueRow(label = stringResource(R.string.notification_check_scheduled_count_label), value = scheduledCount.toString())
+            KeyValueRow(label = stringResource(R.string.notification_check_exact_alarms_label), value = exactAlarmText)
+            KeyValueRow(label = stringResource(R.string.notification_check_battery_opt_label), value = batteryOptText)
             Text(stringResource(R.string.notification_check_diagnostics_label), style = MaterialTheme.typography.titleSmall)
             SelectionContainer {
                 Text(
@@ -368,6 +405,23 @@ private fun DiagnosticsCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun KeyValueRow(label: String, value: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = label.trim().trimEnd(':'),
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 

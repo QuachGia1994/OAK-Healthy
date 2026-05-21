@@ -57,9 +57,28 @@ public struct NotificationDebugScreen: View {
                 LabeledContent("Shadow only") { Text("\(shadowOnlyCount)") }
                 LabeledContent("Shadow errors") { Text("\(shadowErrorCount)") }
                 
-                Button("Refresh") { Task { await refresh() } }
-                Button("Clear pending") { Task { await clearPending() } }
-                Button("Reschedule (active client)") { Task { await rescheduleForActiveClient() } }
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await refresh() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button {
+                        Task { await clearPending() }
+                    } label: {
+                        Label("Clear pending", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button {
+                        Task { await rescheduleForActiveClient() }
+                    } label: {
+                        Label("Reschedule", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
                 
                 if let message {
                     Text(message)

@@ -126,11 +126,11 @@ public struct SettingsView: View {
                     }
                 }
             
-            NavigationLink("Notification diagnostics") {
+            NavigationLink("notification_diagnostics_title".localized) {
                 NotificationDebugScreen(activeClientManager: activeClientManager)
             }
 
-            Button("onboarding_reschedule_now".localized) {
+            Button {
                 Task { @MainActor in
                     do {
                         try await NotificationService.shared.requestAuthorization()
@@ -140,12 +140,16 @@ public struct SettingsView: View {
                     }
                     await NotificationService.shared.replaceAllSchedules(supplements: supplementsForActiveClient)
                 }
+            } label: {
+                Label("onboarding_reschedule_now".localized, systemImage: "arrow.triangle.2.circlepath")
             }
 
-            Button("settings_clear_pending_notifications".localized) {
+            Button {
                 Task { @MainActor in
                     await NotificationService.shared.clearAllPendingNotifications()
                 }
+            } label: {
+                Label("settings_clear_pending_notifications".localized, systemImage: "trash")
             }
             
             if let shareStackPNGURL {

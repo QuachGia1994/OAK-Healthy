@@ -313,6 +313,7 @@
     <string name="notification_check_title">Danh sách thông báo</string>
     <string name="notification_check_reload">Làm mới danh sách</string>
     <string name="notification_check_empty">Không có thông báo nào đang được lên lịch.</string>
+    <string name="notification_check_open_diagnostics">Chẩn đoán thông báo</string>
     <string name="notification_check_permission_granted">Đã cấp</string>
     <string name="notification_check_permission_denied">Bị từ chối</string>
     <string name="notification_check_permission_not_required">Không cần</string>
@@ -325,7 +326,22 @@
     <string name="notification_check_active_client_format">Học viên đang chọn: %1$s</string>
     <string name="notification_check_active_supplements_format">Số chất đang dùng: %1$d</string>
     <string name="notification_check_scheduled_count_format">Đã lên lịch (Debug): %1$d</string>
-    <string name="notification_check_diagnostics_label">Diagnostics</string>
+    <string name="notification_check_permission_label">Quyền</string>
+    <string name="notification_check_enabled_label">Bật (Người dùng)</string>
+    <string name="notification_check_active_client_label">Học viên đang chọn</string>
+    <string name="notification_check_active_supplements_label">Số chất đang dùng</string>
+    <string name="notification_check_scheduled_count_label">Đã lên lịch (Debug)</string>
+    <string name="notification_check_exact_alarms_label">Exact alarms</string>
+    <string name="notification_check_battery_opt_label">Tối ưu pin</string>
+    <string name="notification_check_diagnostics_label">Chẩn đoán</string>
+    <string name="notification_check_status_denied">Bị từ chối</string>
+    <string name="notification_check_status_off">TẮT</string>
+    <string name="notification_check_status_no_active_client">Chưa chọn học viên</string>
+    <string name="notification_check_status_no_supplements">Chưa có chất</string>
+    <string name="notification_check_status_exact_alarm_off">Exact alarm đang tắt</string>
+    <string name="notification_check_status_battery_optimized">Đang bị tối ưu pin</string>
+    <string name="notification_check_status_scheduled_zero">Lịch nhắc = 0</string>
+    <string name="notification_check_status_ok">OK</string>
     <string name="notification_check_reschedule_now">Đặt lại lịch ngay</string>
     <string name="notification_check_clear_pending">Xóa lịch nhắc (pending)</string>
     <string name="notification_check_snackbar_permission_required">Cần cấp quyền thông báo.</string>
@@ -341,10 +357,10 @@
     <string name="notification_check_hint_ok">Trạng thái ổn.</string>
     <string name="notification_check_exact_alarms_enabled">Đã bật</string>
     <string name="notification_check_exact_alarms_disabled">Chưa bật</string>
-    <string name="notification_check_exact_alarms_format">Exact Alarms: %1$s</string>
+    <string name="notification_check_exact_alarms_format">Exact alarms: %1$s</string>
     <string name="notification_check_battery_opt_ignored">Đã bỏ tối ưu</string>
     <string name="notification_check_battery_opt_optimized">Đang bị tối ưu</string>
-    <string name="notification_check_battery_opt_format">Battery Optimization: %1$s</string>
+    <string name="notification_check_battery_opt_format">Tối ưu pin: %1$s</string>
     <string name="notification_check_open_battery_opt_settings">Mở cài đặt Battery Optimization</string>
     <string name="notification_check_dose_format">Liều lượng: %1$s</string>
 

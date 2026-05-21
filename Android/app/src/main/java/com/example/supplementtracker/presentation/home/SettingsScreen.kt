@@ -439,7 +439,7 @@ fun SettingsScreen(
                     
                     SettingsSection(title = stringResource(R.string.settings_notifications_title)) {
                         SettingsRow(
-                            title = stringResource(R.string.notification_check_title),
+                            title = stringResource(R.string.notification_check_open_diagnostics),
                             onClick = onNavigateToNotificationCheck
                         )
 
