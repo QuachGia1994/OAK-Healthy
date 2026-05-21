@@ -53,6 +53,17 @@ public struct HistoryView: View {
                                     AxisValueLabel(format: .dateTime.weekday(.abbreviated))
                                 }
                             }
+                            .chartYAxis {
+                                AxisMarks(position: .leading) { value in
+                                    AxisGridLine()
+                                    AxisTick()
+                                    if let v = value.as(Int.self) {
+                                        AxisValueLabel("\(v)")
+                                    } else {
+                                        AxisValueLabel()
+                                    }
+                                }
+                            }
                         }
                         .padding()
                         .oakCard()
