@@ -206,7 +206,11 @@ struct OAKBackupSupplement: Codable, Sendable {
     ) -> String {
         let trimmed: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         let anchor = trimmed(cycle.weeklyAnchorDate ?? "")
-        let parts = [
+        let durationMonths = cycle.durationMonths.map(String.init) ?? ""
+        let weeklyWeekdaysMask = cycle.weeklyWeekdaysMask.map(String.init) ?? ""
+        let weeklyIntervalWeeks = cycle.weeklyIntervalWeeks.map(String.init) ?? ""
+        let intervalDays = cycle.intervalDays.map(String.init) ?? ""
+        let parts: [String] = [
             "supplement",
             trimmed(name),
             trimmed(dailyDose),
@@ -215,10 +219,10 @@ struct OAKBackupSupplement: Codable, Sendable {
             String(cycle.isContinuous),
             String(cycle.daysOn),
             String(cycle.daysOff),
-            cycle.durationMonths.map(String.init) ?? "",
-            cycle.weeklyWeekdaysMask.map(String.init) ?? "",
-            cycle.weeklyIntervalWeeks.map(String.init) ?? "",
-            cycle.intervalDays.map(String.init) ?? "",
+            durationMonths,
+            weeklyWeekdaysMask,
+            weeklyIntervalWeeks,
+            intervalDays,
             anchor
         ]
         return parts.joined(separator: "|").lowercased()
