@@ -20,13 +20,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build APK
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    
+    timeout-minutes: 5
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v6
@@ -44,6 +41,20 @@ jobs:
         run: |
           python3 scripts/check_function_length.py --max 30 --paths Android --changed-only --limit 25 \
             --include 'Android/app/src/main/java/com/example/supplementtracker/presentation/**'
+
+  build:
+    name: Build APK
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
 
       - name: Setup JDK 17
         uses: actions/setup-java@v5
@@ -78,7 +89,8 @@ jobs:
         run: |
           set -o pipefail
           chmod +x ./gradlew
-          ./gradlew :app:assembleDebug --stacktrace --console=plain --no-daemon 2>&1 | tee gradle-build.log
+          : > gradle-build.log
+          ./gradlew :app:assembleDebug --stacktrace --console=plain --no-daemon --build-cache 2>&1 | tee gradle-build.log
         working-directory: ./Android
 
       - name: Dump Gradle log (on failure)
@@ -99,6 +111,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload APK Artifact
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
         with:
           name: OAKHealthy-Android-APK
