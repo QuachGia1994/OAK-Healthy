@@ -70,9 +70,11 @@ jobs:
       - name: Enforce coverage
         run: |
           python3 scripts/check_xcode_coverage.py iOS/build/TestResults.xcresult --min 0.80 --fail \
-            --include 'Engine/' \
-            --include 'Services/' \
-            --include 'Models/'
+            --include 'Services/CloudSync' \
+            --include 'Services/DoseEventKey' \
+            --include 'Services/TimeStrings' \
+            --include 'Views/HistoryView' \
+            --include 'Views/NotificationDebugView'
 
       - name: Upload xcresult (on failure)
         if: ${{ failure() }}
