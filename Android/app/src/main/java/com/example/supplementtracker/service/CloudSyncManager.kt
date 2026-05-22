@@ -29,30 +29,48 @@ class CloudSyncManager {
     ): HttpResponse {
         val connection = (url.openConnection() as HttpURLConnection)
         try {
-            connection.requestMethod = method
-            connection.connectTimeout = 8_000
-            connection.readTimeout = 12_000
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("X-Master-Key", key)
-            val match = ifMatchEtag.orEmpty().trim()
-            if (match.isNotEmpty()) connection.setRequestProperty("If-Match", match)
-            val noneMatch = ifNoneMatchEtag.orEmpty().trim()
-            if (noneMatch.isNotEmpty()) connection.setRequestProperty("If-None-Match", noneMatch)
-            if (body != null) {
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            } else {
-                connection.doInput = true
-            }
-            val code = connection.responseCode
-            val etag = connection.getHeaderField("ETag")?.trim()
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-            val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            return HttpResponse(code = code, body = responseBody, etag = etag)
+            prepareConnection(connection, method, key, ifMatchEtag, ifNoneMatchEtag)
+            writeRequestBodyIfNeeded(connection, body)
+            return readResponse(connection)
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun prepareConnection(
+        connection: HttpURLConnection,
+        method: String,
+        key: String,
+        ifMatchEtag: String?,
+        ifNoneMatchEtag: String?
+    ) {
+        connection.requestMethod = method
+        connection.connectTimeout = 8_000
+        connection.readTimeout = 12_000
+        connection.setRequestProperty("Accept", "application/json")
+        connection.setRequestProperty("X-Master-Key", key)
+        val match = ifMatchEtag.orEmpty().trim()
+        if (match.isNotEmpty()) connection.setRequestProperty("If-Match", match)
+        val noneMatch = ifNoneMatchEtag.orEmpty().trim()
+        if (noneMatch.isNotEmpty()) connection.setRequestProperty("If-None-Match", noneMatch)
+    }
+
+    private fun writeRequestBodyIfNeeded(connection: HttpURLConnection, body: String?) {
+        if (body == null) {
+            connection.doInput = true
+            return
+        }
+        connection.doOutput = true
+        connection.setRequestProperty("Content-Type", "application/json")
+        connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+    }
+
+    private fun readResponse(connection: HttpURLConnection): HttpResponse {
+        val code = connection.responseCode
+        val etag = connection.getHeaderField("ETag")?.trim()
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        return HttpResponse(code = code, body = responseBody, etag = etag)
     }
     
     private suspend fun <T> executeWithRetry(block: () -> T): T {

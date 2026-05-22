@@ -3,6 +3,7 @@ package com.example.supplementtracker.data.repository
 import com.example.supplementtracker.data.local.IntakeRecordEntity
 import com.example.supplementtracker.data.local.IntakeRecordWithSupplementEntity
 import com.example.supplementtracker.data.local.SupplementDao
+import com.example.supplementtracker.data.local.SupplementWithTakenTodayEntity
 import com.example.supplementtracker.data.local.ClientProfileEntity
 import com.example.supplementtracker.data.mapper.toDomain
 import com.example.supplementtracker.data.mapper.toEntity
@@ -80,37 +81,45 @@ class SupplementRepositoryImpl(
         endOfDay: Long
     ): Flow<List<UserSupplementTakenToday>> {
         return dao.getSupplementsWithTakenToday(clientId, startOfDay, endOfDay).map { rows ->
-            rows.map { row ->
-                val weekly = run {
-                    val mask = row.weeklyWeekdaysMask ?: return@run null
-                    val interval = row.weeklyIntervalWeeks ?: return@run null
-                    val anchor = row.weeklyAnchorDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@run null
-                    WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
-                }
-                val supplement = UserSupplement(
-                    id = UUID.fromString(row.id),
-                    clientId = UUID.fromString(row.clientId),
-                    name = row.name,
-                    startDate = LocalDate.parse(row.startDate),
-                    cycleConfig = CycleConfig(
-                        daysOn = row.daysOn,
-                        daysOff = row.daysOff,
-                        isContinuous = row.isContinuous,
-                        durationMonths = row.durationMonths,
-                        weeklyRecurrence = weekly
-                    ),
-                    dailyDose = row.dailyDose,
-                    intakeTime = row.intakeTime,
-                    updatedAtEpochMs = 0L,
-                    deletedAtEpochMs = null
-                )
-                UserSupplementTakenToday(
-                    supplement = supplement,
-                    todayStatus = row.todayStatus,
-                    isTakenToday = row.isTakenToday
-                )
-            }
+            rows.map { row -> row.toTakenToday() }
         }
+    }
+
+    private fun SupplementWithTakenTodayEntity.toTakenToday(): UserSupplementTakenToday {
+        return UserSupplementTakenToday(
+            supplement = toSupplement(),
+            todayStatus = todayStatus,
+            isTakenToday = isTakenToday
+        )
+    }
+
+    private fun SupplementWithTakenTodayEntity.toSupplement(): UserSupplement {
+        val weekly = weeklyRecurrenceOrNull()
+        return UserSupplement(
+            id = UUID.fromString(id),
+            clientId = UUID.fromString(clientId),
+            name = name,
+            startDate = LocalDate.parse(startDate),
+            cycleConfig = CycleConfig(
+                daysOn = daysOn,
+                daysOff = daysOff,
+                isContinuous = isContinuous,
+                durationMonths = durationMonths,
+                weeklyRecurrence = weekly
+            ),
+            dailyDose = dailyDose,
+            intakeTime = intakeTime,
+            updatedAtEpochMs = 0L,
+            deletedAtEpochMs = null
+        )
+    }
+
+    private fun SupplementWithTakenTodayEntity.weeklyRecurrenceOrNull(): WeeklyRecurrenceConfig? {
+        val mask = weeklyWeekdaysMask ?: return null
+        val interval = weeklyIntervalWeeks ?: return null
+        val anchorRaw = weeklyAnchorDate ?: return null
+        val anchor = runCatching { LocalDate.parse(anchorRaw) }.getOrNull() ?: return null
+        return WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
     }
 
     override suspend fun logIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {

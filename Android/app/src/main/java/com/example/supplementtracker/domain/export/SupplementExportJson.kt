@@ -157,95 +157,92 @@ object OAKBackupJson {
     }
 
     fun decodeCompat(json: String): Result<OAKBackupDataDTO> {
-        return runCatching {
-            val trimmed = json.trim()
-            if (trimmed.startsWith("[")) {
-                val array = JSONArray(trimmed)
-                return@runCatching OAKBackupDataDTO(
-                    version = OAKBackupSchema.VERSION,
-                    stack = decodeStackArray(array),
-                    history = emptyList()
-                )
-            }
+        return runCatching { decodeCompatOrThrow(json) }
+    }
 
-            val root = runCatching { JSONObject(trimmed) }.getOrNull()
-            if (root == null) {
-                val legacy = SupplementExportJson.decode(json).getOrThrow()
-                return@runCatching OAKBackupDataDTO(
-                    version = OAKBackupSchema.VERSION,
-                    stack = legacy.supplements.map { legacyDto ->
-                        OAKBackupSupplementDTO(
-                            id = stableLegacySupplementId(legacyDto),
-                            name = legacyDto.name,
-                            dailyDose = legacyDto.dailyDose,
-                            intakeTime = legacyDto.intakeTime,
-                            startDate = legacyDto.startDate,
-                            cycle = legacyDto.cycle
-                        )
-                    },
-                    history = emptyList()
-                )
-            }
+    private fun decodeCompatOrThrow(json: String): OAKBackupDataDTO {
+        val trimmed = json.trim()
+        if (trimmed.startsWith("[")) return decodeFromLegacyArray(trimmed)
+        val root = runCatching { JSONObject(trimmed) }.getOrNull() ?: return decodeFromSupplementExport(json)
+        return decodeFromRoot(root, json)
+    }
 
-            val stackArray = root.optJSONArray("supplements") ?: root.optJSONArray("stack")
-            if (stackArray == null) {
-                val legacy = SupplementExportJson.decode(json).getOrThrow()
-                return@runCatching OAKBackupDataDTO(
-                    version = OAKBackupSchema.VERSION,
-                    stack = legacy.supplements.map { legacyDto ->
-                        OAKBackupSupplementDTO(
-                            id = stableLegacySupplementId(legacyDto),
-                            name = legacyDto.name,
-                            dailyDose = legacyDto.dailyDose,
-                            intakeTime = legacyDto.intakeTime,
-                            startDate = legacyDto.startDate,
-                            cycle = legacyDto.cycle
-                        )
-                    },
-                    history = emptyList()
-                )
-            }
+    private fun decodeFromLegacyArray(trimmed: String): OAKBackupDataDTO {
+        val array = JSONArray(trimmed)
+        return OAKBackupDataDTO(
+            version = OAKBackupSchema.VERSION,
+            stack = decodeStackArray(array),
+            history = emptyList()
+        )
+    }
 
-            val stack = decodeStackArray(stackArray)
+    private fun decodeFromSupplementExport(json: String): OAKBackupDataDTO {
+        val legacy = SupplementExportJson.decode(json).getOrThrow()
+        return OAKBackupDataDTO(
+            version = OAKBackupSchema.VERSION,
+            stack = legacyStackFromExport(legacy),
+            history = emptyList()
+        )
+    }
 
-            val historyArray = root.optJSONArray("historyLogs") ?: root.optJSONArray("history") ?: JSONArray()
-            val history = buildList {
-                for (i in 0 until historyArray.length()) {
-                    add(decodeHistory(historyArray.getJSONObject(i)))
-                }
-            }.toMutableList()
-            
-            val historyZlibBase64 = root.optString("historyZlibBase64", "").trim().ifBlank { null }
-            if (historyZlibBase64 != null) {
-                val inflated = inflateZlibBase64Array(historyZlibBase64)
-                for (i in 0 until inflated.length()) {
-                    val obj = inflated.optJSONObject(i) ?: continue
-                    history.add(decodeHistory(obj))
-                }
-            }
-            
-            val dedupedHistory = history
-                .groupBy { it.id.lowercase() }
-                .mapNotNull { (_, list) -> list.maxByOrNull { it.updatedAtEpochMs } }
-            
-            val metaObj = root.optJSONObject("meta")
-            val meta = metaObj?.let {
-                val deviceId = it.optString("deviceId", "").trim()
-                if (deviceId.isEmpty()) return@let null
-                OAKBackupMetaDTO(
-                    schemaVersion = it.optInt("schemaVersion", 0),
-                    updatedAtEpochMs = it.optLong("updatedAtEpochMs", 0L),
-                    deviceId = deviceId
-                )
-            }
-
-            OAKBackupDataDTO(
-                version = root.optString("version", OAKBackupSchema.VERSION),
-                meta = meta,
-                stack = stack,
-                history = dedupedHistory,
-                historyZlibBase64 = historyZlibBase64
+    private fun legacyStackFromExport(file: SupplementExportFileDTO): List<OAKBackupSupplementDTO> {
+        return file.supplements.map { legacyDto ->
+            OAKBackupSupplementDTO(
+                id = stableLegacySupplementId(legacyDto),
+                name = legacyDto.name,
+                dailyDose = legacyDto.dailyDose,
+                intakeTime = legacyDto.intakeTime,
+                startDate = legacyDto.startDate,
+                cycle = legacyDto.cycle
             )
+        }
+    }
+
+    private fun decodeFromRoot(root: JSONObject, rawJson: String): OAKBackupDataDTO {
+        val stackArray = root.optJSONArray("supplements") ?: root.optJSONArray("stack")
+        if (stackArray == null) return decodeFromSupplementExport(rawJson)
+        val stack = decodeStackArray(stackArray)
+        val (history, historyZlibBase64) = decodeHistoryCompat(root)
+        return OAKBackupDataDTO(
+            version = root.optString("version", OAKBackupSchema.VERSION),
+            meta = decodeMeta(root),
+            stack = stack,
+            history = history,
+            historyZlibBase64 = historyZlibBase64
+        )
+    }
+
+    private fun decodeMeta(root: JSONObject): OAKBackupMetaDTO? {
+        val metaObj = root.optJSONObject("meta") ?: return null
+        val deviceId = metaObj.optString("deviceId", "").trim()
+        if (deviceId.isEmpty()) return null
+        return OAKBackupMetaDTO(
+            schemaVersion = metaObj.optInt("schemaVersion", 0),
+            updatedAtEpochMs = metaObj.optLong("updatedAtEpochMs", 0L),
+            deviceId = deviceId
+        )
+    }
+
+    private fun decodeHistoryCompat(root: JSONObject): Pair<List<OAKBackupHistoryDTO>, String?> {
+        val historyArray = root.optJSONArray("historyLogs") ?: root.optJSONArray("history") ?: JSONArray()
+        val history = buildList {
+            for (i in 0 until historyArray.length()) add(decodeHistory(historyArray.getJSONObject(i)))
+        }.toMutableList()
+        val zlib = root.optString("historyZlibBase64", "").trim().ifBlank { null }
+        if (zlib != null) history.addAll(inflateHistoryZlib(zlib))
+        val deduped = history.groupBy { it.id.lowercase() }.mapNotNull { (_, list) ->
+            list.maxByOrNull { it.updatedAtEpochMs }
+        }
+        return deduped to zlib
+    }
+
+    private fun inflateHistoryZlib(historyZlibBase64: String): List<OAKBackupHistoryDTO> {
+        val inflated = inflateZlibBase64Array(historyZlibBase64)
+        return buildList {
+            for (i in 0 until inflated.length()) {
+                val obj = inflated.optJSONObject(i) ?: continue
+                add(decodeHistory(obj))
+            }
         }
     }
     

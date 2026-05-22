@@ -143,34 +143,22 @@ object CloudSyncCrypto {
 
     private fun resolveKey(context: Context, keyId: String): ByteArray? {
         val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
-        val stored = prefs.getString(keyPrefix + keyId, null)?.trim().orEmpty()
-        if (stored.isNotEmpty()) {
-            if (stored.startsWith(wrappedPrefix)) {
-                return unwrapKeyFromStorage(stored)
-            }
-            val decoded = runCatching { Base64.getDecoder().decode(stored) }.getOrNull()
-            if (decoded != null && decoded.size == 32) {
-                val migrated = runCatching { wrapKeyForStorage(decoded) }.getOrNull()
-                if (migrated != null) prefs.edit().putString(keyPrefix + keyId, migrated).apply()
-                return decoded
-            }
-        }
+        val direct = readKeyEntry(prefs, keyId)
+        if (direct != null) return direct
         val previous = prefs.getString(previousKeyIdKey, null)?.trim().orEmpty()
-        if (previous == keyId) {
-            val prevStored = prefs.getString(keyPrefix + previous, null)?.trim().orEmpty()
-            if (prevStored.isNotEmpty()) {
-                if (prevStored.startsWith(wrappedPrefix)) {
-                    return unwrapKeyFromStorage(prevStored)
-                }
-                val decoded = runCatching { Base64.getDecoder().decode(prevStored) }.getOrNull()
-                if (decoded != null && decoded.size == 32) {
-                    val migrated = runCatching { wrapKeyForStorage(decoded) }.getOrNull()
-                    if (migrated != null) prefs.edit().putString(keyPrefix + previous, migrated).apply()
-                    return decoded
-                }
-            }
-        }
+        if (previous == keyId) return readKeyEntry(prefs, previous)
         return null
+    }
+
+    private fun readKeyEntry(prefs: android.content.SharedPreferences, keyId: String): ByteArray? {
+        val stored = prefs.getString(keyPrefix + keyId, null)?.trim().orEmpty()
+        if (stored.isEmpty()) return null
+        if (stored.startsWith(wrappedPrefix)) return unwrapKeyFromStorage(stored)
+        val decoded = runCatching { Base64.getDecoder().decode(stored) }.getOrNull() ?: return null
+        if (decoded.size != 32) return null
+        val migrated = runCatching { wrapKeyForStorage(decoded) }.getOrNull() ?: return decoded
+        prefs.edit().putString(keyPrefix + keyId, migrated).apply()
+        return decoded
     }
 
     private fun requireKey(context: Context, keyId: String): ByteArray {
