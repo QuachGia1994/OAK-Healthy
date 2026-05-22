@@ -36,6 +36,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -128,13 +130,14 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             contentType = "chart"
         ) {
             Text(stringResource(R.string.intake_frequency_last_7), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Card(
+            OakCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp),
+                variant = OakCardVariant.Surface,
                 shape = shape,
-                colors = CardDefaults.cardColors(containerColor = containerColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                contentPadding = PaddingValues(0.dp),
+                elevation = 2.dp
             ) {
                 PremiumBarChart(data = state.chartData)
             }
@@ -229,17 +232,17 @@ private fun HistoryContent(state: HistoryUiState.Success) {
 @Composable
 private fun InsightsPanel(insights7: InsightsSummary?, insights30: InsightsSummary?) {
     val shape = RoundedCornerShape(28.dp)
-    val containerColor = MaterialTheme.colorScheme.surfaceVariant
     Text(stringResource(R.string.insights_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-    Card(
+    OakCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 12.dp),
+        variant = OakCardVariant.Surface,
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        contentPadding = PaddingValues(14.dp),
+        elevation = 2.dp
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             InsightsWindowCard(title = stringResource(R.string.insights_last_7), summary = insights7, modifier = Modifier.weight(1f))
             InsightsWindowCard(title = stringResource(R.string.insights_last_30), summary = insights30, modifier = Modifier.weight(1f))
         }

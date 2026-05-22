@@ -335,6 +335,20 @@ public struct NotificationService: NotificationManaging {
         return requests.compactMap { snapshot(from: $0) }.sorted { $0.scheduledAt < $1.scheduledAt }
     }
     
+    @MainActor
+    public func rebuildShadowFromPendingRequests() async {
+        let settings = await center.notificationSettings()
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        
+        let pending = await pendingRequestSnapshots()
+        await NotificationShadowLogStore.shared.clear()
+        let formatter = shadowDateFormatter()
+        for snapshot in pending {
+            let entry = "\(snapshot.id)||\(snapshot.title)||\(snapshot.dosage)||\(snapshot.cycle)||\(formatter.string(from: snapshot.scheduledAt))"
+            await NotificationShadowLogStore.shared.append(entry: entry)
+        }
+    }
+    
     private func snapshot(from request: UNNotificationRequest) -> PendingNotificationSnapshot? {
         guard let scheduledAt = scheduledDate(from: request.trigger) else { return nil }
         let title = request.content.title.trimmingCharacters(in: .whitespacesAndNewlines)

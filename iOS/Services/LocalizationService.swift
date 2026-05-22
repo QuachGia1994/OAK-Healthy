@@ -286,6 +286,7 @@ public struct LocalizationService: Sendable {
         "notification_debug_pending_only_label": ("Pending only", "Chỉ Pending"),
         "notification_debug_shadow_only_label": ("Shadow only", "Chỉ Shadow"),
         "notification_debug_shadow_errors_label": ("Shadow errors", "Lỗi Shadow"),
+        "notification_debug_repair_shadow": ("Repair (Shadow)", "Sửa (Shadow)"),
         
         "notification_debug_diag_denied_title": ("Denied", "Chưa cho phép"),
         "notification_debug_diag_off_title": ("Off", "Đang tắt"),

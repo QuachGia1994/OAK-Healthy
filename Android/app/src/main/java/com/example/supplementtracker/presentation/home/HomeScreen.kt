@@ -57,6 +57,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
 import com.example.supplementtracker.service.UpdateService
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import java.util.UUID
@@ -485,25 +487,14 @@ private fun GlassCard(
     contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
-    val stroke = (accent ?: Color.White).copy(alpha = if (isDark) 0.16f else 0.28f)
-    val shape = RoundedCornerShape(28.dp)
-    val highlight = if (isDark) {
-        listOf(base.copy(alpha = 0.16f), base)
-    } else {
-        listOf(base.copy(alpha = 0.74f), base)
-    }
-
-    Box(
-        modifier = modifier
-            .background(Brush.linearGradient(highlight), shape)
-            .border(1.dp, stroke, shape)
-            .clip(shape)
-            .padding(contentPadding)
-    ) {
-        Column(content = content)
-    }
+    OakCard(
+        modifier = modifier,
+        variant = OakCardVariant.Glass,
+        accent = accent,
+        shape = RoundedCornerShape(28.dp),
+        contentPadding = contentPadding,
+        content = content
+    )
 }
 
 @Composable

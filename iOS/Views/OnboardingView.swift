@@ -438,12 +438,9 @@ private struct OnboardingProgress: View {
 
 private extension View {
     func onboardingCard() -> some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         return padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial, in: shape)
-            .overlay(shape.stroke(Color.secondary.opacity(0.18), lineWidth: 1))
-            .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 6)
+            .oakCardStyle(.glass, cornerRadius: 16)
     }
 }
 

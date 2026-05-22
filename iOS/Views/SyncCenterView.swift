@@ -815,7 +815,12 @@ public struct SyncCenterView: View {
             return CloudSyncManifest(v: 1, stackBinId: storedStack, historyBinId: storedHistory)
         }
         let manifestData = try await CloudSyncManager.shared.downloadBackup(binId: manifestId)
-        guard let decoded = CloudSyncManifestCodec.decode(manifestData) else { throw CloudSyncError.invalidResponse }
+        let decoded: CloudSyncManifest
+        do {
+            decoded = try CloudSyncManifestCodec.decode(manifestData)
+        } catch let error as CloudSyncManifestCodecError {
+            throw CloudSyncError.manifestCodec(error)
+        }
         let stackId = decoded.stackBinId.trimmingCharacters(in: .whitespacesAndNewlines)
         let historyId = decoded.historyBinId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !stackId.isEmpty, !historyId.isEmpty else { throw CloudSyncError.invalidResponse }
@@ -927,8 +932,11 @@ public struct SyncCenterView: View {
         let historyPayload = try SupplementExportCodec.encodeBackup(supplements: [], records: cachedRecords)
         let stackId = try await CloudSyncManager.shared.uploadBackup(jsonData: stackPayload)
         let historyId = try await CloudSyncManager.shared.uploadBackup(jsonData: historyPayload)
-        guard let manifest = CloudSyncManifestCodec.encode(stackBinId: stackId, historyBinId: historyId) else {
-            throw CloudSyncError.invalidResponse
+        let manifest: Data
+        do {
+            manifest = try CloudSyncManifestCodec.encode(stackBinId: stackId, historyBinId: historyId)
+        } catch let error as CloudSyncManifestCodecError {
+            throw CloudSyncError.manifestCodec(error)
         }
         let manifestId = try await CloudSyncManager.shared.uploadBackup(jsonData: manifest)
         UserDefaults.standard.set(stackId, forKey: "cloudSyncStackBinId_\(manifestId)")

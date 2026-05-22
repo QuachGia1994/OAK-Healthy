@@ -252,6 +252,9 @@ private struct SafeBootView: View {
         let notificationService = NotificationService.shared
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
         await notificationService.registerNotificationActions()
+        if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") {
+            await notificationService.rebuildShadowFromPendingRequests()
+        }
         onReady(
             AppDependencyContainer(
                 modelContainer: container,

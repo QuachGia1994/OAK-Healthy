@@ -2,7 +2,10 @@ import Compression
 import Foundation
 
 enum CloudSyncPayloadCodecError: Error, Sendable {
-    case invalidCompressedPayload
+    case wrapperJSONInvalid
+    case missingCompressedField(field: String)
+    case base64DecodeFailed
+    case inflateFailed
 }
 
 enum CloudSyncPayloadCodec {
@@ -24,10 +27,12 @@ enum CloudSyncPayloadCodec {
     }
     
     static func decompressIfNeeded(_ data: Data) throws(CloudSyncPayloadCodecError) -> Data {
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return data }
+        guard let objAny = try? JSONSerialization.jsonObject(with: data) else { return data }
+        guard let obj = objAny as? [String: Any] else { throw .wrapperJSONInvalid }
         guard let z = obj["z"] as? [String: Any] else { return data }
-        guard let ct = z["ct"] as? String, let raw = Data(base64Encoded: ct) else { throw .invalidCompressedPayload }
-        guard let inflated = process(data: raw, operation: COMPRESSION_STREAM_DECODE) else { throw .invalidCompressedPayload }
+        guard let ct = z["ct"] as? String else { throw .missingCompressedField(field: "ct") }
+        guard let raw = Data(base64Encoded: ct) else { throw .base64DecodeFailed }
+        guard let inflated = process(data: raw, operation: COMPRESSION_STREAM_DECODE) else { throw .inflateFailed }
         return inflated
     }
     

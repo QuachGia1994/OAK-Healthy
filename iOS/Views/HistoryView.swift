@@ -314,9 +314,7 @@ private struct HistoryRow: View, Equatable {
 
 private extension View {
     func oakCard() -> some View {
-        background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+        oakCardStyle(.glass, cornerRadius: 14, strokeOpacity: 0.0, shadowOpacity: 0.12, shadowRadius: 12, shadowY: 6)
     }
 }
 

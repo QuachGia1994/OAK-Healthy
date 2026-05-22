@@ -45,9 +45,7 @@ public struct HomeView: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding(20)
-                    .background(.ultraThinMaterial)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.10), radius: 12, x: 0, y: 6)
+                    .oakCardStyle(.glass, cornerRadius: 16)
                     .padding(.horizontal, 24)
                 } else {
                     List {

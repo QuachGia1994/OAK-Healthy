@@ -72,6 +72,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.ClientProfile
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import java.util.UUID
@@ -95,8 +97,6 @@ fun OnboardingScreen(
             Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
         }
     }
-    val cardBase = MaterialTheme.colorScheme.surfaceVariant
-    val cardStroke = MaterialTheme.colorScheme.outlineVariant
     val cardShape = remember { RoundedCornerShape(28.dp) }
 
     var step by remember { mutableStateOf(OnboardingStep.CLIENT) }
@@ -152,56 +152,47 @@ fun OnboardingScreen(
             )
             OnboardingProgress(step = step)
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(cardShape)
-                    .border(1.dp, cardStroke, cardShape),
+            OakCard(
+                modifier = Modifier.fillMaxWidth(),
+                variant = OakCardVariant.Surface,
                 shape = cardShape,
-                colors = CardDefaults.cardColors(containerColor = cardBase),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                contentPadding = PaddingValues(16.dp),
+                elevation = 2.dp
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    when (step) {
-                        OnboardingStep.CLIENT -> ClientStep(
-                            clients = clients,
-                            currentClientId = currentClientId,
-                            onSelectClient = { activeClientManager.setCurrentClientId(it) },
-                            onAddClient = { isAddClientDialogVisible = true }
-                        )
-                        OnboardingStep.NOTIFICATIONS -> NotificationsStep(
-                            checked = isNotificationsEnabledByUser,
-                            hasPermission = hasNotificationPermission,
-                            onCheckedChange = { checked ->
-                                prefs.edit().putBoolean("isNotificationEnabledByUser", checked).apply()
-                                isNotificationsEnabledByUser = checked
-                                if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission(context)) {
-                                    val activity = context as? Activity
-                                    if (activity != null) {
-                                        ActivityCompat.requestPermissions(
-                                            activity,
-                                            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                                            101
-                                        )
-                                    }
+                when (step) {
+                    OnboardingStep.CLIENT -> ClientStep(
+                        clients = clients,
+                        currentClientId = currentClientId,
+                        onSelectClient = { activeClientManager.setCurrentClientId(it) },
+                        onAddClient = { isAddClientDialogVisible = true }
+                    )
+                    OnboardingStep.NOTIFICATIONS -> NotificationsStep(
+                        checked = isNotificationsEnabledByUser,
+                        hasPermission = hasNotificationPermission,
+                        onCheckedChange = { checked ->
+                            prefs.edit().putBoolean("isNotificationEnabledByUser", checked).apply()
+                            isNotificationsEnabledByUser = checked
+                            if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission(context)) {
+                                val activity = context as? Activity
+                                if (activity != null) {
+                                    ActivityCompat.requestPermissions(
+                                        activity,
+                                        arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                        101
+                                    )
                                 }
-                                homeViewModel.refreshNotificationSchedules()
-                                refreshPermissionState()
-                            },
-                            onOpenAppSettings = { openAppSettings(context) }
-                        )
-                        OnboardingStep.EXACT_ALARM -> ExactAlarmStep(onOpenExactAlarm = { openExactAlarmSettings(context) })
-                        OnboardingStep.BATTERY -> BatteryStep(
-                            onRequestDisableOptimization = { requestIgnoreBatteryOptimizations(context) },
-                            onOpenAppSettings = { openAppSettings(context) }
-                        )
-                        OnboardingStep.DONE -> DoneStep()
-                    }
+                            }
+                            homeViewModel.refreshNotificationSchedules()
+                            refreshPermissionState()
+                        },
+                        onOpenAppSettings = { openAppSettings(context) }
+                    )
+                    OnboardingStep.EXACT_ALARM -> ExactAlarmStep(onOpenExactAlarm = { openExactAlarmSettings(context) })
+                    OnboardingStep.BATTERY -> BatteryStep(
+                        onRequestDisableOptimization = { requestIgnoreBatteryOptimizations(context) },
+                        onOpenAppSettings = { openAppSettings(context) }
+                    )
+                    OnboardingStep.DONE -> DoneStep()
                 }
             }
 

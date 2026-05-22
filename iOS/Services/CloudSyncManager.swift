@@ -9,6 +9,8 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
     case networkError(message: String)
     case decodingError(message: String)
     case cryptoError(message: String)
+    case payloadCodec(CloudSyncPayloadCodecError)
+    case manifestCodec(CloudSyncManifestCodecError)
 
     public var errorDescription: String? {
         switch self {
@@ -27,6 +29,26 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
             return "Lỗi dữ liệu: \(message)"
         case .cryptoError(let message):
             return "Lỗi mã hoá: \(message)"
+        case .payloadCodec(let error):
+            return "Lỗi giải mã payload: \(payloadCodecMessage(error))"
+        case .manifestCodec(let error):
+            return "Lỗi manifest: \(manifestCodecMessage(error))"
+        }
+    }
+    
+    private func payloadCodecMessage(_ error: CloudSyncPayloadCodecError) -> String {
+        switch error {
+        case .wrapperJSONInvalid: return "wrapper_json_invalid"
+        case let .missingCompressedField(field): return "missing_field_\(field)"
+        case .base64DecodeFailed: return "base64_decode_failed"
+        case .inflateFailed: return "inflate_failed"
+        }
+    }
+    
+    private func manifestCodecMessage(_ error: CloudSyncManifestCodecError) -> String {
+        switch error {
+        case .encodeFailed: return "encode_failed"
+        case .decodeFailed: return "decode_failed"
         }
     }
 }
@@ -245,7 +267,7 @@ public actor CloudSyncManager {
             let decrypted = try CloudSyncCrypto.decryptIfNeeded(data)
             return try CloudSyncPayloadCodec.decompressIfNeeded(decrypted)
         } catch let error as CloudSyncPayloadCodecError {
-            throw CloudSyncError.decodingError(message: error.localizedDescription)
+            throw CloudSyncError.payloadCodec(error)
         } catch {
             throw CloudSyncError.cryptoError(message: error.localizedDescription)
         }
@@ -393,21 +415,58 @@ enum CloudSyncAutoSync {
         UserDefaults.standard.set(now, forKey: ctx.lastSyncKey)
         UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
         markActivity()
-        DebugReporter.report("cloud_sync_success", fields: [
-            "binId": ctx.id,
-            "clientId": ctx.clientId.uuidString
-        ])
+        DebugReporter.report("cloud_sync_success", fields: telemetryFields(ctx: ctx, error: nil))
     }
 
     private static func markFailure(ctx: SyncContext, error: Error) {
         UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
         UserDefaults.standard.set(error.localizedDescription, forKey: ctx.lastErrorKey)
         print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
-        DebugReporter.report("cloud_sync_failure", fields: [
+        DebugReporter.report("cloud_sync_failure", fields: telemetryFields(ctx: ctx, error: error))
+    }
+    
+    private static func telemetryFields(ctx: SyncContext, error: Error?) -> [String: String] {
+        var fields: [String: String] = [
             "binId": ctx.id,
             "clientId": ctx.clientId.uuidString,
-            "error": error.localizedDescription
-        ])
+            "bin_id": ctx.id,
+            "client_id": ctx.clientId.uuidString
+        ]
+        
+        guard let error else { return fields }
+        let message = truncated(error.localizedDescription)
+        fields["error"] = message
+        fields["error_message"] = message
+        fields["error_type"] = errorType(error)
+        
+        if case let CloudSyncError.serverError(statusCode, body) = error as? CloudSyncError {
+            fields["status_code"] = "\(statusCode)"
+            fields["server_body"] = truncated(body.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        
+        return fields
+    }
+    
+    private static func errorType(_ error: Error) -> String {
+        guard let error = error as? CloudSyncError else { return "unknown" }
+        switch error {
+        case .invalidBinId: return "invalid_bin_id"
+        case .invalidResponse: return "invalid_response"
+        case .missingAccessKey: return "missing_access_key"
+        case .serverError: return "server_error"
+        case .networkError: return "network_error"
+        case .decodingError: return "decoding_error"
+        case .cryptoError: return "crypto_error"
+        case .payloadCodec: return "payload_codec"
+        case .manifestCodec: return "manifest_codec"
+        }
+    }
+    
+    private static func truncated(_ value: String, limit: Int = 240) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > limit else { return trimmed }
+        let end = trimmed.index(trimmed.startIndex, offsetBy: limit)
+        return String(trimmed[..<end])
     }
     
     private static func hasLocalChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {

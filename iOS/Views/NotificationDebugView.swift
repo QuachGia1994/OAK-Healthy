@@ -14,6 +14,8 @@ public struct NotificationDebugScreen: View {
     @State private var pendingOnlyCount: Int = 0
     @State private var shadowOnlyCount: Int = 0
     @State private var shadowErrorCount: Int = 0
+    @State private var isRepairingShadow = false
+    @State private var didAutoRepairShadow = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -55,6 +57,13 @@ public struct NotificationDebugScreen: View {
                 LabeledContent("notification_debug_pending_only_label".localized) { Text("\(pendingOnlyCount)") }
                 LabeledContent("notification_debug_shadow_only_label".localized) { Text("\(shadowOnlyCount)") }
                 LabeledContent("notification_debug_shadow_errors_label".localized) { Text("\(shadowErrorCount)") }
+                
+                if shouldShowRepairShadow {
+                    Button("notification_debug_repair_shadow".localized) {
+                        Task { await repairShadow() }
+                    }
+                    .disabled(isRepairingShadow)
+                }
             }
             
             Section("notification_debug_diagnostics_section".localized) {
@@ -83,25 +92,60 @@ public struct NotificationDebugScreen: View {
         }
     }
     
+    @MainActor
     private func refresh() async {
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         let pending = await NotificationService.shared.pendingRequestSnapshots()
         let shadowRaw = await NotificationService.shared.shadowScheduledTimes()
         let parsedPending = NotificationDebugEntry.parseMany(pending)
-        let parsedShadow = NotificationDebugEntry.parseMany(shadowRaw)
+        var parsedShadow = NotificationDebugEntry.parseMany(shadowRaw)
         let supplementCount = fetchActiveSupplementCount(clientId: activeClientManager.currentClientId)
-        let (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
-        await MainActor.run {
-            authorizationStatus = settings.authorizationStatus
-            pendingEntries = parsedPending
-            shadowEntries = parsedShadow
-            activeSupplementCount = supplementCount
-            pendingOnlyCount = pendingOnly
-            shadowOnlyCount = shadowOnly
-            shadowErrorCount = errorCount
-            isLoading = false
+        var (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
+        
+        if shouldAutoRepairShadow(settings: settings, pendingOnly: pendingOnly, shadowOnly: shadowOnly, errorCount: errorCount) {
+            didAutoRepairShadow = true
+            await NotificationService.shared.rebuildShadowFromPendingRequests()
+            let shadowRaw2 = await NotificationService.shared.shadowScheduledTimes()
+            parsedShadow = NotificationDebugEntry.parseMany(shadowRaw2)
+            (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
         }
+        
+        authorizationStatus = settings.authorizationStatus
+        pendingEntries = parsedPending
+        shadowEntries = parsedShadow
+        activeSupplementCount = supplementCount
+        pendingOnlyCount = pendingOnly
+        shadowOnlyCount = shadowOnly
+        shadowErrorCount = errorCount
+        isLoading = false
+    }
+    
+    @MainActor
+    private func repairShadow() async {
+        guard !isRepairingShadow else { return }
+        isRepairingShadow = true
+        defer { isRepairingShadow = false }
+        await NotificationService.shared.rebuildShadowFromPendingRequests()
+        await refresh()
+    }
+    
+    private var shouldShowRepairShadow: Bool {
+        isNotificationEnabledByUser &&
+            (authorizationStatus == .authorized || authorizationStatus == .provisional) &&
+            (pendingOnlyCount > 0 || shadowOnlyCount > 0 || shadowErrorCount > 0)
+    }
+    
+    private func shouldAutoRepairShadow(
+        settings: UNNotificationSettings,
+        pendingOnly: Int,
+        shadowOnly: Int,
+        errorCount: Int
+    ) -> Bool {
+        guard !didAutoRepairShadow else { return false }
+        guard isNotificationEnabledByUser else { return false }
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return false }
+        return pendingOnly > 0 || shadowOnly > 0 || errorCount > 0
     }
     
     private func computeReconciliation(
