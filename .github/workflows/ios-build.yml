@@ -16,6 +16,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Check function length (warn)
+        run: python3 scripts/check_function_length.py --max 30 --paths iOS Android
+
       - name: Setup Xcode (pinned)
         uses: maxim-lobanov/setup-xcode@v1
         with:

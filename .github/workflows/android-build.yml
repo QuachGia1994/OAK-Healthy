@@ -18,6 +18,9 @@ jobs:
       - name: Checkout mã nguồn
         uses: actions/checkout@v6
 
+      - name: Check function length (warn)
+        run: python3 scripts/check_function_length.py --max 30 --paths iOS Android
+
       - name: Setup JDK 17
         uses: actions/setup-java@v4
         with:
