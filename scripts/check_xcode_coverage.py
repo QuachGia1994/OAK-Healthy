@@ -29,7 +29,13 @@ def main() -> int:
     parser.add_argument("--fail", action="store_true")
     args = parser.parse_args()
 
-    cov = extract_line_coverage(read_xccov_json(args.xcresult_path))
+    try:
+        cov = extract_line_coverage(read_xccov_json(args.xcresult_path))
+    except Exception as e:
+        msg = str(e).strip() or "xccov failed"
+        print(f"iOS coverage unavailable: {msg}")
+        return 1 if args.fail else 0
+
     pct = cov * 100.0
     print(f"iOS coverage: {pct:.2f}%")
 
