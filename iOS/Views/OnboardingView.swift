@@ -83,6 +83,7 @@ public struct OnboardingView: View {
     
     private var clientStep: some View {
         VStack(alignment: .leading, spacing: 12) {
+            let lastId = clients.last?.id
             Text("onboarding_step_client_title".localized)
                 .font(.title2)
                 .fontWeight(.semibold)
@@ -117,7 +118,7 @@ public struct OnboardingView: View {
                             .padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)
-                        if client.id != clients.last?.id {
+                        if client.id != lastId {
                             Divider()
                                 .opacity(0.25)
                                 .padding(.leading, 12)
@@ -392,6 +393,13 @@ private struct OnboardingHero: View {
     let step: OnboardingStep
     
     var body: some View {
+        let stepTitle: String = {
+            switch step {
+            case .client: return "onboarding_step_client_title".localized
+            case .notifications: return "onboarding_step_notifications_title".localized
+            case .done: return "onboarding_step_done_title".localized
+            }
+        }()
         VStack(spacing: 10) {
             Image(systemName: "sparkles")
                 .font(.title2)
@@ -399,6 +407,9 @@ private struct OnboardingHero: View {
             OnboardingProgress(step: step)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("onboarding_title".localized)
+        .accessibilityValue(stepTitle)
     }
 }
 
@@ -411,6 +422,7 @@ private struct OnboardingProgress: View {
             Dot(isActive: step != .client)
             Dot(isActive: step == .done)
         }
+        .accessibilityHidden(true)
     }
     
     private struct Dot: View {

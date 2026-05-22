@@ -21,3 +21,5 @@ IOS Build.txt
 backups/
 *Build*.txt
 *build error*.txt
+
+*.ips

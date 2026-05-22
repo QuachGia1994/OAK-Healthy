@@ -90,7 +90,7 @@ public struct NotificationDebugScreen: View {
         let shadowRaw = await NotificationService.shared.shadowScheduledTimes()
         let parsedPending = NotificationDebugEntry.parseMany(pending)
         let parsedShadow = NotificationDebugEntry.parseMany(shadowRaw)
-        let supplementCount = await fetchActiveSupplementCount(clientId: activeClientManager.currentClientId)
+        let supplementCount = fetchActiveSupplementCount(clientId: activeClientManager.currentClientId)
         let (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
         await MainActor.run {
             authorizationStatus = settings.authorizationStatus
