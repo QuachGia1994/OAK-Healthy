@@ -415,22 +415,22 @@ enum CloudSyncAutoSync {
         UserDefaults.standard.set(now, forKey: ctx.lastSyncKey)
         UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
         markActivity()
-        DebugReporter.report("cloud_sync_success", fields: telemetryFields(ctx: ctx, error: nil))
+        DebugReporter.report("cloud_sync_success", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: nil))
     }
 
     private static func markFailure(ctx: SyncContext, error: Error) {
         UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
         UserDefaults.standard.set(error.localizedDescription, forKey: ctx.lastErrorKey)
         print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
-        DebugReporter.report("cloud_sync_failure", fields: telemetryFields(ctx: ctx, error: error))
+        DebugReporter.report("cloud_sync_failure", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: error))
     }
     
-    private static func telemetryFields(ctx: SyncContext, error: Error?) -> [String: String] {
+    static func telemetryFields(binId: String, clientId: UUID, error: Error?) -> [String: String] {
         var fields: [String: String] = [
-            "binId": ctx.id,
-            "clientId": ctx.clientId.uuidString,
-            "bin_id": ctx.id,
-            "client_id": ctx.clientId.uuidString
+            "binId": binId,
+            "clientId": clientId.uuidString,
+            "bin_id": binId,
+            "client_id": clientId.uuidString
         ]
         
         guard let error else { return fields }
