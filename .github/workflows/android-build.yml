@@ -11,6 +11,8 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
       - name: Checkout mã nguồn
@@ -33,11 +35,19 @@ jobs:
           JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
         run: |
           mkdir -p Android
+          sdk_dir=""
           if [ -n "${ANDROID_SDK_ROOT}" ]; then
-            printf "sdk.dir=%s\n" "${ANDROID_SDK_ROOT}" > Android/local.properties
-          else
-            : > Android/local.properties
+            sdk_dir="${ANDROID_SDK_ROOT}"
+          elif [ -n "${ANDROID_HOME}" ]; then
+            sdk_dir="${ANDROID_HOME}"
+          elif [ -d "/usr/local/lib/android/sdk" ]; then
+            sdk_dir="/usr/local/lib/android/sdk"
           fi
+          if [ -z "${sdk_dir}" ]; then
+            echo "Android SDK location not found (ANDROID_SDK_ROOT/ANDROID_HOME missing)."
+            exit 1
+          fi
+          printf "sdk.dir=%s\n" "${sdk_dir}" > Android/local.properties
           printf "JSONBIN_API_KEY=%s\n" "$JSONBIN_KEY" >> Android/local.properties
 
       - name: Build APK
