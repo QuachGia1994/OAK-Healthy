@@ -53,13 +53,15 @@ enum CloudSyncPayloadCodec {
         )
         guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
         defer { compression_stream_destroy(&stream) }
-        return run(stream: &stream, data: data, bufferSize: bufferSize)
+        let flags = operation == COMPRESSION_STREAM_ENCODE ? Int32(COMPRESSION_STREAM_FINALIZE.rawValue) : 0
+        return run(stream: &stream, data: data, bufferSize: bufferSize, flags: flags)
     }
     
     private static func run(
         stream: inout compression_stream,
         data: Data,
-        bufferSize: Int
+        bufferSize: Int,
+        flags: Int32
     ) -> Data? {
         data.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) -> Data? in
             guard let srcBase = srcPtr.bindMemory(to: UInt8.self).baseAddress else { return nil }
@@ -71,11 +73,12 @@ enum CloudSyncPayloadCodec {
             while true {
                 stream.dst_ptr = dstBuffer
                 stream.dst_size = bufferSize
-                let status = compression_stream_process(&stream, 0)
+                let status = compression_stream_process(&stream, flags)
                 let written = bufferSize - stream.dst_size
                 if written > 0 { dst.append(dstBuffer, count: written) }
                 if status == COMPRESSION_STATUS_END { return dst }
                 if status == COMPRESSION_STATUS_ERROR { return nil }
+                if status == COMPRESSION_STATUS_OK && written == 0 && stream.src_size == 0 { return nil }
             }
         }
     }
