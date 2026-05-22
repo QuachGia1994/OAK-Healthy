@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Visibility
@@ -81,6 +83,8 @@ private fun UserGuideContent(modifier: Modifier = Modifier) {
         item { GuideCard(Icons.Default.Sync, stringResource(R.string.user_guide_2_title), stringResource(R.string.user_guide_2_body)) }
         item { GuideCard(Icons.Default.Visibility, stringResource(R.string.user_guide_3_title), stringResource(R.string.user_guide_3_body)) }
         item { GuideCard(Icons.Default.Notifications, stringResource(R.string.user_guide_4_title), stringResource(R.string.user_guide_4_body)) }
+        item { GuideCard(Icons.Default.CalendarMonth, stringResource(R.string.user_guide_5_title), stringResource(R.string.user_guide_5_body)) }
+        item { GuideCard(Icons.Default.Error, stringResource(R.string.user_guide_6_title), stringResource(R.string.user_guide_6_body)) }
     }
 }
 

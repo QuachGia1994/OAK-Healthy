@@ -24,9 +24,13 @@ import androidx.compose.material.rememberDismissState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -623,7 +627,7 @@ private fun ActiveSupplementCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.supplement.name, style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
+                    Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(item.timeString, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     Text(" • ", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
@@ -654,27 +658,49 @@ private fun ActiveSupplementCard(
                     showConfirmDialog = true
                 }
             ) {
+                val icon = when (item.doseStatus) {
+                    DoseStatus.TAKEN -> Icons.Default.CheckCircle
+                    DoseStatus.SKIPPED -> Icons.Default.Cancel
+                    DoseStatus.MISSED -> Icons.Default.Error
+                    DoseStatus.PLANNED -> Icons.Default.RadioButtonUnchecked
+                }
                 Icon(
-                    Icons.Default.CheckCircle,
+                    icon,
                     contentDescription = null,
                     tint = tint,
                     modifier = Modifier.graphicsLayer(scaleX = pulse.value, scaleY = pulse.value)
                 )
             }
         }
-        AnimatedVisibility(
-            visible = item.isMissedSoon || item.isDueSoon,
-            enter = fadeIn(animationSpec = tween(160)),
-            exit = fadeOut(animationSpec = tween(160))
-        ) {
-            val text = if (item.isMissedSoon) {
-                stringResource(R.string.home_almost_missed)
-            } else {
-                stringResource(R.string.home_due_soon)
-            }
-            val color = if (item.isMissedSoon) Color(0xFFD32F2F) else Color(0xFF42A5F5)
+        if (item.doseStatus == DoseStatus.MISSED) {
             Spacer(modifier = Modifier.height(10.dp))
-            CountPill(title = text, value = null, tint = color, modifier = Modifier.fillMaxWidth())
+            Text(
+                text = stringResource(R.string.dose_status_missed),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFD32F2F)
+            )
+        } else if (item.doseStatus == DoseStatus.SKIPPED) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = stringResource(R.string.dose_status_skipped),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFFF9800)
+            )
+        } else {
+            AnimatedVisibility(
+                visible = item.doseStatus == DoseStatus.PLANNED && (item.isMissedSoon || item.isDueSoon),
+                enter = fadeIn(animationSpec = tween(160)),
+                exit = fadeOut(animationSpec = tween(160))
+            ) {
+                val text = if (item.isMissedSoon) {
+                    stringResource(R.string.home_almost_missed)
+                } else {
+                    stringResource(R.string.home_due_soon)
+                }
+                val color = if (item.isMissedSoon) Color(0xFFD32F2F) else Color(0xFF42A5F5)
+                Spacer(modifier = Modifier.height(10.dp))
+                CountPill(title = text, value = null, tint = color, modifier = Modifier.fillMaxWidth())
+            }
         }
         if (!item.advice.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(8.dp))

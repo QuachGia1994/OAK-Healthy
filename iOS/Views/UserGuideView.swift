@@ -44,6 +44,26 @@ public struct UserGuideView: View {
             } header: {
                 EmptyView()
             }
+            
+            Section {
+                GuideRowView(
+                    systemImage: "calendar.badge.clock",
+                    title: "user_guide_section_5_title".localized,
+                    detailText: "settings_guide_5".localized
+                )
+            } header: {
+                EmptyView()
+            }
+            
+            Section {
+                GuideRowView(
+                    systemImage: "exclamationmark.circle.fill",
+                    title: "user_guide_section_6_title".localized,
+                    detailText: "settings_guide_6".localized
+                )
+            } header: {
+                EmptyView()
+            }
         }
         .navigationTitle("user_guide_title".localized)
     }

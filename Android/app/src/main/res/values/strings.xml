@@ -8,7 +8,7 @@
     <string name="settings_title">Settings</string>
     <string name="app_information_title">App Information</string>
     <string name="settings_guide_title">User Guide</string>
-    <string name="settings_guide_content">1. Setup Stack: Tap (+) to add. The app auto-calculates On/Off cycles from the start date.\n2. Multi-device sync: Open Settings → Sync Center. On Host: (recommended) enable Cloud Encryption, then tap Host Data to create a Link Code. On Link: enter the code and tap Download.\n3. Security: If encryption is enabled, copy Sync Key from Host and Import on other devices. After rotating the key, re-import the new key. Use Revoke to permanently delete cloud data when you no longer need syncing.\n4. Notification diagnostics: Check Notification List to confirm the app sent schedules. Ensure Battery Optimization (Android) / Focus (iOS) isn’t blocking.</string>
+    <string name="settings_guide_content">1. Setup Stack: Tap (+) to add. The app auto-calculates On/Off cycles from the start date.\n2. Multi-device sync: Open Settings → Sync Center. On Host: (recommended) enable Cloud Encryption, then tap Host Data to create a Link Code. On Link: enter the code and tap Download. Enable Auto-Sync for realtime syncing.\n3. Security: If encryption is enabled, copy Sync Key from Host and Import on other devices. After rotating the key, re-import the new key. Use Revoke to permanently delete cloud data when you no longer need syncing.\n4. Notification diagnostics: Check Notification List to confirm the app sent schedules. Ensure Battery Optimization (Android) / Focus (iOS) isn’t blocking.\n5. Flexible recurrence: Enable “Repeat every N days” (>=2) for every-other-day routines. Weekly recurrence is also supported. When interval-days is enabled, reminders shift based on your last Taken day.\n6. Status &amp; overdue: Green check = Taken, red exclamation = Overdue, orange = Skipped. You may also see “Due soon” / “Almost missed” before the deadline.</string>
     <string name="user_guide_1_title">Section 1: Setup Stack</string>
     <string name="user_guide_1_body">Tap (+) to add supplements. The app auto-calculates On/Off cycles (take/rest) from the start date.</string>
     <string name="user_guide_2_title">Section 2: Multi-device Sync</string>
@@ -17,6 +17,10 @@
     <string name="user_guide_3_body">If encryption is enabled, copy Sync Key from Host and Import on other devices. After rotating the key, re-import the new key. Tap the eye icon to hide the Link Code in public. Use “Revoke” to permanently delete cloud data when you no longer need syncing.</string>
     <string name="user_guide_4_title">Section 4: Notification Diagnostics</string>
     <string name="user_guide_4_body">If you miss a reminder, open “Notification List” to confirm the app scheduled it. Make sure Battery Optimization (Android) or Focus/Do Not Disturb (iOS) isn’t blocking.</string>
+    <string name="user_guide_5_title">Section 5: Flexible Recurrence</string>
+    <string name="user_guide_5_body">Enable “Repeat every N days” (>=2) for every-other-day routines. Weekly recurrence is also supported. When interval-days is enabled, reminders shift based on your last Taken day.</string>
+    <string name="user_guide_6_title">Section 6: Status &amp; Overdue</string>
+    <string name="user_guide_6_body">Green check = Taken, red exclamation = Overdue, orange = Skipped. You may also see “Due soon” / “Almost missed” before the deadline.</string>
     
     <string name="settings_intro_title">About</string>
     <string name="settings_intro_content">OAK Healthy - A professional supplement cycle assistant for Traders, Athletes, and Doctors monitoring patients. Helps optimize performance and discipline.</string>
@@ -374,6 +378,8 @@
     <string name="home_streak_format">Streak: %1$d</string>
     <string name="home_due_soon">Due soon</string>
     <string name="home_almost_missed">Almost missed</string>
+    <string name="dose_status_missed">Overdue</string>
+    <string name="dose_status_skipped">Skipped</string>
 
     <string name="error_unknown">Unknown error</string>
     <string name="add_supplement_error_invalid_time">Please enter a valid time (e.g. 09:00 or 9:00).</string>
