@@ -118,6 +118,9 @@
     <string name="repeat_on_weekdays">Lặp vào</string>
     <string name="repeat_every_weeks">Cách mỗi (tuần)</string>
     <string name="every_x_weeks_format">Mỗi %1$d tuần</string>
+    <string name="repeat_every_n_days">Uống cách N ngày</string>
+    <string name="interval_days_label">Số ngày cách (N)</string>
+    <string name="repeat_every_n_days_preview">Mỗi %1$s ngày • Trượt theo lần đã uống</string>
     <string name="on_days">Số ngày uống</string>
     <string name="off_days">Số ngày nghỉ</string>
     <string name="duration">Tổng thời hạn</string>
@@ -374,5 +377,6 @@
     <string name="error_unknown">Lỗi không xác định</string>
     <string name="add_supplement_error_invalid_time">Vui lòng nhập giờ hợp lệ (VD: 09:00 hoặc 9:00).</string>
     <string name="add_supplement_error_invalid_cycle_days">Vui lòng nhập số ngày Uống/Nghỉ hợp lệ.</string>
+    <string name="add_supplement_error_invalid_interval_days">Vui lòng nhập khoảng cách hợp lệ (>= 2 ngày).</string>
     <string name="add_supplement_error_save_failed_format">Lưu thất bại: %1$s</string>
 </resources>

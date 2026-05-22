@@ -142,10 +142,13 @@ public struct NotificationService: NotificationManaging {
         await cancelReminders(for: supplement)
         let calendar = isoWeekCalendar()
         let horizonDays = schedulingHorizonDays(for: supplement)
-        for timeString in intakeTimes(from: supplement.intakeTime) {
+        let times = intakeTimes(from: supplement.intakeTime)
+        let effectiveTimes = isIntervalRecurrenceEnabled(supplement) ? Array(times.prefix(1)) : times
+        for timeString in effectiveTimes {
             guard let timeComponents = intakeTimeComponents(from: timeString) else { continue }
             for plan in upcomingTriggerPlans(calendar: calendar, timeComponents: timeComponents, horizonDays: horizonDays) {
                 guard matchesWeeklyRecurrenceIfNeeded(supplement: supplement, date: plan.scheduledAt, calendar: calendar) else { continue }
+                guard matchesIntervalRecurrenceIfNeeded(supplement: supplement, date: plan.scheduledAt, calendar: calendar) else { continue }
                 do {
                     let status = try cycleCalculator.determineStatus(for: supplement.startDate, config: supplement.cycleConfig, at: plan.scheduledAt)
                     guard status == .on else { continue }
@@ -458,6 +461,40 @@ public struct NotificationService: NotificationManaging {
         let weeks = days / 7
         let mod = ((weeks % interval) + interval) % interval
         return mod == 0
+    }
+
+    private func isIntervalRecurrenceEnabled(_ supplement: UserSupplement) -> Bool {
+        let interval = supplement.cycleConfig.intervalDays ?? 0
+        return interval > 1
+    }
+
+    private func matchesIntervalRecurrenceIfNeeded(
+        supplement: UserSupplement,
+        date: Date,
+        calendar: Calendar
+    ) -> Bool {
+        guard let interval = supplement.cycleConfig.intervalDays, interval > 1 else { return true }
+        let day = calendar.startOfDay(for: date)
+        if let raw = supplement.lastTakenLocalDate,
+           let lastTaken = dayDate(from: raw, calendar: calendar) {
+            let lastDay = calendar.startOfDay(for: lastTaken)
+            let days = calendar.dateComponents([.day], from: lastDay, to: day).day ?? 0
+            return days > 0 && days % interval == 0
+        }
+        let startDay = calendar.startOfDay(for: supplement.startDate)
+        let days = calendar.dateComponents([.day], from: startDay, to: day).day ?? 0
+        return days >= 0 && days % interval == 0
+    }
+
+    private func dayDate(from raw: String, calendar: Calendar) -> Date? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: trimmed)
     }
     
     private func weekdayBitIndex(for date: Date, calendar: Calendar) -> Int? {

@@ -136,6 +136,9 @@
     <string name="repeat_on_weekdays">Repeat on</string>
     <string name="repeat_every_weeks">Every (weeks)</string>
     <string name="every_x_weeks_format">Every %1$d week(s)</string>
+    <string name="repeat_every_n_days">Repeat every N days</string>
+    <string name="interval_days_label">Interval days (N)</string>
+    <string name="repeat_every_n_days_preview">Every %1$s day(s) • Sliding by last taken</string>
     <string name="continuous">Continuous</string>
     <string name="on_days">On Days</string>
     <string name="off_days">Off Days</string>
@@ -375,5 +378,6 @@
     <string name="error_unknown">Unknown error</string>
     <string name="add_supplement_error_invalid_time">Please enter a valid time (e.g. 09:00 or 9:00).</string>
     <string name="add_supplement_error_invalid_cycle_days">Please enter valid On/Off days.</string>
+    <string name="add_supplement_error_invalid_interval_days">Please enter a valid interval (>= 2 days).</string>
     <string name="add_supplement_error_save_failed_format">Failed to save: %1$s</string>
 </resources>

@@ -18,6 +18,7 @@ struct SupplementExportSupplement: Codable, Sendable {
     var startDate: String
     var category: String?
     var cycle: SupplementExportCycle
+    var lastTakenLocalDate: String?
 }
 
 struct SupplementExportCycle: Codable, Sendable {
@@ -28,6 +29,7 @@ struct SupplementExportCycle: Codable, Sendable {
     var weeklyWeekdaysMask: Int?
     var weeklyIntervalWeeks: Int?
     var weeklyAnchorDate: String?
+    var intervalDays: Int?
 
     enum CodingKeys: String, CodingKey {
         case isContinuous
@@ -37,6 +39,7 @@ struct SupplementExportCycle: Codable, Sendable {
         case weeklyWeekdaysMask
         case weeklyIntervalWeeks
         case weeklyAnchorDate
+        case intervalDays
     }
 }
 
@@ -190,6 +193,7 @@ struct OAKBackupSupplement: Codable, Sendable {
     var intakeTime: String
     var startDate: String
     var cycle: SupplementExportCycle
+    var lastTakenLocalDate: String?
     var updatedAtEpochMs: Int64
     var deletedAtEpochMs: Int64?
 
@@ -214,6 +218,7 @@ struct OAKBackupSupplement: Codable, Sendable {
             cycle.durationMonths.map(String.init) ?? "",
             cycle.weeklyWeekdaysMask.map(String.init) ?? "",
             cycle.weeklyIntervalWeeks.map(String.init) ?? "",
+            cycle.intervalDays.map(String.init) ?? "",
             anchor
         ]
         return parts.joined(separator: "|").lowercased()
@@ -226,6 +231,7 @@ struct OAKBackupSupplement: Codable, Sendable {
         case intakeTime
         case startDate
         case cycle
+        case lastTakenLocalDate
         case updatedAtEpochMs
         case deletedAtEpochMs
     }
@@ -237,6 +243,7 @@ struct OAKBackupSupplement: Codable, Sendable {
         intakeTime: String,
         startDate: String,
         cycle: SupplementExportCycle,
+        lastTakenLocalDate: String?,
         updatedAtEpochMs: Int64,
         deletedAtEpochMs: Int64?
     ) {
@@ -246,6 +253,7 @@ struct OAKBackupSupplement: Codable, Sendable {
         self.intakeTime = intakeTime
         self.startDate = startDate
         self.cycle = cycle
+        self.lastTakenLocalDate = lastTakenLocalDate
         self.updatedAtEpochMs = updatedAtEpochMs
         self.deletedAtEpochMs = deletedAtEpochMs
     }
@@ -256,7 +264,8 @@ struct OAKBackupSupplement: Codable, Sendable {
         let dailyDose = try c.decodeIfPresent(String.self, forKey: .dailyDose) ?? ""
         let intakeTime = try c.decodeIfPresent(String.self, forKey: .intakeTime) ?? "08:00"
         let startDate = try c.decodeIfPresent(String.self, forKey: .startDate) ?? "1970-01-01"
-        let cycle = (try? c.decode(SupplementExportCycle.self, forKey: .cycle)) ?? SupplementExportCycle(isContinuous: false, daysOn: 1, daysOff: 0, durationMonths: nil, weeklyWeekdaysMask: nil, weeklyIntervalWeeks: nil, weeklyAnchorDate: nil)
+        let cycle = (try? c.decode(SupplementExportCycle.self, forKey: .cycle)) ?? SupplementExportCycle(isContinuous: false, daysOn: 1, daysOff: 0, durationMonths: nil, weeklyWeekdaysMask: nil, weeklyIntervalWeeks: nil, weeklyAnchorDate: nil, intervalDays: nil)
+        let lastTakenLocalDate = try c.decodeIfPresent(String.self, forKey: .lastTakenLocalDate)
         let updatedAtEpochMs = try c.decodeIfPresent(Int64.self, forKey: .updatedAtEpochMs) ?? 0
         let deletedAtEpochMs = try c.decodeIfPresent(Int64.self, forKey: .deletedAtEpochMs)
         let rawId = (try c.decodeIfPresent(String.self, forKey: .id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -277,6 +286,7 @@ struct OAKBackupSupplement: Codable, Sendable {
         self.intakeTime = intakeTime
         self.startDate = startDate
         self.cycle = cycle
+        self.lastTakenLocalDate = lastTakenLocalDate
         self.updatedAtEpochMs = updatedAtEpochMs
         self.deletedAtEpochMs = deletedAtEpochMs
     }
@@ -386,8 +396,10 @@ struct SupplementExportCodec {
                 durationMonths: supplement.cycleConfig.durationMonths,
                 weeklyWeekdaysMask: supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
                 weeklyIntervalWeeks: supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
-                weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) }
+                weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) },
+                intervalDays: supplement.cycleConfig.intervalDays
             ),
+            lastTakenLocalDate: supplement.lastTakenLocalDate,
             updatedAtEpochMs: supplement.updatedAtEpochMs,
             deletedAtEpochMs: supplement.deletedAtEpochMs
         )
@@ -463,6 +475,7 @@ struct SupplementExportCodec {
             intakeTime: dto.intakeTime,
             startDate: dto.startDate,
             cycle: dto.cycle,
+            lastTakenLocalDate: dto.lastTakenLocalDate,
             updatedAtEpochMs: 0,
             deletedAtEpochMs: nil
         )
@@ -897,6 +910,7 @@ struct SupplementExportCodec {
             cycleConfig: cycleConfig(from: dto.cycle),
             dailyDose: dto.dailyDose,
             intakeTime: dto.intakeTime,
+            lastTakenLocalDate: dto.lastTakenLocalDate,
             updatedAtEpochMs: dto.updatedAtEpochMs,
             deletedAtEpochMs: dto.deletedAtEpochMs,
             client: client
@@ -913,6 +927,7 @@ struct SupplementExportCodec {
         supplement.cycleConfig = cycleConfig(from: dto.cycle)
         supplement.dailyDose = dto.dailyDose
         supplement.intakeTime = dto.intakeTime
+        supplement.lastTakenLocalDate = dto.lastTakenLocalDate
         supplement.updatedAtEpochMs = dto.updatedAtEpochMs
         supplement.deletedAtEpochMs = dto.deletedAtEpochMs
         supplement.client = client
@@ -1015,8 +1030,10 @@ struct SupplementExportCodec {
                         durationMonths: supplement.cycleConfig.durationMonths,
                         weeklyWeekdaysMask: supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
                         weeklyIntervalWeeks: supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
-                        weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) }
-                    )
+                        weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) },
+                        intervalDays: supplement.cycleConfig.intervalDays
+                    ),
+                    lastTakenLocalDate: supplement.lastTakenLocalDate
                 )
             }
         )
@@ -1081,6 +1098,7 @@ struct SupplementExportCodec {
             cycleConfig: cycleConfig(from: dto.cycle),
             dailyDose: dto.dailyDose,
             intakeTime: dto.intakeTime,
+            lastTakenLocalDate: dto.lastTakenLocalDate,
             client: client
         )
     }
@@ -1095,6 +1113,7 @@ struct SupplementExportCodec {
         supplement.intakeTime = dto.intakeTime
         supplement.startDate = try dayDate(from: dto.startDate)
         supplement.cycleConfig = cycleConfig(from: dto.cycle)
+        supplement.lastTakenLocalDate = dto.lastTakenLocalDate
         supplement.client = client
     }
     
@@ -1111,7 +1130,8 @@ struct SupplementExportCodec {
             daysOff: dto.daysOff,
             isContinuous: dto.isContinuous,
             durationMonths: dto.durationMonths,
-            weeklyRecurrence: weekly
+            weeklyRecurrence: weekly,
+            intervalDays: dto.intervalDays
         )
     }
     

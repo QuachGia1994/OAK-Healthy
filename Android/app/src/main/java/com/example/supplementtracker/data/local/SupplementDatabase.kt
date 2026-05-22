@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ClientProfileEntity::class, SupplementEntity::class, IntakeRecordEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class SupplementDatabase : RoomDatabase() {
@@ -94,7 +94,7 @@ abstract class SupplementDatabase : RoomDatabase() {
                     SupplementDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 instance = created
                 created
@@ -156,6 +156,13 @@ abstract class SupplementDatabase : RoomDatabase() {
                 
                 db.execSQL("ALTER TABLE intake_records ADD COLUMN updatedAtEpochMs INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("UPDATE intake_records SET updatedAtEpochMs = date WHERE updatedAtEpochMs = 0")
+            }
+        }
+
+        val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE supplements ADD COLUMN intervalDays INTEGER")
+                db.execSQL("ALTER TABLE supplements ADD COLUMN lastTakenLocalDate TEXT")
             }
         }
     }

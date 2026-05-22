@@ -16,6 +16,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 import android.app.PendingIntent
 import com.example.supplementtracker.MainActivity
@@ -45,7 +47,12 @@ class NotificationReceiver : BroadcastReceiver() {
                 val calculateCycleUseCase = CalculateCycleUseCase()
                 val status = calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, LocalDate.now())
                 
-                if (status == com.example.supplementtracker.domain.model.CycleStatus.ON) {
+                val dueDate = if (scheduledAtMillis > 0L) {
+                    java.time.Instant.ofEpochMilli(scheduledAtMillis).atZone(ZoneId.systemDefault()).toLocalDate()
+                } else {
+                    LocalDate.now()
+                }
+                if (status == com.example.supplementtracker.domain.model.CycleStatus.ON && matchesIntervalRecurrenceIfNeeded(supplement, dueDate)) {
                     showNotification(context, name, dose, id, intakeTime, scheduledAtMillis)
                 }
             }
@@ -117,5 +124,18 @@ class NotificationReceiver : BroadcastReceiver() {
             .build()
 
         notificationManager.notify(notificationId, notification)
+    }
+
+    private fun matchesIntervalRecurrenceIfNeeded(supplement: com.example.supplementtracker.domain.model.UserSupplement, date: LocalDate): Boolean {
+        val interval = supplement.cycleConfig.intervalDays ?: return true
+        if (interval <= 1) return true
+        val lastTaken = supplement.lastTakenLocalDate
+        if (lastTaken != null) {
+            val days = ChronoUnit.DAYS.between(lastTaken, date).toInt()
+            return days > 0 && days % interval == 0
+        }
+        if (date.isBefore(supplement.startDate)) return false
+        val days = ChronoUnit.DAYS.between(supplement.startDate, date).toInt()
+        return days % interval == 0
     }
 }

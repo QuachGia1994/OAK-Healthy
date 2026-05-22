@@ -59,6 +59,7 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.service.UpdateService
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import java.util.UUID
@@ -122,20 +123,7 @@ fun HomeScreen(
         )
     }
 
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-    ) {
+    OakBackground {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {

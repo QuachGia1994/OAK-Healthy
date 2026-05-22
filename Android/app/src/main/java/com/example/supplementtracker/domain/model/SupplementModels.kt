@@ -46,7 +46,8 @@ data class CycleConfig(
     val daysOff: Int,
     val isContinuous: Boolean = false,
     val durationMonths: Int? = null,
-    val weeklyRecurrence: WeeklyRecurrenceConfig? = null
+    val weeklyRecurrence: WeeklyRecurrenceConfig? = null,
+    val intervalDays: Int? = null
 ) {
     companion object {
         val Continuous = CycleConfig(1, 0, true)
@@ -64,6 +65,7 @@ data class UserSupplement(
     val cycleConfig: CycleConfig,
     val dailyDose: String,
     val intakeTime: String, // Định dạng HH:mm
+    val lastTakenLocalDate: LocalDate? = null,
     val updatedAtEpochMs: Long = System.currentTimeMillis(),
     val deletedAtEpochMs: Long? = null
 )

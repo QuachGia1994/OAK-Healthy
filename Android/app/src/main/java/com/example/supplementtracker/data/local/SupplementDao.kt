@@ -101,6 +101,8 @@ interface SupplementDao {
             s.weeklyWeekdaysMask AS weeklyWeekdaysMask,
             s.weeklyIntervalWeeks AS weeklyIntervalWeeks,
             s.weeklyAnchorDate AS weeklyAnchorDate,
+            s.intervalDays AS intervalDays,
+            s.lastTakenLocalDate AS lastTakenLocalDate,
             (
                 SELECT r.status
                 FROM intake_records r
@@ -232,6 +234,8 @@ data class SupplementWithTakenTodayEntity(
     val weeklyWeekdaysMask: Int?,
     val weeklyIntervalWeeks: Int?,
     val weeklyAnchorDate: String?,
+    val intervalDays: Int?,
+    val lastTakenLocalDate: String?,
     val todayStatus: String?,
     val isTakenToday: Boolean
 )

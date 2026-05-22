@@ -232,8 +232,10 @@ class HomeViewModel(
                             durationMonths = supplement.cycleConfig.durationMonths,
                             weeklyWeekdaysMask = supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
                             weeklyIntervalWeeks = supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
-                            weeklyAnchorDate = supplement.cycleConfig.weeklyRecurrence?.anchorDate?.toString()
+                            weeklyAnchorDate = supplement.cycleConfig.weeklyRecurrence?.anchorDate?.toString(),
+                            intervalDays = supplement.cycleConfig.intervalDays
                         ),
+                        lastTakenLocalDate = supplement.lastTakenLocalDate?.toString(),
                         updatedAtEpochMs = supplement.updatedAtEpochMs,
                         deletedAtEpochMs = supplement.deletedAtEpochMs
                     )
@@ -344,7 +346,8 @@ class HomeViewModel(
         val items = supplements
             .filter {
                 calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.ON &&
-                    matchesWeeklyRecurrenceIfNeeded(it, today)
+                    matchesWeeklyRecurrenceIfNeeded(it, today) &&
+                    matchesIntervalRecurrenceIfNeeded(it, today)
             }
             .flatMap { supplement ->
                 buildUiItemsForSupplement(supplement, today, nowEpochMs, statusByDose, zoneId)
@@ -360,7 +363,7 @@ class HomeViewModel(
         zoneId: ZoneId
     ): List<SupplementUiItem> {
         val advice = adviceByName[supplement.name]
-        return parseTimes(supplement.intakeTime).map { time ->
+        return effectiveTimes(supplement).map { time ->
             val scheduledAt = scheduledAtEpochMs(today, time, zoneId) ?: 0L
             val status = statusByDose[DoseEventKey.make(supplement.id.toString(), scheduledAt)]
             val doseStatus = doseStatus(scheduledAtEpochMs = scheduledAt, recordedStatus = status, nowEpochMs = nowEpochMs)
@@ -403,7 +406,8 @@ class HomeViewModel(
             if (supplement.deletedAtEpochMs != null) continue
             if (calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, day) != CycleStatus.ON) continue
             if (!matchesWeeklyRecurrenceIfNeeded(supplement, day)) continue
-            for (time in parseTimes(supplement.intakeTime)) {
+            if (!matchesIntervalRecurrenceIfNeeded(supplement, day)) continue
+            for (time in effectiveTimes(supplement)) {
                 val scheduledAt = scheduledAtEpochMs(day, time, zoneId) ?: continue
                 if (!hasRecordByDose.contains(DoseEventKey.make(supplement.id.toString(), scheduledAt))) return false
             }
@@ -425,6 +429,13 @@ class HomeViewModel(
         val key = raw.trim()
         if (key.isEmpty()) return emptyList()
         return intakeTimesCache.computeIfAbsent(key) { TimeStrings.normalizeList(it) }
+    }
+
+    private fun effectiveTimes(supplement: UserSupplement): List<String> {
+        val times = parseTimes(supplement.intakeTime)
+        val interval = supplement.cycleConfig.intervalDays ?: return times
+        if (interval <= 1) return times
+        return times.take(1)
     }
 
     private fun scheduledAtEpochMs(date: LocalDate, timeString: String, zoneId: ZoneId): Long? {
@@ -456,6 +467,19 @@ class HomeViewModel(
         val weeks = ChronoUnit.WEEKS.between(anchorStart, dateStart).toInt()
         val mod = ((weeks % interval) + interval) % interval
         return mod == 0
+    }
+
+    private fun matchesIntervalRecurrenceIfNeeded(supplement: UserSupplement, date: LocalDate): Boolean {
+        val interval = supplement.cycleConfig.intervalDays ?: return true
+        if (interval <= 1) return true
+        val lastTaken = supplement.lastTakenLocalDate
+        if (lastTaken != null) {
+            val days = ChronoUnit.DAYS.between(lastTaken, date).toInt()
+            return days > 0 && days % interval == 0
+        }
+        if (date.isBefore(supplement.startDate)) return false
+        val days = ChronoUnit.DAYS.between(supplement.startDate, date).toInt()
+        return days % interval == 0
     }
 
     fun toggleIntake(supplementId: String, timeString: String, action: DoseAction) {
@@ -492,6 +516,16 @@ class HomeViewModel(
                 updatedAtEpochMs = now
             )
         )
+        if (action == DoseAction.TAKEN) {
+            val supplement = repository.getSupplementById(normalizedSupplementId)
+            if (supplement != null) {
+                val day = java.time.Instant.ofEpochMilli(scheduledAtEpochMs).atZone(ZoneId.systemDefault()).toLocalDate()
+                repository.updateSupplement(
+                    supplement.copy(lastTakenLocalDate = day, updatedAtEpochMs = now)
+                )
+            }
+        }
+        rescheduleNotificationsNow()
 
         val binId = activeAutoSyncBinId()
         if (binId != null) {
@@ -1409,10 +1443,12 @@ class HomeViewModel(
                                 val interval = remote.cycle.weeklyIntervalWeeks ?: return@run null
                                 val anchor = remote.cycle.weeklyAnchorDate?.let { d -> runCatching { LocalDate.parse(d) }.getOrNull() } ?: return@run null
                                 WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
-                            }
+                            },
+                            intervalDays = remote.cycle.intervalDays
                         ),
                         dailyDose = remote.dailyDose,
                         intakeTime = remote.intakeTime,
+                        lastTakenLocalDate = remote.lastTakenLocalDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: local.lastTakenLocalDate,
                         updatedAtEpochMs = remoteUpdatedAt,
                         deletedAtEpochMs = null
                     )
@@ -1476,7 +1512,8 @@ class HomeViewModel(
             daysOff = remote.cycle.daysOff,
             isContinuous = remote.cycle.isContinuous,
             durationMonths = remote.cycle.durationMonths,
-            weeklyRecurrence = weekly
+            weeklyRecurrence = weekly,
+            intervalDays = remote.cycle.intervalDays
         )
         return UserSupplement(
             id = runCatching { java.util.UUID.fromString(remote.id) }.getOrElse {
@@ -1490,6 +1527,7 @@ class HomeViewModel(
             cycleConfig = cycle,
             dailyDose = remote.dailyDose,
             intakeTime = remote.intakeTime,
+            lastTakenLocalDate = remote.lastTakenLocalDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             updatedAtEpochMs = remote.updatedAtEpochMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
             deletedAtEpochMs = remote.deletedAtEpochMs
         )

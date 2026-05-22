@@ -155,6 +155,19 @@ public struct AddSupplementView: View {
             .listRowBackground(glassRowBackground)
             weeklyRecurrenceControls
                 .listRowBackground(glassRowBackground)
+            Toggle("repeat_every_n_days".localized, isOn: $viewModel.isIntervalDaysEnabled)
+                .listRowBackground(glassRowBackground)
+            if viewModel.isIntervalDaysEnabled {
+                HStack {
+                    Text("interval_days_label".localized)
+                    Spacer()
+                    TextField("2", text: $viewModel.intervalDays)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 80)
+                }
+                .listRowBackground(glassRowBackground)
+            }
             Toggle("continuous".localized, isOn: $viewModel.isContinuous)
                 .listRowBackground(glassRowBackground)
             

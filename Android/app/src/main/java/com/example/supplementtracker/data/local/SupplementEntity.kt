@@ -38,6 +38,8 @@ data class SupplementEntity(
     val weeklyWeekdaysMask: Int?,
     val weeklyIntervalWeeks: Int?,
     val weeklyAnchorDate: String?,
+    val intervalDays: Int?,
+    val lastTakenLocalDate: String?,
     val updatedAtEpochMs: Long,
     val deletedAtEpochMs: Long?
 )

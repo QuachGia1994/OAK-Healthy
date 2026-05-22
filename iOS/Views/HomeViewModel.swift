@@ -101,6 +101,7 @@ public final class HomeViewModel {
             let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: supplement.cycleConfig, at: day)
             guard status == .on else { continue }
             guard matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: day, calendar: calendar) else { continue }
+            guard matchesIntervalRecurrenceIfNeeded(supplement: supplement, date: day, calendar: calendar) else { continue }
             for time in intakeTimes(for: supplement) {
                 guard let scheduledAt = scheduledAtLocal(for: day, timeString: time) else { continue }
                 let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
@@ -158,6 +159,9 @@ public final class HomeViewModel {
         )
         guard insertAndSave(newRecord, context: context) else { return }
         applyMarkToCaches(ctx: ctx, action: action)
+        if action == .taken {
+            updateLastTakenIfNeeded(supplement: supplement, scheduledAt: ctx.scheduledAt, nowEpochMs: ctx.nowEpochMs, context: context)
+        }
         scheduleMarkSideEffects(
             supplement: supplement,
             time: ctx.time,
@@ -230,7 +234,40 @@ public final class HomeViewModel {
         notificationService: NotificationService
     ) {
         Task { await notificationService.cancelReminder(for: supplement, timeString: time, day: scheduledAt) }
+        if supplement.cycleConfig.intervalDays ?? 0 > 1 {
+            Task {
+                do {
+                    try await notificationService.scheduleReminders(for: supplement)
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
         Task { await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id) }
+    }
+
+    private func updateLastTakenIfNeeded(
+        supplement: UserSupplement,
+        scheduledAt: Date,
+        nowEpochMs: Int64,
+        context: ModelContext
+    ) {
+        supplement.lastTakenLocalDate = localDayString(from: scheduledAt)
+        supplement.updatedAtEpochMs = nowEpochMs
+        do {
+            try context.save()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func localDayString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
     
     public func doseStatus(_ supplement: UserSupplement, timeString: String, now: Date = .now) -> DoseStatus {
@@ -339,7 +376,9 @@ public final class HomeViewModel {
                 at: today
             )
             
-            if status == .on, matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: today, calendar: calendar) {
+            if status == .on,
+               matchesWeeklyRecurrenceIfNeeded(config: supplement.cycleConfig, date: today, calendar: calendar),
+               matchesIntervalRecurrenceIfNeeded(supplement: supplement, date: today, calendar: calendar) {
                 for time in intakeTimes(for: supplement) {
                     active[time, default: []].append(supplement)
                 }
@@ -361,10 +400,14 @@ public final class HomeViewModel {
     
     private func intakeTimes(for supplement: UserSupplement) -> [String] {
         let raw = supplement.intakeTime
-        if let cached = intakeTimesCache[supplement.id], cached.raw == raw { return cached.times }
-        let computed = intakeTimes(from: raw)
-        intakeTimesCache[supplement.id] = IntakeTimesCacheEntry(raw: raw, times: computed)
-        return computed
+        let cachedTimes = intakeTimesCache[supplement.id].flatMap { $0.raw == raw ? $0.times : nil }
+        let times = cachedTimes ?? {
+            let computed = intakeTimes(from: raw)
+            intakeTimesCache[supplement.id] = IntakeTimesCacheEntry(raw: raw, times: computed)
+            return computed
+        }()
+        if supplement.cycleConfig.intervalDays ?? 0 > 1 { return Array(times.prefix(1)) }
+        return times
     }
 
     private func intakeTimes(from raw: String) -> [String] {
@@ -417,6 +460,35 @@ public final class HomeViewModel {
         let weeks = days / 7
         let mod = ((weeks % interval) + interval) % interval
         return mod == 0
+    }
+
+    private func matchesIntervalRecurrenceIfNeeded(
+        supplement: UserSupplement,
+        date: Date,
+        calendar: Calendar
+    ) -> Bool {
+        guard let interval = supplement.cycleConfig.intervalDays, interval > 1 else { return true }
+        let day = calendar.startOfDay(for: date)
+        if let raw = supplement.lastTakenLocalDate,
+           let lastTaken = parseLocalDay(raw, calendar: calendar) {
+            let lastDay = calendar.startOfDay(for: lastTaken)
+            let days = calendar.dateComponents([.day], from: lastDay, to: day).day ?? 0
+            return days > 0 && days % interval == 0
+        }
+        let startDay = calendar.startOfDay(for: supplement.startDate)
+        let days = calendar.dateComponents([.day], from: startDay, to: day).day ?? 0
+        return days >= 0 && days % interval == 0
+    }
+
+    private func parseLocalDay(_ raw: String, calendar: Calendar) -> Date? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: trimmed)
     }
     
     private func weekdayBitIndex(for date: Date, calendar: Calendar) -> Int? {

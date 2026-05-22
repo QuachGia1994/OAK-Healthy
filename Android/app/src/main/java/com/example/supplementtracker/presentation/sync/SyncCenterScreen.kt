@@ -23,7 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
@@ -58,6 +57,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import org.json.JSONArray
 import java.time.Instant
@@ -157,11 +159,7 @@ fun SyncCenterScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    OakBackground {
         if (isRevokeConfirmVisible) {
             AlertDialog(
                 onDismissRequest = { isRevokeConfirmVisible = false },
@@ -321,7 +319,7 @@ fun SyncCenterScreen(
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = { Text(stringResource(R.string.sync_center_title)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
@@ -339,27 +337,41 @@ fun SyncCenterScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item(key = "tabs") {
-                    TabRow(selectedTabIndex = selectedTab) {
-                        Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            text = { Text(stringResource(R.string.sync_center_tab_host)) }
-                        )
-                        Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            text = { Text(stringResource(R.string.sync_center_tab_link)) }
-                        )
+                    OakCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = OakCardVariant.Glass,
+                        shape = RoundedCornerShape(28.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        elevation = 1.dp
+                    ) {
+                        TabRow(
+                            selectedTabIndex = selectedTab,
+                            containerColor = Color.Transparent,
+                            divider = {}
+                        ) {
+                            Tab(
+                                selected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                text = { Text(stringResource(R.string.sync_center_tab_host)) }
+                            )
+                            Tab(
+                                selected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                text = { Text(stringResource(R.string.sync_center_tab_link)) }
+                            )
+                        }
                     }
                 }
 
                 item(key = "setup") {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    OakCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = OakCardVariant.Glass,
+                        shape = RoundedCornerShape(28.dp),
+                        contentPadding = PaddingValues(16.dp),
+                        elevation = 2.dp
                     ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             if (selectedTab == 0) {
                                 Text(stringResource(R.string.sync_center_device_a_title), style = MaterialTheme.typography.titleMedium)
                                 Text(
@@ -478,12 +490,14 @@ fun SyncCenterScreen(
                         val notYet = stringResource(R.string.sync_center_not_yet)
                         val lastSyncText = if (status.lastSyncEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastSyncEpochMs)) else notYet
                         val lastAttemptText = if (status.lastAttemptEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastAttemptEpochMs)) else notYet
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        OakCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            variant = OakCardVariant.Glass,
+                            shape = RoundedCornerShape(28.dp),
+                            contentPadding = PaddingValues(16.dp),
+                            elevation = 2.dp
                         ) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(stringResource(R.string.sync_center_status_title), style = MaterialTheme.typography.titleMedium)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -619,12 +633,14 @@ fun SyncCenterScreen(
                 }
 
                 item(key = "encryption") {
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    OakCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = OakCardVariant.Glass,
+                        shape = RoundedCornerShape(28.dp),
+                        contentPadding = PaddingValues(16.dp),
+                        elevation = 2.dp
                     ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -760,13 +776,14 @@ fun SyncCenterScreen(
                 }
 
                 items(items = logs, key = { it.ts }) { item ->
-                    Card(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    OakCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = OakCardVariant.Glass,
+                        shape = RoundedCornerShape(28.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        elevation = 1.dp
                     ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             val time = if (item.ts > 0L) formatter.format(Instant.ofEpochMilli(item.ts)) else ""
                             val phaseText = when (item.phase.uppercase()) {
                                 "ERROR" -> stringResource(R.string.sync_center_filter_error)

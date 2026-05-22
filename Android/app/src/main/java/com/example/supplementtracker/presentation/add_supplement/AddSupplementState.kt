@@ -20,6 +20,8 @@ data class AddSupplementState(
     val isWeeklyRecurrenceEnabled: Boolean = false,
     val weekdaysMask: Int = 127,
     val intervalWeeks: String = "1",
+    val isIntervalDaysEnabled: Boolean = false,
+    val intervalDays: String = "2",
     val suggestions: List<SupplementReference> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null

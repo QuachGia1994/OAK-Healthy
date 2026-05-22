@@ -12,7 +12,8 @@ data class SupplementExportSupplementDTO(
     val intakeTime: String,
     val startDate: String,
     val category: String?,
-    val cycle: SupplementExportCycleDTO
+    val cycle: SupplementExportCycleDTO,
+    val lastTakenLocalDate: String? = null
 )
 
 data class SupplementExportCycleDTO(
@@ -22,7 +23,8 @@ data class SupplementExportCycleDTO(
     val durationMonths: Int?,
     val weeklyWeekdaysMask: Int? = null,
     val weeklyIntervalWeeks: Int? = null,
-    val weeklyAnchorDate: String? = null
+    val weeklyAnchorDate: String? = null,
+    val intervalDays: Int? = null
 )
 
 object SupplementExportSchema {
@@ -50,6 +52,7 @@ data class OAKBackupSupplementDTO(
     val intakeTime: String,
     val startDate: String,
     val cycle: SupplementExportCycleDTO,
+    val lastTakenLocalDate: String? = null,
     val updatedAtEpochMs: Long = 0L,
     val deletedAtEpochMs: Long? = null
 )

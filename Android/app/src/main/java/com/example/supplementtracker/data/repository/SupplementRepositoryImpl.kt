@@ -105,10 +105,12 @@ class SupplementRepositoryImpl(
                 daysOff = daysOff,
                 isContinuous = isContinuous,
                 durationMonths = durationMonths,
-                weeklyRecurrence = weekly
+                weeklyRecurrence = weekly,
+                intervalDays = intervalDays
             ),
             dailyDose = dailyDose,
             intakeTime = intakeTime,
+            lastTakenLocalDate = lastTakenLocalDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             updatedAtEpochMs = 0L,
             deletedAtEpochMs = null
         )

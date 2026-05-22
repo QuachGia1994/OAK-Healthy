@@ -11,6 +11,7 @@ public final class AddSupplementViewModel {
         case invalidName
         case invalidIntakeTime
         case invalidCycleDays
+        case invalidIntervalDays
         case modelSaveFailed(Error)
         case notificationSyncFailed(Error)
         
@@ -24,6 +25,8 @@ public final class AddSupplementViewModel {
                 return "add_supplement_error_invalid_time".localized
             case .invalidCycleDays:
                 return "add_supplement_error_invalid_cycle_days".localized
+            case .invalidIntervalDays:
+                return "add_supplement_error_invalid_interval_days".localized
             case .modelSaveFailed(let error), .notificationSyncFailed(let error):
                 return String(format: "add_supplement_error_save_failed_format".localized, error.localizedDescription)
             }
@@ -43,6 +46,8 @@ public final class AddSupplementViewModel {
     public var isWeeklyRecurrenceEnabled: Bool = false
     public var weekdaysMask: Int = 127
     public var intervalWeeks: String = "1"
+    public var isIntervalDaysEnabled: Bool = false
+    public var intervalDays: String = "2"
     
     public var suggestions: [SupplementReference] = []
     public var isLoading: Bool = false
@@ -81,6 +86,10 @@ public final class AddSupplementViewModel {
                 isWeeklyRecurrenceEnabled = true
                 weekdaysMask = weekly.weekdaysMask
                 intervalWeeks = String(weekly.intervalWeeks)
+            }
+            if let interval = supplement.cycleConfig.intervalDays, interval > 1 {
+                isIntervalDaysEnabled = true
+                intervalDays = String(interval)
             }
             intakeTimes = TimeStrings.normalizeString(supplement.intakeTime)
             if let first = TimeStrings.normalizeList(supplement.intakeTime).first,
@@ -159,6 +168,8 @@ public final class AddSupplementViewModel {
         isWeeklyRecurrenceEnabled = false
         weekdaysMask = 127
         intervalWeeks = "1"
+        isIntervalDaysEnabled = false
+        intervalDays = "2"
         suggestions = []
     }
     
@@ -294,8 +305,9 @@ public final class AddSupplementViewModel {
     }
     
     private func buildCycleConfigOrThrow(weekly: WeeklyRecurrenceConfig?) throws -> CycleConfig {
+        let interval = try intervalDaysValueOrThrow()
         if isContinuous {
-            return CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, durationMonths: nil, weeklyRecurrence: weekly)
+            return CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, durationMonths: nil, weeklyRecurrence: weekly, intervalDays: interval)
         }
         let parsedDaysOn = Int(daysOn) ?? -1
         let parsedDaysOff = Int(daysOff) ?? -1
@@ -305,8 +317,16 @@ public final class AddSupplementViewModel {
             daysOff: parsedDaysOff,
             isContinuous: false,
             durationMonths: Int(durationMonths),
-            weeklyRecurrence: weekly
+            weeklyRecurrence: weekly,
+            intervalDays: interval
         )
+    }
+
+    private func intervalDaysValueOrThrow() throws -> Int? {
+        guard isIntervalDaysEnabled else { return nil }
+        let parsed = Int(intervalDays.trimmingCharacters(in: .whitespacesAndNewlines)) ?? -1
+        guard parsed >= 2 else { throw SaveFailure.invalidIntervalDays }
+        return parsed
     }
     
     private func buildIntakeTimesOrThrow() throws -> String {

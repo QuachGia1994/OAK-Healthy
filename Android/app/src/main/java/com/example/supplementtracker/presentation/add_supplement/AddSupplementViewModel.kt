@@ -95,6 +95,8 @@ class AddSupplementViewModel(
                 isWeeklyRecurrenceEnabled = false,
                 weekdaysMask = 127,
                 intervalWeeks = "1",
+                isIntervalDaysEnabled = false,
+                intervalDays = "2",
                 suggestions = emptyList()
             )
         }
@@ -164,6 +166,14 @@ class AddSupplementViewModel(
     fun onIntervalWeeksChange(value: String) {
         _state.update { it.copy(intervalWeeks = value) }
     }
+
+    fun onIntervalDaysToggle(enabled: Boolean) {
+        _state.update { it.copy(isIntervalDaysEnabled = enabled) }
+    }
+
+    fun onIntervalDaysChange(value: String) {
+        _state.update { it.copy(intervalDays = value) }
+    }
     
     fun onDurationChange(duration: String) {
         _state.update { it.copy(durationMonths = duration) }
@@ -185,6 +195,7 @@ class AddSupplementViewModel(
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
             val weekly = supplement.cycleConfig.weeklyRecurrence
+            val intervalDays = supplement.cycleConfig.intervalDays
             val normalizedTime = TimeStrings.normalizeString(supplement.intakeTime)
             val firstTime = TimeStrings.normalizeList(normalizedTime).firstOrNull() ?: "08:00"
             _state.update {
@@ -202,6 +213,8 @@ class AddSupplementViewModel(
                     isWeeklyRecurrenceEnabled = weekly != null,
                     weekdaysMask = weekly?.weekdaysMask ?: 127,
                     intervalWeeks = weekly?.intervalWeeks?.toString() ?: "1",
+                    isIntervalDaysEnabled = intervalDays != null && intervalDays > 1,
+                    intervalDays = (intervalDays ?: 2).toString(),
                     suggestions = emptyList(),
                     error = null
                 )
@@ -225,11 +238,18 @@ class AddSupplementViewModel(
         
         val daysOn = if (currentState.isContinuous) null else currentState.daysOn.toIntOrNull()
         val daysOff = if (currentState.isContinuous) null else currentState.daysOff.toIntOrNull()
+        val intervalDays = if (currentState.isIntervalDaysEnabled) currentState.intervalDays.toIntOrNull() else null
         
         if (!currentState.isContinuous) {
             val isInvalid = (daysOn == null || daysOn <= 0) || (daysOff == null || daysOff < 0)
             if (isInvalid) {
                 _state.update { it.copy(error = context.getString(R.string.add_supplement_error_invalid_cycle_days)) }
+                return
+            }
+        }
+        if (currentState.isIntervalDaysEnabled) {
+            if (intervalDays == null || intervalDays < 2) {
+                _state.update { it.copy(error = context.getString(R.string.add_supplement_error_invalid_interval_days)) }
                 return
             }
         }
@@ -254,14 +274,16 @@ class AddSupplementViewModel(
                             daysOff = 0,
                             isContinuous = true,
                             durationMonths = null,
-                            weeklyRecurrence = weeklyConfigIfNeeded(currentState)
+                            weeklyRecurrence = weeklyConfigIfNeeded(currentState),
+                            intervalDays = intervalDays
                         )
                     } else {
                         CycleConfig(
                             daysOn = daysOn ?: 1,
                             daysOff = daysOff ?: 0,
                             durationMonths = currentState.durationMonths.toIntOrNull(),
-                            weeklyRecurrence = weeklyConfigIfNeeded(currentState)
+                            weeklyRecurrence = weeklyConfigIfNeeded(currentState),
+                            intervalDays = intervalDays
                         )
                     },
                     dailyDose = currentState.dailyDose,

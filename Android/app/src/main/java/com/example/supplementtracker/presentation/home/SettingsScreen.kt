@@ -28,6 +28,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.CycleStatus
@@ -104,15 +107,7 @@ fun SettingsScreen(
     val localViewModelStoreOwner = LocalViewModelStoreOwner.current
     val compositionContext = rememberCompositionContext()
     val coroutineScope = rememberCoroutineScope()
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val shareStackTitle = stringResource(R.string.share_stack)
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
     val listState = rememberLazyListState()
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
     var isEditClientDialogVisible by remember { mutableStateOf(false) }
@@ -162,11 +157,7 @@ fun SettingsScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-    ) {
+    OakBackground {
         Scaffold(
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -737,18 +728,14 @@ private fun SettingsSection(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        ElevatedCard(
+        OakCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                content = content
-            )
-        }
+            variant = OakCardVariant.Glass,
+            shape = RoundedCornerShape(28.dp),
+            contentPadding = PaddingValues(16.dp),
+            elevation = 2.dp,
+            content = content
+        )
     }
 }
 

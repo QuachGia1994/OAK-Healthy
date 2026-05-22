@@ -98,12 +98,13 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         if (!isNotificationsEnabledByUser()) return
 
         val times = parseTimes(supplement.intakeTime)
+        val effectiveTimes = if (isIntervalRecurrenceEnabled(supplement)) times.take(1) else times
         val now = LocalDateTime.now()
         val today = LocalDate.now()
         val horizonDays = schedulingHorizonDays(supplement)
 
         for (dayOffset in 0 until horizonDays) {
-            scheduleForDate(supplement, today.plusDays(dayOffset.toLong()), times, now)
+            scheduleForDate(supplement, today.plusDays(dayOffset.toLong()), effectiveTimes, now)
         }
     }
 
@@ -114,6 +115,10 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         now: LocalDateTime
     ) {
         if (!matchesWeeklyRecurrenceIfNeeded(supplement, date)) {
+            times.forEach { timeString -> cancelByRequestCode(requestCode(supplement, date, timeString)) }
+            return
+        }
+        if (!matchesIntervalRecurrenceIfNeeded(supplement, date)) {
             times.forEach { timeString -> cancelByRequestCode(requestCode(supplement, date, timeString)) }
             return
         }
@@ -296,5 +301,23 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
     private fun startOfIsoWeek(date: LocalDate): LocalDate {
         val fields = WeekFields.ISO
         return date.with(fields.dayOfWeek(), 1)
+    }
+
+    private fun isIntervalRecurrenceEnabled(supplement: UserSupplement): Boolean {
+        val interval = supplement.cycleConfig.intervalDays ?: return false
+        return interval > 1
+    }
+
+    private fun matchesIntervalRecurrenceIfNeeded(supplement: UserSupplement, date: LocalDate): Boolean {
+        val interval = supplement.cycleConfig.intervalDays ?: return true
+        if (interval <= 1) return true
+        val lastTaken = supplement.lastTakenLocalDate
+        if (lastTaken != null) {
+            val days = ChronoUnit.DAYS.between(lastTaken, date).toInt()
+            return days > 0 && days % interval == 0
+        }
+        if (date.isBefore(supplement.startDate)) return false
+        val days = ChronoUnit.DAYS.between(supplement.startDate, date).toInt()
+        return days % interval == 0
     }
 }

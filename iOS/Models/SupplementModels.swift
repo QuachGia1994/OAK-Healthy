@@ -81,6 +81,7 @@ public struct CycleConfig: Codable, Sendable, Equatable {
     /// Tổng thời hạn tính bằng tháng (nil là vô thời hạn).
     public let durationMonths: Int?
     public let weeklyRecurrence: WeeklyRecurrenceConfig?
+    public let intervalDays: Int?
     
     /// Khởi tạo cấu hình chu kỳ.
     /// - Parameters:
@@ -93,7 +94,8 @@ public struct CycleConfig: Codable, Sendable, Equatable {
         daysOff: Int,
         isContinuous: Bool = false,
         durationMonths: Int? = nil,
-        weeklyRecurrence: WeeklyRecurrenceConfig? = nil
+        weeklyRecurrence: WeeklyRecurrenceConfig? = nil,
+        intervalDays: Int? = nil
     ) {
         if isContinuous {
             self.daysOn = 1
@@ -101,18 +103,21 @@ public struct CycleConfig: Codable, Sendable, Equatable {
             self.isContinuous = true
             self.durationMonths = durationMonths
             self.weeklyRecurrence = weeklyRecurrence
+            self.intervalDays = nil
             return
         }
         
         let safeDaysOn = max(1, min(3650, daysOn))
         let safeDaysOff = max(0, min(3650, daysOff))
         let safeDurationMonths = durationMonths.map { max(1, min(120, $0)) }
+        let safeIntervalDays = intervalDays.map { max(2, min(3650, $0)) }
         
         self.daysOn = safeDaysOn
         self.daysOff = safeDaysOff
         self.isContinuous = false
         self.durationMonths = safeDurationMonths
         self.weeklyRecurrence = weeklyRecurrence
+        self.intervalDays = safeIntervalDays
     }
     
     enum CodingKeys: String, CodingKey {
@@ -121,6 +126,7 @@ public struct CycleConfig: Codable, Sendable, Equatable {
         case isContinuous
         case durationMonths
         case weeklyRecurrence
+        case intervalDays
     }
     
     public init(from decoder: Decoder) throws {
@@ -130,7 +136,8 @@ public struct CycleConfig: Codable, Sendable, Equatable {
         let isContinuous = Self.decodeBool(from: container, key: .isContinuous) ?? false
         let durationMonths = Self.decodeInt(from: container, key: .durationMonths)
         let weekly = try? container.decodeIfPresent(WeeklyRecurrenceConfig.self, forKey: .weeklyRecurrence)
-        self.init(daysOn: daysOn, daysOff: daysOff, isContinuous: isContinuous, durationMonths: durationMonths, weeklyRecurrence: weekly ?? nil)
+        let intervalDays = Self.decodeInt(from: container, key: .intervalDays)
+        self.init(daysOn: daysOn, daysOff: daysOff, isContinuous: isContinuous, durationMonths: durationMonths, weeklyRecurrence: weekly ?? nil, intervalDays: intervalDays)
     }
     
     private static func decodeInt(from container: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Int? {
@@ -171,6 +178,8 @@ public final class UserSupplement: Identifiable {
     public var dailyDose: String
     /// Thời điểm uống trong ngày (Định dạng HH:mm).
     public var intakeTime: String
+
+    public var lastTakenLocalDate: String?
     
     public var updatedAtEpochMs: Int64
     
@@ -199,6 +208,7 @@ public final class UserSupplement: Identifiable {
         cycleConfig: CycleConfig,
         dailyDose: String,
         intakeTime: String,
+        lastTakenLocalDate: String? = nil,
         updatedAtEpochMs: Int64 = Int64(Date().timeIntervalSince1970 * 1000),
         deletedAtEpochMs: Int64? = nil,
         client: ClientProfile? = nil
@@ -209,6 +219,7 @@ public final class UserSupplement: Identifiable {
         self.cycleConfig = cycleConfig
         self.dailyDose = dailyDose
         self.intakeTime = intakeTime
+        self.lastTakenLocalDate = lastTakenLocalDate
         self.updatedAtEpochMs = updatedAtEpochMs
         self.deletedAtEpochMs = deletedAtEpochMs
         self.client = client

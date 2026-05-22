@@ -60,6 +60,7 @@ object SupplementExportJson {
         obj.put("startDate", dto.startDate)
         obj.put("category", dto.category)
         obj.put("cycle", encodeCycle(dto.cycle))
+        dto.lastTakenLocalDate?.let { obj.put("lastTakenLocalDate", it) }
         return obj
     }
 
@@ -71,7 +72,8 @@ object SupplementExportJson {
             intakeTime = obj.optString("intakeTime", "08:00"),
             startDate = obj.getString("startDate"),
             category = obj.optString("category", "").ifBlank { null },
-            cycle = decodeCycle(cycleObj)
+            cycle = decodeCycle(cycleObj),
+            lastTakenLocalDate = obj.optString("lastTakenLocalDate", "").ifBlank { null }
         )
     }
 
@@ -84,6 +86,7 @@ object SupplementExportJson {
         obj.put("weeklyWeekdaysMask", dto.weeklyWeekdaysMask)
         obj.put("weeklyIntervalWeeks", dto.weeklyIntervalWeeks)
         obj.put("weeklyAnchorDate", dto.weeklyAnchorDate)
+        obj.put("intervalDays", dto.intervalDays)
         return obj
     }
 
@@ -95,7 +98,8 @@ object SupplementExportJson {
             durationMonths = obj.optInt("durationMonths", -1).takeIf { it >= 0 },
             weeklyWeekdaysMask = obj.optInt("weeklyWeekdaysMask", -1).takeIf { it >= 0 },
             weeklyIntervalWeeks = obj.optInt("weeklyIntervalWeeks", -1).takeIf { it >= 1 },
-            weeklyAnchorDate = obj.optString("weeklyAnchorDate", "").ifBlank { null }
+            weeklyAnchorDate = obj.optString("weeklyAnchorDate", "").ifBlank { null },
+            intervalDays = obj.optInt("intervalDays", -1).takeIf { it >= 2 }
         )
     }
 }
@@ -128,7 +132,8 @@ object OAKBackupJson {
             dto.cycle.durationMonths?.toString().orEmpty(),
             dto.cycle.weeklyWeekdaysMask?.toString().orEmpty(),
             dto.cycle.weeklyIntervalWeeks?.toString().orEmpty(),
-            dto.cycle.weeklyAnchorDate?.trim().orEmpty()
+            dto.cycle.weeklyAnchorDate?.trim().orEmpty(),
+            dto.cycle.intervalDays?.toString().orEmpty()
         ).joinToString("|")
         return "s-" + com.example.supplementtracker.domain.util.StableId.hexSha256(key).take(32)
     }
@@ -193,7 +198,8 @@ object OAKBackupJson {
                 dailyDose = legacyDto.dailyDose,
                 intakeTime = legacyDto.intakeTime,
                 startDate = legacyDto.startDate,
-                cycle = legacyDto.cycle
+                cycle = legacyDto.cycle,
+                lastTakenLocalDate = legacyDto.lastTakenLocalDate
             )
         }
     }
@@ -290,6 +296,7 @@ object OAKBackupJson {
         obj.put("intakeTime", dto.intakeTime)
         obj.put("startDate", dto.startDate)
         obj.put("cycle", encodeCycle(dto.cycle))
+        dto.lastTakenLocalDate?.let { obj.put("lastTakenLocalDate", it) }
         obj.put("updatedAtEpochMs", dto.updatedAtEpochMs)
         dto.deletedAtEpochMs?.let { obj.put("deletedAtEpochMs", it) }
         return obj
@@ -306,6 +313,7 @@ object OAKBackupJson {
             intakeTime = intakeTime,
             startDate = startDate,
             cycle = decodeCycle(obj.optJSONObject("cycle") ?: JSONObject()),
+            lastTakenLocalDate = obj.optString("lastTakenLocalDate", "").ifBlank { null },
             updatedAtEpochMs = obj.optLong("updatedAtEpochMs", 0L),
             deletedAtEpochMs = obj.optLong("deletedAtEpochMs", -1L).takeIf { it >= 0L }
         )
@@ -343,6 +351,7 @@ object OAKBackupJson {
         obj.put("weeklyWeekdaysMask", dto.weeklyWeekdaysMask)
         obj.put("weeklyIntervalWeeks", dto.weeklyIntervalWeeks)
         obj.put("weeklyAnchorDate", dto.weeklyAnchorDate)
+        obj.put("intervalDays", dto.intervalDays)
         return obj
     }
 
@@ -354,7 +363,8 @@ object OAKBackupJson {
             durationMonths = obj.optInt("durationMonths", -1).takeIf { it >= 0 },
             weeklyWeekdaysMask = obj.optInt("weeklyWeekdaysMask", -1).takeIf { it >= 0 },
             weeklyIntervalWeeks = obj.optInt("weeklyIntervalWeeks", -1).takeIf { it >= 1 },
-            weeklyAnchorDate = obj.optString("weeklyAnchorDate", "").ifBlank { null }
+            weeklyAnchorDate = obj.optString("weeklyAnchorDate", "").ifBlank { null },
+            intervalDays = obj.optInt("intervalDays", -1).takeIf { it >= 2 }
         )
     }
 }

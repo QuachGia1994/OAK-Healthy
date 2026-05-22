@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -19,9 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
@@ -30,6 +29,9 @@ import android.app.TimePickerDialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -47,14 +49,7 @@ fun AddSupplementScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
+    val scrollState = rememberScrollState()
     val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy/MM/dd") }
 
     val timePickerDialog = remember(context) {
@@ -76,6 +71,8 @@ fun AddSupplementScreen(
                     )
                 ) && (
                 !state.isWeeklyRecurrenceEnabled || (state.intervalWeeks.toIntOrNull() ?: 0) > 0
+                ) && (
+                !state.isIntervalDaysEnabled || (state.intervalDays.toIntOrNull() ?: 0) >= 2
                 )
         }
     }
@@ -93,11 +90,7 @@ fun AddSupplementScreen(
         snackbarHostState.showSnackbar(message)
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-    ) {
+    OakBackground {
         Scaffold(
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -126,12 +119,24 @@ fun AddSupplementScreen(
                 )
             }
         ) { paddingValues ->
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
                     .padding(16.dp)
             ) {
+                OakCard(
+                    modifier = Modifier.fillMaxSize(),
+                    variant = OakCardVariant.Glass,
+                    shape = RoundedCornerShape(28.dp),
+                    contentPadding = PaddingValues(16.dp),
+                    elevation = 2.dp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                    ) {
             if (state.isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(12.dp))
@@ -146,16 +151,15 @@ fun AddSupplementScreen(
 
             // Hiển thị gợi ý
             if (state.suggestions.isNotEmpty()) {
-                val shape = RoundedCornerShape(32.dp)
-                val containerColor = MaterialTheme.colorScheme.surfaceVariant
                 val suggestionListState = rememberLazyListState()
-                Card(
+                OakCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp),
-                    shape = shape,
-                    colors = CardDefaults.cardColors(containerColor = containerColor),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    variant = OakCardVariant.Glass,
+                    shape = RoundedCornerShape(28.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    elevation = 1.dp
                 ) {
                     LazyColumn(
                         state = suggestionListState,
@@ -313,6 +317,33 @@ fun AddSupplementScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.repeat_every_n_days))
+                Spacer(modifier = Modifier.weight(1f))
+                Switch(
+                    checked = state.isIntervalDaysEnabled,
+                    onCheckedChange = viewModel::onIntervalDaysToggle
+                )
+            }
+
+            if (state.isIntervalDaysEnabled) {
+                OutlinedTextField(
+                    value = state.intervalDays,
+                    onValueChange = viewModel::onIntervalDaysChange,
+                    label = { Text(stringResource(R.string.interval_days_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Text(
+                    text = stringResource(R.string.repeat_every_n_days_preview, state.intervalDays),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -357,6 +388,8 @@ fun AddSupplementScreen(
                 modifier = Modifier.fillMaxWidth(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
+                    }
+                }
             }
         }
     }
