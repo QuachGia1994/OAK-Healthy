@@ -144,6 +144,20 @@ public enum CloudSyncCrypto {
         guard let keyData = CloudSyncKeyManager.keyData(for: keyId) else { throw .missingKey(keyId: keyId) }
         let nonce = AES.GCM.Nonce()
         let nonceData = nonce.withUnsafeBytes { Data($0) }
+        let ctData = try seal(plaintext: plaintext, keyData: keyData, nonce: nonce)
+        return try encodeEncryptedPayload(keyId: keyId, nonceData: nonceData, ctData: ctData)
+    }
+    
+    public static func decryptIfNeeded(_ payload: Data) throws(CloudSyncCryptoError) -> Data {
+        guard let parsed = try parseEncryptedPayloadIfPresent(payload) else { return payload }
+        return try openEncryptedPayload(kid: parsed.kid, nonceData: parsed.nonceData, ctData: parsed.ctData)
+    }
+    
+    private static func seal(
+        plaintext: Data,
+        keyData: Data,
+        nonce: AES.GCM.Nonce
+    ) throws(CloudSyncCryptoError) -> Data {
         let key = SymmetricKey(data: keyData)
         let sealed: AES.GCM.SealedBox
         do {
@@ -154,6 +168,14 @@ public enum CloudSyncCrypto {
         var ctData = Data()
         ctData.append(sealed.ciphertext)
         ctData.append(sealed.tag)
+        return ctData
+    }
+    
+    private static func encodeEncryptedPayload(
+        keyId: String,
+        nonceData: Data,
+        ctData: Data
+    ) throws(CloudSyncCryptoError) -> Data {
         let payload = EncryptedPayload(
             enc: .init(
                 v: 1,
@@ -170,17 +192,24 @@ public enum CloudSyncCrypto {
         }
     }
     
-    public static func decryptIfNeeded(_ payload: Data) throws(CloudSyncCryptoError) -> Data {
-        let decoded = try? JSONDecoder().decode(EncryptedPayload.self, from: payload)
-        guard let decoded else { return payload }
+    private static func parseEncryptedPayloadIfPresent(
+        _ payload: Data
+    ) throws(CloudSyncCryptoError) -> (kid: String, nonceData: Data, ctData: Data)? {
+        guard let decoded = try? JSONDecoder().decode(EncryptedPayload.self, from: payload) else { return nil }
         guard decoded.enc.v == 1, decoded.enc.alg == "A256GCM" else { throw .invalidPayload }
         let kid = decoded.enc.kid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !kid.isEmpty else { throw .invalidPayload }
-        let nonceData = Data(base64Encoded: decoded.enc.nonce)
-        let ctData = Data(base64Encoded: decoded.enc.ct)
-        guard let nonceData, let ctData else { throw .invalidPayload }
-        guard nonceData.count == 12 else { throw .invalidPayload }
-        guard ctData.count >= 16 else { throw .invalidPayload }
+        guard let nonceData = Data(base64Encoded: decoded.enc.nonce) else { throw .invalidPayload }
+        guard let ctData = Data(base64Encoded: decoded.enc.ct) else { throw .invalidPayload }
+        guard nonceData.count == 12, ctData.count >= 16 else { throw .invalidPayload }
+        return (kid, nonceData, ctData)
+    }
+    
+    private static func openEncryptedPayload(
+        kid: String,
+        nonceData: Data,
+        ctData: Data
+    ) throws(CloudSyncCryptoError) -> Data {
         guard let keyData = CloudSyncKeyManager.keyData(for: kid) else { throw .missingKey(keyId: kid) }
         let key = SymmetricKey(data: keyData)
         let nonce: AES.GCM.Nonce

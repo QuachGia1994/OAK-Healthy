@@ -132,28 +132,38 @@ enum ZlibBase64Codec {
     
     private static func process(data: Data, operation: compression_stream_operation) -> Data? {
         let bufferSize = 64 * 1024
+        return withScratchPointers { scratchDst, scratchSrc in
+            var stream = compression_stream(
+                dst_ptr: scratchDst,
+                dst_size: 0,
+                src_ptr: UnsafePointer(scratchSrc),
+                src_size: 0,
+                state: nil
+            )
+            guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
+            defer { compression_stream_destroy(&stream) }
+            return runStream(&stream, data: data, bufferSize: bufferSize)
+        }
+    }
+
+    private static func withScratchPointers(_ work: (UnsafeMutablePointer<UInt8>, UnsafeMutablePointer<UInt8>) -> Data?) -> Data? {
         let scratchDst = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
         let scratchSrc = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
         defer {
             scratchDst.deallocate()
             scratchSrc.deallocate()
         }
-        var stream = compression_stream(
-            dst_ptr: scratchDst,
-            dst_size: 0,
-            src_ptr: UnsafePointer(scratchSrc),
-            src_size: 0,
-            state: nil
-        )
-        guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
-        defer { compression_stream_destroy(&stream) }
-        return data.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) -> Data? in
+        return work(scratchDst, scratchSrc)
+    }
+
+    private static func runStream(_ stream: inout compression_stream, data: Data, bufferSize: Int) -> Data? {
+        data.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) -> Data? in
             guard let srcBase = srcPtr.bindMemory(to: UInt8.self).baseAddress else { return nil }
-            var dst = Data()
-            stream.src_ptr = srcBase
-            stream.src_size = data.count
             let dstBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
             defer { dstBuffer.deallocate() }
+            stream.src_ptr = srcBase
+            stream.src_size = data.count
+            var dst = Data()
             while true {
                 stream.dst_ptr = dstBuffer
                 stream.dst_size = bufferSize
@@ -190,29 +200,22 @@ struct OAKBackupSupplement: Codable, Sendable {
         startDate: String,
         cycle: SupplementExportCycle
     ) -> String {
-        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedDailyDose = dailyDose.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedIntakeTime = intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedStartDate = startDate.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedAnchorDate = cycle.weeklyAnchorDate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let normalizedDurationMonths = cycle.durationMonths.map(String.init) ?? ""
-        let normalizedWeekdaysMask = cycle.weeklyWeekdaysMask.map(String.init) ?? ""
-        let normalizedIntervalWeeks = cycle.weeklyIntervalWeeks.map(String.init) ?? ""
-        
-        var parts: [String] = []
-        parts.reserveCapacity(12)
-        parts.append("supplement")
-        parts.append(normalizedName)
-        parts.append(normalizedDailyDose)
-        parts.append(normalizedIntakeTime)
-        parts.append(normalizedStartDate)
-        parts.append(String(cycle.isContinuous))
-        parts.append(String(cycle.daysOn))
-        parts.append(String(cycle.daysOff))
-        parts.append(normalizedDurationMonths)
-        parts.append(normalizedWeekdaysMask)
-        parts.append(normalizedIntervalWeeks)
-        parts.append(normalizedAnchorDate)
+        let trimmed: (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let anchor = trimmed(cycle.weeklyAnchorDate ?? "")
+        let parts = [
+            "supplement",
+            trimmed(name),
+            trimmed(dailyDose),
+            trimmed(intakeTime),
+            trimmed(startDate),
+            String(cycle.isContinuous),
+            String(cycle.daysOn),
+            String(cycle.daysOff),
+            cycle.durationMonths.map(String.init) ?? "",
+            cycle.weeklyWeekdaysMask.map(String.init) ?? "",
+            cycle.weeklyIntervalWeeks.map(String.init) ?? "",
+            anchor
+        ]
         return parts.joined(separator: "|").lowercased()
     }
 
@@ -342,56 +345,10 @@ struct SupplementExportCodec {
         records: [IntakeRecord]
     ) throws -> Data {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
-        let deviceId = {
-            let key = "cloudSyncDeviceId"
-            let existing = (UserDefaults.standard.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !existing.isEmpty { return existing }
-            let created = UUID().uuidString
-            UserDefaults.standard.set(created, forKey: key)
-            return created
-        }()
-        let stack = supplements.map { supplement in
-                OAKBackupSupplement(
-                    id: supplement.id.uuidString,
-                    name: supplement.name,
-                    dailyDose: supplement.dailyDose,
-                    intakeTime: supplement.intakeTime,
-                    startDate: Self.dayString(from: supplement.startDate),
-                    cycle: SupplementExportCycle(
-                        isContinuous: supplement.cycleConfig.isContinuous,
-                        daysOn: supplement.cycleConfig.daysOn,
-                        daysOff: supplement.cycleConfig.daysOff,
-                        durationMonths: supplement.cycleConfig.durationMonths,
-                        weeklyWeekdaysMask: supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
-                        weeklyIntervalWeeks: supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
-                        weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) }
-                    ),
-                    updatedAtEpochMs: supplement.updatedAtEpochMs,
-                    deletedAtEpochMs: supplement.deletedAtEpochMs
-                )
-            }
-        var bestHistory: [String: IntakeRecord] = [:]
-        for record in records {
-            guard let supplementId = record.supplement?.id else { continue }
-            let dateEpochMs = Int64(record.date.timeIntervalSince1970 * 1000)
-            let key = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: dateEpochMs)
-            if let existing = bestHistory[key] {
-                if record.updatedAtEpochMs > existing.updatedAtEpochMs { bestHistory[key] = record }
-                continue
-            }
-            bestHistory[key] = record
-        }
-        let history: [OAKBackupHistory] = bestHistory.compactMap { (key, record) in
-            guard let supplementId = record.supplement?.id else { return nil }
-            return OAKBackupHistory(
-                id: key,
-                supplementId: supplementId.uuidString.lowercased(),
-                dateEpochMs: Int64(record.date.timeIntervalSince1970 * 1000),
-                status: record.status,
-                updatedAtEpochMs: record.updatedAtEpochMs
-            )
-        }
-        let historyZlibBase64: String? = ZlibBase64Codec.encodeIfLarge(items: history)
+        let deviceId = loadOrCreateDeviceId()
+        let stack = makeBackupStack(from: supplements)
+        let history = makeBackupHistory(from: records)
+        let historyZlibBase64 = ZlibBase64Codec.encodeIfLarge(items: history)
         let file = OAKBackupData(
             version: "2.0",
             meta: OAKBackupMeta(schemaVersion: 2, updatedAtEpochMs: now, deviceId: deviceId),
@@ -401,43 +358,114 @@ struct SupplementExportCodec {
         )
         return try JSONEncoder().encode(file)
     }
+
+    private static func loadOrCreateDeviceId() -> String {
+        let key = "cloudSyncDeviceId"
+        let existing = (UserDefaults.standard.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !existing.isEmpty { return existing }
+        let created = UUID().uuidString
+        UserDefaults.standard.set(created, forKey: key)
+        return created
+    }
+
+    private static func makeBackupStack(from supplements: [UserSupplement]) -> [OAKBackupSupplement] {
+        supplements.map { backupSupplement(from: $0) }
+    }
+
+    private static func backupSupplement(from supplement: UserSupplement) -> OAKBackupSupplement {
+        OAKBackupSupplement(
+            id: supplement.id.uuidString,
+            name: supplement.name,
+            dailyDose: supplement.dailyDose,
+            intakeTime: supplement.intakeTime,
+            startDate: Self.dayString(from: supplement.startDate),
+            cycle: SupplementExportCycle(
+                isContinuous: supplement.cycleConfig.isContinuous,
+                daysOn: supplement.cycleConfig.daysOn,
+                daysOff: supplement.cycleConfig.daysOff,
+                durationMonths: supplement.cycleConfig.durationMonths,
+                weeklyWeekdaysMask: supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
+                weeklyIntervalWeeks: supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
+                weeklyAnchorDate: supplement.cycleConfig.weeklyRecurrence.map { Self.dayString(from: $0.anchorDate) }
+            ),
+            updatedAtEpochMs: supplement.updatedAtEpochMs,
+            deletedAtEpochMs: supplement.deletedAtEpochMs
+        )
+    }
+
+    private static func makeBackupHistory(from records: [IntakeRecord]) -> [OAKBackupHistory] {
+        let best = bestRecordsByDoseKey(records)
+        return best.compactMap { (key, record) in
+            guard let supplementId = record.supplement?.id else { return nil }
+            return OAKBackupHistory(
+                id: key,
+                supplementId: supplementId.uuidString.lowercased(),
+                dateEpochMs: Int64(record.date.timeIntervalSince1970 * 1000),
+                status: record.status,
+                updatedAtEpochMs: record.updatedAtEpochMs
+            )
+        }
+    }
+
+    private static func bestRecordsByDoseKey(_ records: [IntakeRecord]) -> [String: IntakeRecord] {
+        var best: [String: IntakeRecord] = [:]
+        for record in records {
+            guard let supplementId = record.supplement?.id else { continue }
+            let dateEpochMs = Int64(record.date.timeIntervalSince1970 * 1000)
+            let key = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: dateEpochMs)
+            if let existing = best[key] {
+                if record.updatedAtEpochMs > existing.updatedAtEpochMs { best[key] = record }
+                continue
+            }
+            best[key] = record
+        }
+        return best
+    }
     
     static func decodeBackupCompat(data: Data) throws -> OAKBackupData {
-        if let decoded = try? JSONDecoder().decode(OAKBackupData.self, from: data) {
-            return decoded
-        }
-
-        if let stack = try? JSONDecoder().decode([OAKBackupSupplement].self, from: data) {
+        if let decoded = tryDecodeBackupData(data: data) { return decoded }
+        if let stack = tryDecodeBackupStack(data: data) {
             return OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
         }
-        
-        let legacy = try decode(data: data)
-        let converted = OAKBackupData(
+        return convertLegacyToBackup(try decode(data: data))
+    }
+
+    private static func tryDecodeBackupData(data: Data) -> OAKBackupData? {
+        try? JSONDecoder().decode(OAKBackupData.self, from: data)
+    }
+
+    private static func tryDecodeBackupStack(data: Data) -> [OAKBackupSupplement]? {
+        try? JSONDecoder().decode([OAKBackupSupplement].self, from: data)
+    }
+
+    private static func convertLegacyToBackup(_ legacy: SupplementExportFile) -> OAKBackupData {
+        OAKBackupData(
             version: "2.0",
             meta: nil,
-            stack: legacy.supplements.map { dto in
-                let key = OAKBackupSupplement.stableFieldKey(
-                    name: dto.name,
-                    dailyDose: dto.dailyDose,
-                    intakeTime: dto.intakeTime,
-                    startDate: dto.startDate,
-                    cycle: dto.cycle
-                )
-                return OAKBackupSupplement(
-                    id: DoseEventKey.stableUUID(from: key).uuidString,
-                    name: dto.name,
-                    dailyDose: dto.dailyDose,
-                    intakeTime: dto.intakeTime,
-                    startDate: dto.startDate,
-                    cycle: dto.cycle,
-                    updatedAtEpochMs: 0,
-                    deletedAtEpochMs: nil
-                )
-            },
+            stack: legacy.supplements.map { legacyBackupSupplement(from: $0) },
             history: [],
             historyZlibBase64: nil
         )
-        return converted
+    }
+
+    private static func legacyBackupSupplement(from dto: SupplementExportSupplement) -> OAKBackupSupplement {
+        let key = OAKBackupSupplement.stableFieldKey(
+            name: dto.name,
+            dailyDose: dto.dailyDose,
+            intakeTime: dto.intakeTime,
+            startDate: dto.startDate,
+            cycle: dto.cycle
+        )
+        return OAKBackupSupplement(
+            id: DoseEventKey.stableUUID(from: key).uuidString,
+            name: dto.name,
+            dailyDose: dto.dailyDose,
+            intakeTime: dto.intakeTime,
+            startDate: dto.startDate,
+            cycle: dto.cycle,
+            updatedAtEpochMs: 0,
+            deletedAtEpochMs: nil
+        )
     }
     
     static func importBackup(
@@ -458,73 +486,60 @@ struct SupplementExportCodec {
         try mergeBackupDataSafely(backup, client: client, context: context)
     }
     
-    static func importBackupData(
-        _ backup: OAKBackupData,
-        client: ClientProfile,
+    static func importBackupData(_ backup: OAKBackupData, client: ClientProfile, context: ModelContext) throws {
+        let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
+        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        try deleteClientData(clientId: client.id, allSupplements: allSupplements, allRecords: allRecords, context: context)
+
+        let supplementOwners = supplementOwnersById(allSupplements)
+        var takenSupplementIds = Set(supplementOwners.keys)
+
+        let allExistingRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let recordOwners = recordOwnersById(allExistingRecords)
+        var takenRecordIds = Set(recordOwners.keys)
+
+        let (supplementById, supplementIdMap) = try importSupplements(backup: backup, client: client, ownersById: supplementOwners, taken: &takenSupplementIds, context: context)
+        try context.save()
+
+        try importRecordsBatched(backup: backup, clientId: client.id, supplementById: supplementById, supplementIdMap: supplementIdMap, recordOwners: recordOwners, takenRecordIds: &takenRecordIds, context: context)
+    }
+
+    private static func deleteClientData(
+        clientId: UUID,
+        allSupplements: [UserSupplement],
+        allRecords: [IntakeRecord],
         context: ModelContext
     ) throws {
-        let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
-        let supplementsForClient = allSupplements.filter { $0.client?.id == client.id }
-        
-        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordsForClient = allRecords.filter { $0.supplement?.client?.id == client.id }
-        
-        for record in recordsForClient {
-            context.delete(record)
-        }
-        for supplement in supplementsForClient {
-            context.delete(supplement)
-        }
+        for record in allRecords where record.supplement?.client?.id == clientId { context.delete(record) }
+        for supplement in allSupplements where supplement.client?.id == clientId { context.delete(supplement) }
         try context.save()
-        
-        let supplementOwners: [UUID: UUID?] = Dictionary(
-            allSupplements.map { ($0.id, $0.client?.id) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var takenSupplementIds = Set(supplementOwners.keys)
-        
-        let allExistingRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordOwners: [UUID: UUID?] = Dictionary(
-            allExistingRecords.map { ($0.id, $0.supplement?.client?.id) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var takenRecordIds = Set(recordOwners.keys)
-        
+    }
+
+    private static func supplementOwnersById(_ allSupplements: [UserSupplement]) -> [UUID: UUID?] {
+        Dictionary(allSupplements.map { ($0.id, $0.client?.id) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private static func recordOwnersById(_ allRecords: [IntakeRecord]) -> [UUID: UUID?] {
+        Dictionary(allRecords.map { ($0.id, $0.supplement?.client?.id) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private static func importSupplements(
+        backup: OAKBackupData,
+        client: ClientProfile,
+        ownersById: [UUID: UUID?],
+        taken: inout Set<UUID>,
+        context: ModelContext
+    ) throws -> ([UUID: UserSupplement], [UUID: UUID]) {
         var supplementById: [UUID: UserSupplement] = [:]
         var supplementIdMap: [UUID: UUID] = [:]
         for dto in backup.stack {
-            let id = resolvedImportId(
-                rawUUIDString: dto.id,
-                clientId: client.id,
-                ownersById: supplementOwners,
-                taken: &takenSupplementIds
-            )
+            let id = resolvedImportId(rawUUIDString: dto.id, clientId: client.id, ownersById: ownersById, taken: &taken)
             if let original = UUID(uuidString: dto.id) { supplementIdMap[original] = id }
-            let supplement = UserSupplement(
-                id: id,
-                name: dto.name,
-                startDate: try dayDate(from: dto.startDate),
-                cycleConfig: cycleConfig(from: dto.cycle),
-                dailyDose: dto.dailyDose,
-                intakeTime: dto.intakeTime,
-                updatedAtEpochMs: dto.updatedAtEpochMs,
-                deletedAtEpochMs: dto.deletedAtEpochMs,
-                client: client
-            )
+            let supplement = try makeSupplement(dto: dto, id: id, client: client)
             context.insert(supplement)
             supplementById[id] = supplement
         }
-        try context.save()
-        
-        try importRecordsBatched(
-            backup: backup,
-            clientId: client.id,
-            supplementById: supplementById,
-            supplementIdMap: supplementIdMap,
-            recordOwners: recordOwners,
-            takenRecordIds: &takenRecordIds,
-            context: context
-        )
+        return (supplementById, supplementIdMap)
     }
 
     static func mergeBackupData(
@@ -546,140 +561,167 @@ struct SupplementExportCodec {
         try context.save()
     }
     
-    static func mergeBackupDataSafely(
-        _ backup: OAKBackupData,
-        client: ClientProfile,
-        context: ModelContext
-    ) throws {
+    static func mergeBackupDataSafely(_ backup: OAKBackupData, client: ClientProfile, context: ModelContext) throws {
         let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
-        let supplementOwners: [UUID: UUID?] = Dictionary(
-            allSupplements.map { ($0.id, $0.client?.id) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        let supplementOwners = supplementOwnersById(allSupplements)
         var takenSupplementIds = Set(supplementOwners.keys)
-        
-        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordOwners: [UUID: UUID?] = Dictionary(
-            allRecords.map { ($0.id, $0.supplement?.client?.id) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var takenRecordIds = Set(recordOwners.keys)
-        
+
         var supplementIdMap: [UUID: UUID] = [:]
-        var supplementsForClient: [UUID: UserSupplement] = Dictionary(
-            allSupplements.compactMap { s in
-                guard s.client?.id == client.id else { return nil }
-                return (s.id, s)
-            },
+        var supplementsForClient = supplementsForClient(clientId: client.id, allSupplements: allSupplements)
+        try mergeSupplementsSafely(backup: backup, client: client, context: context, supplementOwners: supplementOwners, takenSupplementIds: &takenSupplementIds, supplementIdMap: &supplementIdMap, supplementsForClient: &supplementsForClient)
+        try context.save()
+
+        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let recordOwners = recordOwnersById(allRecords)
+        var recordsForClient = recordsForClient(clientId: client.id, allRecords: allRecords)
+        let recordsForClientByDoseKey = try dedupeByDoseKey(recordsForClient: &recordsForClient, context: context)
+
+        var state = makeMergeState(
+            supplementIdMap: supplementIdMap,
+            supplementsForClient: supplementsForClient,
+            recordOwners: recordOwners,
+            recordsForClient: recordsForClient,
+            recordsForClientByDoseKey: recordsForClientByDoseKey
+        )
+        try mergeHistorySafely(backup: backup, clientId: client.id, context: context, state: &state)
+    }
+
+    private struct MergeBackupState {
+        var supplementIdMap: [UUID: UUID]
+        var supplementsForClient: [UUID: UserSupplement]
+        var recordOwners: [UUID: UUID?]
+        var takenRecordIds: Set<UUID>
+        var recordsForClient: [UUID: IntakeRecord]
+        var recordsForClientByDoseKey: [String: IntakeRecord]
+    }
+
+    private static func makeMergeState(
+        supplementIdMap: [UUID: UUID],
+        supplementsForClient: [UUID: UserSupplement],
+        recordOwners: [UUID: UUID?],
+        recordsForClient: [UUID: IntakeRecord],
+        recordsForClientByDoseKey: [String: IntakeRecord]
+    ) -> MergeBackupState {
+        MergeBackupState(
+            supplementIdMap: supplementIdMap,
+            supplementsForClient: supplementsForClient,
+            recordOwners: recordOwners,
+            takenRecordIds: Set(recordOwners.keys),
+            recordsForClient: recordsForClient,
+            recordsForClientByDoseKey: recordsForClientByDoseKey
+        )
+    }
+
+    private static func supplementsForClient(clientId: UUID, allSupplements: [UserSupplement]) -> [UUID: UserSupplement] {
+        Dictionary(
+            allSupplements.compactMap { s in s.client?.id == clientId ? (s.id, s) : nil },
             uniquingKeysWith: { first, _ in first }
         )
-        
+    }
+
+    private static func recordsForClient(clientId: UUID, allRecords: [IntakeRecord]) -> [UUID: IntakeRecord] {
+        Dictionary(
+            allRecords.compactMap { r in r.supplement?.client?.id == clientId ? (r.id, r) : nil },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    private static func mergeSupplementsSafely(
+        backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext,
+        supplementOwners: [UUID: UUID?],
+        takenSupplementIds: inout Set<UUID>,
+        supplementIdMap: inout [UUID: UUID],
+        supplementsForClient: inout [UUID: UserSupplement]
+    ) throws {
         for dto in backup.stack {
-            let resolvedId = resolvedImportId(
-                rawUUIDString: dto.id,
-                clientId: client.id,
-                ownersById: supplementOwners,
-                taken: &takenSupplementIds
-            )
+            let resolvedId = resolvedImportId(rawUUIDString: dto.id, clientId: client.id, ownersById: supplementOwners, taken: &takenSupplementIds)
             if let original = UUID(uuidString: dto.id) { supplementIdMap[original] = resolvedId }
-            
             if let target = supplementsForClient[resolvedId] {
-                let localTs = max(target.updatedAtEpochMs, target.deletedAtEpochMs ?? 0)
-                let remoteTs = max(dto.updatedAtEpochMs, dto.deletedAtEpochMs ?? 0)
-                guard remoteTs > localTs else { continue }
-                try apply(dto: dto, to: target, client: client)
+                if shouldUpdate(local: target, remote: dto) { try apply(dto: dto, to: target, client: client) }
                 supplementsForClient[resolvedId] = target
                 continue
             }
-            
             let created = try makeSupplement(dto: dto, id: resolvedId, client: client)
             context.insert(created)
             supplementsForClient[resolvedId] = created
         }
-        
-        try context.save()
-        
-        var recordsForClient: [UUID: IntakeRecord] = Dictionary(
-            allRecords.compactMap { r in
-                guard r.supplement?.client?.id == client.id else { return nil }
-                return (r.id, r)
-            },
-            uniquingKeysWith: { first, _ in first }
-        )
+    }
 
-        var recordsForClientByDoseKey: [String: IntakeRecord] = [:]
+    private static func shouldUpdate(local: UserSupplement, remote: OAKBackupSupplement) -> Bool {
+        let localTs = max(local.updatedAtEpochMs, local.deletedAtEpochMs ?? 0)
+        let remoteTs = max(remote.updatedAtEpochMs, remote.deletedAtEpochMs ?? 0)
+        return remoteTs > localTs
+    }
+
+    private static func dedupeByDoseKey(
+        recordsForClient: inout [UUID: IntakeRecord],
+        context: ModelContext
+    ) throws -> [String: IntakeRecord] {
+        var byDoseKey: [String: IntakeRecord] = [:]
         for record in recordsForClient.values {
             guard let key = recordDoseKey(record) else { continue }
-            if let existing = recordsForClientByDoseKey[key] {
+            if let existing = byDoseKey[key] {
                 if record.updatedAtEpochMs > existing.updatedAtEpochMs {
                     context.delete(existing)
                     recordsForClient.removeValue(forKey: existing.id)
-                    recordsForClientByDoseKey[key] = record
+                    byDoseKey[key] = record
                     continue
                 }
                 context.delete(record)
                 recordsForClient.removeValue(forKey: record.id)
                 continue
             }
-            recordsForClientByDoseKey[key] = record
+            byDoseKey[key] = record
         }
-        
         try context.save()
-        
+        return byDoseKey
+    }
+
+    private static func mergeHistorySafely(
+        backup: OAKBackupData,
+        clientId: UUID,
+        context: ModelContext,
+        state: inout MergeBackupState
+    ) throws {
         let history = Array(backup.history.suffix(5_000))
         var index = 0
         while index < history.count {
             let end = min(index + 500, history.count)
             for dto in history[index..<end] {
-                let originalSupplementId = UUID(uuidString: dto.supplementId)
-                let resolvedSupplementId = originalSupplementId.flatMap { supplementIdMap[$0] ?? $0 }
-                guard let resolvedSupplementId, let supplement = supplementsForClient[resolvedSupplementId] else { continue }
-                
-                let remoteUpdatedAt = dto.updatedAtEpochMs > 0 ? dto.updatedAtEpochMs : dto.dateEpochMs
-                let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-                let intakeTime = DoseEventKey.intakeTimeString(from: date)
-                let doseKey = DoseEventKey.make(supplementId: resolvedSupplementId, scheduledAtEpochMs: dto.dateEpochMs)
-                if let found = recordsForClientByDoseKey[doseKey] {
-                    guard remoteUpdatedAt > found.updatedAtEpochMs else { continue }
-                    found.status = dto.status
-                    found.date = date
-                    found.intakeTime = intakeTime
-                    found.updatedAtEpochMs = remoteUpdatedAt
-                    continue
-                }
-
-                let stableRecordId = DoseEventKey.stableUUID(from: doseKey)
-                let resolvedRecordId = resolvedImportId(
-                    rawUUIDString: stableRecordId.uuidString,
-                    clientId: client.id,
-                    ownersById: recordOwners,
-                    taken: &takenRecordIds
-                )
-                if let found = recordsForClient[resolvedRecordId] {
-                    guard remoteUpdatedAt > found.updatedAtEpochMs else { continue }
-                    found.status = dto.status
-                    found.date = date
-                    found.intakeTime = intakeTime
-                    found.updatedAtEpochMs = remoteUpdatedAt
-                    recordsForClientByDoseKey[doseKey] = found
-                    continue
-                }
-                
-                let record = IntakeRecord(
-                    id: resolvedRecordId,
-                    date: date,
-                    status: dto.status,
-                    intakeTime: intakeTime,
-                    updatedAtEpochMs: remoteUpdatedAt,
-                    supplement: supplement
-                )
-                context.insert(record)
-                recordsForClient[resolvedRecordId] = record
-                recordsForClientByDoseKey[doseKey] = record
+                mergeHistoryItem(dto: dto, clientId: clientId, context: context, state: &state)
             }
             try context.save()
             index = end
         }
+    }
+
+    private static func mergeHistoryItem(dto: OAKBackupHistory, clientId: UUID, context: ModelContext, state: inout MergeBackupState) {
+        let originalSupplementId = UUID(uuidString: dto.supplementId)
+        let resolvedSupplementId = originalSupplementId.flatMap { state.supplementIdMap[$0] ?? $0 }
+        guard let resolvedSupplementId, let supplement = state.supplementsForClient[resolvedSupplementId] else { return }
+
+        let (remoteUpdatedAt, date, intakeTime, doseKey) = recordPayload(dto: dto, supplementId: resolvedSupplementId)
+        if let found = state.recordsForClientByDoseKey[doseKey] {
+            guard remoteUpdatedAt > found.updatedAtEpochMs else { return }
+            apply(dto: dto, to: found, remoteUpdatedAt: remoteUpdatedAt, date: date, intakeTime: intakeTime)
+            return
+        }
+
+        let stableRecordId = DoseEventKey.stableUUID(from: doseKey)
+        let resolvedRecordId = resolvedImportId(rawUUIDString: stableRecordId.uuidString, clientId: clientId, ownersById: state.recordOwners, taken: &state.takenRecordIds)
+        if let found = state.recordsForClient[resolvedRecordId] {
+            guard remoteUpdatedAt > found.updatedAtEpochMs else { return }
+            apply(dto: dto, to: found, remoteUpdatedAt: remoteUpdatedAt, date: date, intakeTime: intakeTime)
+            state.recordsForClientByDoseKey[doseKey] = found
+            return
+        }
+
+        let record = IntakeRecord(id: resolvedRecordId, date: date, status: dto.status, intakeTime: intakeTime, updatedAtEpochMs: remoteUpdatedAt, supplement: supplement)
+        context.insert(record)
+        state.recordsForClient[resolvedRecordId] = record
+        state.recordsForClientByDoseKey[doseKey] = record
     }
     
     private static func resolvedImportId(
@@ -730,32 +772,37 @@ struct SupplementExportCodec {
         while index < history.count {
             let end = min(index + 500, history.count)
             for dto in history[index..<end] {
-                let supplementId = UUID(uuidString: dto.supplementId).flatMap { supplementIdMap[$0] ?? $0 }
-                guard let supplementId, let supplement = supplementById[supplementId] else { continue }
-                let doseKey = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: dto.dateEpochMs)
-                let stableRecordId = DoseEventKey.stableUUID(from: doseKey)
-                let recordId = resolvedImportId(
-                    rawUUIDString: stableRecordId.uuidString,
+                importHistoryRecord(
+                    dto: dto,
                     clientId: clientId,
-                    ownersById: recordOwners,
-                    taken: &takenRecordIds
+                    supplementById: supplementById,
+                    supplementIdMap: supplementIdMap,
+                    recordOwners: recordOwners,
+                    takenRecordIds: &takenRecordIds,
+                    context: context
                 )
-                let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-                let remoteUpdatedAt = dto.updatedAtEpochMs > 0 ? dto.updatedAtEpochMs : dto.dateEpochMs
-                let intakeTime = DoseEventKey.intakeTimeString(from: date)
-                let record = IntakeRecord(
-                    id: recordId,
-                    date: date,
-                    status: dto.status,
-                    intakeTime: intakeTime,
-                    updatedAtEpochMs: remoteUpdatedAt,
-                    supplement: supplement
-                )
-                context.insert(record)
             }
             try context.save()
             index = end
         }
+    }
+
+    private static func importHistoryRecord(
+        dto: OAKBackupHistory,
+        clientId: UUID,
+        supplementById: [UUID: UserSupplement],
+        supplementIdMap: [UUID: UUID],
+        recordOwners: [UUID: UUID?],
+        takenRecordIds: inout Set<UUID>,
+        context: ModelContext
+    ) {
+        let supplementId = UUID(uuidString: dto.supplementId).flatMap { supplementIdMap[$0] ?? $0 }
+        guard let supplementId, let supplement = supplementById[supplementId] else { return }
+        let (remoteUpdatedAt, date, intakeTime, doseKey) = recordPayload(dto: dto, supplementId: supplementId)
+        let stableRecordId = DoseEventKey.stableUUID(from: doseKey)
+        let recordId = resolvedImportId(rawUUIDString: stableRecordId.uuidString, clientId: clientId, ownersById: recordOwners, taken: &takenRecordIds)
+        let record = IntakeRecord(id: recordId, date: date, status: dto.status, intakeTime: intakeTime, updatedAtEpochMs: remoteUpdatedAt, supplement: supplement)
+        context.insert(record)
     }
 
     private static func supplementsById(
@@ -881,30 +928,36 @@ struct SupplementExportCodec {
         for dto in backup.history {
             let supplementId = UUID(uuidString: dto.supplementId)
             guard let supplementId, let supplement = supplementById[supplementId] else { continue }
-            let remoteUpdatedAt = dto.updatedAtEpochMs > 0 ? dto.updatedAtEpochMs : dto.dateEpochMs
-            let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
-            let intakeTime = DoseEventKey.intakeTimeString(from: date)
-            let key = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: dto.dateEpochMs)
+            let (remoteUpdatedAt, date, intakeTime, key) = recordPayload(dto: dto, supplementId: supplementId)
             if let found = existingByDoseKey[key] {
                 guard remoteUpdatedAt > found.updatedAtEpochMs else { continue }
-                found.status = dto.status
-                found.date = date
-                found.intakeTime = intakeTime
-                found.updatedAtEpochMs = remoteUpdatedAt
+                apply(dto: dto, to: found, remoteUpdatedAt: remoteUpdatedAt, date: date, intakeTime: intakeTime)
                 continue
             }
             let recordId = DoseEventKey.stableUUID(from: key)
             if let found = existingById[recordId] {
                 guard remoteUpdatedAt > found.updatedAtEpochMs else { continue }
-                found.status = dto.status
-                found.date = date
-                found.intakeTime = intakeTime
-                found.updatedAtEpochMs = remoteUpdatedAt
+                apply(dto: dto, to: found, remoteUpdatedAt: remoteUpdatedAt, date: date, intakeTime: intakeTime)
                 continue
             }
             let record = IntakeRecord(id: recordId, date: date, status: dto.status, intakeTime: intakeTime, updatedAtEpochMs: remoteUpdatedAt, supplement: supplement)
             context.insert(record)
         }
+    }
+
+    private static func recordPayload(dto: OAKBackupHistory, supplementId: UUID) -> (Int64, Date, String, String) {
+        let remoteUpdatedAt = dto.updatedAtEpochMs > 0 ? dto.updatedAtEpochMs : dto.dateEpochMs
+        let date = Date(timeIntervalSince1970: Double(dto.dateEpochMs) / 1000.0)
+        let intakeTime = DoseEventKey.intakeTimeString(from: date)
+        let key = DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: dto.dateEpochMs)
+        return (remoteUpdatedAt, date, intakeTime, key)
+    }
+
+    private static func apply(dto: OAKBackupHistory, to record: IntakeRecord, remoteUpdatedAt: Int64, date: Date, intakeTime: String) {
+        record.status = dto.status
+        record.date = date
+        record.intakeTime = intakeTime
+        record.updatedAtEpochMs = remoteUpdatedAt
     }
     
     private static func upsertRecordsBatched(
@@ -918,10 +971,7 @@ struct SupplementExportCodec {
         while index < history.count {
             let end = min(index + 500, history.count)
             for dto in history[index..<end] {
-                let rawKey = dto.id.trimmingCharacters(in: .whitespacesAndNewlines)
-                let resolvedKey = rawKey.isEmpty
-                    ? "\(dto.supplementId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())-\(dto.dateEpochMs)"
-                    : rawKey.lowercased()
+                let resolvedKey = resolvedHistoryKey(dto)
                 let recordId = DoseEventKey.stableUUID(from: resolvedKey)
                 if let found = existing[recordId] {
                     found.status = dto.status
@@ -938,6 +988,13 @@ struct SupplementExportCodec {
             try context.save()
             index = end
         }
+    }
+
+    private static func resolvedHistoryKey(_ dto: OAKBackupHistory) -> String {
+        let rawKey = dto.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !rawKey.isEmpty { return rawKey.lowercased() }
+        let supplementKey = dto.supplementId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return "\(supplementKey)-\(dto.dateEpochMs)"
     }
     
     static func encode(supplements: [UserSupplement]) throws -> Data {

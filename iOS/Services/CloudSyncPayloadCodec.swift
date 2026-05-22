@@ -53,7 +53,15 @@ enum CloudSyncPayloadCodec {
         )
         guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
         defer { compression_stream_destroy(&stream) }
-        return data.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) -> Data? in
+        return run(stream: &stream, data: data, bufferSize: bufferSize)
+    }
+    
+    private static func run(
+        stream: inout compression_stream,
+        data: Data,
+        bufferSize: Int
+    ) -> Data? {
+        data.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) -> Data? in
             guard let srcBase = srcPtr.bindMemory(to: UInt8.self).baseAddress else { return nil }
             var dst = Data()
             stream.src_ptr = srcBase

@@ -40,29 +40,30 @@ public struct CycleCalculator: CycleCalculating {
         at currentDate: Date = .now
     ) throws(CycleError) -> CycleStatus {
         let calendar = Calendar.current
-        
-        // 1. Kiểm tra thời hạn (Duration)
-        if let months = config.durationMonths,
-           let endDate = calendar.date(byAdding: .month, value: months, to: startDate) {
+
+        if let endDate = endDateIfNeeded(startDate: startDate, config: config, calendar: calendar) {
             guard currentDate <= endDate else { return .off }
         }
-        
-        // 2. Early return cho trường hợp uống liên tục
+
         guard !config.isContinuous else { return .on }
         
-        // 3. Early return nếu ngày kiểm tra trước ngày bắt đầu
-        // Sử dụng startOfDay để so sánh ngày chính xác
         let startDay = calendar.startOfDay(for: startDate)
         let currentDay = calendar.startOfDay(for: currentDate)
         guard currentDay >= startDay else { return .on }
         
-        let components = calendar.dateComponents([.day], from: startDay, to: currentDay)
-        
-        guard let daysElapsed = components.day else {
-            throw CycleError.calculationOverflow
-        }
-        
+        let daysElapsed = try daysElapsed(from: startDay, to: currentDay, calendar: calendar)
         return calculateStatus(daysElapsed: daysElapsed, config: config)
+    }
+
+    private func endDateIfNeeded(startDate: Date, config: CycleConfig, calendar: Calendar) -> Date? {
+        guard let months = config.durationMonths else { return nil }
+        return calendar.date(byAdding: .month, value: months, to: startDate)
+    }
+
+    private func daysElapsed(from startDay: Date, to currentDay: Date, calendar: Calendar) throws(CycleError) -> Int {
+        let components = calendar.dateComponents([.day], from: startDay, to: currentDay)
+        guard let days = components.day else { throw CycleError.calculationOverflow }
+        return days
     }
     
     /// Logic tính toán số ngày dựa trên modulo.

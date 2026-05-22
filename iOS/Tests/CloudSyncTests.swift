@@ -54,3 +54,13 @@ final class CloudSyncTelemetryTests: XCTestCase {
         XCTAssertEqual(fields["server_body"]?.count, 240)
     }
 }
+
+final class CloudSyncManifestCodecTests: XCTestCase {
+    func testRoundTrip() throws {
+        let data = try CloudSyncManifestCodec.encode(stackBinId: "stack", historyBinId: "history")
+        let decoded = try CloudSyncManifestCodec.decode(data)
+        XCTAssertEqual(decoded.v, 1)
+        XCTAssertEqual(decoded.stackBinId, "stack")
+        XCTAssertEqual(decoded.historyBinId, "history")
+    }
+}

@@ -65,33 +65,13 @@ object NotificationDebugStore {
     private fun parse(raw: String): ScheduledAlarmInfo? {
         val parts = raw.split("|")
         val requestCode = parts.getOrNull(0)?.toIntOrNull() ?: return null
-        if (parts.size >= 6) {
-            val supplementId = parts.getOrNull(1).orEmpty()
-            val title = parts.getOrNull(2) ?: return null
-            val dose = parts.getOrNull(3).orEmpty()
-            val cycleText = parts.getOrNull(4).orEmpty()
-            val millis = parts.getOrNull(5)?.toLongOrNull() ?: return null
-            return ScheduledAlarmInfo(
-                requestCode = requestCode,
-                supplementId = supplementId,
-                title = title,
-                dose = dose,
-                cycleText = cycleText,
-                scheduledAtMillis = millis
-            )
-        }
-        val title = parts.getOrNull(1) ?: return null
-        val dose = parts.getOrNull(2).orEmpty()
-        val cycleText = parts.getOrNull(3).orEmpty()
-        val millis = parts.getOrNull(4)?.toLongOrNull() ?: return null
-        return ScheduledAlarmInfo(
-            requestCode = requestCode,
-            supplementId = "",
-            title = title,
-            dose = dose,
-            cycleText = cycleText,
-            scheduledAtMillis = millis
-        )
+        val offset = if (parts.size >= 6) 1 else 0
+        val supplementId = if (offset == 1) parts.getOrNull(1).orEmpty() else ""
+        val title = parts.getOrNull(1 + offset) ?: return null
+        val dose = parts.getOrNull(2 + offset).orEmpty()
+        val cycleText = parts.getOrNull(3 + offset).orEmpty()
+        val millis = parts.getOrNull(4 + offset)?.toLongOrNull() ?: return null
+        return ScheduledAlarmInfo(requestCode, supplementId, title, dose, cycleText, millis)
     }
 }
 
@@ -123,57 +103,51 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         val horizonDays = schedulingHorizonDays(supplement)
 
         for (dayOffset in 0 until horizonDays) {
-            val date = today.plusDays(dayOffset.toLong())
-
-            if (!matchesWeeklyRecurrenceIfNeeded(supplement, date)) {
-                times.forEach { timeString ->
-                    cancelByRequestCode(requestCode(supplement, date, timeString))
-                }
-                continue
-            }
-
-            val status = cycleUseCase(
-                startDate = supplement.startDate,
-                config = supplement.cycleConfig,
-                currentDate = date
-            )
-
-            for (timeString in times) {
-                val time = parseTime(timeString) ?: continue
-                val requestCode = requestCode(supplement, date, timeString)
-                val plan = applyQuietHoursIfNeeded(date = date, time = time)
-
-                if (plan.triggerAt.isBefore(now) || status != CycleStatus.ON) {
-                    cancelByRequestCode(requestCode)
-                    continue
-                }
-
-                val scheduledAtMillis = plan.scheduledAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                val triggerAtMillis = plan.triggerAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    requestCode,
-                    buildIntent(supplement, timeString, scheduledAtMillis),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
-                alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    triggerAtMillis,
-                    pendingIntent
-                )
-                NotificationDebugStore.recordScheduled(
-                    context = context,
-                    info = ScheduledAlarmInfo(
-                        requestCode = requestCode,
-                        supplementId = supplement.id.toString(),
-                        title = supplement.name,
-                        dose = supplement.dailyDose,
-                        cycleText = cycleLabel(supplement, date),
-                        scheduledAtMillis = triggerAtMillis
-                    )
-                )
-            }
+            scheduleForDate(supplement, today.plusDays(dayOffset.toLong()), times, now)
         }
+    }
+
+    private fun scheduleForDate(
+        supplement: UserSupplement,
+        date: LocalDate,
+        times: List<String>,
+        now: LocalDateTime
+    ) {
+        if (!matchesWeeklyRecurrenceIfNeeded(supplement, date)) {
+            times.forEach { timeString -> cancelByRequestCode(requestCode(supplement, date, timeString)) }
+            return
+        }
+        val status = cycleUseCase(supplement.startDate, supplement.cycleConfig, date)
+        times.forEach { timeString -> scheduleForTime(supplement, date, timeString, status, now) }
+    }
+
+    private fun scheduleForTime(
+        supplement: UserSupplement,
+        date: LocalDate,
+        timeString: String,
+        status: CycleStatus,
+        now: LocalDateTime
+    ) {
+        val time = parseTime(timeString) ?: return
+        val requestCode = requestCode(supplement, date, timeString)
+        val plan = applyQuietHoursIfNeeded(date = date, time = time)
+        if (plan.triggerAt.isBefore(now) || status != CycleStatus.ON) {
+            cancelByRequestCode(requestCode)
+            return
+        }
+        val triggerAtMillis = plan.triggerAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val scheduledAtMillis = plan.scheduledAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            buildIntent(supplement, timeString, scheduledAtMillis),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        NotificationDebugStore.recordScheduled(
+            context,
+            ScheduledAlarmInfo(requestCode, supplement.id.toString(), supplement.name, supplement.dailyDose, cycleLabel(supplement, date), triggerAtMillis)
+        )
     }
 
     private data class QuietHoursPlan(
