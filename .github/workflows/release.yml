@@ -195,10 +195,12 @@ jobs:
           fi
 
       - name: Setup SSH for match repo (optional)
-        if: ${{ secrets.MATCH_SSH_PRIVATE_KEY != '' }}
+        env:
+          MATCH_SSH_PRIVATE_KEY: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
+        if: ${{ env.MATCH_SSH_PRIVATE_KEY != '' }}
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ env.MATCH_SSH_PRIVATE_KEY }}
 
       - name: Inject API Keys securely
         env:
