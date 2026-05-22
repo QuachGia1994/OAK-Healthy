@@ -16,29 +16,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Select Xcode (with iPhoneOS SDK)
-        run: |
-          set -e
-          CANDIDATES=(
-            "/Applications/Xcode.app"
-            "/Applications/Xcode_16.app"
-            "/Applications/Xcode_16.1.app"
-          )
-          for app in "${CANDIDATES[@]}"; do
-            if [ -d "$app" ]; then
-              echo "Trying Xcode: $app"
-              sudo xcode-select -s "$app/Contents/Developer"
-              xcodebuild -version
-              if xcodebuild -showsdks | grep -q "iphoneos"; then
-                echo "Selected Xcode: $app"
-                xcodebuild -showsdks | grep -E "iphoneos|iphonesimulator" || true
-                exit 0
-              fi
-            fi
-          done
-          echo "No Xcode installation with iPhoneOS SDK found."
-          xcodebuild -showsdks || true
-          exit 1
+      - name: Setup Xcode (pinned)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -185,8 +166,18 @@ jobs:
         run: |
           echo "=== /Users/runner/Library/Logs/gym ==="
           ls -la /Users/runner/Library/Logs/gym || true
-          echo "=== tail -n 250 OAKHealthy-OAKHealthy.log ==="
-          tail -n 250 /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
+          echo "=== grep -nE 'error:|SwiftCompile|CompileSwift|SwiftEmitModule' OAKHealthy-OAKHealthy.log ==="
+          grep -nE "error:|SwiftCompile|CompileSwift|SwiftEmitModule" /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
+          echo "=== tail -n 3000 OAKHealthy-OAKHealthy.log ==="
+          tail -n 3000 /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
+
+      - name: Upload gym logs (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: OAKHealthy-iOS-gym-logs
+          path: /Users/runner/Library/Logs/gym
+          if-no-files-found: warn
 
       - name: Package Unsigned IPA
         working-directory: ./iOS
