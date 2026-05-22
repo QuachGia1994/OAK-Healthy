@@ -3,8 +3,16 @@ name: iOS Build
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - iOS/**
+      - scripts/**
+      - .github/workflows/ios-build.yml
   pull_request:
     branches: [ main, master ]
+    paths:
+      - iOS/**
+      - scripts/**
+      - .github/workflows/ios-build.yml
   workflow_dispatch:
 
 jobs:
@@ -15,9 +23,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
 
       - name: Check function length (warn)
-        run: python3 scripts/check_function_length.py --max 30 --paths iOS Android
+        run: python3 scripts/check_function_length.py --max 30 --paths iOS Android --changed-only --limit 25
 
       - name: Setup Xcode (pinned)
         uses: maxim-lobanov/setup-xcode@v1
@@ -25,7 +35,11 @@ jobs:
           xcode-version: "16.4"
 
       - name: Install XcodeGen
-        run: brew install xcodegen
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          brew list xcodegen > /dev/null 2>&1 || brew install xcodegen
 
       - name: Inject API Keys securely
         env:
