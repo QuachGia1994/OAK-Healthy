@@ -54,5 +54,12 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: Tests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.OAKHealthyTests
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_IDENTITY: ""
     dependencies:
       - target: OAKHealthy
