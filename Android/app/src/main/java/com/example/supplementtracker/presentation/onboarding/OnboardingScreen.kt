@@ -95,12 +95,8 @@ fun OnboardingScreen(
             Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
         }
     }
-    val cardBase = remember(isDark) {
-        if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
-    }
-    val cardStroke = remember(isDark) {
-        if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.28f)
-    }
+    val cardBase = MaterialTheme.colorScheme.surfaceVariant
+    val cardStroke = MaterialTheme.colorScheme.outlineVariant
     val cardShape = remember { RoundedCornerShape(28.dp) }
 
     var step by remember { mutableStateOf(OnboardingStep.CLIENT) }
@@ -160,10 +156,9 @@ fun OnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(cardShape)
-                    .background(cardBase, cardShape)
                     .border(1.dp, cardStroke, cardShape),
                 shape = cardShape,
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                colors = CardDefaults.cardColors(containerColor = cardBase),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
