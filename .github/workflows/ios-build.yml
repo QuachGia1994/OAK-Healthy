@@ -15,10 +15,15 @@ on:
       - .github/workflows/ios-build.yml
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build IPA
     runs-on: macos-15
+    timeout-minutes: 30
     
     steps:
       - name: Checkout repository
@@ -26,8 +31,17 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Check function length (warn)
-        run: python3 scripts/check_function_length.py --max 30 --paths iOS Android --changed-only --limit 25
+      - name: Check function length (core, fail)
+        run: |
+          python3 scripts/check_function_length.py --max 30 --paths iOS --changed-only --fail --limit 25 \
+            --include 'iOS/Services/**' \
+            --include 'iOS/Engine/**' \
+            --include 'iOS/Models/**'
+
+      - name: Check function length (ui, warn)
+        run: |
+          python3 scripts/check_function_length.py --max 30 --paths iOS --changed-only --limit 25 \
+            --include 'iOS/Views/**'
 
       - name: Setup Xcode (pinned)
         uses: maxim-lobanov/setup-xcode@v1
