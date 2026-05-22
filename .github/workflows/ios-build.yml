@@ -168,8 +168,8 @@ jobs:
           ls -la /Users/runner/Library/Logs/gym || true
           echo "=== grep -nE 'error:|SwiftCompile|CompileSwift|SwiftEmitModule' OAKHealthy-OAKHealthy.log ==="
           grep -nE "error:|SwiftCompile|CompileSwift|SwiftEmitModule" /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
-          echo "=== tail -n 3000 OAKHealthy-OAKHealthy.log ==="
-          tail -n 3000 /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
+          echo "=== tail -n 600 OAKHealthy-OAKHealthy.log ==="
+          tail -n 600 /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
 
       - name: Upload gym logs (on failure)
         if: ${{ failure() }}

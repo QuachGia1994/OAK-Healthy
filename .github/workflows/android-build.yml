@@ -51,8 +51,27 @@ jobs:
           printf "JSONBIN_API_KEY=%s\n" "$JSONBIN_KEY" >> Android/local.properties
 
       - name: Build APK
-        run: gradle assembleDebug
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace --console=plain --no-daemon 2>&1 | tee gradle-build.log
         working-directory: ./Android
+
+      - name: Dump Gradle log (on failure)
+        if: ${{ failure() }}
+        working-directory: ./Android
+        run: |
+          echo "=== tail -n 400 gradle-build.log ==="
+          tail -n 400 gradle-build.log || true
+          echo "=== grep -nE 'error:|e: |FAILURE:|Execution failed' gradle-build.log | tail -n 200 ==="
+          grep -nE "error:|e: |FAILURE:|Execution failed" gradle-build.log | tail -n 200 || true
+
+      - name: Upload Gradle log (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: OAKHealthy-Android-gradle-log
+          path: Android/gradle-build.log
+          if-no-files-found: warn
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v7
