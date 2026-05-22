@@ -146,13 +146,14 @@ public struct NotificationService: NotificationManaging {
             guard let timeComponents = intakeTimeComponents(from: timeString) else { continue }
             for plan in upcomingTriggerPlans(calendar: calendar, timeComponents: timeComponents, horizonDays: horizonDays) {
                 guard matchesWeeklyRecurrenceIfNeeded(supplement: supplement, date: plan.scheduledAt, calendar: calendar) else { continue }
-                let status = try? cycleCalculator.determineStatus(
-                    for: supplement.startDate,
-                    config: supplement.cycleConfig,
-                    at: plan.scheduledAt
-                )
-                guard status == .on else { continue }
-                try await createNotificationRequest(for: supplement, triggerAt: plan.triggerAt, scheduledAt: plan.scheduledAt, timeString: timeString)
+                do {
+                    let status = try cycleCalculator.determineStatus(for: supplement.startDate, config: supplement.cycleConfig, at: plan.scheduledAt)
+                    guard status == .on else { continue }
+                } catch {
+                    await logShadowScheduleFailure(supplement: supplement, error: error)
+                    continue
+                }
+                try await createNotificationRequest(for: supplement, triggerAt: plan.triggerAt, scheduledAt: plan.scheduledAt, timeString: timeString, calendar: calendar)
             }
         }
     }
@@ -274,10 +275,11 @@ public struct NotificationService: NotificationManaging {
         for supplement: UserSupplement,
         triggerAt: Date,
         scheduledAt: Date,
-        timeString: String
+        timeString: String,
+        calendar: Calendar
     ) async throws(NotificationError) {
         let content = notificationContent(for: supplement, timeString: timeString, scheduledAt: scheduledAt)
-        let triggerComponents = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: triggerAt)
+        let triggerComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: triggerAt)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComponents, repeats: false)
         
         let identifier = requestIdentifier(supplementId: supplement.id, timeString: timeString, day: scheduledAt)

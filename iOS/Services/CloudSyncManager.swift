@@ -333,7 +333,7 @@ enum CloudSyncAutoSync {
             markAttempt(ctx: ctx)
             let remote = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: ctx.binId)
             guard let client = fetchClient(modelContext: modelContext, clientId: ctx.clientId) else { return }
-            mergeRemoteIfNeeded(remote, client: client, modelContext: modelContext)
+            try mergeRemoteIfNeeded(remote, client: client, modelContext: modelContext)
             if shouldExitEarly(remoteChanged: remote != nil, localChanged: ctx.localChanged) { return }
             if ctx.localChanged { try await uploadWithRetryIfConflicted(ctx: ctx, modelContext: modelContext, client: client) }
             markSuccess(ctx: ctx)
@@ -382,9 +382,9 @@ enum CloudSyncAutoSync {
         (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
     }
 
-    private static func mergeRemoteIfNeeded(_ data: Data?, client: ClientProfile, modelContext: ModelContext) {
+    private static func mergeRemoteIfNeeded(_ data: Data?, client: ClientProfile, modelContext: ModelContext) throws {
         guard let data else { return }
-        try? SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+        try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
     }
 
     private static func shouldExitEarly(remoteChanged: Bool, localChanged: Bool) -> Bool {
@@ -397,16 +397,15 @@ enum CloudSyncAutoSync {
         client: ClientProfile
     ) async throws {
         let etag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(ctx.id)")
-        let backup = try? makeBackup(modelContext: modelContext, clientId: ctx.clientId)
-        guard let backup else { return }
+        let backup = try makeBackup(modelContext: modelContext, clientId: ctx.clientId)
         do {
             try await CloudSyncManager.shared.upsertBackup(binId: ctx.id, jsonData: backup, ifMatchEtag: etag)
         } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 412 || statusCode == 409 {
             let latest = try await CloudSyncManager.shared.downloadBackup(binId: ctx.id)
-            try? SupplementExportCodec.mergeBackup(data: latest, client: client, context: modelContext)
-            let retryBackup = try? makeBackup(modelContext: modelContext, clientId: ctx.clientId)
+            try SupplementExportCodec.mergeBackup(data: latest, client: client, context: modelContext)
+            let retryBackup = try makeBackup(modelContext: modelContext, clientId: ctx.clientId)
             let retryEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(ctx.id)")
-            if let retryBackup { try? await CloudSyncManager.shared.upsertBackup(binId: ctx.id, jsonData: retryBackup, ifMatchEtag: retryEtag) }
+            try await CloudSyncManager.shared.upsertBackup(binId: ctx.id, jsonData: retryBackup, ifMatchEtag: retryEtag)
         }
     }
 

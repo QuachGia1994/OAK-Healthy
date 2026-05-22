@@ -12,7 +12,6 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.room.Room
 import com.example.supplementtracker.data.local.SupplementDatabase
 import com.example.supplementtracker.data.repository.SupplementRepositoryImpl
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
@@ -132,19 +131,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 try {
                     val (repository, activeClientManager) = withContext(Dispatchers.IO) {
-                        val db = Room.databaseBuilder(
-                            applicationContext,
-                            SupplementDatabase::class.java,
-                            SupplementDatabase.DATABASE_NAME
-                        )
-                            .addMigrations(
-                                SupplementDatabase.MIGRATION_2_3,
-                                SupplementDatabase.MIGRATION_3_4,
-                                SupplementDatabase.MIGRATION_4_5
-                            )
-                            .fallbackToDestructiveMigration()
-                            .build()
-
+                        val db = SupplementDatabase.getInstance(applicationContext)
                         val repository = SupplementRepositoryImpl(db.supplementDao)
                         val activeClientManager = ActiveClientManager(applicationContext, repository)
                         repository to activeClientManager

@@ -9,7 +9,6 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.supplementtracker.R
 
-import androidx.room.Room
 import com.example.supplementtracker.data.local.SupplementDatabase
 import com.example.supplementtracker.data.mapper.toDomain
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
@@ -37,18 +36,7 @@ class NotificationReceiver : BroadcastReceiver() {
 
         // Kiểm tra chu kỳ On/Off trước khi hiển thị
         CoroutineScope(Dispatchers.IO).launch {
-            val db = Room.databaseBuilder(
-                context.applicationContext,
-                SupplementDatabase::class.java,
-                SupplementDatabase.DATABASE_NAME
-            )
-                .addMigrations(
-                    SupplementDatabase.MIGRATION_2_3,
-                    SupplementDatabase.MIGRATION_3_4,
-                    SupplementDatabase.MIGRATION_4_5
-                )
-                .fallbackToDestructiveMigration()
-                .build()
+            val db = SupplementDatabase.getInstance(context)
             
             val supplementEntity = db.supplementDao.getSupplementById(id)
             if (supplementEntity != null) {

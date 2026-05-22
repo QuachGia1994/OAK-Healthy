@@ -1,5 +1,7 @@
 package com.example.supplementtracker.data.local
 
+import android.content.Context
+import androidx.room.Room
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
@@ -15,8 +17,28 @@ abstract class SupplementDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "supplement_db"
+        @Volatile
+        private var instance: SupplementDatabase? = null
 
         private const val DEFAULT_CLIENT_ID = "00000000-0000-0000-0000-000000000000"
+
+        fun getInstance(context: Context): SupplementDatabase {
+            val existing = instance
+            if (existing != null) return existing
+            return synchronized(this) {
+                val again = instance
+                if (again != null) return@synchronized again
+                val created = Room.databaseBuilder(
+                    context.applicationContext,
+                    SupplementDatabase::class.java,
+                    DATABASE_NAME
+                )
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .build()
+                instance = created
+                created
+            }
+        }
 
         val MIGRATION_2_3: Migration = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {

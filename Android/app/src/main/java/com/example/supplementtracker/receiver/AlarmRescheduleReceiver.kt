@@ -3,7 +3,6 @@ package com.example.supplementtracker.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.room.Room
 import com.example.supplementtracker.data.local.SupplementDatabase
 import com.example.supplementtracker.data.mapper.toDomain
 import com.example.supplementtracker.service.NotificationSchedulerImpl
@@ -22,22 +21,10 @@ class AlarmRescheduleReceiver : BroadcastReceiver() {
         if (!shouldReschedule) return
 
         CoroutineScope(Dispatchers.IO).launch {
-            val db = Room.databaseBuilder(
-                context.applicationContext,
-                SupplementDatabase::class.java,
-                SupplementDatabase.DATABASE_NAME
-            )
-                .addMigrations(
-                    SupplementDatabase.MIGRATION_2_3,
-                    SupplementDatabase.MIGRATION_3_4,
-                    SupplementDatabase.MIGRATION_4_5
-                )
-                .fallbackToDestructiveMigration()
-                .build()
+            val db = SupplementDatabase.getInstance(context)
 
             val supplements = db.supplementDao.getAllActiveSupplements().map { it.toDomain() }
             NotificationSchedulerImpl(context.applicationContext).rescheduleAll(supplements)
         }
     }
 }
-

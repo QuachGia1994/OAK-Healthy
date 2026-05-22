@@ -3,6 +3,7 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'kotlin-kapt'
     id 'androidx.baselineprofile'
+    id 'jacoco'
 }
 
 def properties = new Properties()
@@ -13,9 +14,26 @@ if (localPropertiesFile.exists()) {
 def jsonbinApiKeyRaw = properties.getProperty('JSONBIN_API_KEY', '')
 def jsonbinApiKeyEscaped = jsonbinApiKeyRaw.replace('\\', '\\\\').replace('"', '\\"')
 
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.newDataInputStream())
+}
+
 android {
     namespace 'com.example.supplementtracker'
     compileSdk 34
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile rootProject.file(keystoreProperties.getProperty("storeFile", "keystore.jks"))
+                storePassword keystoreProperties.getProperty("storePassword", "")
+                keyAlias keystoreProperties.getProperty("keyAlias", "")
+                keyPassword keystoreProperties.getProperty("keyPassword", "")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId "com.example.supplementtracker"
@@ -36,6 +54,9 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {
@@ -55,6 +76,15 @@ android {
     packagingOptions {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+
+    testOptions {
+        unitTests.all {
+            jacoco {
+                includeNoLocationClasses = true
+                excludes = ['jdk.internal.*']
+            }
         }
     }
 }
@@ -99,4 +129,52 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 
     baselineProfile project(":baselineprofile")
+}
+
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+def minCoverage = (project.findProperty("minCoverage") ?: "0.80") as BigDecimal
+
+tasks.register("jacocoTestReport", JacocoReport) {
+    dependsOn "testDebugUnitTest"
+
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+
+    def kotlinClasses = fileTree(dir: "$buildDir/tmp/kotlin-classes/debug", excludes: ["**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/Manifest*.*", "**/*Test*.*", "android/**/*.*"])
+    def javaClasses = fileTree(dir: "$buildDir/intermediates/javac/debug/classes", excludes: ["**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/Manifest*.*", "**/*Test*.*", "android/**/*.*"])
+    classDirectories.setFrom(files([kotlinClasses, javaClasses]))
+
+    sourceDirectories.setFrom(files(["src/main/java", "src/main/kotlin"]))
+    additionalSourceDirs.setFrom(files(["src/main/java", "src/main/kotlin"]))
+
+    executionData.setFrom(fileTree(dir: "$buildDir", includes: ["jacoco/testDebugUnitTest.exec", "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"]))
+}
+
+tasks.register("jacocoTestCoverageVerification", JacocoCoverageVerification) {
+    dependsOn "jacocoTestReport"
+
+    def kotlinClasses = fileTree(dir: "$buildDir/tmp/kotlin-classes/debug", excludes: ["**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/Manifest*.*", "**/*Test*.*", "android/**/*.*"])
+    def javaClasses = fileTree(dir: "$buildDir/intermediates/javac/debug/classes", excludes: ["**/R.class", "**/R$*.class", "**/BuildConfig.*", "**/Manifest*.*", "**/*Test*.*", "android/**/*.*"])
+    classDirectories.setFrom(files([kotlinClasses, javaClasses]))
+
+    sourceDirectories.setFrom(files(["src/main/java", "src/main/kotlin"]))
+    additionalSourceDirs.setFrom(files(["src/main/java", "src/main/kotlin"]))
+
+    executionData.setFrom(fileTree(dir: "$buildDir", includes: ["jacoco/testDebugUnitTest.exec", "outputs/unit_test_code_coverage/debugUnitTest/testDebugUnitTest.exec"]))
+
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = minCoverage
+            }
+        }
+    }
 }

@@ -1,0 +1,327 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      ios_lane:
+        type: choice
+        description: iOS lane
+        options:
+          - beta
+          - release
+        default: beta
+      android_track:
+        type: choice
+        description: Play track
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+        default: internal
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IOS_LANE: ${{ github.event.inputs.ios_lane || 'release' }}
+  ANDROID_TRACK: ${{ github.event.inputs.android_track || 'production' }}
+
+jobs:
+  ios_quality:
+    name: iOS Quality
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup Xcode (pinned)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
+
+      - name: Install XcodeGen
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          brew list xcodegen > /dev/null 2>&1 || brew install xcodegen
+
+      - name: Inject API Keys securely
+        env:
+          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
+        run: |
+          mkdir -p iOS
+          printf "JSONBIN_API_KEY = %s\n" "${JSONBIN_KEY:-}" > iOS/Secrets.xcconfig
+
+      - name: Generate Xcode Project
+        run: |
+          cd iOS
+          xcodegen generate
+
+      - name: Initialize Xcode & CoreSimulator
+        run: |
+          sudo xcodebuild -license accept
+          xcodebuild -runFirstLaunch
+          xcrun simctl list devices > /dev/null || true
+
+      - name: Run Unit Tests (coverage enforced)
+        run: |
+          set -o pipefail
+          rm -rf iOS/build/TestResults.xcresult
+          xcodebuild -project iOS/OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -enableCodeCoverage YES -resultBundlePath iOS/build/TestResults.xcresult clean test | tee iOS/xcodebuild-test.log
+
+      - name: Check Coverage (>= 80%)
+        run: |
+          python3 scripts/check_xcode_coverage.py iOS/build/TestResults.xcresult --min 0.80 --fail
+
+      - name: Upload xcresult (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: OAKHealthy-iOS-xcresult
+          path: iOS/build/TestResults.xcresult
+          if-no-files-found: warn
+
+  android_quality:
+    name: Android Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Create local.properties
+        env:
+          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
+        run: |
+          mkdir -p Android
+          sdk_dir=""
+          if [ -n "${ANDROID_SDK_ROOT}" ]; then
+            sdk_dir="${ANDROID_SDK_ROOT}"
+          elif [ -n "${ANDROID_HOME}" ]; then
+            sdk_dir="${ANDROID_HOME}"
+          elif [ -d "/usr/local/lib/android/sdk" ]; then
+            sdk_dir="/usr/local/lib/android/sdk"
+          fi
+          if [ -z "${sdk_dir}" ]; then
+            echo "Android SDK location not found (ANDROID_SDK_ROOT/ANDROID_HOME missing)."
+            exit 1
+          fi
+          printf "sdk.dir=%s\n" "${sdk_dir}" > Android/local.properties
+          printf "JSONBIN_API_KEY=%s\n" "${JSONBIN_KEY:-}" >> Android/local.properties
+
+      - name: Unit Tests + Coverage Verification (>= 80%)
+        run: |
+          set -o pipefail
+          chmod +x ./gradlew
+          ./gradlew :app:jacocoTestCoverageVerification -PminCoverage=0.80 --stacktrace --console=plain --no-daemon --build-cache 2>&1 | tee quality-build.log
+        working-directory: ./Android
+
+      - name: Upload quality log (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: OAKHealthy-Android-quality-log
+          path: Android/quality-build.log
+          if-no-files-found: warn
+
+  ios_release:
+    name: iOS Release
+    needs: ios_quality
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup Xcode (pinned)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.4"
+
+      - name: Install XcodeGen
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          brew list xcodegen > /dev/null 2>&1 || brew install xcodegen
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: iOS
+
+      - name: Verify iOS release secrets
+        shell: bash
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+        run: |
+          missing=0
+          for v in MATCH_GIT_URL MATCH_PASSWORD APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
+            if [ -z "${!v}" ]; then
+              echo "Missing secret: ${v}"
+              missing=1
+            fi
+          done
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Setup SSH for match repo (optional)
+        if: ${{ secrets.MATCH_SSH_PRIVATE_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
+
+      - name: Inject API Keys securely
+        env:
+          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
+        run: |
+          mkdir -p iOS
+          printf "JSONBIN_API_KEY = %s\n" "${JSONBIN_KEY:-}" > iOS/Secrets.xcconfig
+
+      - name: Generate Xcode Project
+        run: |
+          cd iOS
+          xcodegen generate
+
+      - name: Fastlane (${{ env.IOS_LANE }})
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          APP_STORE_CONNECT_KEY_IS_BASE64: "true"
+          IOS_APP_IDENTIFIER: ${{ secrets.IOS_APP_IDENTIFIER }}
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+          FASTLANE_DISABLE_COLORS: "1"
+        run: |
+          cd iOS
+          bundle exec fastlane "${IOS_LANE}"
+
+  android_release:
+    name: Android Release
+    needs: android_quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Verify Android release secrets
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          missing=0
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!v}" ]; then
+              echo "Missing secret: ${v}"
+              missing=1
+            fi
+          done
+          if [ "${missing}" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Create local.properties
+        env:
+          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
+        run: |
+          mkdir -p Android
+          sdk_dir=""
+          if [ -n "${ANDROID_SDK_ROOT}" ]; then
+            sdk_dir="${ANDROID_SDK_ROOT}"
+          elif [ -n "${ANDROID_HOME}" ]; then
+            sdk_dir="${ANDROID_HOME}"
+          elif [ -d "/usr/local/lib/android/sdk" ]; then
+            sdk_dir="/usr/local/lib/android/sdk"
+          fi
+          if [ -z "${sdk_dir}" ]; then
+            echo "Android SDK location not found (ANDROID_SDK_ROOT/ANDROID_HOME missing)."
+            exit 1
+          fi
+          printf "sdk.dir=%s\n" "${sdk_dir}" > Android/local.properties
+          printf "JSONBIN_API_KEY=%s\n" "${JSONBIN_KEY:-}" >> Android/local.properties
+
+      - name: Setup signing files
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > Android/keystore.jks
+          cat > Android/keystore.properties <<EOF
+storeFile=keystore.jks
+storePassword=${ANDROID_KEYSTORE_PASSWORD}
+keyAlias=${ANDROID_KEY_ALIAS}
+keyPassword=${ANDROID_KEY_PASSWORD}
+EOF
+
+      - name: Build AAB (Release)
+        run: |
+          set -o pipefail
+          chmod +x ./gradlew
+          ./gradlew :app:bundleRelease --stacktrace --console=plain --no-daemon --build-cache 2>&1 | tee release-build.log
+        working-directory: ./Android
+
+      - name: Upload AAB to Play Console
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.example.supplementtracker
+          releaseFiles: Android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ env.ANDROID_TRACK }}
+
+      - name: Upload release log (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: OAKHealthy-Android-release-log
+          path: Android/release-build.log
+          if-no-files-found: warn

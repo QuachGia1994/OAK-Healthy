@@ -1,0 +1,6 @@
+git_url(ENV.fetch("MATCH_GIT_URL"))
+branch = ENV["MATCH_GIT_BRANCH"]
+if branch && !branch.empty?
+  git_branch(branch)
+end
+type("appstore")
