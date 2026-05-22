@@ -23,6 +23,20 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
             }
         }
     }
+
+    func testCompressIfUseful_returnsInputWhenSmall() throws {
+        let data = try JSONSerialization.data(withJSONObject: ["k": "v"], options: [])
+        let out = CloudSyncPayloadCodec.compressIfUseful(data)
+        XCTAssertEqual(out, data)
+    }
+
+    func testCompressIfUseful_roundTripWhenLarge() throws {
+        let big = String(repeating: "a", count: 50_000)
+        let data = try JSONSerialization.data(withJSONObject: ["k": big], options: [])
+        let compressed = CloudSyncPayloadCodec.compressIfUseful(data)
+        let roundTrip = try CloudSyncPayloadCodec.decompressIfNeeded(compressed)
+        XCTAssertEqual(roundTrip, data)
+    }
 }
 
 final class CloudSyncTelemetryTests: XCTestCase {
