@@ -72,11 +72,20 @@ jobs:
           xcodebuild -runFirstLaunch
           xcrun simctl list devices > /dev/null || true
 
+      - name: Select simulator
+        shell: bash
+        run: |
+          name="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $1; exit}' | xargs)"
+          if [ -z "${name}" ]; then
+            name="iPhone 15"
+          fi
+          echo "IOS_SIMULATOR_NAME=${name}" >> "${GITHUB_ENV}"
+
       - name: Run Unit Tests (coverage enforced)
         run: |
           set -o pipefail
           rm -rf iOS/build/TestResults.xcresult
-          xcodebuild -project iOS/OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -enableCodeCoverage YES -resultBundlePath iOS/build/TestResults.xcresult clean test | tee iOS/xcodebuild-test.log
+          xcodebuild -project iOS/OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,name=${IOS_SIMULATOR_NAME}" -enableCodeCoverage YES -resultBundlePath iOS/build/TestResults.xcresult clean test | tee iOS/xcodebuild-test.log
 
       - name: Check Coverage (>= 80%)
         run: |
@@ -88,6 +97,14 @@ jobs:
         with:
           name: OAKHealthy-iOS-xcresult
           path: iOS/build/TestResults.xcresult
+          if-no-files-found: warn
+
+      - name: Upload xcodebuild test log (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: OAKHealthy-iOS-test-log
+          path: iOS/xcodebuild-test.log
           if-no-files-found: warn
 
   android_quality:
