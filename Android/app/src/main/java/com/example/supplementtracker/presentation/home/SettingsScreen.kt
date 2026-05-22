@@ -290,6 +290,7 @@ fun SettingsScreen(
 
                 item {
                     SettingsSection(title = stringResource(R.string.data_tools)) {
+                        val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
                         SettingsRow(
                             title = shareStackTitle,
                             onClick = {

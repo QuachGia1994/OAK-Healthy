@@ -155,63 +155,89 @@ public struct AddSupplementView: View {
             .listRowBackground(glassRowBackground)
             weeklyRecurrenceControls
                 .listRowBackground(glassRowBackground)
-            Toggle("repeat_every_n_days".localized, isOn: $viewModel.isIntervalDaysEnabled)
-                .listRowBackground(glassRowBackground)
-            if viewModel.isIntervalDaysEnabled {
-                HStack {
-                    Text("interval_days_label".localized)
-                    Spacer()
-                    TextField("2", text: $viewModel.intervalDays)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 80)
-                }
-                .listRowBackground(glassRowBackground)
-            }
-            Toggle("continuous".localized, isOn: $viewModel.isContinuous)
-                .listRowBackground(glassRowBackground)
-            
-            if !viewModel.isContinuous {
-                HStack {
-                    Text("on_days".localized)
-                    Spacer()
-                    TextField("example_on_days".localized, text: $viewModel.daysOn)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 80)
-                }
-                .listRowBackground(glassRowBackground)
-                
-                HStack {
-                    Text("off_days".localized)
-                    Spacer()
-                    TextField("example_off_days".localized, text: $viewModel.daysOff)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .frame(width: 80)
-                }
-                .listRowBackground(glassRowBackground)
-            }
-            
-            HStack {
-                Text("duration".localized)
-                Spacer()
-                TextField("unlimited".localized, text: $viewModel.durationMonths)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .frame(width: 80)
-            }
-            .listRowBackground(glassRowBackground)
-            
-            if !viewModel.durationMonths.isEmpty {
-                Text("months".localized)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .listRowBackground(glassRowBackground)
-            }
+            intervalDaysControls
+            continuousCycleControls
         } header: {
             Text("schedule_cycle_title".localized)
         }
+    }
+
+    @ViewBuilder
+    private var intervalDaysControls: some View {
+        Toggle("repeat_every_n_days".localized, isOn: $viewModel.isIntervalDaysEnabled)
+            .listRowBackground(glassRowBackground)
+        if viewModel.isIntervalDaysEnabled {
+            intervalDaysRow
+                .listRowBackground(glassRowBackground)
+        }
+    }
+
+    private var intervalDaysRow: some View {
+        HStack {
+            Text("interval_days_label".localized)
+            Spacer()
+            TextField("2", text: $viewModel.intervalDays)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+        }
+    }
+
+    @ViewBuilder
+    private var continuousCycleControls: some View {
+        Toggle("continuous".localized, isOn: $viewModel.isContinuous)
+            .listRowBackground(glassRowBackground)
+        if !viewModel.isContinuous {
+            cycleDaysOnRow
+                .listRowBackground(glassRowBackground)
+            cycleDaysOffRow
+                .listRowBackground(glassRowBackground)
+        }
+        durationRow
+            .listRowBackground(glassRowBackground)
+        if !viewModel.durationMonths.isEmpty {
+            durationHintRow
+                .listRowBackground(glassRowBackground)
+        }
+    }
+
+    private var cycleDaysOnRow: some View {
+        HStack {
+            Text("on_days".localized)
+            Spacer()
+            TextField("example_on_days".localized, text: $viewModel.daysOn)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+        }
+    }
+
+    private var cycleDaysOffRow: some View {
+        HStack {
+            Text("off_days".localized)
+            Spacer()
+            TextField("example_off_days".localized, text: $viewModel.daysOff)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+        }
+    }
+
+    private var durationRow: some View {
+        HStack {
+            Text("duration".localized)
+            Spacer()
+            TextField("unlimited".localized, text: $viewModel.durationMonths)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 80)
+        }
+    }
+
+    private var durationHintRow: some View {
+        Text("months".localized)
+            .font(.caption)
+            .foregroundStyle(.secondary)
     }
     
     private var weeklyRecurrenceControls: some View {
