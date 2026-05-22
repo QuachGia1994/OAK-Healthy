@@ -6,7 +6,7 @@ struct CloudSyncManifest: Codable, Sendable {
     var historyBinId: String
 }
 
-enum CloudSyncManifestCodecError: Error, Sendable {
+public enum CloudSyncManifestCodecError: Error, Sendable {
     case encodeFailed
     case decodeFailed
 }

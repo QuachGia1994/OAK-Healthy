@@ -439,9 +439,10 @@ enum CloudSyncAutoSync {
         fields["error_message"] = message
         fields["error_type"] = errorType(error)
         
-        if case let CloudSyncError.serverError(statusCode, body) = error as? CloudSyncError {
+        if let cloudError = error as? CloudSyncError,
+           case let .serverError(statusCode, body) = cloudError {
             fields["status_code"] = "\(statusCode)"
-            fields["server_body"] = truncated(body.trimmingCharacters(in: .whitespacesAndNewlines))
+            fields["server_body"] = truncated(body.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines))
         }
         
         return fields

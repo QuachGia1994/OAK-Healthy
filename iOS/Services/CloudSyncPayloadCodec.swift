@@ -1,7 +1,7 @@
 import Compression
 import Foundation
 
-enum CloudSyncPayloadCodecError: Error, Sendable {
+public enum CloudSyncPayloadCodecError: Error, Sendable {
     case wrapperJSONInvalid
     case missingCompressedField(field: String)
     case base64DecodeFailed
