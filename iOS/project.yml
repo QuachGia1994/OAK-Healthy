@@ -1,7 +1,7 @@
 name: OAKHealthy
 compatibilityVersion: "Xcode 13.0"
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.phongqk
   developmentLanguage: en
 targets:
   OAKHealthy:
@@ -21,7 +21,7 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: Info.plist
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.OAKHealthy
+        PRODUCT_BUNDLE_IDENTIFIER: com.phongqk.oakhealthy
         MARKETING_VERSION: 1.0.1
         CURRENT_PROJECT_VERSION: 2
         SWIFT_VERSION: 6.0
@@ -57,7 +57,7 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.OAKHealthyTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.phongqk.oakhealthyTests
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGN_IDENTITY: ""

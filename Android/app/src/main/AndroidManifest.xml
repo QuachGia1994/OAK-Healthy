@@ -17,7 +17,7 @@
         android:theme="@style/Theme.SupplementTracker">
         
         <activity
-            android:name=".MainActivity"
+            android:name="com.example.supplementtracker.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.SupplementTracker.Splash">
             <intent-filter>
@@ -26,10 +26,10 @@
             </intent-filter>
         </activity>
 
-        <receiver android:name=".receiver.NotificationReceiver" android:exported="false" />
+        <receiver android:name="com.example.supplementtracker.receiver.NotificationReceiver" android:exported="false" />
 
         <receiver
-            android:name=".receiver.AlarmRescheduleReceiver"
+            android:name="com.example.supplementtracker.receiver.AlarmRescheduleReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
