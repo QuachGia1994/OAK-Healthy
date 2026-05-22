@@ -42,11 +42,72 @@ jobs:
           python3 scripts/check_function_length.py --max 30 --paths Android --changed-only --limit 25 \
             --include 'Android/app/src/main/java/com/example/supplementtracker/presentation/**'
 
-  build:
-    name: Build APK
+  test:
+    name: Test
     needs: lint
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Create local.properties
+        env:
+          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
+        run: |
+          mkdir -p Android
+          sdk_dir=""
+          if [ -n "${ANDROID_SDK_ROOT}" ]; then
+            sdk_dir="${ANDROID_SDK_ROOT}"
+          elif [ -n "${ANDROID_HOME}" ]; then
+            sdk_dir="${ANDROID_HOME}"
+          elif [ -d "/usr/local/lib/android/sdk" ]; then
+            sdk_dir="/usr/local/lib/android/sdk"
+          fi
+          if [ -z "${sdk_dir}" ]; then
+            echo "Android SDK location not found (ANDROID_SDK_ROOT/ANDROID_HOME missing)."
+            exit 1
+          fi
+          printf "sdk.dir=%s\n" "${sdk_dir}" > Android/local.properties
+          printf "JSONBIN_API_KEY=%s\n" "${JSONBIN_KEY:-}" >> Android/local.properties
+
+      - name: Run Unit Tests + JaCoCo report
+        run: |
+          set -o pipefail
+          chmod +x ./gradlew
+          ./gradlew :app:testDebugUnitTest :app:jacocoTestReport --stacktrace --console=plain --no-daemon --build-cache 2>&1 | tee test-build.log
+        working-directory: ./Android
+
+      - name: Report Coverage (warn)
+        if: ${{ always() }}
+        run: |
+          python3 scripts/check_jacoco_coverage.py Android/app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml --min 0.80
+
+      - name: Upload test log (on failure)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: OAKHealthy-Android-test-log
+          path: Android/test-build.log
+          if-no-files-found: warn
+
+  build:
+    name: Build APK
+    needs: [lint, test]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: ${{ github.event_name != 'pull_request' }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
