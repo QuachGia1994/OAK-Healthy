@@ -32,6 +32,54 @@ env:
   ANDROID_TRACK: ${{ github.event.inputs.android_track || 'production' }}
 
 jobs:
+  prepare:
+    name: Determine Release Mode
+    runs-on: ubuntu-latest
+    outputs:
+      ios_store: ${{ steps.mode.outputs.ios_store }}
+      android_store: ${{ steps.mode.outputs.android_store }}
+    steps:
+      - name: Check required secrets (without failing)
+        id: mode
+        shell: bash
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          ios_ok=1
+          for v in MATCH_GIT_URL MATCH_PASSWORD APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
+            if [ -z "${!v}" ]; then
+              ios_ok=0
+            fi
+          done
+
+          android_ok=1
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
+            if [ -z "${!v}" ]; then
+              android_ok=0
+            fi
+          done
+
+          if [ "${ios_ok}" -eq 1 ]; then
+            echo "ios_store=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ios_store=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          if [ "${android_ok}" -eq 1 ]; then
+            echo "android_store=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "android_store=false" >> "${GITHUB_OUTPUT}"
+          fi
+
   quality:
     name: Quality Gates
     uses: ./.github/workflows/quality-gates.yml
@@ -39,7 +87,8 @@ jobs:
 
   ios_release:
     name: iOS Release
-    needs: quality
+    needs: [prepare, quality]
+    if: ${{ needs.prepare.outputs.ios_store == 'true' }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -66,26 +115,6 @@ jobs:
           ruby-version: "3.2"
           bundler-cache: true
           working-directory: iOS
-
-      - name: Verify iOS release secrets
-        shell: bash
-        env:
-          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_KEY_CONTENT }}
-        run: |
-          missing=0
-          for v in MATCH_GIT_URL MATCH_PASSWORD APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
-            if [ -z "${!v}" ]; then
-              echo "Missing secret: ${v}"
-              missing=1
-            fi
-          done
-          if [ "${missing}" -ne 0 ]; then
-            exit 1
-          fi
 
       - name: Setup SSH for match repo (optional)
         env:
@@ -122,9 +151,23 @@ jobs:
           cd iOS
           bundle exec fastlane "${IOS_LANE}"
 
+  ios_release_skipped:
+    name: iOS Release (Skipped - Missing Secrets)
+    needs: [prepare, quality]
+    if: ${{ needs.prepare.outputs.ios_store != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print instructions
+        shell: bash
+        run: |
+          echo "Skipping iOS store release because required secrets are missing."
+          echo "This also requires an Apple Developer Program membership to ship to the App Store/TestFlight."
+          echo "To enable iOS store release, set secrets: MATCH_GIT_URL, MATCH_PASSWORD, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_CONTENT (and optionally MATCH_SSH_PRIVATE_KEY, IOS_APP_IDENTIFIER)."
+
   android_release:
     name: Android Release
-    needs: quality
+    needs: [prepare, quality]
+    if: ${{ needs.prepare.outputs.android_store == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -141,26 +184,6 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-
-      - name: Verify Android release secrets
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-        run: |
-          missing=0
-          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
-            if [ -z "${!v}" ]; then
-              echo "Missing secret: ${v}"
-              missing=1
-            fi
-          done
-          if [ "${missing}" -ne 0 ]; then
-            exit 1
-          fi
 
       - name: Create local.properties
         env:
@@ -215,3 +238,16 @@ jobs:
           name: OAKHealthy-Android-release-log
           path: Android/release-build.log
           if-no-files-found: warn
+
+  android_release_skipped:
+    name: Android Release (Skipped - Missing Secrets)
+    needs: [prepare, quality]
+    if: ${{ needs.prepare.outputs.android_store != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print instructions
+        shell: bash
+        run: |
+          echo "Skipping Android Play upload because required secrets are missing."
+          echo "Publishing to Google Play requires a Play Console developer account."
+          echo "To enable Android store release, set secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, GOOGLE_PLAY_SERVICE_ACCOUNT_JSON."

@@ -748,6 +748,9 @@ public struct SyncCenterView: View {
             } catch CloudSyncError.invalidResponse {
                 try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
                 return
+            } catch CloudSyncError.manifestCodec(let error) where error == .decodeFailed {
+                try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
+                return
             }
             let stackData = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.stackBinId)
             let historyData = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.historyBinId)

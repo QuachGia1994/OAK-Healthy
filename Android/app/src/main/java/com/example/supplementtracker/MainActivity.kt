@@ -30,7 +30,6 @@ import com.example.supplementtracker.receiver.TimeZoneChangeReceiver
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.util.Log
 import com.example.supplementtracker.presentation.splash.SplashScreen
@@ -106,8 +105,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
 
         super.onCreate(savedInstanceState)
-        
-        requestNotificationPermission()
+
         capturePendingIntakeAction(intent)
         restorePendingIntakeAction(savedInstanceState)
 
@@ -241,14 +239,6 @@ class MainActivity : ComponentActivity() {
         // Auto-sync is handled via periodic upload in HomeViewModel.
         // Log.d("AutoSync", "☁️ Auto-Sync: Starting download...")
         // homeViewModel.receiveData(binId)
-    }
-
-    private fun requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
-            }
-        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
