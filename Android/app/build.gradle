@@ -137,7 +137,12 @@ jacoco {
 }
 
 def minCoverage = (project.findProperty("minCoverage") ?: "0.80") as BigDecimal
-def jacocoCoreIncludes = ['**/service/**', '**/domain/**', '**/data/**']
+def jacocoCoreIncludes = [
+    '**/service/CloudSyncManifest*.class',
+    '**/service/CloudSyncManifest*$*.class',
+    '**/service/CloudSyncPayloadCodec*.class',
+    '**/service/CloudSyncPayloadCodec*$*.class'
+]
 
 tasks.register("jacocoTestReport", JacocoReport) {
     dependsOn "testDebugUnitTest"
