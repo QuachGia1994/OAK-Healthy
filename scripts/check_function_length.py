@@ -1,6 +1,8 @@
 import argparse
+import os
 import pathlib
 import re
+import subprocess
 import sys
 
 
@@ -101,22 +103,66 @@ def scan_file(path: pathlib.Path, max_lines: int) -> list[tuple[str, int, str, i
     return issues
 
 
+def run_git(args: list[str]) -> str | None:
+    try:
+        out = subprocess.check_output(["git", *args], stderr=subprocess.DEVNULL)
+        return out.decode("utf-8", errors="replace").strip()
+    except Exception:
+        return None
+
+
+def detect_changed_files(paths: list[str]) -> list[pathlib.Path]:
+    root_paths = [pathlib.Path(p).resolve() for p in paths]
+    base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
+
+    base = None
+    if base_ref:
+        base = run_git(["merge-base", "HEAD", f"origin/{base_ref}"])
+    if base is None:
+        base = run_git(["rev-parse", "HEAD~1"])
+
+    if base is None:
+        return []
+
+    changed = run_git(["diff", "--name-only", base, "HEAD"])
+    if not changed:
+        return []
+
+    result: list[pathlib.Path] = []
+    for raw in changed.splitlines():
+        p = pathlib.Path(raw)
+        if p.suffix.lower() not in (".swift", ".kt"):
+            continue
+        resolved = p.resolve()
+        if root_paths and not any(resolved.is_relative_to(rp) for rp in root_paths):
+            continue
+        result.append(resolved)
+    return sorted(set(result))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--max", type=int, default=30)
     parser.add_argument("--fail", action="store_true")
     parser.add_argument("--paths", nargs="*", default=["iOS", "Android"])
+    parser.add_argument("--changed-only", action="store_true")
+    parser.add_argument("--limit", type=int, default=25)
     args = parser.parse_args()
 
-    files = iter_source_files(args.paths)
+    files = detect_changed_files(args.paths) if args.changed_only else []
+    if not files:
+        files = iter_source_files(args.paths)
     all_issues: list[tuple[str, int, str, int]] = []
     for file in files:
         all_issues.extend(scan_file(file, args.max))
 
     if all_issues:
         print(f"Found {len(all_issues)} functions over {args.max} lines:")
-        for file, start_line, name, length in all_issues:
+        shown = all_issues[: max(0, args.limit)]
+        for file, start_line, name, length in shown:
             print(f"{file}:{start_line}: {name} ({length} lines)")
+        if len(all_issues) > len(shown):
+            print(f"... and {len(all_issues) - len(shown)} more")
         return 1 if args.fail else 0
 
     print(f"OK: no functions over {args.max} lines.")
@@ -125,4 +171,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
