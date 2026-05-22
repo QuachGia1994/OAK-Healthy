@@ -18,6 +18,10 @@ OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ
 
 ## Ghi chú triển khai (mới)
 
+## Rules
+
+- Max 30 lines / function.
+
 - iOS:
   - Sau khi “Tải về”, app sẽ tự áp dụng dữ liệu và tự lên lịch lại thông báo (nếu đã bật “Cho phép gửi thông báo”).
   - Safe Mode là cơ chế tự phục hồi khi phát hiện crash loop; không còn nút bật Safe Mode thủ công ở màn khởi động.

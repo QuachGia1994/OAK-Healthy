@@ -28,7 +28,7 @@ enum CloudSyncPayloadCodec {
     
     static func decompressIfNeeded(_ data: Data) throws(CloudSyncPayloadCodecError) -> Data {
         guard let objAny = try? JSONSerialization.jsonObject(with: data) else { return data }
-        guard let obj = objAny as? [String: Any] else { throw .wrapperJSONInvalid }
+        guard let obj = objAny as? [String: Any] else { return data }
         guard let z = obj["z"] as? [String: Any] else { return data }
         guard let ct = z["ct"] as? String else { throw .missingCompressedField(field: "ct") }
         guard let raw = Data(base64Encoded: ct) else { throw .base64DecodeFailed }
