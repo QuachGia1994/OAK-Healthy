@@ -537,7 +537,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("tab_home".localized, systemImage: "house.fill")
                 }
-                .badge(homeOverdueCount == 0 ? nil : homeOverdueCount)
+                .badge(homeOverdueCount)
                 .tag(0)
             
             StackView(

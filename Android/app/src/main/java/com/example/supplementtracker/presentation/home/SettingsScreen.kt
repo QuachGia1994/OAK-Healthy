@@ -1059,7 +1059,7 @@ fun MyStackListScreen(
                         }
                     }
                 )
-            }
+            },
             floatingActionButton = {
                 FloatingActionButton(onClick = onNavigateToAdd) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = null)

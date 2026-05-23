@@ -184,7 +184,7 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    }
+                    },
                     actions = {
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(Icons.Default.Settings, contentDescription = null)
