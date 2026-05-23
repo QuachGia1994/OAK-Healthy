@@ -69,6 +69,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object Onboarding : Screen("onboarding", R.string.app_name, { })
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(
     homeViewModel: HomeViewModel,

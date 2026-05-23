@@ -2,6 +2,7 @@ package com.example.supplementtracker.presentation.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -476,7 +478,7 @@ private fun TodayStripButton(
     val borderColor = if (selected) tint.copy(alpha = 0.55f) else Color.Transparent
     GlassCard(
         modifier = modifier
-            .combinedClickable(onClick = onClick)
+            .clickable(onClick = onClick)
             .border(1.dp, borderColor, RoundedCornerShape(24.dp))
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
