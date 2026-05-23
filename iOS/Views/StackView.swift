@@ -47,12 +47,14 @@ public struct StackView: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             ForEach(supplementsForActiveClient) { supplement in
+                                let rowInfo = cycleRowInfo(for: supplement)
                                 Button {
                                     editingSupplement = supplement
                                 } label: {
                                     StackSupplementRow(
                                         name: displayName(for: supplement),
-                                        cycleSummary: cycleSummary(for: supplement)
+                                        cycleSummary: rowInfo.summary,
+                                        isOffCycle: rowInfo.isOffCycle
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -166,17 +168,35 @@ public struct StackView: View {
         return time.isEmpty ? supplement.name : "\(supplement.name) (\(time))"
     }
     
-    private func cycleSummary(for supplement: UserSupplement) -> String {
+    private func cycleRowInfo(for supplement: UserSupplement) -> (summary: String, isOffCycle: Bool) {
         let config = supplement.cycleConfig
+        let durationText = cycleDurationText(for: supplement)
         if config.isContinuous {
             if let interval = config.intervalDays, interval > 1 {
-                return "\("repeat_every_n_days".localized): \(interval)"
+                return ("\("repeat_every_n_days".localized): \(interval) • \(durationText)", false)
             }
-            return "cycle_continuous".localized
+            return ("\( "cycle_continuous".localized) • \(durationText)", false)
         }
         let status = try? cycleEngine.determineStatus(for: supplement.startDate, config: config, at: .now)
         let statusText = status == .on ? "cycle_status_on".localized : "cycle_status_off".localized
-        return String(format: "cycle_summary_format".localized, statusText, config.daysOn, config.daysOff)
+        let cycleText = String(format: "cycle_summary_format".localized, statusText, config.daysOn, config.daysOff)
+        return ("\(cycleText) • \(durationText)", status == .off)
+    }
+
+    private func cycleDurationText(for supplement: UserSupplement) -> String {
+        guard let months = supplement.cycleConfig.durationMonths, months > 0 else {
+            return "unlimited".localized
+        }
+        let calendar = Calendar.current
+        guard let endDate = calendar.date(byAdding: .month, value: months, to: supplement.startDate) else {
+            return "unlimited".localized
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateStyle = .short
+        formatter.timeStyle = .none
+        let dateText = formatter.string(from: endDate)
+        return String(format: "cycle_until_format".localized, dateText)
     }
     
     private func deleteSupplement(_ supplement: UserSupplement) {
@@ -201,11 +221,13 @@ public struct StackView: View {
 private struct StackSupplementRow: View, Equatable {
     let name: String
     let cycleSummary: String
+    let isOffCycle: Bool
     
     var body: some View {
         VStack(alignment: .leading) {
             Text(name)
                 .font(.headline)
+                .opacity(isOffCycle ? 0.6 : 1)
             Text(cycleSummary)
                 .font(.caption)
                 .foregroundStyle(.secondary)

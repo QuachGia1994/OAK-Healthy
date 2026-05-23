@@ -70,8 +70,7 @@ public struct HomeView: View {
                         } header: {
                             TodayHeaderView(
                                 title: "today_intake_title".localized,
-                                streakDays: viewModel.cachedStreakDays,
-                                counts: viewModel.cachedTodayCounts
+                                streakDays: viewModel.cachedStreakDays
                             )
                         }
                         
@@ -113,6 +112,7 @@ public struct HomeView: View {
                                     case .overdue: return status == .missed
                                     case .due: return viewModel.isDueNow(supplement, timeString: time, now: now)
                                     case .taken: return status == .taken
+                                    case .skipped: return status == .skipped
                                     }
                                 }
                                 if !filtered.isEmpty {
@@ -389,6 +389,7 @@ private enum HomeDoseFilter: String, CaseIterable, Identifiable {
     case overdue
     case due
     case taken
+    case skipped
     
     var id: String { rawValue }
     
@@ -398,6 +399,7 @@ private enum HomeDoseFilter: String, CaseIterable, Identifiable {
         case .overdue: return "dose_status_missed".localized
         case .due: return "dose_status_due".localized
         case .taken: return "notif_action_taken".localized
+        case .skipped: return "dose_status_skipped".localized
         }
     }
 }
@@ -407,30 +409,58 @@ private struct HomeDoseFilterBar: View {
     let counts: HomeViewModel.TodayCounts
     
     var body: some View {
-        HStack(spacing: 10) {
-            TodayStripButton(
-                title: "dose_status_due".localized,
-                count: counts.due,
-                tint: .blue,
-                isSelected: filter == .due
-            ) {
-                filter = filter == .due ? .all : .due
+        let columns = [
+            GridItem(.flexible(), spacing: 10),
+            GridItem(.flexible(), spacing: 10)
+        ]
+        VStack(alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                TodayStripButton(
+                    title: "dose_status_due".localized,
+                    count: counts.due,
+                    tint: .blue,
+                    isSelected: filter == .due
+                ) {
+                    filter = filter == .due ? .all : .due
+                }
+                TodayStripButton(
+                    title: "dose_status_missed".localized,
+                    count: counts.missed,
+                    tint: .red,
+                    isSelected: filter == .overdue
+                ) {
+                    filter = filter == .overdue ? .all : .overdue
+                }
+                TodayStripButton(
+                    title: "notif_action_taken".localized,
+                    count: counts.taken,
+                    tint: .green,
+                    isSelected: filter == .taken
+                ) {
+                    filter = filter == .taken ? .all : .taken
+                }
+                TodayStripButton(
+                    title: "dose_status_skipped".localized,
+                    count: counts.skipped,
+                    tint: .orange,
+                    isSelected: filter == .skipped
+                ) {
+                    filter = filter == .skipped ? .all : .skipped
+                }
             }
-            TodayStripButton(
-                title: "dose_status_missed".localized,
-                count: counts.missed,
-                tint: .red,
-                isSelected: filter == .overdue
-            ) {
-                filter = filter == .overdue ? .all : .overdue
+            let total = counts.due + counts.missed + counts.taken + counts.skipped
+            let current = switch filter {
+            case .all: total
+            case .due: counts.due
+            case .overdue: counts.missed
+            case .taken: counts.taken
+            case .skipped: counts.skipped
             }
-            TodayStripButton(
-                title: "notif_action_taken".localized,
-                count: counts.taken,
-                tint: .green,
-                isSelected: filter == .taken
-            ) {
-                filter = filter == .taken ? .all : .taken
+            let other = max(0, total - current)
+            if filter != .all, other > 0 {
+                Text(String.localizedStringWithFormat("home_filter_hint_format".localized, other))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -480,7 +510,6 @@ private struct OverdueItem: Identifiable, Hashable {
 private struct TodayHeaderView: View {
     let title: String
     let streakDays: Int
-    let counts: HomeViewModel.TodayCounts
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -492,17 +521,6 @@ private struct TodayHeaderView: View {
                     StreakChip(streakDays: streakDays)
                 }
                 Spacer()
-            }
-            
-            let columns = [
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8)
-            ]
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                CountChip(title: "notif_action_taken".localized, value: counts.taken, tint: .green)
-                CountChip(title: "dose_status_due".localized, value: counts.due, tint: .gray)
-                CountChip(title: "dose_status_skipped".localized, value: counts.skipped, tint: .orange)
-                CountChip(title: "dose_status_missed".localized, value: counts.missed, tint: .red)
             }
         }
     }
