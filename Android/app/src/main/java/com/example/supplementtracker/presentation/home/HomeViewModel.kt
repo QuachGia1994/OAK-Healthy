@@ -1437,14 +1437,14 @@ class HomeViewModel(
                             isContinuous = remote.cycle.isContinuous,
                             daysOn = remote.cycle.daysOn,
                             daysOff = remote.cycle.daysOff,
-                            durationMonths = remote.cycle.durationMonths,
+                            durationMonths = remote.cycle.durationMonths ?: local.cycleConfig.durationMonths,
                             weeklyRecurrence = run {
                                 val mask = remote.cycle.weeklyWeekdaysMask ?: return@run null
                                 val interval = remote.cycle.weeklyIntervalWeeks ?: return@run null
                                 val anchor = remote.cycle.weeklyAnchorDate?.let { d -> runCatching { LocalDate.parse(d) }.getOrNull() } ?: return@run null
                                 WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
                             },
-                            intervalDays = remote.cycle.intervalDays
+                            intervalDays = remote.cycle.intervalDays ?: local.cycleConfig.intervalDays
                         ),
                         dailyDose = remote.dailyDose,
                         intakeTime = remote.intakeTime,

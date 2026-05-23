@@ -273,7 +273,7 @@ class AddSupplementViewModel(
                             daysOn = 1,
                             daysOff = 0,
                             isContinuous = true,
-                            durationMonths = null,
+                            durationMonths = currentState.durationMonths.toIntOrNull(),
                             weeklyRecurrence = weeklyConfigIfNeeded(currentState),
                             intervalDays = intervalDays
                         )

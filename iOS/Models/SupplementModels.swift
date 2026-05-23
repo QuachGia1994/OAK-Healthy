@@ -98,12 +98,13 @@ public struct CycleConfig: Codable, Sendable, Equatable {
         intervalDays: Int? = nil
     ) {
         if isContinuous {
+            let safeIntervalDays = intervalDays.map { max(2, min(3650, $0)) }
             self.daysOn = 1
             self.daysOff = 0
             self.isContinuous = true
             self.durationMonths = durationMonths
             self.weeklyRecurrence = weeklyRecurrence
-            self.intervalDays = nil
+            self.intervalDays = safeIntervalDays
             return
         }
         

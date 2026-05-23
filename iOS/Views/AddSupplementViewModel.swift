@@ -307,7 +307,7 @@ public final class AddSupplementViewModel {
     private func buildCycleConfigOrThrow(weekly: WeeklyRecurrenceConfig?) throws -> CycleConfig {
         let interval = try intervalDaysValueOrThrow()
         if isContinuous {
-            return CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, durationMonths: nil, weeklyRecurrence: weekly, intervalDays: interval)
+            return CycleConfig(daysOn: 1, daysOff: 0, isContinuous: true, durationMonths: Int(durationMonths), weeklyRecurrence: weekly, intervalDays: interval)
         }
         let parsedDaysOn = Int(daysOn) ?? -1
         let parsedDaysOff = Int(daysOff) ?? -1
