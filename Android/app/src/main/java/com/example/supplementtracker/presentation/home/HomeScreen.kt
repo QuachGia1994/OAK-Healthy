@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -268,6 +270,7 @@ private fun HomeContent(
     onEdit: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
+    var filter by rememberSaveable { mutableStateOf(HomeDoseFilter.ALL) }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -301,7 +304,13 @@ private fun HomeContent(
                 }
                 TodayCounts(planned = planned, taken = taken, skipped = skipped, missed = missed)
             }
-            TodaySummaryCard(counts = counts, streakDays = state.streakDays)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                TodaySummaryCard(counts = counts, streakDays = state.streakDays)
+                HomeFilterRow(
+                    selected = filter,
+                    onSelected = { filter = it }
+                )
+            }
         }
         
         if (state.activeSupplements.isEmpty()) {
@@ -311,14 +320,16 @@ private fun HomeContent(
             ) { EmptyStateMessage(stringResource(R.string.no_intake_today)) }
         }
 
-        state.activeSupplements.forEach { (time, items) ->
-            item(
-                key = "time_$time",
-                contentType = "time"
-            ) { TimeGroupHeader(time) }
+        val missedItems = remember(state.activeSupplements) {
+            state.activeSupplements.values.flatten().filter { it.doseStatus == DoseStatus.MISSED }
+        }
+        if (filter == HomeDoseFilter.ALL && missedItems.isNotEmpty()) {
+            item(key = "overdue_title", contentType = "title") {
+                SectionHeader(stringResource(R.string.dose_status_missed))
+            }
             items(
-                items = items,
-                key = { "${it.supplement.id}-${it.timeString}" },
+                items = missedItems,
+                key = { "overdue-${it.supplement.id}-${it.timeString}" },
                 contentType = { "supplement" }
             ) { item ->
                 Box(modifier = Modifier.animateItemPlacement()) {
@@ -328,6 +339,53 @@ private fun HomeContent(
                         onDelete = onDelete,
                         onEdit = onEdit
                     )
+                }
+            }
+        }
+
+        if (filter == HomeDoseFilter.OVERDUE) {
+            items(
+                items = missedItems,
+                key = { "overdue-${it.supplement.id}-${it.timeString}" },
+                contentType = { "supplement" }
+            ) { item ->
+                Box(modifier = Modifier.animateItemPlacement()) {
+                    DismissibleSupplementCard(
+                        item = item,
+                        onToggleIntake = onToggleIntake,
+                        onDelete = onDelete,
+                        onEdit = onEdit
+                    )
+                }
+            }
+        } else {
+            state.activeSupplements.forEach { (time, items) ->
+                val filtered = items.filter { item ->
+                    when (filter) {
+                        HomeDoseFilter.ALL -> item.doseStatus != DoseStatus.MISSED
+                        HomeDoseFilter.PLANNED -> item.doseStatus == DoseStatus.PLANNED
+                        HomeDoseFilter.TAKEN -> item.doseStatus == DoseStatus.TAKEN
+                        HomeDoseFilter.OVERDUE -> item.doseStatus == DoseStatus.MISSED
+                    }
+                }
+                if (filtered.isEmpty()) return@forEach
+                item(
+                    key = "time_$time",
+                    contentType = "time"
+                ) { TimeGroupHeader(time) }
+                items(
+                    items = filtered,
+                    key = { "${it.supplement.id}-${it.timeString}" },
+                    contentType = { "supplement" }
+                ) { item ->
+                    Box(modifier = Modifier.animateItemPlacement()) {
+                        DismissibleSupplementCard(
+                            item = item,
+                            onToggleIntake = onToggleIntake,
+                            onDelete = onDelete,
+                            onEdit = onEdit
+                        )
+                    }
                 }
             }
         }
@@ -346,6 +404,48 @@ private fun HomeContent(
                 RestingSupplementCard(info)
             }
         }
+    }
+}
+
+private enum class HomeDoseFilter {
+    ALL,
+    OVERDUE,
+    PLANNED,
+    TAKEN
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun HomeFilterRow(
+    selected: HomeDoseFilter,
+    onSelected: (HomeDoseFilter) -> Unit
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+    ) {
+        FilterChip(
+            selected = selected == HomeDoseFilter.ALL,
+            onClick = { onSelected(HomeDoseFilter.ALL) },
+            label = { Text(stringResource(R.string.filter_all)) }
+        )
+        FilterChip(
+            selected = selected == HomeDoseFilter.OVERDUE,
+            onClick = { onSelected(HomeDoseFilter.OVERDUE) },
+            label = { Text(stringResource(R.string.dose_status_missed)) }
+        )
+        FilterChip(
+            selected = selected == HomeDoseFilter.PLANNED,
+            onClick = { onSelected(HomeDoseFilter.PLANNED) },
+            label = { Text(stringResource(R.string.home_status_planned)) }
+        )
+        FilterChip(
+            selected = selected == HomeDoseFilter.TAKEN,
+            onClick = { onSelected(HomeDoseFilter.TAKEN) },
+            label = { Text(stringResource(R.string.notif_action_taken)) }
+        )
     }
 }
 

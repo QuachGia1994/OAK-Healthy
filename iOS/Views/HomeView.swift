@@ -14,6 +14,7 @@ public struct HomeView: View {
     @State private var editingSupplement: UserSupplement?
     @State private var isShowingAddClientSheet = false
     @State private var isShowingSettingsSheet = false
+    @State private var doseFilter: HomeDoseFilter = .all
     
     public let activeClientManager: ActiveClientManager
     public let notificationService: NotificationService
@@ -49,132 +50,115 @@ public struct HomeView: View {
                     .oakCardStyle(.glass, cornerRadius: 16)
                     .padding(.horizontal, 24)
                 } else {
+                    let now = Date.now
+                    let overdue = overdueItems(now: now)
                     List {
-                    Section {
-                        if viewModel.activeSupplements.isEmpty {
-                            Text("no_intake_today".localized)
-                                .foregroundStyle(.secondary)
+                        Section {
+                            HomeDoseFilterBar(filter: $doseFilter)
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        }
-                    } header: {
-                        TodayHeaderView(
-                            title: "today_intake_title".localized,
-                            streakDays: viewModel.cachedStreakDays,
-                            counts: viewModel.cachedTodayCounts
-                        )
-                    }
-                    
-                    
-                    ForEach(viewModel.activeSupplementTimes, id: \.self) { time in
-                        if let items = viewModel.activeSupplements[time] {
-                            Section {
-                                ForEach(items) { supplement in
-                                    ActiveSupplementRow(
-                                        supplement: supplement,
-                                        timeString: time,
-                                        status: viewModel.doseStatus(supplement, timeString: time),
-                                        urgency: viewModel.doseUrgency(supplement, timeString: time),
-                                        onAction: { supplement, timeString, action, context in
-                                            viewModel.markDose(
-                                                for: supplement,
-                                                timeString: timeString,
-                                                action: action,
-                                                context: context,
-                                                notificationService: notificationService
-                                            )
-                                        }
-                                    )
+                                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 6, trailing: 16))
+                            
+                            if viewModel.activeSupplements.isEmpty {
+                                Text("no_intake_today".localized)
+                                    .foregroundStyle(.secondary)
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                        Button {
-                                            editingSupplement = supplement
-                                        } label: {
-                                            Label("edit".localized, systemImage: "pencil")
-                                        }
-                                        .tint(.orange)
-                                    }
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
-                                        } label: {
-                                            Label("delete".localized, systemImage: "trash")
-                                        }
-                                    }
-                                    .contextMenu {
-                                        Button {
-                                            editingSupplement = supplement
-                                        } label: {
-                                            Label("edit".localized, systemImage: "pencil")
-                                        }
-                                        
-                                        Button(role: .destructive) {
-                                            viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
-                                        } label: {
-                                            Label("delete".localized, systemImage: "trash")
-                                        }
-                                    }
-                                }
-                            } header: {
-                                HStack {
-                                    Text(time)
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(.secondary)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(.ultraThinMaterial)
-                                        .clipShape(Capsule())
-                                    Spacer()
-                                }
-                                .textCase(nil)
-                            }
-                        }
-                    }
-                    
-                    if !viewModel.restingSupplements.isEmpty {
-                        Section {
-                            ForEach(viewModel.restingSupplements) { info in
-                                RestingSupplementRow(info: info, onEdit: { editingSupplement = $0 })
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                        Button(role: .destructive) {
-                                            viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
-                                        } label: {
-                                            Label("delete".localized, systemImage: "trash")
-                                        }
-                                    }
-                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                        Button {
-                                            editingSupplement = info.supplement
-                                        } label: {
-                                            Label("edit".localized, systemImage: "pencil")
-                                        }
-                                        .tint(.orange)
-                                    }
-                                    .contextMenu {
-                                        Button {
-                                            editingSupplement = info.supplement
-                                        } label: {
-                                            Label("edit".localized, systemImage: "pencil")
-                                        }
-                                        
-                                        Button(role: .destructive) {
-                                            viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
-                                        } label: {
-                                            Label("delete".localized, systemImage: "trash")
-                                        }
-                                    }
                             }
                         } header: {
-                            Text("resting_title".localized)
+                            TodayHeaderView(
+                                title: "today_intake_title".localized,
+                                streakDays: viewModel.cachedStreakDays,
+                                counts: viewModel.cachedTodayCounts
+                            )
                         }
-                    }
+                        
+                        if !overdue.isEmpty && (doseFilter == .all || doseFilter == .overdue) {
+                            Section {
+                                ForEach(overdue) { item in
+                                    activeRow(supplement: item.supplement, timeString: item.timeString, now: now)
+                                }
+                            } header: {
+                                Text("dose_status_missed".localized)
+                            }
+                        }
+                        
+                        if doseFilter != .overdue {
+                            ForEach(viewModel.activeSupplementTimes, id: \.self) { time in
+                                let items = viewModel.activeSupplements[time] ?? []
+                                let filtered = items.filter { supplement in
+                                    let status = viewModel.doseStatus(supplement, timeString: time, now: now)
+                                    switch doseFilter {
+                                    case .all: return status != .missed
+                                    case .overdue: return status == .missed
+                                    case .planned: return status == .planned
+                                    case .taken: return status == .taken
+                                    }
+                                }
+                                if !filtered.isEmpty {
+                                    Section {
+                                        ForEach(filtered) { supplement in
+                                            activeRow(supplement: supplement, timeString: time, now: now)
+                                        }
+                                    } header: {
+                                        HStack {
+                                            Text(time)
+                                                .font(.subheadline)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.secondary)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
+                                                .background(.ultraThinMaterial)
+                                                .clipShape(Capsule())
+                                            Spacer()
+                                        }
+                                        .textCase(nil)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if !viewModel.restingSupplements.isEmpty, doseFilter == .all {
+                            Section {
+                                ForEach(viewModel.restingSupplements) { info in
+                                    RestingSupplementRow(info: info, onEdit: { editingSupplement = $0 })
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                            Button(role: .destructive) {
+                                                viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
+                                            } label: {
+                                                Label("delete".localized, systemImage: "trash")
+                                            }
+                                        }
+                                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                            Button {
+                                                editingSupplement = info.supplement
+                                            } label: {
+                                                Label("edit".localized, systemImage: "pencil")
+                                            }
+                                            .tint(.orange)
+                                        }
+                                        .contextMenu {
+                                            Button {
+                                                editingSupplement = info.supplement
+                                            } label: {
+                                                Label("edit".localized, systemImage: "pencil")
+                                            }
+                                            
+                                            Button(role: .destructive) {
+                                                viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
+                                            } label: {
+                                                Label("delete".localized, systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            } header: {
+                                Text("resting_title".localized)
+                            }
+                        }
                     }
                     .scrollContentBackground(.hidden)
                     .listStyle(.plain)
@@ -316,6 +300,104 @@ public struct HomeView: View {
     private var clientTitle: String {
         activeClient?.name ?? "dashboard_title".localized
     }
+    
+    private func activeRow(supplement: UserSupplement, timeString: String, now: Date) -> some View {
+        ActiveSupplementRow(
+            supplement: supplement,
+            timeString: timeString,
+            status: viewModel.doseStatus(supplement, timeString: timeString, now: now),
+            urgency: viewModel.doseUrgency(supplement, timeString: timeString, now: now),
+            onAction: { supplement, timeString, action, context in
+                viewModel.markDose(
+                    for: supplement,
+                    timeString: timeString,
+                    action: action,
+                    context: context,
+                    notificationService: notificationService
+                )
+            }
+        )
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button {
+                editingSupplement = supplement
+            } label: {
+                Label("edit".localized, systemImage: "pencil")
+            }
+            .tint(.orange)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
+            } label: {
+                Label("delete".localized, systemImage: "trash")
+            }
+        }
+        .contextMenu {
+            Button {
+                editingSupplement = supplement
+            } label: {
+                Label("edit".localized, systemImage: "pencil")
+            }
+            
+            Button(role: .destructive) {
+                viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
+            } label: {
+                Label("delete".localized, systemImage: "trash")
+            }
+        }
+    }
+    
+    private func overdueItems(now: Date) -> [OverdueItem] {
+        var items: [OverdueItem] = []
+        for time in viewModel.activeSupplementTimes {
+            for supplement in viewModel.activeSupplements[time] ?? [] {
+                if viewModel.doseStatus(supplement, timeString: time, now: now) == .missed {
+                    items.append(OverdueItem(supplement: supplement, timeString: time))
+                }
+            }
+        }
+        return items
+    }
+}
+
+private enum HomeDoseFilter: String, CaseIterable, Identifiable {
+    case all
+    case overdue
+    case planned
+    case taken
+    
+    var id: String { rawValue }
+    
+    var title: String {
+        switch self {
+        case .all: return "filter_all".localized
+        case .overdue: return "dose_status_missed".localized
+        case .planned: return "dose_status_planned".localized
+        case .taken: return "notif_action_taken".localized
+        }
+    }
+}
+
+private struct HomeDoseFilterBar: View {
+    @Binding var filter: HomeDoseFilter
+    
+    var body: some View {
+        Picker("", selection: $filter) {
+            ForEach(HomeDoseFilter.allCases) { item in
+                Text(item.title).tag(item)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+}
+
+private struct OverdueItem: Identifiable, Hashable {
+    let supplement: UserSupplement
+    let timeString: String
+    var id: String { "\(supplement.id.uuidString)-\(timeString)" }
 }
 
 private struct TodayHeaderView: View {
