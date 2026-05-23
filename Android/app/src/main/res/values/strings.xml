@@ -114,6 +114,9 @@
     <string name="cycle_summary_format">%1$s: %2$d on / %3$d off</string>
     <string name="cycle_label_day_format">Day %1$d/%2$d</string>
     <string name="cycle_label_rest_format">Rest %1$d/%2$d</string>
+    <string name="unlimited">Unlimited</string>
+    <string name="cycle_until_format">Until: %1$s</string>
+    <string name="cycle_every_n_days_format">Every %1$d day(s)</string>
 
     <string name="today_intake_title">Today\'s Intake</string>
     <string name="resting_title">Resting</string>
@@ -383,6 +386,7 @@
     <string name="home_streak_format">Streak: %1$d</string>
     <string name="home_due_soon">Due soon</string>
     <string name="home_almost_missed">Almost missed</string>
+    <string name="home_filter_hint_format">%1$d other item(s) hidden by filter</string>
     <string name="dose_status_missed">Overdue</string>
     <string name="dose_status_skipped">Skipped</string>
 

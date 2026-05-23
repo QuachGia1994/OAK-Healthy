@@ -95,6 +95,9 @@
     <string name="cycle_summary_format">%1$s: %2$d ngày uống / %3$d ngày nghỉ</string>
     <string name="cycle_label_day_format">Ngày %1$d/%2$d</string>
     <string name="cycle_label_rest_format">Nghỉ %1$d/%2$d</string>
+    <string name="unlimited">Vô hạn</string>
+    <string name="cycle_until_format">Đến: %1$s</string>
+    <string name="cycle_every_n_days_format">Cách %1$d ngày</string>
 
     <string name="today_intake_title">Cần uống hôm nay</string>
     <string name="resting_title">Đang nghỉ</string>
@@ -173,6 +176,7 @@
     <string name="home_streak_format">Chuỗi: %1$d</string>
     <string name="home_due_soon">Sắp tới</string>
     <string name="home_almost_missed">Sắp trễ</string>
+    <string name="home_filter_hint_format">Đang lọc, còn %1$d mục khác</string>
     <string name="dose_status_missed">Quá hạn</string>
     <string name="dose_status_skipped">Bỏ qua</string>
 

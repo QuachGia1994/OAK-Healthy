@@ -271,6 +271,9 @@ private fun HomeContent(
 ) {
     val listState = rememberLazyListState()
     var filter by rememberSaveable { mutableStateOf(HomeDoseFilter.ALL) }
+    val missedItems = remember(state.activeSupplements) {
+        state.activeSupplements.values.flatten().filter { it.doseStatus == DoseStatus.MISSED }
+    }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -289,9 +292,9 @@ private fun HomeContent(
         ) {
             val nowEpochMs = System.currentTimeMillis()
             var due = 0
-                var taken = 0
-                var skipped = 0
-                var missed = 0
+            var taken = 0
+            var skipped = 0
+            var missed = 0
             state.activeSupplements.values.forEach { items ->
                 items.forEach { item ->
                     when (item.doseStatus) {
@@ -305,13 +308,27 @@ private fun HomeContent(
                 }
             }
             val counts = TodayCounts(due = due, taken = taken, skipped = skipped, missed = missed)
+            val total = counts.due + counts.missed + counts.taken + counts.skipped
+            val current = when (filter) {
+                HomeDoseFilter.ALL -> total
+                HomeDoseFilter.DUE -> counts.due
+                HomeDoseFilter.OVERDUE -> counts.missed
+                HomeDoseFilter.TAKEN -> counts.taken
+                HomeDoseFilter.SKIPPED -> counts.skipped
+            }
+            val other = (total - current).coerceAtLeast(0)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TodaySummaryCard(counts = counts, streakDays = state.streakDays)
-                TodayStrip(
-                    counts = counts,
-                    selected = filter,
-                    onSelected = { filter = it }
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    StreakPill(days = state.streakDays)
+                }
+                TodayStrip(counts = counts, selected = filter, onSelected = { filter = it })
+                if (filter != HomeDoseFilter.ALL && other > 0) {
+                    Text(
+                        text = stringResource(R.string.home_filter_hint_format, other),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
         
@@ -322,9 +339,6 @@ private fun HomeContent(
             ) { EmptyStateMessage(stringResource(R.string.no_intake_today)) }
         }
 
-        val missedItems = remember(state.activeSupplements) {
-            state.activeSupplements.values.flatten().filter { it.doseStatus == DoseStatus.MISSED }
-        }
         if (filter == HomeDoseFilter.ALL && missedItems.isNotEmpty()) {
             item(key = "overdue_title", contentType = "title") {
                 SectionHeader("${stringResource(R.string.dose_status_missed)} (${missedItems.size})")
@@ -375,6 +389,7 @@ private fun HomeContent(
                             item.doseStatus == DoseStatus.PLANNED && item.scheduledAtEpochMs in 1..nowEpochMs
                         }
                         HomeDoseFilter.TAKEN -> item.doseStatus == DoseStatus.TAKEN
+                        HomeDoseFilter.SKIPPED -> item.doseStatus == DoseStatus.SKIPPED
                         HomeDoseFilter.OVERDUE -> item.doseStatus == DoseStatus.MISSED
                     }
                 }
@@ -421,7 +436,8 @@ private enum class HomeDoseFilter {
     ALL,
     OVERDUE,
     DUE,
-    TAKEN
+    TAKEN,
+    SKIPPED
 }
 
 @Composable
@@ -430,37 +446,51 @@ private fun TodayStrip(
     selected: HomeDoseFilter,
     onSelected: (HomeDoseFilter) -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        TodayStripButton(
-            title = stringResource(R.string.home_status_due),
-            count = counts.due,
-            tint = Color(0xFF42A5F5),
-            selected = selected == HomeDoseFilter.DUE,
-            modifier = Modifier.weight(1f),
-            onClick = {
-                onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
-            }
-        )
-        TodayStripButton(
-            title = stringResource(R.string.dose_status_missed),
-            count = counts.missed,
-            tint = Color(0xFFD32F2F),
-            selected = selected == HomeDoseFilter.OVERDUE,
-            modifier = Modifier.weight(1f),
-            onClick = {
-                onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
-            }
-        )
-        TodayStripButton(
-            title = stringResource(R.string.notif_action_taken),
-            count = counts.taken,
-            tint = Color(0xFF2E7D32),
-            selected = selected == HomeDoseFilter.TAKEN,
-            modifier = Modifier.weight(1f),
-            onClick = {
-                onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
-            }
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            TodayStripButton(
+                title = stringResource(R.string.home_status_due),
+                count = counts.due,
+                tint = Color(0xFF42A5F5),
+                selected = selected == HomeDoseFilter.DUE,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
+                }
+            )
+            TodayStripButton(
+                title = stringResource(R.string.dose_status_missed),
+                count = counts.missed,
+                tint = Color(0xFFD32F2F),
+                selected = selected == HomeDoseFilter.OVERDUE,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
+                }
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            TodayStripButton(
+                title = stringResource(R.string.notif_action_taken),
+                count = counts.taken,
+                tint = Color(0xFF2E7D32),
+                selected = selected == HomeDoseFilter.TAKEN,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
+                }
+            )
+            TodayStripButton(
+                title = stringResource(R.string.notif_action_skip),
+                count = counts.skipped,
+                tint = Color(0xFFFF9800),
+                selected = selected == HomeDoseFilter.SKIPPED,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
+                }
+            )
+        }
     }
 }
 

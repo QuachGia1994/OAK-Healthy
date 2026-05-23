@@ -37,6 +37,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 import androidx.compose.foundation.Image
@@ -882,17 +883,28 @@ private fun getCycleSummary(
         R.string.cycle_status_off
     }
 
-    return if (config.isContinuous) {
-        stringResource(R.string.cycle_continuous)
+    val cycleText = if (config.isContinuous) {
+        "${stringResource(statusText)} • ${stringResource(R.string.cycle_continuous)}"
     } else {
         stringResource(R.string.cycle_summary_format, stringResource(statusText), config.daysOn, config.daysOff)
     }
+    val intervalText = config.intervalDays?.let { interval ->
+        stringResource(R.string.cycle_every_n_days_format, interval)
+    }
+    val durationText = config.durationMonths?.let { months ->
+        val endDate = supplement.startDate.plusMonths(months.toLong())
+        val dateText = endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        stringResource(R.string.cycle_until_format, dateText)
+    } ?: stringResource(R.string.unlimited)
+
+    return listOfNotNull(cycleText, intervalText, durationText).joinToString(" • ")
 }
 
 @Composable
-private fun InfoCard(title: String, content: String) {
+private fun InfoCard(title: String, content: String, isOffCycle: Boolean = false) {
     val shape = RoundedCornerShape(32.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val alpha = if (isOffCycle) 0.55f else 1f
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -905,13 +917,14 @@ private fun InfoCard(title: String, content: String) {
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary.copy(alpha = alpha)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = content,
                 style = MaterialTheme.typography.bodyMedium,
-                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.2
+                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.2,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
             )
         }
     }
@@ -1105,13 +1118,15 @@ fun MyStackListScreen(
                 ) { supplement ->
                     val time = supplement.intakeTime.trim()
                     val title = if (time.isEmpty()) supplement.name else "${supplement.name} ($time)"
+                    val isOffCycle = calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, today) == CycleStatus.OFF
                     InfoCard(
                         title = title,
                         content = getCycleSummary(
                             supplement = supplement,
                             calculateCycleUseCase = calculateCycleUseCase,
                             today = today
-                        )
+                        ),
+                        isOffCycle = isOffCycle
                     )
                 }
             }
