@@ -4,12 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -306,7 +304,8 @@ private fun HomeContent(
             }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TodaySummaryCard(counts = counts, streakDays = state.streakDays)
-                HomeFilterRow(
+                TodayStrip(
+                    counts = counts,
                     selected = filter,
                     onSelected = { filter = it }
                 )
@@ -415,37 +414,77 @@ private enum class HomeDoseFilter {
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
-private fun HomeFilterRow(
+private fun TodayStrip(
+    counts: TodayCounts,
     selected: HomeDoseFilter,
     onSelected: (HomeDoseFilter) -> Unit
 ) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-    ) {
-        FilterChip(
-            selected = selected == HomeDoseFilter.ALL,
-            onClick = { onSelected(HomeDoseFilter.ALL) },
-            label = { Text(stringResource(R.string.filter_all)) }
-        )
-        FilterChip(
-            selected = selected == HomeDoseFilter.OVERDUE,
-            onClick = { onSelected(HomeDoseFilter.OVERDUE) },
-            label = { Text(stringResource(R.string.dose_status_missed)) }
-        )
-        FilterChip(
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        TodayStripButton(
+            title = stringResource(R.string.home_status_planned),
+            count = counts.planned,
+            tint = Color(0xFF42A5F5),
             selected = selected == HomeDoseFilter.PLANNED,
-            onClick = { onSelected(HomeDoseFilter.PLANNED) },
-            label = { Text(stringResource(R.string.home_status_planned)) }
+            modifier = Modifier.weight(1f),
+            onClick = {
+                onSelected(if (selected == HomeDoseFilter.PLANNED) HomeDoseFilter.ALL else HomeDoseFilter.PLANNED)
+            }
         )
-        FilterChip(
+        TodayStripButton(
+            title = stringResource(R.string.dose_status_missed),
+            count = counts.missed,
+            tint = Color(0xFFD32F2F),
+            selected = selected == HomeDoseFilter.OVERDUE,
+            modifier = Modifier.weight(1f),
+            onClick = {
+                onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
+            }
+        )
+        TodayStripButton(
+            title = stringResource(R.string.notif_action_taken),
+            count = counts.taken,
+            tint = Color(0xFF2E7D32),
             selected = selected == HomeDoseFilter.TAKEN,
-            onClick = { onSelected(HomeDoseFilter.TAKEN) },
-            label = { Text(stringResource(R.string.notif_action_taken)) }
+            modifier = Modifier.weight(1f),
+            onClick = {
+                onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
+            }
         )
+    }
+}
+
+@Composable
+private fun TodayStripButton(
+    title: String,
+    count: Int,
+    tint: Color,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val textColor = if (isDark) Color.White else Color(0xFF111111)
+    val borderColor = if (selected) tint.copy(alpha = 0.55f) else Color.Transparent
+    GlassCard(
+        modifier = modifier
+            .combinedClickable(onClick = onClick)
+            .border(1.dp, borderColor, RoundedCornerShape(24.dp))
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = count.toString(),
+                style = MaterialTheme.typography.headlineSmall,
+                color = tint,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

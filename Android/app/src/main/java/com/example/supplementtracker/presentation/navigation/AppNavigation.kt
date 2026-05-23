@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -36,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.home.DoseStatus
+import com.example.supplementtracker.presentation.home.HomeUiState
 import com.example.supplementtracker.presentation.home.MyStackListScreen
 import com.example.supplementtracker.presentation.home.NotificationCheckScreen
 import com.example.supplementtracker.presentation.home.SettingsScreen
@@ -44,6 +47,7 @@ import com.example.supplementtracker.presentation.sync.SyncCenterScreen
 import com.example.supplementtracker.presentation.onboarding.OnboardingScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Context
 
 enum class AppTheme {
@@ -105,6 +109,19 @@ fun AppNavigation(
     } else {
         Color.White.copy(alpha = 0.70f)
     }
+    val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    val overdueCount by remember(homeUiState) {
+        derivedStateOf {
+            val success = homeUiState as? HomeUiState.Success ?: return@derivedStateOf 0
+            var count = 0
+            success.activeSupplements.values.forEach { items ->
+                items.forEach { item ->
+                    if (item.doseStatus == DoseStatus.MISSED) count += 1
+                }
+            }
+            count
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -116,7 +133,21 @@ fun AppNavigation(
                 ) {
                     items.forEach { screen ->
                         NavigationBarItem(
-                            icon = screen.icon,
+                            icon = {
+                                if (screen == Screen.Home && overdueCount > 0) {
+                                    BadgedBox(
+                                        badge = {
+                                            Badge {
+                                                Text(if (overdueCount > 99) "99+" else overdueCount.toString())
+                                            }
+                                        }
+                                    ) {
+                                        screen.icon()
+                                    }
+                                } else {
+                                    screen.icon()
+                                }
+                            },
                             label = { Text(stringResource(screen.titleRes)) },
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {

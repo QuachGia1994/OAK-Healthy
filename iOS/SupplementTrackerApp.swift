@@ -523,6 +523,7 @@ struct MainTabView: View {
     
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
+    @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -534,6 +535,7 @@ struct MainTabView: View {
                 .tabItem {
                     Label("tab_home".localized, systemImage: "house.fill")
                 }
+                .badge(homeOverdueCount == 0 ? nil : homeOverdueCount)
                 .tag(0)
             
             StackView(

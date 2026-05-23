@@ -15,6 +15,7 @@ public struct HomeView: View {
     @State private var isShowingAddClientSheet = false
     @State private var isShowingSettingsSheet = false
     @State private var doseFilter: HomeDoseFilter = .all
+    @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
     
     public let activeClientManager: ActiveClientManager
     public let notificationService: NotificationService
@@ -54,7 +55,7 @@ public struct HomeView: View {
                     let overdue = overdueItems(now: now)
                     List {
                         Section {
-                            HomeDoseFilterBar(filter: $doseFilter)
+                            HomeDoseFilterBar(filter: $doseFilter, counts: viewModel.cachedTodayCounts)
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 6, trailing: 16))
@@ -235,9 +236,11 @@ public struct HomeView: View {
                     }
                     .onChange(of: supplements) {
                         viewModel.processSupplements(supplementsForActiveClient)
+                        homeOverdueCount = viewModel.cachedTodayCounts.missed
                     }
                     .task(id: activeClientManager.currentClientId) {
                         viewModel.processSupplements(supplementsForActiveClient)
+                        homeOverdueCount = viewModel.cachedTodayCounts.missed
                     }
                     .alert(
                         "error_title".localized,
@@ -383,14 +386,70 @@ private enum HomeDoseFilter: String, CaseIterable, Identifiable {
 
 private struct HomeDoseFilterBar: View {
     @Binding var filter: HomeDoseFilter
+    let counts: HomeViewModel.TodayCounts
     
     var body: some View {
-        Picker("", selection: $filter) {
-            ForEach(HomeDoseFilter.allCases) { item in
-                Text(item.title).tag(item)
+        HStack(spacing: 10) {
+            TodayStripButton(
+                title: "dose_status_planned".localized,
+                count: counts.planned,
+                tint: .blue,
+                isSelected: filter == .planned
+            ) {
+                filter = filter == .planned ? .all : .planned
+            }
+            TodayStripButton(
+                title: "dose_status_missed".localized,
+                count: counts.missed,
+                tint: .red,
+                isSelected: filter == .overdue
+            ) {
+                filter = filter == .overdue ? .all : .overdue
+            }
+            TodayStripButton(
+                title: "notif_action_taken".localized,
+                count: counts.taken,
+                tint: .green,
+                isSelected: filter == .taken
+            ) {
+                filter = filter == .taken ? .all : .taken
             }
         }
-        .pickerStyle(.segmented)
+    }
+}
+
+private struct TodayStripButton: View {
+    let title: String
+    let count: Int
+    let tint: Color
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text("\(count)")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundStyle(tint)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? tint.opacity(0.55) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
