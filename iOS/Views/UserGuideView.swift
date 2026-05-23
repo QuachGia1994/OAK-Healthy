@@ -64,6 +64,16 @@ public struct UserGuideView: View {
             } header: {
                 EmptyView()
             }
+
+            Section {
+                GuideRowView(
+                    systemImage: "checkmark.seal.fill",
+                    title: "user_guide_section_7_title".localized,
+                    detailText: "settings_guide_7".localized
+                )
+            } header: {
+                EmptyView()
+            }
         }
         .navigationTitle("user_guide_title".localized)
     }

@@ -85,6 +85,7 @@ private fun UserGuideContent(modifier: Modifier = Modifier) {
         item { GuideCard(Icons.Default.Notifications, stringResource(R.string.user_guide_4_title), stringResource(R.string.user_guide_4_body)) }
         item { GuideCard(Icons.Default.CalendarMonth, stringResource(R.string.user_guide_5_title), stringResource(R.string.user_guide_5_body)) }
         item { GuideCard(Icons.Default.Error, stringResource(R.string.user_guide_6_title), stringResource(R.string.user_guide_6_body)) }
+        item { GuideCard(Icons.Default.Error, stringResource(R.string.user_guide_7_title), stringResource(R.string.user_guide_7_body)) }
     }
 }
 
