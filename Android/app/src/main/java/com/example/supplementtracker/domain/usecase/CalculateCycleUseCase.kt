@@ -20,8 +20,8 @@ class CalculateCycleUseCase {
         currentDate: LocalDate = LocalDate.now()
     ): CycleStatus {
         // 1. Kiểm tra thời hạn (Duration)
-        config.durationMonths?.let { months ->
-            val endDate = startDate.plusMonths(months.toLong())
+        config.durationMonths?.let { days ->
+            val endDate = startDate.plusDays(days.toLong())
             if (currentDate.isAfter(endDate)) return CycleStatus.OFF
         }
 

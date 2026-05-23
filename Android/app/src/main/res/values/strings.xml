@@ -154,7 +154,7 @@
     <string name="on_days">On Days</string>
     <string name="off_days">Off Days</string>
     <string name="duration">Duration</string>
-    <string name="duration_placeholder">e.g., 3 months (leave blank for unlimited)</string>
+    <string name="duration_placeholder">e.g., 25 days (leave blank for unlimited)</string>
     <string name="example_on_days">e.g., 14 days</string>
     <string name="example_off_days">e.g., 7 days</string>
     <string name="suggested">Suggested: %1$s</string>

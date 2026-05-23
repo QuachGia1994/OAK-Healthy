@@ -184,11 +184,11 @@ public struct StackView: View {
     }
 
     private func cycleDurationText(for supplement: UserSupplement) -> String {
-        guard let months = supplement.cycleConfig.durationMonths, months > 0 else {
+        guard let days = supplement.cycleConfig.durationMonths, days > 0 else {
             return "unlimited".localized
         }
         let calendar = Calendar.current
-        guard let endDate = calendar.date(byAdding: .month, value: months, to: supplement.startDate) else {
+        guard let endDate = calendar.date(byAdding: .day, value: days, to: supplement.startDate) else {
             return "unlimited".localized
         }
         let formatter = DateFormatter()

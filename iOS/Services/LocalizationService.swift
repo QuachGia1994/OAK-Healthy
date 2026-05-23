@@ -159,7 +159,7 @@ public struct LocalizationService: Sendable {
         "on_days": ("On Days", "Số ngày uống"),
         "off_days": ("Off Days", "Số ngày nghỉ"),
         "duration": ("Duration", "Tổng thời hạn"),
-        "months": ("Months", "Tháng"),
+        "months": ("Days", "Ngày"),
         "unlimited": ("Unlimited", "Vô thời hạn"),
         "suggested_format": ("Suggested: %@", "Gợi ý: %@"),
         "notification_title": ("Time to take it! 🌿", "Đến giờ uống rồi! 🌿"),

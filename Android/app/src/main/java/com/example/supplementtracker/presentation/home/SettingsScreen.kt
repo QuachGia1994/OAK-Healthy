@@ -891,8 +891,8 @@ private fun getCycleSummary(
     val intervalText = config.intervalDays?.let { interval ->
         stringResource(R.string.cycle_every_n_days_format, interval)
     }
-    val durationText = config.durationMonths?.let { months ->
-        val endDate = supplement.startDate.plusMonths(months.toLong())
+    val durationText = config.durationMonths?.let { days ->
+        val endDate = supplement.startDate.plusDays(days.toLong())
         val dateText = endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
         stringResource(R.string.cycle_until_format, dateText)
     } ?: stringResource(R.string.unlimited)

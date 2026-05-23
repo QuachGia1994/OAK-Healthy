@@ -78,7 +78,7 @@ public struct CycleConfig: Codable, Sendable, Equatable {
     public let daysOff: Int
     /// Cờ xác định việc uống liên tục không nghỉ.
     public let isContinuous: Bool
-    /// Tổng thời hạn tính bằng tháng (nil là vô thời hạn).
+    /// Tổng thời hạn tính bằng ngày (nil là vô thời hạn).
     public let durationMonths: Int?
     public let weeklyRecurrence: WeeklyRecurrenceConfig?
     public let intervalDays: Int?
@@ -88,7 +88,7 @@ public struct CycleConfig: Codable, Sendable, Equatable {
     ///   - daysOn: Số ngày uống.
     ///   - daysOff: Số ngày nghỉ.
     ///   - isContinuous: Có uống liên tục hay không.
-    ///   - durationMonths: Tổng thời hạn.
+    ///   - durationMonths: Tổng thời hạn (ngày).
     public init(
         daysOn: Int,
         daysOff: Int,
@@ -110,7 +110,7 @@ public struct CycleConfig: Codable, Sendable, Equatable {
         
         let safeDaysOn = max(1, min(3650, daysOn))
         let safeDaysOff = max(0, min(3650, daysOff))
-        let safeDurationMonths = durationMonths.map { max(1, min(120, $0)) }
+        let safeDurationMonths = durationMonths.map { max(1, min(3650, $0)) }
         let safeIntervalDays = intervalDays.map { max(2, min(3650, $0)) }
         
         self.daysOn = safeDaysOn

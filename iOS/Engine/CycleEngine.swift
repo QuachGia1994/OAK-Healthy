@@ -56,8 +56,8 @@ public struct CycleCalculator: CycleCalculating {
     }
 
     private func endDateIfNeeded(startDate: Date, config: CycleConfig, calendar: Calendar) -> Date? {
-        guard let months = config.durationMonths else { return nil }
-        return calendar.date(byAdding: .month, value: months, to: startDate)
+        guard let days = config.durationMonths else { return nil }
+        return calendar.date(byAdding: .day, value: days, to: startDate)
     }
 
     private func daysElapsed(from startDay: Date, to currentDay: Date, calendar: Calendar) throws(CycleError) -> Int {

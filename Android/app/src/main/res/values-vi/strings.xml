@@ -135,7 +135,7 @@
     <string name="on_days">Số ngày uống</string>
     <string name="off_days">Số ngày nghỉ</string>
     <string name="duration">Tổng thời hạn</string>
-    <string name="duration_placeholder">Ví dụ: 3 tháng hoặc để trống</string>
+    <string name="duration_placeholder">Ví dụ: 25 ngày hoặc để trống</string>
     <string name="example_on_days">Ví dụ: 14 ngày</string>
     <string name="example_off_days">Ví dụ: 7 ngày</string>
     <string name="suggested">Gợi ý: %1$s</string>
