@@ -39,13 +39,13 @@ public final class HomeViewModel {
     }
 
     public struct TodayCounts: Sendable, Hashable {
-        public var planned: Int
+        public var due: Int
         public var taken: Int
         public var skipped: Int
         public var missed: Int
     }
 
-    public var cachedTodayCounts: TodayCounts = TodayCounts(planned: 0, taken: 0, skipped: 0, missed: 0)
+    public var cachedTodayCounts: TodayCounts = TodayCounts(due: 0, taken: 0, skipped: 0, missed: 0)
     public var cachedStreakDays: Int = 0
     
     public enum DoseUrgency: Sendable, Hashable {
@@ -55,21 +55,24 @@ public final class HomeViewModel {
     }
 
     public func todayCounts(now: Date = .now) -> TodayCounts {
-        var planned = 0
+        var due = 0
         var taken = 0
         var skipped = 0
         var missed = 0
         for (timeString, supplements) in activeSupplements {
+            let normalizedTime = normalizedTimeString(timeString)
+            let scheduledAt = normalizedTime.flatMap { scheduledAtLocal(for: now, timeString: $0) }
             for supplement in supplements {
                 switch doseStatus(supplement, timeString: timeString, now: now) {
-                case .planned: planned += 1
+                case .planned:
+                    if let scheduledAt, scheduledAt <= now { due += 1 }
                 case .taken: taken += 1
                 case .skipped: skipped += 1
                 case .missed: missed += 1
                 }
             }
         }
-        return TodayCounts(planned: planned, taken: taken, skipped: skipped, missed: missed)
+        return TodayCounts(due: due, taken: taken, skipped: skipped, missed: missed)
     }
     
     public func streakDays(supplements: [UserSupplement], now: Date = .now) -> Int {
@@ -222,8 +225,15 @@ public final class HomeViewModel {
     private func applyMarkToCaches(ctx: MarkDoseContext, action: DoseAction) {
         todayRecordStatusById[ctx.recordId] = ctx.status
         recentRecordIds.insert(ctx.recordId)
-        cachedTodayCounts = updateCountsAfterMark(previous: ctx.previous, action: action, current: cachedTodayCounts)
+        cachedTodayCounts = todayCounts(now: .now)
         cachedStreakDays = streakDays(supplements: supplementsCache, now: .now)
+    }
+
+    public func isDueNow(_ supplement: UserSupplement, timeString: String, now: Date = .now) -> Bool {
+        guard doseStatus(supplement, timeString: timeString, now: now) == .planned else { return false }
+        guard let time = normalizedTimeString(timeString) else { return false }
+        guard let scheduledAt = scheduledAtLocal(for: now, timeString: time) else { return false }
+        return scheduledAt <= now
     }
 
     private func scheduleMarkSideEffects(
@@ -418,15 +428,6 @@ public final class HomeViewModel {
         let parts = trimmed.split(whereSeparator: { ",;|".contains($0) })
         let times = parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         return times.isEmpty ? [trimmed] : times
-    }
-
-    private func updateCountsAfterMark(previous: DoseStatus, action: DoseAction, current: TodayCounts) -> TodayCounts {
-        var updated = current
-        if previous == .planned { updated.planned = max(0, updated.planned - 1) }
-        if previous == .missed { updated.missed = max(0, updated.missed - 1) }
-        if action == .taken { updated.taken += 1 }
-        if action == .skipped { updated.skipped += 1 }
-        return updated
     }
 
     private func normalizedTimeString(_ raw: String) -> String? {

@@ -10,6 +10,7 @@ public struct StackView: View {
     @State private var isShowingAddSheet: Bool = false
     @State private var editingSupplement: UserSupplement?
     @State private var isShowingSettingsSheet: Bool = false
+    @State private var searchText: String = ""
     @State private var errorMessage: String?
     @State private var isShowingError: Bool = false
     
@@ -70,6 +71,7 @@ public struct StackView: View {
                     .listRowBackground(glassRowBackground)
                 }
                 .scrollContentBackground(.hidden)
+                .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always))
                 .navigationTitle("my_list_title".localized)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
@@ -147,9 +149,12 @@ public struct StackView: View {
     
     private var supplementsForActiveClient: [UserSupplement] {
         guard let id = activeClientManager.currentClientId else { return [] }
-        return supplements
+        let base = supplements
             .filter { $0.deletedAtEpochMs == nil && $0.client?.id == id }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if q.isEmpty { return base }
+        return base.filter { $0.name.localizedCaseInsensitiveContains(q) }
     }
     
     private var clientTitle: String {

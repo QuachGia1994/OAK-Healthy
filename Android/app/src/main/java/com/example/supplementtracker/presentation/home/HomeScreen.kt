@@ -285,23 +285,24 @@ private fun HomeContent(
             key = "today_summary",
             contentType = "summary"
         ) {
-            val counts = remember(state.activeSupplements) {
-                var planned = 0
+            val nowEpochMs = System.currentTimeMillis()
+            var due = 0
                 var taken = 0
                 var skipped = 0
                 var missed = 0
-                state.activeSupplements.values.forEach { items ->
-                    items.forEach { item ->
-                        when (item.doseStatus) {
-                            DoseStatus.PLANNED -> planned += 1
-                            DoseStatus.TAKEN -> taken += 1
-                            DoseStatus.SKIPPED -> skipped += 1
-                            DoseStatus.MISSED -> missed += 1
+            state.activeSupplements.values.forEach { items ->
+                items.forEach { item ->
+                    when (item.doseStatus) {
+                        DoseStatus.PLANNED -> {
+                            if (item.scheduledAtEpochMs in 1..nowEpochMs) due += 1
                         }
+                        DoseStatus.TAKEN -> taken += 1
+                        DoseStatus.SKIPPED -> skipped += 1
+                        DoseStatus.MISSED -> missed += 1
                     }
                 }
-                TodayCounts(planned = planned, taken = taken, skipped = skipped, missed = missed)
             }
+            val counts = TodayCounts(due = due, taken = taken, skipped = skipped, missed = missed)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TodaySummaryCard(counts = counts, streakDays = state.streakDays)
                 TodayStrip(
@@ -324,7 +325,7 @@ private fun HomeContent(
         }
         if (filter == HomeDoseFilter.ALL && missedItems.isNotEmpty()) {
             item(key = "overdue_title", contentType = "title") {
-                SectionHeader(stringResource(R.string.dose_status_missed))
+                SectionHeader("${stringResource(R.string.dose_status_missed)} (${missedItems.size})")
             }
             items(
                 items = missedItems,
@@ -343,6 +344,11 @@ private fun HomeContent(
         }
 
         if (filter == HomeDoseFilter.OVERDUE) {
+            if (missedItems.isEmpty()) {
+                item(key = "overdue_empty", contentType = "empty") {
+                    EmptyStateMessage(stringResource(R.string.no_overdue_today))
+                }
+            }
             items(
                 items = missedItems,
                 key = { "overdue-${it.supplement.id}-${it.timeString}" },
@@ -362,7 +368,10 @@ private fun HomeContent(
                 val filtered = items.filter { item ->
                     when (filter) {
                         HomeDoseFilter.ALL -> item.doseStatus != DoseStatus.MISSED
-                        HomeDoseFilter.PLANNED -> item.doseStatus == DoseStatus.PLANNED
+                        HomeDoseFilter.DUE -> {
+                            val nowEpochMs = System.currentTimeMillis()
+                            item.doseStatus == DoseStatus.PLANNED && item.scheduledAtEpochMs in 1..nowEpochMs
+                        }
                         HomeDoseFilter.TAKEN -> item.doseStatus == DoseStatus.TAKEN
                         HomeDoseFilter.OVERDUE -> item.doseStatus == DoseStatus.MISSED
                     }
@@ -409,7 +418,7 @@ private fun HomeContent(
 private enum class HomeDoseFilter {
     ALL,
     OVERDUE,
-    PLANNED,
+    DUE,
     TAKEN
 }
 
@@ -421,13 +430,13 @@ private fun TodayStrip(
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         TodayStripButton(
-            title = stringResource(R.string.home_status_planned),
-            count = counts.planned,
+            title = stringResource(R.string.home_status_due),
+            count = counts.due,
             tint = Color(0xFF42A5F5),
-            selected = selected == HomeDoseFilter.PLANNED,
+            selected = selected == HomeDoseFilter.DUE,
             modifier = Modifier.weight(1f),
             onClick = {
-                onSelected(if (selected == HomeDoseFilter.PLANNED) HomeDoseFilter.ALL else HomeDoseFilter.PLANNED)
+                onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
             }
         )
         TodayStripButton(
@@ -514,7 +523,7 @@ private fun TimeGroupHeader(time: String) {
 }
 
 private data class TodayCounts(
-    val planned: Int,
+    val due: Int,
     val taken: Int,
     val skipped: Int,
     val missed: Int
@@ -538,8 +547,8 @@ private fun TodaySummaryCard(counts: TodayCounts, streakDays: Int) {
                 modifier = Modifier.weight(1f)
             )
             CountPill(
-                title = stringResource(R.string.home_status_planned),
-                value = counts.planned,
+                title = stringResource(R.string.home_status_due),
+                value = counts.due,
                 tint = Color.Gray,
                 modifier = Modifier.weight(1f)
             )

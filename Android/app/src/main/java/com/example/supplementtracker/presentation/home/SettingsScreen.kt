@@ -36,6 +36,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import java.time.LocalDate
+import java.util.Locale
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.items
@@ -1029,6 +1030,14 @@ fun MyStackListScreen(
                 .sortedBy { it.name }
         }
     }
+    var searchText by rememberSaveable { mutableStateOf("") }
+    val filteredSupplements by remember(supplements, searchText) {
+        derivedStateOf {
+            val q = searchText.trim().lowercase(Locale.ROOT)
+            if (q.isEmpty()) return@derivedStateOf supplements
+            supplements.filter { it.name.lowercase(Locale.ROOT).contains(q) }
+        }
+    }
     val listState = rememberLazyListState()
     val calculateCycleUseCase = remember { CalculateCycleUseCase() }
     val today = remember { LocalDate.now() }
@@ -1079,8 +1088,17 @@ fun MyStackListScreen(
                         )
                     }
                 }
+                item(key = "search", contentType = "search") {
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.history_search_placeholder)) }
+                    )
+                }
                 items(
-                    items = supplements,
+                    items = filteredSupplements,
                     key = { it.id },
                     contentType = { "supplement" }
                 ) { supplement ->

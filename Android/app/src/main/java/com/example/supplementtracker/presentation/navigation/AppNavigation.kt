@@ -96,7 +96,10 @@ fun AppNavigation(
 
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshOnboardingFlag()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshOnboardingFlag()
+                homeViewModel.refresh()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }

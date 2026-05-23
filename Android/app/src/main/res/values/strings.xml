@@ -7,6 +7,7 @@
     <string name="sync_center_title">Sync Center</string>
 
     <string name="filter_all">All</string>
+    <string name="no_overdue_today">No overdue items.</string>
     
     <string name="settings_title">Settings</string>
     <string name="app_information_title">App Information</string>
@@ -377,6 +378,7 @@
     <string name="home_intake_confirm_skip">Skip</string>
     <string name="home_intake_confirm_cancel">Cancel</string>
     <string name="home_status_planned">Planned</string>
+    <string name="home_status_due">Due</string>
     <string name="home_status_missed">Missed</string>
     <string name="home_streak_format">Streak: %1$d</string>
     <string name="home_due_soon">Due soon</string>

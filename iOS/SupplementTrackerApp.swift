@@ -524,6 +524,8 @@ struct MainTabView: View {
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
+    @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
+    @State private var badgeViewModel = HomeViewModel()
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -569,11 +571,18 @@ struct MainTabView: View {
             guard newPhase == .active else { return }
             Task { @MainActor in
                 await rescheduleNotificationsIfEnabled()
+                await refreshHomeBadgeCount()
             }
         }
         .onChange(of: activeClientManager.currentClientId, initial: false) { _, _ in
             Task { @MainActor in
                 await rescheduleNotificationsIfEnabled()
+                await refreshHomeBadgeCount()
+            }
+        }
+        .onChange(of: lastSyncEpochMs, initial: false) { _, _ in
+            Task { @MainActor in
+                await refreshHomeBadgeCount()
             }
         }
         .sheet(
@@ -613,6 +622,24 @@ struct MainTabView: View {
             await notificationService.replaceAllSchedules(supplements: filtered)
         } catch {
             DebugReporter.report("auto_reschedule_fetch_failed", fields: ["error": error.localizedDescription])
+            return
+        }
+    }
+
+    @MainActor
+    private func refreshHomeBadgeCount() async {
+        guard let clientId = activeClientManager.currentClientId else {
+            homeOverdueCount = 0
+            return
+        }
+        do {
+            let descriptor = FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
+            let supplements = try modelContext.fetch(descriptor)
+            let filtered = supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
+            badgeViewModel.processSupplements(filtered)
+            homeOverdueCount = badgeViewModel.cachedTodayCounts.missed
+        } catch {
+            homeOverdueCount = 0
             return
         }
     }

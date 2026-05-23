@@ -75,13 +75,31 @@ public struct HomeView: View {
                             )
                         }
                         
-                        if !overdue.isEmpty && (doseFilter == .all || doseFilter == .overdue) {
+                        if doseFilter == .overdue {
+                            Section {
+                                if overdue.isEmpty {
+                                    Text("home_no_overdue".localized)
+                                        .foregroundStyle(.secondary)
+                                        .listRowBackground(Color.clear)
+                                        .listRowSeparator(.hidden)
+                                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                } else {
+                                    ForEach(overdue) { item in
+                                        activeRow(supplement: item.supplement, timeString: item.timeString, now: now)
+                                    }
+                                }
+                            } header: {
+                                Text("\("dose_status_missed".localized) (\(overdue.count))")
+                                    .textCase(nil)
+                            }
+                        } else if !overdue.isEmpty {
                             Section {
                                 ForEach(overdue) { item in
                                     activeRow(supplement: item.supplement, timeString: item.timeString, now: now)
                                 }
                             } header: {
-                                Text("dose_status_missed".localized)
+                                Text("\("dose_status_missed".localized) (\(overdue.count))")
+                                    .textCase(nil)
                             }
                         }
                         
@@ -93,7 +111,7 @@ public struct HomeView: View {
                                     switch doseFilter {
                                     case .all: return status != .missed
                                     case .overdue: return status == .missed
-                                    case .planned: return status == .planned
+                                    case .due: return viewModel.isDueNow(supplement, timeString: time, now: now)
                                     case .taken: return status == .taken
                                     }
                                 }
@@ -369,7 +387,7 @@ public struct HomeView: View {
 private enum HomeDoseFilter: String, CaseIterable, Identifiable {
     case all
     case overdue
-    case planned
+    case due
     case taken
     
     var id: String { rawValue }
@@ -378,7 +396,7 @@ private enum HomeDoseFilter: String, CaseIterable, Identifiable {
         switch self {
         case .all: return "filter_all".localized
         case .overdue: return "dose_status_missed".localized
-        case .planned: return "dose_status_planned".localized
+        case .due: return "dose_status_due".localized
         case .taken: return "notif_action_taken".localized
         }
     }
@@ -391,12 +409,12 @@ private struct HomeDoseFilterBar: View {
     var body: some View {
         HStack(spacing: 10) {
             TodayStripButton(
-                title: "dose_status_planned".localized,
-                count: counts.planned,
+                title: "dose_status_due".localized,
+                count: counts.due,
                 tint: .blue,
-                isSelected: filter == .planned
+                isSelected: filter == .due
             ) {
-                filter = filter == .planned ? .all : .planned
+                filter = filter == .due ? .all : .due
             }
             TodayStripButton(
                 title: "dose_status_missed".localized,
@@ -482,7 +500,7 @@ private struct TodayHeaderView: View {
             ]
             LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                 CountChip(title: "notif_action_taken".localized, value: counts.taken, tint: .green)
-                CountChip(title: "dose_status_planned".localized, value: counts.planned, tint: .gray)
+                CountChip(title: "dose_status_due".localized, value: counts.due, tint: .gray)
                 CountChip(title: "dose_status_skipped".localized, value: counts.skipped, tint: .orange)
                 CountChip(title: "dose_status_missed".localized, value: counts.missed, tint: .red)
             }

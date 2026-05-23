@@ -6,6 +6,7 @@
     <string name="nav_settings">Cài đặt</string>
 
     <string name="filter_all">Tất cả</string>
+    <string name="no_overdue_today">Không có mốc nào quá hạn.</string>
 
     <string name="settings_title">Cài đặt</string>
     <string name="app_information_title">Thông tin ứng dụng</string>
@@ -167,6 +168,7 @@
     <string name="notif_action_taken">Đã uống</string>
     <string name="notif_action_skip">Bỏ qua</string>
     <string name="home_status_planned">Chưa uống</string>
+    <string name="home_status_due">Đến hạn</string>
     <string name="home_status_missed">Quá hạn</string>
     <string name="home_streak_format">Chuỗi: %1$d</string>
     <string name="home_due_soon">Sắp tới</string>
