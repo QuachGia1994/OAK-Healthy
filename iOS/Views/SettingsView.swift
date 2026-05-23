@@ -94,9 +94,6 @@ public struct SettingsView: View {
             themeSelectionSection
             notificationsSection
             dataToolsSection
-            syncCenterSection
-            supplementListSection
-            userGuideSection
             aboutSection
             copyrightSection
             factoryResetSection

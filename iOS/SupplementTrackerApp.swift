@@ -536,17 +536,20 @@ struct MainTabView: View {
                 }
                 .tag(0)
             
+            StackView(
+                activeClientManager: activeClientManager,
+                notificationService: notificationService
+            )
+                .id(activeClientManager.currentClientId)
+                .tabItem {
+                    Label("tab_stack".localized, systemImage: "list.bullet")
+                }
+                .tag(1)
+            
             HistoryView(activeClientManager: activeClientManager)
                 .id(activeClientManager.currentClientId)
                 .tabItem {
                     Label("tab_history".localized, systemImage: "clock.fill")
-                }
-                .tag(1)
-            
-            SettingsView(activeClientManager: activeClientManager)
-                .id(activeClientManager.currentClientId)
-                .tabItem {
-                    Label("tab_settings".localized, systemImage: "gearshape.fill")
                 }
                 .tag(2)
         }

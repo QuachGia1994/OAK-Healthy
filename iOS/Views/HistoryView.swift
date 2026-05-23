@@ -14,6 +14,7 @@ public struct HistoryView: View {
     @State private var searchText: String = ""
     @State private var filter: HistoryFilter = .all
     @State private var rebuildTask: Task<Void, Never>? = nil
+    @State private var isShowingSettingsSheet: Bool = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -119,6 +120,18 @@ public struct HistoryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isShowingSettingsSheet = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                    }
+                }
+            }
+            .sheet(isPresented: $isShowingSettingsSheet) {
+                SettingsView(activeClientManager: activeClientManager)
+            }
             .task(id: ReloadKey(clientId: activeClientManager.currentClientId, syncEpochMs: lastSyncEpochMs)) {
                 DebugReporter.report("history_task_start", fields: [
                     "clientId": activeClientManager.currentClientId?.uuidString ?? ""

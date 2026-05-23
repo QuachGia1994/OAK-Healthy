@@ -12,6 +12,7 @@ public struct LocalizationService: Sendable {
     
     private let dictionary: [String: (en: String, vi: String)] = [
         "tab_home": ("Home", "Trang chủ"),
+        "tab_stack": ("Stack", "Stack"),
         "tab_history": ("History", "Lịch sử"),
         "tab_settings": ("Settings", "Cài đặt"),
         "dashboard_title": ("Dashboard", "Dashboard"),

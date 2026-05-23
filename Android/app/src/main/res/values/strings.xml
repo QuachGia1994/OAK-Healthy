@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">OAK Healthy</string>
     <string name="nav_home">Dashboard</string>
+    <string name="nav_stack">Stack</string>
     <string name="nav_history">History</string>
     <string name="nav_settings">Settings</string>
     <string name="sync_center_title">Sync Center</string>

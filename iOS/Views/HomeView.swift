@@ -13,6 +13,7 @@ public struct HomeView: View {
     @State private var isShowingAddSheet = false
     @State private var editingSupplement: UserSupplement?
     @State private var isShowingAddClientSheet = false
+    @State private var isShowingSettingsSheet = false
     
     public let activeClientManager: ActiveClientManager
     public let notificationService: NotificationService
@@ -205,6 +206,14 @@ public struct HomeView: View {
                                 Image(systemName: "plus")
                             }
                         }
+                        
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                isShowingSettingsSheet = true
+                            } label: {
+                                Image(systemName: "gearshape.fill")
+                            }
+                        }
                     }
                     .sheet(isPresented: $isShowingAddSheet) {
                         AddSupplementView(modelContext: modelContext, activeClient: activeClient) { _ in
@@ -213,6 +222,9 @@ public struct HomeView: View {
                     .sheet(item: $editingSupplement) { supplement in
                         AddSupplementView(modelContext: modelContext, editingSupplement: supplement, activeClient: activeClient) { _ in
                         }
+                    }
+                    .sheet(isPresented: $isShowingSettingsSheet) {
+                        SettingsView(activeClientManager: activeClientManager)
                     }
                     .alert("update_available_title".localized, isPresented: $updateService.isUpdateAvailable) {
                         if let url = URL(string: updateService.updateInfo?.updateUrl ?? "") {

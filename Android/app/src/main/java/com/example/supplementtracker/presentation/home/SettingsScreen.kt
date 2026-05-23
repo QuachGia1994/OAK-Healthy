@@ -41,12 +41,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.Alignment
@@ -90,10 +93,8 @@ fun SettingsScreen(
     activeClientManager: ActiveClientManager,
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit,
-    onNavigateToStackManager: () -> Unit,
-    onNavigateToUserGuide: () -> Unit,
-    onNavigateToSyncCenter: () -> Unit,
-    onNavigateToNotificationCheck: () -> Unit
+    onNavigateToNotificationCheck: () -> Unit,
+    onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
@@ -164,7 +165,12 @@ fun SettingsScreen(
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text(stringResource(R.string.settings_title)) }
+                    title = { Text(stringResource(R.string.settings_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onClose) {
+                            Icon(imageVector = Icons.Default.Close, contentDescription = null)
+                        }
+                    }
                 )
             }
         ) { padding ->
@@ -362,29 +368,6 @@ fun SettingsScreen(
                                     }
                                 }
                             }
-                        )
-                    }
-                }
-
-                item {
-                    SettingsSection(title = stringResource(R.string.settings_section_multidevice_sync)) {
-                        SettingsRow(title = stringResource(R.string.sync_center_title), onClick = onNavigateToSyncCenter)
-                    }
-                }
-
-                item {
-                    SettingsSection(title = stringResource(R.string.my_list_title)) {
-                        SettingsRow(
-                            title = stringResource(R.string.manage_stack),
-                            trailing = "${allSupplements.size}",
-                            onClick = onNavigateToStackManager.takeIf { currentClientId != null }
-                        )
-
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
-
-                        SettingsRow(
-                            title = stringResource(R.string.settings_guide_title),
-                            onClick = onNavigateToUserGuide
                         )
                     }
                 }
@@ -1009,7 +992,9 @@ private fun InfoCardNavigationRow(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-            Text(text = subtitle, color = subtitleColor)
+            if (subtitle.isNotBlank()) {
+                Text(text = subtitle, color = subtitleColor)
+            }
         }
     }
 }
@@ -1019,7 +1004,10 @@ private fun InfoCardNavigationRow(
 fun MyStackListScreen(
     homeViewModel: HomeViewModel,
     activeClientManager: ActiveClientManager,
-    onBack: () -> Unit
+    onNavigateToAdd: () -> Unit,
+    onNavigateToSyncCenter: () -> Unit,
+    onNavigateToUserGuide: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
@@ -1056,12 +1044,17 @@ fun MyStackListScreen(
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = { Text(stringResource(R.string.my_list_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                    actions = {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(imageVector = Icons.Default.Settings, contentDescription = null)
                         }
                     }
                 )
+            }
+            floatingActionButton = {
+                FloatingActionButton(onClick = onNavigateToAdd) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                }
             }
         ) { padding ->
             LazyColumn(
@@ -1072,6 +1065,20 @@ fun MyStackListScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item(key = "quick_actions", contentType = "quick_actions") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        InfoCardNavigationRow(
+                            title = stringResource(R.string.sync_center_title),
+                            subtitle = "",
+                            onClick = onNavigateToSyncCenter
+                        )
+                        InfoCardNavigationRow(
+                            title = stringResource(R.string.settings_guide_title),
+                            subtitle = "",
+                            onClick = onNavigateToUserGuide
+                        )
+                    }
+                }
                 items(
                     items = supplements,
                     key = { it.id },
