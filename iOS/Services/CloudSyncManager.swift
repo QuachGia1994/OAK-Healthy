@@ -502,7 +502,9 @@ enum CloudSyncAutoSync {
         let raw = UserDefaults.standard.double(forKey: lastActivityKey)
         guard raw > 0 else { return .seconds(60) }
         let elapsed = Date().timeIntervalSince1970 - raw
-        return elapsed < 60 ? .seconds(10) : .seconds(60)
+        if elapsed < 30 { return .seconds(3) }
+        if elapsed < 120 { return .seconds(10) }
+        return .seconds(60)
     }
     
     private static func activeBinId() -> String? {

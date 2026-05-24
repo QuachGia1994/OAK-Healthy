@@ -752,8 +752,9 @@ public struct SyncCenterView: View {
                 try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
                 return
             }
-            let stackData = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.stackBinId)
-            let historyData = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.historyBinId)
+            async let stackDataTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.stackBinId)
+            async let historyDataTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.historyBinId)
+            let (stackData, historyData) = try await (stackDataTask, historyDataTask)
             UserDefaults.standard.set(Int(pullStartedAt.distance(to: Date()) * 1000), forKey: keys.pullMs)
             UserDefaults.standard.set((stackData?.count ?? 0) + (historyData?.count ?? 0), forKey: keys.bytesDown)
             

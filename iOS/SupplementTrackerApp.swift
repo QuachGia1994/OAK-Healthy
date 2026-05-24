@@ -606,7 +606,6 @@ struct MainTabView: View {
         }
         CloudSyncAutoSync.startRealtimeSync(modelContext: modelContext, activeClientManager: activeClientManager)
         Task {
-            try? await Task.sleep(for: .seconds(1))
             await CloudSyncAutoSync.syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
         }
     }
