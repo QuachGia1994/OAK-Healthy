@@ -34,6 +34,7 @@ public struct LocalizationService: Sendable {
         "insights_top_late_hour_format": ("Late hour: %1$@ (%2$d)", "Giờ hay trễ: %1$@ (%2$d)"),
         "insights_top_skipped_format": ("Top skipped: %1$@ (%2$d)", "Hay bỏ qua: %1$@ (%2$d)"),
         "insights_top_late_format": ("Top late: %1$@ (%2$d)", "Hay trễ: %1$@ (%2$d)"),
+        "insights_item_bullet_format": ("• %1$@ (%2$d)", "• %1$@ (%2$d)"),
         "log_details": ("Log Details", "Chi tiết nhật ký"),
         "no_logs_yet": ("No logs yet.", "Chưa có nhật ký nào."),
         "today_intake_title": ("Today's Intake", "Cần uống hôm nay"),
