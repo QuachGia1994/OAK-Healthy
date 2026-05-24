@@ -137,6 +137,17 @@ class HomeViewModel(
             initialValue = HomeUiState.Loading
         )
 
+    val allClientSupplements: StateFlow<List<UserSupplement>> = activeClientManager.currentClientId
+        .flatMapLatest { clientId ->
+            val id = clientId?.toString() ?: return@flatMapLatest flowOf(emptyList())
+            repository.getAllSupplements(id)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     fun refresh() {
         _refreshTrigger.value += 1
     }

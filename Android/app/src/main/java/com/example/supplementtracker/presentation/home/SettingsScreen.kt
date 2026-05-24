@@ -102,6 +102,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+    val allSupplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
@@ -146,19 +147,6 @@ fun SettingsScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    val allSupplements by remember(uiState, currentClientId) {
-        derivedStateOf {
-            if (currentClientId == null) return@derivedStateOf emptyList<UserSupplement>()
-            val success = uiState as? HomeUiState.Success ?: return@derivedStateOf emptyList()
-            val byId = LinkedHashMap<java.util.UUID, UserSupplement>()
-            success.activeSupplements.values.forEach { items ->
-                items.forEach { byId[it.supplement.id] = it.supplement }
-            }
-            success.restingSupplements.forEach { byId[it.supplement.id] = it.supplement }
-            byId.values.sortedBy { it.name }
-        }
     }
 
     OakBackground {
@@ -1024,24 +1012,13 @@ fun MyStackListScreen(
     onNavigateToUserGuide: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
-    val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val supplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val backgroundBrush = remember(isDark) {
         if (isDark) {
             Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
         } else {
             Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
-
-    val supplements by remember(uiState, currentClientId) {
-        derivedStateOf {
-            if (currentClientId == null) return@derivedStateOf emptyList<UserSupplement>()
-            val success = uiState as? HomeUiState.Success ?: return@derivedStateOf emptyList()
-            (success.activeSupplements.values.flatten().map { it.supplement } + success.restingSupplements.map { it.supplement })
-                .distinctBy { it.id }
-                .sortedBy { it.name }
         }
     }
     var searchText by rememberSaveable { mutableStateOf("") }
