@@ -253,6 +253,7 @@ private struct InsightsTrendCard: View {
     let insights30: InsightsSummary?
 
     @State private var window: InsightsWindow = .days30
+    @State private var isDetailsPresented: Bool = false
 
     var body: some View {
         let summary = window == .days7 ? insights7 : insights30
@@ -279,8 +280,14 @@ private struct InsightsTrendCard: View {
                             .fontWeight(.semibold)
                             .foregroundStyle(.white.opacity(0.85))
                         Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.white.opacity(0.70))
+                        Button {
+                            guard summary != nil else { return }
+                            isDetailsPresented = true
+                        } label: {
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.white.opacity(summary == nil ? 0.35 : 0.70))
+                        }
+                        .buttonStyle(.plain)
                     }
 
                     Text(formattedNumber(total))
@@ -330,33 +337,9 @@ private struct InsightsTrendCard: View {
                 .padding(16)
             }
             .frame(maxWidth: .infinity)
-
-            if let summary {
-                let topLate = summary.topLate.first
-                let topSkipped = summary.topSkipped.first
-                let topHour = summary.topLateHour
-                VStack(alignment: .leading, spacing: 6) {
-                    if let topLate {
-                        Text(String.localizedStringWithFormat("insights_top_late_format".localized, topLate.title, topLate.count))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let topHour {
-                        Text(String.localizedStringWithFormat("insights_top_late_hour_format".localized, topHour.title, topHour.count))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let topSkipped {
-                        Text(String.localizedStringWithFormat("insights_top_skipped_format".localized, topSkipped.title, topSkipped.count))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                Text("insights_no_data".localized)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        }
+        .sheet(isPresented: $isDetailsPresented) {
+            InsightsDetailsView(summary: summary)
         }
     }
 
@@ -380,6 +363,49 @@ private struct InsightsChip: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(tint, in: Capsule())
+    }
+}
+
+private struct InsightsDetailsView: View {
+    @Environment(\.dismiss) private var dismiss
+    let summary: InsightsSummary?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let summary {
+                    insightsSection(title: "insights_details_top_late_title".localized, items: summary.topLate)
+                    if let hour = summary.topLateHour {
+                        insightsSection(title: "insights_details_top_late_hour_title".localized, items: [hour])
+                    }
+                    insightsSection(title: "insights_details_top_skipped_title".localized, items: summary.topSkipped)
+                } else {
+                    Text("insights_no_data".localized)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("insights_details_title".localized)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("cancel".localized) { dismiss() }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func insightsSection(title: String, items: [InsightsItem]) -> some View {
+        Section(title) {
+            if items.isEmpty {
+                Text("insights_no_data".localized)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(items) { item in
+                    Text(String.localizedStringWithFormat("insights_item_bullet_format".localized, item.title, item.count))
+                }
+            }
+        }
     }
 }
 
