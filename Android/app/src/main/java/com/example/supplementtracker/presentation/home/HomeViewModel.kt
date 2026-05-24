@@ -475,7 +475,7 @@ class HomeViewModel(
         val lastTaken = supplement.lastTakenLocalDate
         if (lastTaken != null) {
             val days = ChronoUnit.DAYS.between(lastTaken, date).toInt()
-            return days > 0 && days % interval == 0
+            return days >= 0 && days % interval == 0
         }
         if (date.isBefore(supplement.startDate)) return false
         val days = ChronoUnit.DAYS.between(supplement.startDate, date).toInt()

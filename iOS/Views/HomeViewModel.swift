@@ -474,7 +474,7 @@ public final class HomeViewModel {
            let lastTaken = parseLocalDay(raw, calendar: calendar) {
             let lastDay = calendar.startOfDay(for: lastTaken)
             let days = calendar.dateComponents([.day], from: lastDay, to: day).day ?? 0
-            return days > 0 && days % interval == 0
+            return days >= 0 && days % interval == 0
         }
         let startDay = calendar.startOfDay(for: supplement.startDate)
         let days = calendar.dateComponents([.day], from: startDay, to: day).day ?? 0

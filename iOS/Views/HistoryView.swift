@@ -30,7 +30,12 @@ public struct HistoryView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        InsightsCard(insights7: viewModel.insights7, insights30: viewModel.insights30)
+                        InsightsTrendCard(
+                            trend7: viewModel.trend7,
+                            trend30: viewModel.trend30,
+                            insights7: viewModel.insights7,
+                            insights30: viewModel.insights30
+                        )
                             .padding()
                             .oakCard()
 
@@ -229,57 +234,123 @@ public struct HistoryView: View {
     }
 }
 
-private struct InsightsCard: View {
-    let insights7: InsightsSummary?
-    let insights30: InsightsSummary?
+private enum InsightsWindow: Int, CaseIterable, Hashable {
+    case days7 = 7
+    case days30 = 30
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("insights_title".localized)
-                .font(.headline)
-            HStack(spacing: 12) {
-                InsightsWindowCard(titleKey: "insights_last_7", summary: insights7)
-                InsightsWindowCard(titleKey: "insights_last_30", summary: insights30)
-            }
+    var title: String {
+        switch self {
+        case .days7: return "insights_last_7".localized
+        case .days30: return "insights_last_30".localized
         }
     }
 }
 
-private struct InsightsWindowCard: View {
-    @Environment(\.colorScheme) private var colorScheme
-    
-    let titleKey: String
-    let summary: InsightsSummary?
+private struct InsightsTrendCard: View {
+    let trend7: [InsightsTrendPoint]
+    let trend30: [InsightsTrendPoint]
+    let insights7: InsightsSummary?
+    let insights30: InsightsSummary?
+
+    @State private var window: InsightsWindow = .days30
 
     var body: some View {
-        let base: Color = colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.62)
-        let border: Color = colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)
-        VStack(alignment: .leading, spacing: 8) {
-            Text(titleKey.localized)
-                .font(.subheadline)
-                .fontWeight(.semibold)
+        let summary = window == .days7 ? insights7 : insights30
+        let trend = window == .days7 ? trend7 : trend30
+        let total = (summary?.takenCount ?? 0) + (summary?.skippedCount ?? 0)
+        let completion = Int(((summary?.completionRate ?? 0) * 100).rounded())
+        let lateCount = summary?.lateCount ?? 0
+
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(red: 0.10, green: 0.55, blue: 1.0), Color(red: 0.05, green: 0.35, blue: 0.95)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("insights_total_title".localized)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.white.opacity(0.70))
+                    }
+
+                    Text(formattedNumber(total))
+                        .font(.system(size: 52, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.6)
+
+                    HStack(spacing: 10) {
+                        InsightsChip(text: String.localizedStringWithFormat("insights_completion_chip_format".localized, completion))
+                        InsightsChip(text: String.localizedStringWithFormat("insights_late_chip_format".localized, lateCount), tint: Color.red.opacity(0.35))
+                    }
+
+                    Chart {
+                        ForEach(trend) { point in
+                            LineMark(
+                                x: .value("chart_axis_day".localized, point.date, unit: .day),
+                                y: .value("taken".localized, point.takenCount)
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(Color.white)
+                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                        }
+                        ForEach(trend) { point in
+                            LineMark(
+                                x: .value("chart_axis_day".localized, point.date, unit: .day),
+                                y: .value("dose_status_skipped".localized, point.skippedCount)
+                            )
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(Color.red.opacity(0.85))
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                        }
+                    }
+                    .chartXAxis(.hidden)
+                    .chartYAxis(.hidden)
+                    .chartLegend(.hidden)
+                    .frame(height: 110)
+                    .padding(.top, 4)
+
+                    Picker("", selection: $window) {
+                        ForEach(InsightsWindow.allCases, id: \.self) { item in
+                            Text(item.title).tag(item)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .tint(.white.opacity(0.8))
+                }
+                .padding(16)
+            }
+            .frame(maxWidth: .infinity)
+
             if let summary {
-                let completion = Int((summary.completionRate * 100).rounded())
-                Text(String.localizedStringWithFormat("insights_completion_format".localized, completion))
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-                Text(String.localizedStringWithFormat("insights_late_format".localized, summary.lateCount))
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-                if let top = summary.topLate.first {
-                    Text(String.localizedStringWithFormat("insights_top_late_format".localized, top.title, top.count))
-                        .font(.caption)
-                        .foregroundStyle(.primary)
-                }
-                if let hour = summary.topLateHour {
-                    Text(String.localizedStringWithFormat("insights_top_late_hour_format".localized, hour.title, hour.count))
-                        .font(.caption)
-                        .foregroundStyle(.primary)
-                }
-                if let top = summary.topSkipped.first {
-                    Text(String.localizedStringWithFormat("insights_top_skipped_format".localized, top.title, top.count))
-                        .font(.caption)
-                        .foregroundStyle(.primary)
+                let topLate = summary.topLate.first
+                let topSkipped = summary.topSkipped.first
+                let topHour = summary.topLateHour
+                VStack(alignment: .leading, spacing: 6) {
+                    if let topLate {
+                        Text(String.localizedStringWithFormat("insights_top_late_format".localized, topLate.title, topLate.count))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let topHour {
+                        Text(String.localizedStringWithFormat("insights_top_late_hour_format".localized, topHour.title, topHour.count))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let topSkipped {
+                        Text(String.localizedStringWithFormat("insights_top_skipped_format".localized, topSkipped.title, topSkipped.count))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
                 Text("insights_no_data".localized)
@@ -287,14 +358,28 @@ private struct InsightsWindowCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(base)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func formattedNumber(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = ","
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+}
+
+private struct InsightsChip: View {
+    let text: String
+    var tint: Color = Color.black.opacity(0.25)
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(tint, in: Capsule())
     }
 }
 
@@ -414,7 +499,15 @@ enum HistorySectionBuilder {
     private static func sectionTitle(for day: Date, calendar: Calendar, formatter: DateFormatter) -> String {
         if calendar.isDateInToday(day) { return "history_today".localized }
         if calendar.isDateInYesterday(day) { return "history_yesterday".localized }
-        return formatter.string(from: day)
+        return formatter.string(from: day).sentenceCapitalized()
+    }
+}
+
+private extension String {
+    func sentenceCapitalized() -> String {
+        guard let first = first else { return self }
+        let firstUpper = String(first).uppercased(with: Locale.autoupdatingCurrent)
+        return firstUpper + dropFirst()
     }
 }
 

@@ -9,6 +9,13 @@ public struct ChartData: Identifiable, Sendable {
     public let count: Int
 }
 
+public struct InsightsTrendPoint: Identifiable, Sendable {
+    public let id = UUID()
+    public let date: Date
+    public let takenCount: Int
+    public let skippedCount: Int
+}
+
 public struct InsightsItem: Identifiable, Sendable {
     public let id = UUID()
     public let title: String
@@ -34,6 +41,8 @@ public final class HistoryViewModel {
     public var weeklyData: [ChartData] = []
     public var insights7: InsightsSummary?
     public var insights30: InsightsSummary?
+    public var trend7: [InsightsTrendPoint] = []
+    public var trend30: [InsightsTrendPoint] = []
     
     public init() {}
     
@@ -44,6 +53,8 @@ public final class HistoryViewModel {
         weeklyData = weeklyChartData(records: records)
         insights7 = buildInsights(records: records, windowDays: 7)
         insights30 = buildInsights(records: records, windowDays: 30)
+        trend7 = trendData(records: records, windowDays: 7)
+        trend30 = trendData(records: records, windowDays: 30)
     }
 
     private func weeklyChartData(records: [IntakeRecord]) -> [ChartData] {
@@ -138,5 +149,37 @@ public final class HistoryViewModel {
         guard let best = counts.max(by: { $0.value < $1.value }) else { return nil }
         let label = String(format: "%02d:00", best.key)
         return InsightsItem(title: label, count: best.value)
+    }
+
+    private func trendData(records: [IntakeRecord], windowDays: Int) -> [InsightsTrendPoint] {
+        guard windowDays > 0 else { return [] }
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: .now)
+        guard let start = calendar.date(byAdding: .day, value: -(windowDays - 1), to: todayStart) else { return [] }
+        let isDescending = (records.first?.date ?? .distantPast) >= (records.last?.date ?? .distantPast)
+        var counts: [Date: (taken: Int, skipped: Int)] = [:]
+        counts.reserveCapacity(windowDays)
+        for record in records {
+            let day = calendar.startOfDay(for: record.date)
+            if day > todayStart { continue }
+            if day < start {
+                if isDescending { break }
+                continue
+            }
+            if record.status == IntakeStatus.taken.rawValue {
+                let current = counts[day] ?? (0, 0)
+                counts[day] = (current.taken + 1, current.skipped)
+                continue
+            }
+            if record.status == IntakeStatus.skipped.rawValue {
+                let current = counts[day] ?? (0, 0)
+                counts[day] = (current.taken, current.skipped + 1)
+            }
+        }
+        return (0..<windowDays).reversed().compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: todayStart) else { return nil }
+            let value = counts[date] ?? (0, 0)
+            return InsightsTrendPoint(date: date, takenCount: value.taken, skippedCount: value.skipped)
+        }
     }
 }
