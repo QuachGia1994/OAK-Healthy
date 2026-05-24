@@ -1559,10 +1559,7 @@ class HomeViewModel(
     }
 
     private fun autoSyncDelayMs(prefs: android.content.SharedPreferences): Long {
-        val last = prefs.getLong("cloudSyncLastActivityEpochMs", 0L)
-        if (last <= 0L) return 60_000L
-        val elapsed = System.currentTimeMillis() - last
-        return if (elapsed < 60_000L) 15_000L else 60_000L
+        return 1_000L
     }
 
     private fun clearStaleBinId(binId: String) {

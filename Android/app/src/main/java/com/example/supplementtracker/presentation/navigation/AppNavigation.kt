@@ -100,6 +100,12 @@ fun AppNavigation(
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshOnboardingFlag()
                 homeViewModel.refresh()
+                if (prefs.getBoolean("isAutoSyncEnabled", false)) {
+                    homeViewModel.startAutoSync()
+                }
+            }
+            if (event == Lifecycle.Event.ON_PAUSE) {
+                homeViewModel.stopAutoSync()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

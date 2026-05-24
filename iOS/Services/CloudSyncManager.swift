@@ -499,12 +499,7 @@ enum CloudSyncAutoSync {
     }
     
     private static func pollInterval() -> Duration {
-        let raw = UserDefaults.standard.double(forKey: lastActivityKey)
-        guard raw > 0 else { return .seconds(60) }
-        let elapsed = Date().timeIntervalSince1970 - raw
-        if elapsed < 30 { return .seconds(3) }
-        if elapsed < 120 { return .seconds(10) }
-        return .seconds(60)
+        .seconds(1)
     }
     
     private static func activeBinId() -> String? {
