@@ -156,6 +156,10 @@
     <string name="insights_total_title">TỔNG LƯỢT UỐNG</string>
     <string name="insights_completion_chip_format">%1$d%% hoàn thành</string>
     <string name="insights_late_chip_format">%1$d trễ</string>
+    <string name="insights_details_title">Chi tiết gợi ý</string>
+    <string name="insights_details_top_late_title">Hay trễ</string>
+    <string name="insights_details_top_late_hour_title">Giờ hay trễ</string>
+    <string name="insights_details_top_skipped_title">Hay bỏ qua</string>
     <string name="insights_last_7">7 ngày qua</string>
     <string name="insights_last_30">30 ngày qua</string>
     <string name="insights_no_data">Chưa đủ dữ liệu.</string>

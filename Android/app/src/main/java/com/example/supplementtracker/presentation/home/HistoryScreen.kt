@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -254,6 +255,7 @@ private fun InsightsTrendCard(
     insights30: InsightsSummary?
 ) {
     var window by rememberSaveable { mutableStateOf(30) }
+    var isDetailsVisible by rememberSaveable { mutableStateOf(false) }
     val summary = if (window == 7) insights7 else insights30
     val trend = if (window == 7) trend7 else trend30
     val total = (summary?.takenCount ?: 0) + (summary?.skippedCount ?: 0)
@@ -272,11 +274,24 @@ private fun InsightsTrendCard(
                 .padding(16.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = stringResource(R.string.insights_total_title),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = Color.White.copy(alpha = 0.85f)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.insights_total_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { isDetailsVisible = true },
+                        enabled = summary != null
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = if (summary != null) 0.75f else 0.35f)
+                        )
+                    }
+                }
                 Text(
                     text = NumberFormat.getInstance().format(total),
                     fontSize = 52.sp,
@@ -310,47 +325,12 @@ private fun InsightsTrendCard(
                 )
             }
         }
-        if (summary != null) {
-            val muted = MaterialTheme.colorScheme.onSurfaceVariant
-            val topLate = summary.topLate.firstOrNull()
-            val topSkipped = summary.topSkipped.firstOrNull()
-            val topHour = summary.topLateHour
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (topLate != null) {
-                    Text(
-                        text = stringResource(R.string.insights_top_late_format, topLate.title, topLate.count),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = muted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (topHour != null) {
-                    Text(
-                        text = stringResource(R.string.insights_top_late_hour_format, topHour.title, topHour.count),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = muted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (topSkipped != null) {
-                    Text(
-                        text = stringResource(R.string.insights_top_skipped_format, topSkipped.title, topSkipped.count),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = muted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        } else {
-            Text(
-                text = stringResource(R.string.insights_no_data),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+    }
+    if (isDetailsVisible && summary != null) {
+        InsightsDetailsDialog(
+            summary = summary,
+            onDismiss = { isDetailsVisible = false }
+        )
     }
 }
 
@@ -365,6 +345,59 @@ private fun InsightsChip(text: String, background: Color) {
             .background(background, RoundedCornerShape(99.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp)
     )
+}
+
+@Composable
+private fun InsightsDetailsDialog(summary: InsightsSummary, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+        title = { Text(stringResource(R.string.insights_details_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                InsightsDetailsSection(
+                    title = stringResource(R.string.insights_details_top_late_title),
+                    items = summary.topLate
+                )
+                val hour = summary.topLateHour
+                if (hour != null) {
+                    InsightsDetailsSection(
+                        title = stringResource(R.string.insights_details_top_late_hour_title),
+                        items = listOf(hour)
+                    )
+                }
+                InsightsDetailsSection(
+                    title = stringResource(R.string.insights_details_top_skipped_title),
+                    items = summary.topSkipped
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun InsightsDetailsSection(title: String, items: List<InsightsItem>) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text = title, fontWeight = FontWeight.SemiBold)
+        if (items.isEmpty()) {
+            Text(text = stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodySmall, color = muted)
+            return
+        }
+        items.forEach { item ->
+            Text(
+                text = stringResource(R.string.insights_item_bullet_format, item.title, item.count),
+                style = MaterialTheme.typography.bodySmall,
+                color = muted,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
 
 @Composable
