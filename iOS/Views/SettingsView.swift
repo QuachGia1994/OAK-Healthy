@@ -8,6 +8,7 @@ public struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
+    @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
@@ -20,7 +21,6 @@ public struct SettingsView: View {
     @State private var isShowingError = false
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
-    @State private var cachedActiveSupplements: [UserSupplement] = []
     @State private var notificationAuthorizationStatus: UNAuthorizationStatus = .notDetermined
     
     public let activeClientManager: ActiveClientManager
@@ -45,9 +45,6 @@ public struct SettingsView: View {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
-        }
-        .task(id: activeClientManager.currentClientId) {
-            await reloadClientCaches()
         }
         .task {
             await syncNotificationPermissionState()
@@ -435,7 +432,7 @@ public struct SettingsView: View {
         }
         
         do {
-            let png = try SupplementExportCodec.renderShareImageData(supplements: cachedActiveSupplements, colorScheme: colorScheme)
+            let png = try SupplementExportCodec.renderShareImageData(supplements: supplementsForActiveClient, colorScheme: colorScheme)
             shareStackPNGURL = try writeTempFile(named: "OAKHealthy_Stack.png", data: png)
         } catch {
             shareStackPNGURL = nil
@@ -461,22 +458,8 @@ public struct SettingsView: View {
     }
     
     private var supplementsForActiveClient: [UserSupplement] {
-        cachedActiveSupplements
-    }
-    
-    @MainActor
-    private func reloadClientCaches() async {
-        guard let clientId = activeClientManager.currentClientId else {
-            cachedActiveSupplements = []
-            return
-        }
-        do {
-            let supplementsDescriptor = FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
-            let supplements = try modelContext.fetch(supplementsDescriptor)
-            cachedActiveSupplements = supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
-        } catch {
-            cachedActiveSupplements = []
-        }
+        guard let clientId = activeClientManager.currentClientId else { return [] }
+        return supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
     }
     
     @MainActor

@@ -48,17 +48,17 @@ public struct StackView: View {
                         } else {
                             ForEach(supplementsForActiveClient) { supplement in
                                 let rowInfo = cycleRowInfo(for: supplement)
-                                Button {
-                                    editingSupplement = supplement
-                                } label: {
-                                    StackSupplementRow(
-                                        name: displayName(for: supplement),
-                                        cycleSummary: rowInfo.summary,
-                                        isOffCycle: rowInfo.isOffCycle
-                                    )
-                                }
-                                .buttonStyle(.plain)
+                                StackSupplementRow(
+                                    name: displayName(for: supplement),
+                                    cycleSummary: rowInfo.summary,
+                                    isOffCycle: rowInfo.isOffCycle
+                                )
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button {
+                                        editingSupplement = supplement
+                                    } label: {
+                                        Label("edit".localized, systemImage: "pencil")
+                                    }
                                     Button(role: .destructive) {
                                         deleteSupplement(supplement)
                                     } label: {
