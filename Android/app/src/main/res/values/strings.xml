@@ -171,6 +171,9 @@
     <string name="history_filter_all">All</string>
     <string name="intake_frequency_last_7">Intake Frequency (Last 7 days)</string>
     <string name="insights_title">Insights (7/30 days)</string>
+    <string name="insights_total_title">TOTAL INTAKES</string>
+    <string name="insights_completion_chip_format">%1$d%% completion</string>
+    <string name="insights_late_chip_format">%1$d late</string>
     <string name="insights_last_7">Last 7 days</string>
     <string name="insights_last_30">Last 30 days</string>
     <string name="insights_no_data">Not enough data.</string>

@@ -153,6 +153,9 @@
     <string name="history_filter_all">Tất cả</string>
     <string name="intake_frequency_last_7">Tần suất uống (7 ngày qua)</string>
     <string name="insights_title">Gợi ý (7/30 ngày)</string>
+    <string name="insights_total_title">TỔNG LƯỢT UỐNG</string>
+    <string name="insights_completion_chip_format">%1$d%% hoàn thành</string>
+    <string name="insights_late_chip_format">%1$d trễ</string>
     <string name="insights_last_7">7 ngày qua</string>
     <string name="insights_last_30">30 ngày qua</string>
     <string name="insights_no_data">Chưa đủ dữ liệu.</string>

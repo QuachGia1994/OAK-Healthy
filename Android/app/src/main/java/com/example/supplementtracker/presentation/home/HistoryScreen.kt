@@ -27,6 +27,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,6 +48,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.ceil
 
@@ -133,6 +138,18 @@ private fun HistoryContent(state: HistoryUiState.Success) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item(
+            key = "insights_trend",
+            contentType = "insights_trend"
+        ) {
+            InsightsTrendCard(
+                trend7 = state.trend7,
+                trend30 = state.trend30,
+                insights7 = state.insights7,
+                insights30 = state.insights30
+            )
+        }
+
+        item(
             key = "chart",
             contentType = "chart"
         ) {
@@ -148,13 +165,6 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             ) {
                 PremiumBarChart(data = state.chartData)
             }
-        }
-
-        item(
-            key = "insights",
-            contentType = "insights"
-        ) {
-            InsightsPanel(insights7 = state.insights7, insights30 = state.insights30)
         }
         
         item(
@@ -237,69 +247,226 @@ private fun HistoryContent(state: HistoryUiState.Success) {
 }
 
 @Composable
-private fun InsightsPanel(insights7: InsightsSummary?, insights30: InsightsSummary?) {
-    val shape = RoundedCornerShape(28.dp)
-    Text(stringResource(R.string.insights_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-    OakCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 12.dp),
-        variant = OakCardVariant.Surface,
-        shape = shape,
-        contentPadding = PaddingValues(14.dp),
-        elevation = 2.dp
-    ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            InsightsWindowCard(title = stringResource(R.string.insights_last_7), summary = insights7, modifier = Modifier.weight(1f))
-            InsightsWindowCard(title = stringResource(R.string.insights_last_30), summary = insights30, modifier = Modifier.weight(1f))
+private fun InsightsTrendCard(
+    trend7: List<InsightsTrendPoint>,
+    trend30: List<InsightsTrendPoint>,
+    insights7: InsightsSummary?,
+    insights30: InsightsSummary?
+) {
+    var window by rememberSaveable { mutableStateOf(30) }
+    val summary = if (window == 7) insights7 else insights30
+    val trend = if (window == 7) trend7 else trend30
+    val total = (summary?.takenCount ?: 0) + (summary?.skippedCount ?: 0)
+    val completion = ((summary?.completionRate ?: 0f) * 100f).toInt()
+    val late = summary?.lateCount ?: 0
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.insights_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(listOf(Color(0xFF1A8CFF), Color(0xFF0D63F2))),
+                    RoundedCornerShape(28.dp)
+                )
+                .padding(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.insights_total_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+                Text(
+                    text = NumberFormat.getInstance().format(total),
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    InsightsChip(
+                        text = stringResource(R.string.insights_completion_chip_format, completion),
+                        background = Color.Black.copy(alpha = 0.25f)
+                    )
+                    InsightsChip(
+                        text = stringResource(R.string.insights_late_chip_format, late),
+                        background = Color(0xFFB71C1C).copy(alpha = 0.35f)
+                    )
+                }
+                TrendLineChart(
+                    points = trend,
+                    takenColor = Color.White,
+                    skippedColor = Color(0xFFFF5252),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                )
+                SegmentedDaysPicker(
+                    selected = window,
+                    onSelected = { window = it },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+        if (summary != null) {
+            val muted = MaterialTheme.colorScheme.onSurfaceVariant
+            val topLate = summary.topLate.firstOrNull()
+            val topSkipped = summary.topSkipped.firstOrNull()
+            val topHour = summary.topLateHour
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (topLate != null) {
+                    Text(
+                        text = stringResource(R.string.insights_top_late_format, topLate.title, topLate.count),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (topHour != null) {
+                    Text(
+                        text = stringResource(R.string.insights_top_late_hour_format, topHour.title, topHour.count),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (topSkipped != null) {
+                    Text(
+                        text = stringResource(R.string.insights_top_skipped_format, topSkipped.title, topSkipped.count),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = muted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        } else {
+            Text(
+                text = stringResource(R.string.insights_no_data),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
-private fun InsightsWindowCard(title: String, summary: InsightsSummary?, modifier: Modifier = Modifier) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f) }
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(
+private fun InsightsChip(text: String, background: Color) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White,
+        modifier = Modifier
+            .background(background, RoundedCornerShape(99.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    )
+}
+
+@Composable
+private fun SegmentedDaysPicker(
+    selected: Int,
+    onSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val outer = Color.White.copy(alpha = 0.18f)
+    val selectedColor = Color.White.copy(alpha = 0.24f)
+    Row(
         modifier = modifier
-            .background(base, RoundedCornerShape(18.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .background(outer, RoundedCornerShape(18.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(title, fontWeight = FontWeight.SemiBold)
-        if (summary == null) {
-            Text(stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodySmall, color = muted)
-            return
-        }
-        val completion = (summary.completionRate * 100f).toInt()
-        Text(stringResource(R.string.insights_completion_format, completion), style = MaterialTheme.typography.bodySmall, color = muted)
-        Text(
-            stringResource(R.string.insights_taken_skipped_format, summary.takenCount, summary.skippedCount),
-            style = MaterialTheme.typography.bodySmall,
-            color = muted
+        SegmentedDaysPill(
+            label = stringResource(R.string.insights_last_7),
+            selected = selected == 7,
+            selectedColor = selectedColor,
+            modifier = Modifier.weight(1f),
+            onClick = { onSelected(7) }
         )
-        Text(stringResource(R.string.insights_late_format, summary.lateCount), style = MaterialTheme.typography.bodySmall, color = muted)
-        val hour = summary.topLateHour
-        if (hour != null) {
-            Text(stringResource(R.string.insights_top_late_hour_format, hour.title, hour.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        SegmentedDaysPill(
+            label = stringResource(R.string.insights_last_30),
+            selected = selected == 30,
+            selectedColor = selectedColor,
+            modifier = Modifier.weight(1f),
+            onClick = { onSelected(30) }
+        )
+    }
+}
+
+@Composable
+private fun SegmentedDaysPill(
+    label: String,
+    selected: Boolean,
+    selectedColor: Color,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .background(if (selected) selectedColor else Color.Transparent, RoundedCornerShape(14.dp))
+    ) {
+        TextButton(
+            onClick = onClick,
+            colors = ButtonDefaults.textButtonColors(containerColor = Color.Transparent),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = label,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-        val topLate = summary.topLate
-        if (topLate.isNotEmpty()) {
-            val first = topLate.first()
-            Text(stringResource(R.string.insights_top_late_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            topLate.drop(1).forEach { item ->
-                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun TrendLineChart(
+    points: List<InsightsTrendPoint>,
+    takenColor: Color,
+    skippedColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        if (points.size < 2) return@Canvas
+        val maxValue = points.maxOfOrNull { maxOf(it.takenCount, it.skippedCount) }?.coerceAtLeast(1) ?: 1
+        val w = size.width
+        val h = size.height
+        val stepX = w / (points.size - 1).toFloat()
+
+        fun y(value: Int): Float = h - (value.toFloat() / maxValue.toFloat()) * h
+
+        val takenPath = Path()
+        val skippedPath = Path()
+        points.forEachIndexed { index, point ->
+            val x = index * stepX
+            val ty = y(point.takenCount)
+            val sy = y(point.skippedCount)
+            if (index == 0) {
+                takenPath.moveTo(x, ty)
+                skippedPath.moveTo(x, sy)
+            } else {
+                takenPath.lineTo(x, ty)
+                skippedPath.lineTo(x, sy)
             }
         }
-        val skipped = summary.topSkipped
-        if (skipped.isNotEmpty()) {
-            val first = skipped.first()
-            Text(stringResource(R.string.insights_top_skipped_format, first.title, first.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            skipped.drop(1).forEach { item ->
-                Text(stringResource(R.string.insights_item_bullet_format, item.title, item.count), style = MaterialTheme.typography.bodySmall, color = muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
+
+        drawPath(
+            path = takenPath,
+            color = takenColor,
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawPath(
+            path = skippedPath,
+            color = skippedColor,
+            style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
     }
 }
 
@@ -516,5 +683,6 @@ private fun historySectionTitle(date: LocalDate): String {
     if (date == today.minusDays(1)) return stringResource(R.string.history_yesterday)
     
     val formatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM, yyyy", locale) }
-    return date.format(formatter)
+    val raw = date.format(formatter)
+    return raw.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
 }

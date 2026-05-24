@@ -38,13 +38,21 @@ sealed class HistoryUiState {
         val chartData: List<HistoryChartData>,
         val sections: List<HistorySection>,
         val insights7: InsightsSummary?,
-        val insights30: InsightsSummary?
+        val insights30: InsightsSummary?,
+        val trend7: List<InsightsTrendPoint>,
+        val trend30: List<InsightsTrendPoint>
     ) : HistoryUiState()
 }
 
 data class HistorySection(
     val date: LocalDate,
     val records: List<IntakeRecord>
+)
+
+data class InsightsTrendPoint(
+    val date: LocalDate,
+    val takenCount: Int,
+    val skippedCount: Int
 )
 
 data class InsightsItem(
@@ -122,11 +130,15 @@ class HistoryViewModel(
 
         val insights7 = buildInsights(records = orderedRecords, windowDays = 7, zoneId = zoneId)
         val insights30 = buildInsights(records = orderedRecords, windowDays = 30, zoneId = zoneId)
+        val trend7 = buildTrend(records = orderedRecords, windowDays = 7, zoneId = zoneId)
+        val trend30 = buildTrend(records = orderedRecords, windowDays = 30, zoneId = zoneId)
         return HistoryUiState.Success(
             chartData = chartData,
             sections = sections,
             insights7 = insights7,
-            insights30 = insights30
+            insights30 = insights30,
+            trend7 = trend7,
+            trend30 = trend30
         )
     }
 
@@ -157,6 +169,34 @@ class HistoryViewModel(
             topLate = topLateBySupplement(window, limit = 3),
             topLateHour = topLateHour(window, zoneId)
         )
+    }
+
+    private fun buildTrend(
+        records: List<IntakeRecord>,
+        windowDays: Long,
+        zoneId: ZoneId
+    ): List<InsightsTrendPoint> {
+        val today = LocalDate.now(zoneId)
+        val start = today.minusDays(windowDays - 1)
+        val counts = mutableMapOf<LocalDate, Pair<Int, Int>>()
+        for (record in records) {
+            val day = java.time.Instant.ofEpochMilli(record.date).atZone(zoneId).toLocalDate()
+            if (day.isAfter(today)) continue
+            if (day.isBefore(start)) break
+            val current = counts[day] ?: (0 to 0)
+            if (record.status == "Taken") {
+                counts[day] = (current.first + 1) to current.second
+            } else if (record.status == "Skipped") {
+                counts[day] = current.first to (current.second + 1)
+            }
+        }
+        val points = mutableListOf<InsightsTrendPoint>()
+        for (i in (windowDays - 1) downTo 0) {
+            val day = today.minusDays(i)
+            val value = counts[day] ?: (0 to 0)
+            points.add(InsightsTrendPoint(date = day, takenCount = value.first, skippedCount = value.second))
+        }
+        return points
     }
 
     private fun isLateTaken(record: IntakeRecord): Boolean {
