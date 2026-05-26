@@ -21,8 +21,12 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
         case .missingAccessKey:
             return "Thiếu API Key (JSONBIN_API_KEY) từ xcconfig."
         case .serverError(let statusCode, let body):
+            if statusCode == 522 {
+                return "Máy chủ phản hồi quá lâu (522). Vui lòng thử lại sau."
+            }
             let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-            return "Lỗi máy chủ (\(statusCode)): \(trimmed.isEmpty ? "Unknown server error" : trimmed)"
+            let message = trimmed.isEmpty ? "Unknown server error" : String(trimmed.prefix(240))
+            return "Lỗi máy chủ (\(statusCode)): \(message)"
         case .networkError(let message):
             return "Lỗi mạng: \(message)"
         case .decodingError(let message):
@@ -61,8 +65,20 @@ public actor CloudSyncManager {
     public static let shared = CloudSyncManager()
     
     private var autoSyncTask: Task<Void, Never>?
+    private let session: URLSession
     
-    public init() {}
+    public init() {
+        self.session = Self.makeSession()
+    }
+    
+    private static func makeSession() -> URLSession {
+        let config = URLSessionConfiguration.ephemeral
+        config.waitsForConnectivity = false
+        config.timeoutIntervalForRequest = 8
+        config.timeoutIntervalForResource = 10
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }
     
     public func startAutoSync() {
         guard autoSyncTask == nil else { return }
@@ -219,14 +235,88 @@ public actor CloudSyncManager {
     }
 
     private func fetch(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
-            return (data, http)
-        } catch let error as CloudSyncError {
-            throw error
-        } catch {
-            throw CloudSyncError.networkError(message: error.localizedDescription)
+        let method = (request.httpMethod ?? "GET").uppercased()
+        let canRetry = method != "POST"
+        let maxAttempts = canRetry ? 3 : 1
+        
+        var attempt = 0
+        var lastError: CloudSyncError?
+        
+        while attempt < maxAttempts {
+            attempt += 1
+            do {
+                var working = request
+                if working.timeoutInterval <= 0 { working.timeoutInterval = 8 }
+                
+                let (data, response) = try await session.data(for: working)
+                guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
+                
+                if http.statusCode == 522,
+                   canRetry,
+                   attempt < maxAttempts {
+                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
+                    continue
+                }
+                
+                return (data, http)
+            } catch let error as CloudSyncError {
+                lastError = error
+                if canRetry,
+                   attempt < maxAttempts,
+                   shouldRetry(error: error) {
+                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
+                    continue
+                }
+                throw error
+            } catch let urlError as URLError {
+                let mapped = mapURLError(urlError)
+                lastError = mapped
+                if canRetry, attempt < maxAttempts {
+                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
+                    continue
+                }
+                throw mapped
+            } catch {
+                let mapped = CloudSyncError.networkError(message: error.localizedDescription)
+                lastError = mapped
+                if canRetry, attempt < maxAttempts {
+                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
+                    continue
+                }
+                throw mapped
+            }
+        }
+        
+        throw lastError ?? CloudSyncError.networkError(message: "Unknown network error")
+    }
+    
+    private func shouldRetry(error: CloudSyncError) -> Bool {
+        switch error {
+        case .networkError:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    private func backoffDelay(attempt: Int) -> Duration {
+        switch attempt {
+        case 1: return .milliseconds(300)
+        case 2: return .milliseconds(700)
+        default: return .milliseconds(1200)
+        }
+    }
+    
+    private func mapURLError(_ error: URLError) -> CloudSyncError {
+        switch error.code {
+        case .timedOut:
+            return .networkError(message: "Timed out")
+        case .notConnectedToInternet:
+            return .networkError(message: "No internet connection")
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return .networkError(message: "Cannot connect to host")
+        default:
+            return .networkError(message: error.localizedDescription)
         }
     }
 
@@ -297,6 +387,7 @@ public actor CloudSyncManager {
 enum CloudSyncAutoSync {
     private static var realtimeTask: Task<Void, Never>?
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
+    private static let lastFailureKey = "cloudSyncLastFailureEpoch"
     
     static func startRealtimeSync(
         modelContext: ModelContext,
@@ -420,6 +511,7 @@ enum CloudSyncAutoSync {
     private static func markFailure(ctx: SyncContext, error: Error) {
         UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
         UserDefaults.standard.set(error.localizedDescription, forKey: ctx.lastErrorKey)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastFailureKey)
         print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
         DebugReporter.report("cloud_sync_failure", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: error))
     }
@@ -499,7 +591,12 @@ enum CloudSyncAutoSync {
     }
     
     private static func pollInterval() -> Duration {
-        .seconds(1)
+        let lastFailure = UserDefaults.standard.double(forKey: lastFailureKey)
+        if lastFailure > 0 {
+            let elapsed = Date().timeIntervalSince1970 - lastFailure
+            if elapsed < 15 { return .seconds(5) }
+        }
+        return .seconds(1)
     }
     
     private static func activeBinId() -> String? {
