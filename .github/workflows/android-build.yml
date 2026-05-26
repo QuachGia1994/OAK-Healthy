@@ -59,6 +59,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
       - name: Create local.properties
         env:
           JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
@@ -119,6 +122,9 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Create local.properties
         env:

@@ -20,8 +20,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      ios: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.ios }}
+    steps:
+      - name: Checkout repository
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Paths filter
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          filters: |
+            ios:
+              - 'iOS/**'
+
   lint:
     name: Lint
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -44,9 +69,10 @@ jobs:
 
   test:
     name: Test
-    needs: [lint]
+    needs: [changes, lint]
     runs-on: macos-15
     timeout-minutes: 20
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.ios == 'true' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -121,10 +147,10 @@ jobs:
 
   build:
     name: Build IPA
-    needs: [lint, test]
+    needs: [changes, lint, test]
     runs-on: macos-15
     timeout-minutes: 30
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ github.event_name != 'pull_request' && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.ios == 'true') }}
     
     steps:
       - name: Checkout repository
