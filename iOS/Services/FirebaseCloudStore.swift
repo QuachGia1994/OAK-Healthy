@@ -67,12 +67,16 @@ enum FirebaseCloudStore {
     }
     
     private static func getOnce(path: [String]) async throws -> DataSnapshot {
-        try await withCheckedThrowingContinuation { cont in
-            root().child(path.joined(separator: "/")).getData { error, snapshot in
-                if let error { cont.resume(throwing: error); return }
-                if let snapshot { cont.resume(returning: snapshot); return }
-                cont.resume(throwing: FirebaseMissingSnapshotError())
-            }
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<DataSnapshot, any Error>) in
+            root().child(path.joined(separator: "/")).observeSingleEvent(
+                of: .value,
+                with: { snapshot in
+                    cont.resume(returning: snapshot)
+                },
+                withCancel: { error in
+                    cont.resume(throwing: error)
+                }
+            )
         }
     }
     
