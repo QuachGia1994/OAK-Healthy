@@ -1,10 +1,10 @@
-import FirebaseAuth
+@preconcurrency import FirebaseAuth
 import FirebaseCore
 import Foundation
 
 @MainActor
 enum FirebaseBootstrap {
-    static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
+    nonisolated static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
     private static var didConfigure = false
     
     static func configureIfNeeded() {

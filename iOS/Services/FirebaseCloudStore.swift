@@ -1,4 +1,4 @@
-import FirebaseDatabase
+@preconcurrency import FirebaseDatabase
 import Foundation
 
 enum FirebaseCloudStore {
@@ -43,7 +43,7 @@ enum FirebaseCloudStore {
     
     static func delete(id: String) async throws {
         try await FirebaseBootstrap.ensureSignedIn()
-        try await withCheckedThrowingContinuation { cont in
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
             root().child(id).removeValue { error, _ in
                 if let error { cont.resume(throwing: error); return }
                 cont.resume(returning: ())
@@ -62,7 +62,7 @@ enum FirebaseCloudStore {
     }
     
     private static func update(id: String, values: [AnyHashable: Any]) async throws {
-        try await withCheckedThrowingContinuation { cont in
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
             root().child(id).updateChildValues(values) { error, _ in
                 if let error { cont.resume(throwing: error); return }
                 cont.resume(returning: ())
