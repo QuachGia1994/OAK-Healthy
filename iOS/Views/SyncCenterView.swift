@@ -79,6 +79,9 @@ public struct SyncCenterView: View {
                 "binId": activeBinId
             ])
             logEntries = loadLogEntries(binId: activeBinId)
+            let trimmed = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            await syncNow()
         }
         .task(id: isCloudEncryptionEnabled) {
             DebugReporter.report("sync_center_task_refresh_key", fields: [
