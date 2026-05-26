@@ -1,13 +1,11 @@
 package com.example.supplementtracker.presentation.splash
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,10 +17,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.designsystem.OakLogoMark
 import kotlinx.coroutines.delay
 
 @Composable
@@ -54,11 +52,7 @@ fun SplashScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Image(
-            imageVector = androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.ic_oak_logo),
-            contentDescription = null,
-            modifier = Modifier.size(96.dp)
-        )
+        OakLogoMark()
         Spacer(modifier = Modifier.height(14.dp))
         Text(
             text = stringResource(R.string.app_name),

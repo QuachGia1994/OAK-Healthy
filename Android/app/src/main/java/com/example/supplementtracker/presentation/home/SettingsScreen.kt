@@ -32,6 +32,7 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.designsystem.OakLogoMark
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.CycleStatus
@@ -179,11 +180,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Image(
-                                imageVector = ImageVector.vectorResource(R.drawable.ic_oak_logo),
-                                contentDescription = null,
-                                modifier = Modifier.size(96.dp)
-                            )
+                            OakLogoMark()
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = stringResource(R.string.settings_dedication),
@@ -1222,11 +1219,7 @@ private fun LogoCard() {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Image(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_oak_logo),
-                contentDescription = null,
-                modifier = Modifier.size(96.dp)
-            )
+            OakLogoMark()
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.settings_dedication),
