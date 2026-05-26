@@ -235,59 +235,77 @@ public actor CloudSyncManager {
     }
 
     private func fetch(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {
-        let method = (request.httpMethod ?? "GET").uppercased()
-        let canRetry = method != "POST"
-        let maxAttempts = canRetry ? 4 : 1
-        
-        var attempt = 0
+        let plan = makeFetchPlan(request: request)
         var lastError: CloudSyncError?
-        
-        while attempt < maxAttempts {
-            attempt += 1
-            do {
-                var working = request
-                if working.timeoutInterval <= 0 { working.timeoutInterval = 15 }
-                
-                let (data, response) = try await session.data(for: working)
-                guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
-                
-                if http.statusCode == 522,
-                   canRetry,
-                   attempt < maxAttempts {
-                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
-                    continue
-                }
-                
+        for attempt in 1...plan.maxAttempts {
+            let result = await attemptFetch(request: request, plan: plan, attempt: attempt)
+            switch result {
+            case let .success(data, http):
                 return (data, http)
-            } catch let error as CloudSyncError {
+            case let .retry(error):
                 lastError = error
-                if canRetry,
-                   attempt < maxAttempts,
-                   shouldRetry(error: error) {
-                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
-                    continue
-                }
+                try? await Task.sleep(for: backoffDelay(attempt: attempt))
+            case let .failure(error):
                 throw error
-            } catch let urlError as URLError {
-                let mapped = mapURLError(urlError)
-                lastError = mapped
-                if canRetry, attempt < maxAttempts {
-                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
-                    continue
-                }
-                throw mapped
-            } catch {
-                let mapped = CloudSyncError.networkError(message: error.localizedDescription)
-                lastError = mapped
-                if canRetry, attempt < maxAttempts {
-                    try? await Task.sleep(for: backoffDelay(attempt: attempt))
-                    continue
-                }
-                throw mapped
             }
         }
-        
         throw lastError ?? CloudSyncError.networkError(message: "Unknown network error")
+    }
+    
+    private struct FetchPlan: Sendable {
+        let canRetry: Bool
+        let maxAttempts: Int
+    }
+    
+    private enum FetchAttemptResult: Sendable {
+        case success(Data, HTTPURLResponse)
+        case retry(CloudSyncError)
+        case failure(CloudSyncError)
+    }
+    
+    private func makeFetchPlan(request: URLRequest) -> FetchPlan {
+        let method = (request.httpMethod ?? "GET").uppercased()
+        let canRetry = method != "POST"
+        return FetchPlan(canRetry: canRetry, maxAttempts: canRetry ? 4 : 1)
+    }
+    
+    private func attemptFetch(request: URLRequest, plan: FetchPlan, attempt: Int) async -> FetchAttemptResult {
+        do {
+            let working = preparedRequest(request)
+            let (data, http) = try await performSessionRequest(working)
+            if plan.canRetry, attempt < plan.maxAttempts, shouldRetryHTTPStatus(statusCode: http.statusCode) {
+                let body = String(data: data, encoding: .utf8) ?? ""
+                return .retry(.serverError(statusCode: http.statusCode, body: body))
+            }
+            return .success(data, http)
+        } catch let error as CloudSyncError {
+            if plan.canRetry, attempt < plan.maxAttempts, shouldRetry(error: error) { return .retry(error) }
+            return .failure(error)
+        } catch let urlError as URLError {
+            let mapped = mapURLError(urlError)
+            if plan.canRetry, attempt < plan.maxAttempts { return .retry(mapped) }
+            return .failure(mapped)
+        } catch {
+            let mapped = CloudSyncError.networkError(message: error.localizedDescription)
+            if plan.canRetry, attempt < plan.maxAttempts { return .retry(mapped) }
+            return .failure(mapped)
+        }
+    }
+    
+    private func preparedRequest(_ request: URLRequest) -> URLRequest {
+        var working = request
+        if working.timeoutInterval <= 0 { working.timeoutInterval = 15 }
+        return working
+    }
+    
+    private func performSessionRequest(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
+        return (data, http)
+    }
+    
+    private func shouldRetryHTTPStatus(statusCode: Int) -> Bool {
+        statusCode == 408 || statusCode == 429 || statusCode == 522 || (500...599).contains(statusCode)
     }
     
     private func shouldRetry(error: CloudSyncError) -> Bool {
