@@ -107,6 +107,7 @@ def generate_android(res_dir: Path, base: Image.Image) -> None:
         out_dir = res_dir / folder
         save_png(base, out_dir / "ic_launcher.png", px)
         save_png(base, out_dir / "ic_launcher_round.png", px)
+        save_png(base, out_dir / "ic_launcher_foreground.png", px)
 
 
 def main() -> int:

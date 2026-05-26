@@ -74,8 +74,8 @@ public actor CloudSyncManager {
     private static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.waitsForConnectivity = false
-        config.timeoutIntervalForRequest = 8
-        config.timeoutIntervalForResource = 10
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 20
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config)
     }
@@ -237,7 +237,7 @@ public actor CloudSyncManager {
     private func fetch(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {
         let method = (request.httpMethod ?? "GET").uppercased()
         let canRetry = method != "POST"
-        let maxAttempts = canRetry ? 3 : 1
+        let maxAttempts = canRetry ? 4 : 1
         
         var attempt = 0
         var lastError: CloudSyncError?
@@ -246,7 +246,7 @@ public actor CloudSyncManager {
             attempt += 1
             do {
                 var working = request
-                if working.timeoutInterval <= 0 { working.timeoutInterval = 8 }
+                if working.timeoutInterval <= 0 { working.timeoutInterval = 15 }
                 
                 let (data, response) = try await session.data(for: working)
                 guard let http = response as? HTTPURLResponse else { throw CloudSyncError.invalidResponse }
@@ -294,27 +294,32 @@ public actor CloudSyncManager {
         switch error {
         case .networkError:
             return true
+        case .serverError(let statusCode, _):
+            return statusCode == 408 || statusCode == 429 || statusCode == 522 || (500...599).contains(statusCode)
         default:
             return false
         }
     }
     
     private func backoffDelay(attempt: Int) -> Duration {
+        let baseMs: Int
         switch attempt {
-        case 1: return .milliseconds(300)
-        case 2: return .milliseconds(700)
-        default: return .milliseconds(1200)
+        case 1: baseMs = 400
+        case 2: baseMs = 900
+        case 3: baseMs = 1500
+        default: baseMs = 2000
         }
+        return .milliseconds(baseMs + Int.random(in: 0...200))
     }
     
     private func mapURLError(_ error: URLError) -> CloudSyncError {
         switch error.code {
         case .timedOut:
-            return .networkError(message: "Timed out")
+            return .networkError(message: "Kết nối quá thời gian")
         case .notConnectedToInternet:
-            return .networkError(message: "No internet connection")
+            return .networkError(message: "Không có internet")
         case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
-            return .networkError(message: "Cannot connect to host")
+            return .networkError(message: "Không thể kết nối máy chủ")
         default:
             return .networkError(message: error.localizedDescription)
         }

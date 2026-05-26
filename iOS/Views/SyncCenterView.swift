@@ -30,6 +30,7 @@ public struct SyncCenterView: View {
     
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
+    @State private var toastRetryAction: (() -> Void)?
     
     @State private var isCloudEncryptionEnabled: Bool = CloudSyncKeyManager.isEncryptionEnabled()
     @State private var exportedCloudSyncKey: String = ""
@@ -81,7 +82,8 @@ public struct SyncCenterView: View {
             logEntries = loadLogEntries(binId: activeBinId)
             let trimmed = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
-            await syncNow()
+            guard isAutoSyncEnabled else { return }
+            await syncNow(label: "AUTO")
         }
         .task(id: isCloudEncryptionEnabled) {
             DebugReporter.report("sync_center_task_refresh_key", fields: [
@@ -90,7 +92,13 @@ public struct SyncCenterView: View {
             await refreshExportedCloudKey()
         }
         .alert("sync_center_notice_title".localized, isPresented: $showImportErrorAlert) {
-            Button("ok".localized) {}
+            if let toastRetryAction {
+                Button("sync_center_sync_now".localized) {
+                    toastRetryAction()
+                    self.toastRetryAction = nil
+                }
+            }
+            Button("ok".localized) { toastRetryAction = nil }
         } message: {
             Text(importErrorMessage)
         }
@@ -284,6 +292,20 @@ public struct SyncCenterView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                             .lineLimit(3)
+                        let isTransient = lastError.localizedCaseInsensitiveContains("522") ||
+                            lastError.localizedCaseInsensitiveContains("quá thời gian") ||
+                            lastError.localizedCaseInsensitiveContains("timed out") ||
+                            lastError.localizedCaseInsensitiveContains("không có internet") ||
+                            lastError.localizedCaseInsensitiveContains("no internet") ||
+                            lastError.localizedCaseInsensitiveContains("không thể kết nối")
+                        if isTransient {
+                            Button("sync_center_sync_now".localized) {
+                                Task { await syncNow(label: "MANUAL") }
+                            }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
+                            .disabled(isCloudSyncLoading || activeClientManager.currentClientId == nil)
+                        }
                         let hint = isCloudEncryptionEnabled &&
                             (lastError.localizedCaseInsensitiveContains("Missing cloud sync key") ||
                              lastError.localizedCaseInsensitiveContains("Decrypt failed"))
@@ -297,7 +319,7 @@ public struct SyncCenterView: View {
                 }
                 
                 Button("sync_center_sync_now".localized) {
-                    Task { await syncNow() }
+                    Task { await syncNow(label: "MANUAL") }
                 }
                 .disabled(isCloudSyncLoading || activeClientManager.currentClientId == nil)
             } else {
@@ -718,14 +740,14 @@ public struct SyncCenterView: View {
     }
     
     @MainActor
-    private func syncNow() async {
+    private func syncNow(label: String) async {
         guard let clientId = activeClientManager.currentClientId else { return }
         let id = activeBinId
         guard !id.isEmpty else { return }
         guard let client = clients.first(where: { $0.id == clientId }) ?? clients.first else { return }
         await withLoading {
             await reloadCaches()
-            await runSyncFlow(binId: id, client: client, label: "MANUAL")
+            await runSyncFlow(binId: id, client: client, label: label)
         }
     }
     
@@ -961,10 +983,17 @@ public struct SyncCenterView: View {
             isSafeModeEnabled = false
             await rescheduleNotificationsIfEnabled()
             appendLog(binId: binId, phase: "SYNC", message: "\(label) DONE")
-            showToast("sync_center_toast_sync_success".localized)
+            if label != "AUTO" {
+                showToast("sync_center_toast_sync_success".localized)
+            }
         } catch {
             appendLog(binId: binId, phase: "SYNC", message: "\(label) ERROR: \(error.localizedDescription)")
-            showToast(String(format: "sync_center_toast_sync_failed_format".localized, error.localizedDescription))
+            if label != "AUTO" {
+                showToast(
+                    String(format: "sync_center_toast_sync_failed_format".localized, error.localizedDescription),
+                    retryAction: { Task { await syncNow(label: "MANUAL") } }
+                )
+            }
         }
     }
     
@@ -1110,6 +1139,14 @@ public struct SyncCenterView: View {
     @MainActor
     private func showToast(_ message: String) {
         importErrorMessage = message
+        toastRetryAction = nil
+        showImportErrorAlert = true
+    }
+
+    @MainActor
+    private func showToast(_ message: String, retryAction: (() -> Void)?) {
+        importErrorMessage = message
+        toastRetryAction = retryAction
         showImportErrorAlert = true
     }
     
