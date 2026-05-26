@@ -1118,6 +1118,7 @@ public struct SyncCenterView: View {
             cachedRecords = []
             return
         }
+        let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: .now) ?? .now
         do {
             let supplementsAll = try modelContext.fetch(
                 FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
@@ -1129,7 +1130,7 @@ public struct SyncCenterView: View {
             )
             recordsDescriptor.fetchLimit = 5_000
             let recordsAll = try modelContext.fetch(recordsDescriptor)
-            cachedRecords = recordsAll.filter { $0.supplement?.client?.id == clientId }
+            cachedRecords = recordsAll.filter { $0.supplement?.client?.id == clientId && $0.date >= cutoff }
         } catch {
             cachedSupplements = []
             cachedRecords = []

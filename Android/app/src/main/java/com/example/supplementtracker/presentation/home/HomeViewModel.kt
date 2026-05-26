@@ -256,7 +256,9 @@ class HomeViewModel(
             }
 
             val history = if (includeHistory) {
+                val cutoffEpochMs = getStartOfDay(90)
                 repository.getAllRecordsForSync(clientIdString)
+                    .filter { it.date >= cutoffEpochMs }
                     .groupBy { DoseEventKey.make(it.supplementId, it.date) }
                     .mapNotNull { (_, list) -> list.maxByOrNull { it.updatedAtEpochMs } }
                     .map { record ->
