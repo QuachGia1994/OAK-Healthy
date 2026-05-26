@@ -46,7 +46,7 @@ enum FirebaseCloudStore {
         try await withCheckedThrowingContinuation { cont in
             root().child(id).removeValue { error, _ in
                 if let error { cont.resume(throwing: error); return }
-                cont.resume()
+                cont.resume(returning: ())
             }
         }
     }
@@ -65,7 +65,7 @@ enum FirebaseCloudStore {
         try await withCheckedThrowingContinuation { cont in
             root().child(id).updateChildValues(values) { error, _ in
                 if let error { cont.resume(throwing: error); return }
-                cont.resume()
+                cont.resume(returning: ())
             }
         }
     }
@@ -73,4 +73,3 @@ enum FirebaseCloudStore {
 
 struct FirebaseConflictError: Error {}
 struct FirebaseMissingSnapshotError: Error {}
-

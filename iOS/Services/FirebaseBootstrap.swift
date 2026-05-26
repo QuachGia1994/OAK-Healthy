@@ -2,6 +2,7 @@ import FirebaseAuth
 import FirebaseCore
 import Foundation
 
+@MainActor
 enum FirebaseBootstrap {
     static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
     private static var didConfigure = false
@@ -18,4 +19,3 @@ enum FirebaseBootstrap {
         _ = try await Auth.auth().signInAnonymously()
     }
 }
-
