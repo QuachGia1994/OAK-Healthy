@@ -103,121 +103,78 @@ public actor CloudSyncManager {
         jsonData: Data,
         ifMatchEtag: String? = nil
     ) async throws(CloudSyncError) {
-        let apiKey = try requireApiKey()
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
-        
-        let url = Self.baseURL.appendingPathComponent(id)
-        var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
-        request.httpBody = try encryptPayloadIfNeeded(jsonData)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
-        if let ifMatchEtag {
-            let trimmed = ifMatchEtag.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { request.setValue(trimmed, forHTTPHeaderField: "If-Match") }
+        let payload = try encodePayloadForCloud(jsonData)
+        do {
+            let newRev = try await FirebaseCloudStore.write(id: id, payload: payload, expectedRev: ifMatchEtag)
+            saveEtag(newRev, binId: id)
+        } catch is FirebaseConflictError {
+            throw CloudSyncError.serverError(statusCode: 412, body: "Conflict")
+        } catch {
+            throw CloudSyncError.networkError(message: error.localizedDescription)
         }
-        
-        let (data, http) = try await fetch(request: request)
-        guard (200...299).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
-        }
-        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
     }
     
     public func uploadBackup(
         jsonData: Data
     ) async throws(CloudSyncError) -> String {
-        let apiKey = try requireApiKey()
-        
-        var request = URLRequest(url: Self.baseURL)
-        request.httpMethod = "POST"
-        request.httpBody = try encryptPayloadIfNeeded(jsonData)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
-        
-        let (data, http) = try await fetch(request: request)
-        guard (200...299).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
+        let payload = try encodePayloadForCloud(jsonData)
+        do {
+            let id = try await FirebaseCloudStore.createBin(payload: payload)
+            if let rev = try await FirebaseCloudStore.readMetaRev(id: id) { saveEtag(rev, binId: id) }
+            return id
+        } catch {
+            throw CloudSyncError.networkError(message: error.localizedDescription)
         }
-        
-        let obj = try decodeJSONObject(data) as? [String: Any]
-        let metadata = obj?["metadata"] as? [String: Any]
-        let id = metadata?["id"] as? String
-        guard let id, !id.isEmpty else { throw CloudSyncError.invalidResponse }
-        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
-        return id
     }
     
     public func downloadBackup(
         binId: String
     ) async throws(CloudSyncError) -> Data {
-        let apiKey = try requireApiKey()
-        
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
-        
-        let url = Self.baseURL.appendingPathComponent(id).appendingPathComponent("latest")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
-        
-        let (data, http) = try await fetch(request: request)
-        guard (200...299).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
+        do {
+            let payload = (try await FirebaseCloudStore.readPayload(id: id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if payload.isEmpty { throw CloudSyncError.invalidResponse }
+            if let rev = try await FirebaseCloudStore.readMetaRev(id: id) { saveEtag(rev, binId: id) }
+            return try decodePayloadFromCloud(payload)
+        } catch let error as CloudSyncError {
+            throw error
+        } catch {
+            throw CloudSyncError.networkError(message: error.localizedDescription)
         }
-        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
-        
-        let record = try recordData(from: data)
-        return try decryptPayloadIfNeeded(record)
     }
 
     public func downloadBackupIfChanged(
         binId: String
     ) async throws(CloudSyncError) -> Data? {
-        let apiKey = try requireApiKey()
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
-        
-        let url = Self.baseURL.appendingPathComponent(id).appendingPathComponent("latest")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
-        if let etag = storedEtag(binId: id) { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
-        
-        let (data, http) = try await fetch(request: request)
-        if http.statusCode == 304 { return nil }
-        guard (200...299).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
+        do {
+            let known = storedEtag(binId: id)
+            let rev = try await FirebaseCloudStore.readMetaRev(id: id)
+            if let rev, rev == known { return nil }
+            let payload = (try await FirebaseCloudStore.readPayload(id: id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if payload.isEmpty { throw CloudSyncError.invalidResponse }
+            if let rev { saveEtag(rev, binId: id) }
+            return try decodePayloadFromCloud(payload)
+        } catch let error as CloudSyncError {
+            throw error
+        } catch {
+            throw CloudSyncError.networkError(message: error.localizedDescription)
         }
-        if let etag = responseEtag(http: http) { saveEtag(etag, binId: id) }
-        return try decryptPayloadIfNeeded(recordData(from: data))
     }
     
     public func deleteBackup(
         binId: String
     ) async throws(CloudSyncError) {
-        let apiKey = try requireApiKey()
-        
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
-        
-        let url = Self.baseURL.appendingPathComponent(id)
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(apiKey, forHTTPHeaderField: "X-Master-Key")
-        
-        let (data, http) = try await fetch(request: request)
-        guard (200...299).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw CloudSyncError.serverError(statusCode: http.statusCode, body: body)
+        do {
+            try await FirebaseCloudStore.delete(id: id)
+        } catch {
+            throw CloudSyncError.networkError(message: error.localizedDescription)
         }
     }
 
@@ -384,6 +341,17 @@ public actor CloudSyncManager {
         } catch {
             throw CloudSyncError.cryptoError(message: error.localizedDescription)
         }
+    }
+    
+    private func encodePayloadForCloud(_ jsonData: Data) throws(CloudSyncError) -> String {
+        let payload = try encryptPayloadIfNeeded(jsonData)
+        guard let text = String(data: payload, encoding: .utf8) else { throw CloudSyncError.invalidResponse }
+        return text
+    }
+    
+    private func decodePayloadFromCloud(_ payload: String) throws(CloudSyncError) -> Data {
+        guard let data = payload.data(using: .utf8) else { throw CloudSyncError.invalidResponse }
+        return try decryptPayloadIfNeeded(data)
     }
     
     private func responseEtag(http: HTTPURLResponse) -> String? {

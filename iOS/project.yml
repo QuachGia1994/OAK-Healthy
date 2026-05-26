@@ -3,6 +3,10 @@ compatibilityVersion: "Xcode 13.0"
 options:
   bundleIdPrefix: com.phongqk
   developmentLanguage: en
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    from: 12.13.0
 targets:
   OAKHealthy:
     type: application
@@ -18,6 +22,8 @@ targets:
       - path: Models
       - path: Services
       - path: Views
+    resources:
+      - path: GoogleService-Info.plist
     settings:
       base:
         INFOPLIST_FILE: Info.plist
@@ -48,6 +54,11 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseDatabase
   OAKHealthyTests:
     type: bundle.unit-test
     platform: iOS

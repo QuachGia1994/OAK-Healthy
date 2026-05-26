@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "339994104835",
+    "project_id": "oak-healthy",
+    "storage_bucket": "oak-healthy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:339994104835:android:62e27090c9064004ac2a36",
+        "android_client_info": {
+          "package_name": "com.phongqk.oakhealthy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBoB0NhD5xcekEuQzhtTyK3Ly4csLVVTUI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+

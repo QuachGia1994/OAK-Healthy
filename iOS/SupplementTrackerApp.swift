@@ -57,6 +57,10 @@ struct SupplementTrackerApp: App {
     @State private var isAppLaunched: Bool = false
     @State private var dependencies: AppDependencyContainer?
     
+    init() {
+        FirebaseBootstrap.configureIfNeeded()
+    }
+    
     var body: some Scene {
         WindowGroup {
             RootLaunchView(
