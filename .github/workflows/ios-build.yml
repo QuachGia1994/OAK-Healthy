@@ -43,6 +43,8 @@ jobs:
           filters: |
             ios:
               - 'iOS/**'
+              - 'scripts/**'
+              - '.github/workflows/ios-build.yml'
 
   lint:
     name: Lint
