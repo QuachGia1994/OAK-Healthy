@@ -47,9 +47,9 @@ internal object FirebaseCloudStore {
         val expected = expectedRev?.trim().orEmpty()
         val current = readRev(id)?.toString().orEmpty()
         if (expected.isNotEmpty() && current.isNotEmpty() && current != expected) throw ConflictError()
-        val rev = System.currentTimeMillis().toString()
+        val rev = System.currentTimeMillis()
         root().child(id).updateChildren(mapOf("payload" to payload, "meta/rev" to rev)).awaitUnit()
-        return rev
+        return rev.toString()
     }
 
     suspend fun delete(id: String) {
