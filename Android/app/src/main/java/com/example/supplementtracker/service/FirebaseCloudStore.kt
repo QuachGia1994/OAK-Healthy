@@ -59,7 +59,10 @@ internal object FirebaseCloudStore {
 
     private suspend fun readRev(id: String): Long? {
         val snap = root().child(id).child("meta").child("rev").get().await()
-        return snap.getValue(Long::class.java)
+        val asLong = snap.getValue(Long::class.java)
+        if (asLong != null) return asLong
+        val asString = snap.getValue(String::class.java)?.trim()
+        return asString?.toLongOrNull()
     }
 
     private suspend fun readPayload(id: String): String? {
