@@ -1,4 +1,5 @@
 @preconcurrency import FirebaseAuth
+@preconcurrency import FirebaseDatabase
 import FirebaseCore
 import Foundation
 
@@ -15,11 +16,15 @@ enum FirebaseBootstrap {
     static func configureIfNeeded() {
         guard !didConfigure else { return }
         didConfigure = true
-        if FirebaseApp.app() != nil { return }
+        if FirebaseApp.app() != nil {
+            postConfigure()
+            return
+        }
         
         if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
            let options = FirebaseOptions(contentsOfFile: path) {
             FirebaseApp.configure(options: options)
+            postConfigure()
             return
         }
         
@@ -29,11 +34,17 @@ enum FirebaseBootstrap {
         options.databaseURL = databaseURL
         options.storageBucket = storageBucket
         FirebaseApp.configure(options: options)
+        postConfigure()
     }
     
     static func ensureSignedIn() async throws {
         configureIfNeeded()
         if Auth.auth().currentUser != nil { return }
         _ = try await Auth.auth().signInAnonymously()
+    }
+    
+    private static func postConfigure() {
+        let db = Database.database(url: databaseURL)
+        db.isPersistenceEnabled = true
     }
 }
