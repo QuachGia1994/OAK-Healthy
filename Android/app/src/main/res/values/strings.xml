@@ -15,21 +15,21 @@
     <string name="settings_title">Settings</string>
     <string name="app_information_title">App Information</string>
     <string name="settings_guide_title">User Guide</string>
-    <string name="settings_guide_content">1. Setup Stack: Tap (+) to add. The app auto-calculates On/Off cycles from the start date.\n2. Multi-device sync: Open Settings → Sync Center. On Host: (recommended) enable Cloud Encryption, then tap Host Data to create a Link Code. On Link: enter the code and tap Download. Enable Auto-Sync for realtime syncing.\n3. Security: If encryption is enabled, copy Sync Key from Host and Import on other devices. After rotating the key, re-import the new key. Use Revoke to permanently delete cloud data when you no longer need syncing.\n4. Notification diagnostics: Check Notification List to confirm the app sent schedules. Ensure Battery Optimization (Android) / Focus (iOS) isn’t blocking.\n5. Flexible recurrence: Enable “Repeat every N days” (>=2) for every-other-day routines. Weekly recurrence is also supported. When interval-days is enabled, reminders shift based on your last Taken day.\n6. Duration: “Total duration” is measured in days (leave blank for unlimited).\n7. Status &amp; overdue: Green check = Taken, red exclamation = Overdue, orange = Skipped. You may also see “Due soon” / “Almost missed” before the deadline.</string>
-    <string name="user_guide_1_title">Section 1: Setup Stack</string>
-    <string name="user_guide_1_body">Tap (+) to add supplements. The app auto-calculates On/Off cycles (take/rest) from the start date.</string>
-    <string name="user_guide_2_title">Section 2: Multi-device Sync</string>
-    <string name="user_guide_2_body">Open Settings → Sync Center. On Host: (recommended) enable Cloud Encryption, then tap Host Data to create a Link Code. On Link: enter the code and tap Download. Enable Auto-Sync if you want realtime syncing.</string>
-    <string name="user_guide_3_title">Section 3: Maximum Security</string>
-    <string name="user_guide_3_body">If encryption is enabled, copy Sync Key from Host and Import on other devices. After rotating the key, re-import the new key. Tap the eye icon to hide the Link Code in public. Use “Revoke” to permanently delete cloud data when you no longer need syncing.</string>
-    <string name="user_guide_4_title">Section 4: Notification Diagnostics</string>
-    <string name="user_guide_4_body">If you miss a reminder, open “Notification List” to confirm the app scheduled it. Make sure Battery Optimization (Android) or Focus/Do Not Disturb (iOS) isn’t blocking.</string>
-    <string name="user_guide_5_title">Section 5: Flexible Recurrence</string>
-    <string name="user_guide_5_body">Enable “Repeat every N days” (>=2) for every-other-day routines. Weekly recurrence is also supported. When interval-days is enabled, reminders shift based on your last Taken day.</string>
-    <string name="user_guide_6_title">Section 6: Duration</string>
-    <string name="user_guide_6_body">“Total duration” is measured in days (leave blank for unlimited).</string>
-    <string name="user_guide_7_title">Section 7: Status &amp; Overdue</string>
-    <string name="user_guide_7_body">Green check = Taken, red exclamation = Overdue, orange = Skipped. You may also see “Due soon” / “Almost missed” before the deadline.</string>
+    <string name="settings_guide_content">1. Stack &amp; Schedule: Add supplements and choose a schedule (continuous, On/Off, every N days, weekly). Home shows what’s due today.\n2. Sync Center: Device A (Host) creates a Link Code. Device B (Link) pastes the code and taps Download.\n3. Encryption &amp; keys: Enable Cloud Encryption (recommended). Tap the exported key to copy; use Paste to import on the other device. After rotating the key, re-import it. Use the eye icon to hide codes in public. Revoke deletes cloud data permanently.\n4. Notifications: Allow notifications so reminders work. You can tap Taken/Skip directly on the notification.\n5. Auto‑Sync: Enable Auto‑Sync to keep devices aligned. If Link Code is set but the key is missing, Auto‑Sync may turn off to avoid endless retry; import the key then enable it again.\n6. Troubleshooting: Use Notification diagnostics to verify schedules. Ensure system Do Not Disturb isn’t blocking alerts.\n7. Status &amp; filters: Green = Taken, orange = Skipped, red = Overdue. Use filters to focus on Due/Overdue quickly.</string>
+    <string name="user_guide_1_title">Section 1: Stack &amp; Schedule</string>
+    <string name="user_guide_1_body">Add supplements and choose a schedule (continuous, On/Off, every N days, weekly). Home shows what’s due today.</string>
+    <string name="user_guide_2_title">Section 2: Sync Center</string>
+    <string name="user_guide_2_body">Device A (Host) creates a Link Code. Device B (Link) uses Paste and taps Download to pull + merge.</string>
+    <string name="user_guide_3_title">Section 3: Encryption &amp; Keys</string>
+    <string name="user_guide_3_body">Enable Cloud Encryption (recommended). Tap the exported key to copy; use Paste to import. After rotating the key, re-import it. Hide codes with the eye icon. Revoke deletes cloud data permanently.</string>
+    <string name="user_guide_4_title">Section 4: Notifications</string>
+    <string name="user_guide_4_body">Allow notifications so reminders work reliably. You can tap Taken/Skip directly on the notification for fast logging.</string>
+    <string name="user_guide_5_title">Section 5: Auto‑Sync</string>
+    <string name="user_guide_5_body">Enable Auto‑Sync to keep devices aligned. If Link Code is set but the key is missing, Auto‑Sync may turn off to avoid endless retry; import the key then enable it again.</string>
+    <string name="user_guide_6_title">Section 6: Troubleshooting</string>
+    <string name="user_guide_6_body">Use Notification diagnostics to verify scheduled reminders. Ensure system Do Not Disturb isn’t blocking alerts.</string>
+    <string name="user_guide_7_title">Section 7: Status &amp; Filters</string>
+    <string name="user_guide_7_body">Green = Taken, orange = Skipped, red = Overdue. Use filters to focus on Due/Overdue quickly.</string>
     
     <string name="settings_intro_title">About</string>
     <string name="settings_intro_content">OAK Healthy - A professional supplement cycle assistant for Traders, Athletes, and Doctors monitoring patients. Helps optimize performance and discipline.</string>

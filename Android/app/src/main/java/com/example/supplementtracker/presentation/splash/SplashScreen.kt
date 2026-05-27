@@ -95,7 +95,7 @@ private fun LetterStormLogo(
     word: String,
     isDark: Boolean,
     modifier: Modifier = Modifier,
-    particleCount: Int = 220,
+    particleCount: Int = 150,
     loopMillis: Int = 6000
 ) {
     val w = word.trim().ifEmpty { "OAK HEALTHY" }
@@ -235,7 +235,7 @@ private fun buildWordTargets(word: String): List<Offset> {
     canvas.drawText(text, width / 2f, baseline, paint)
 
     val points = ArrayList<Offset>(1800)
-    val step = 8
+    val step = 10
     for (y in 0 until height step step) {
         for (x in 0 until width step step) {
             val a = (bitmap.getPixel(x, y) ushr 24) and 0xFF

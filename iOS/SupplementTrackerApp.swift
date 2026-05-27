@@ -631,9 +631,6 @@ struct MainTabView: View {
             return
         }
         CloudSyncAutoSync.startRealtimeSync(modelContext: modelContext, activeClientManager: activeClientManager)
-        Task {
-            await CloudSyncAutoSync.syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
-        }
     }
     
     @MainActor

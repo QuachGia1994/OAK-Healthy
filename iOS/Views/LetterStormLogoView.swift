@@ -3,6 +3,10 @@ import UIKit
 
 public struct LetterStormLogoView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    
+    @State private var startDate: Date = .now
+    @State private var freezeT: Double?
     
     private struct Particle: Hashable {
         let char: Character
@@ -19,7 +23,7 @@ public struct LetterStormLogoView: View {
     
     public init(
         word: String = "OAK HEALTHY",
-        particleCount: Int = 180,
+        particleCount: Int = 120,
         duration: Double = 5.2
     ) {
         let w = word.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -43,72 +47,59 @@ public struct LetterStormLogoView: View {
     }
     
     public var body: some View {
-        TimelineView(.animation) { timeline in
+        if reduceMotion {
             Canvas { context, size in
-                let t = Self.loopFraction(time: timeline.date.timeIntervalSinceReferenceDate, duration: duration)
-                
-                let stormEnd = 0.56
-                let alignEnd = 0.76
-                let holdEnd = 0.88
-                
-                let alignProgress: Double = {
-                    if t < stormEnd { return 0 }
-                    if t < alignEnd { return Self.smoothstep((t - stormEnd) / (alignEnd - stormEnd)) }
-                    if t < holdEnd { return 1 }
-                    return 1 - Self.smoothstep((t - holdEnd) / (1 - holdEnd))
-                }()
-                
-                let wordAlpha: Double = {
-                    if t < stormEnd { return 0 }
-                    if t < alignEnd { return Self.smoothstep((t - stormEnd) / (alignEnd - stormEnd)) }
-                    if t < holdEnd { return 1 }
-                    return 1 - Self.smoothstep((t - holdEnd) / (1 - holdEnd))
-                }()
-                
-                let particleAlpha = 1 - (wordAlpha * 0.55)
-                
-                let center = CGPoint(x: size.width / 2, y: size.height / 2)
-                let particleFontSize = max(9, min(size.width, size.height) * 0.03)
-                let wordFontSize = max(22, min(size.width, size.height) * 0.17)
-                
-                let baseColor: Color = (colorScheme == .dark) ? .white : Color.black.opacity(0.86)
-                let shadowColor: Color = (colorScheme == .dark) ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
-                
-                for i in particles.indices {
-                    let p = particles[i]
-                    let angle = ((p.seedA * 0.001) + t * p.speed * 2.0) * (Double.pi * 2.0)
-                    let wobble = 0.08 * sin((t * 7.0 + p.seedB * 0.0007) * (Double.pi * 2.0))
-                    let r = min(0.55, max(0.05, p.radius + wobble))
-                    
-                    let stormX = cos(angle) * r
-                    let stormY = sin(angle * 1.03) * r * 0.72
-                    
-                    let target = targets[i % targets.count]
-                    let targetX = target.x * 0.92
-                    let targetY = target.y * 0.30
-                    
-                    let xN = Self.lerp(stormX, targetX, alignProgress)
-                    let yN = Self.lerp(stormY, targetY, alignProgress)
-                    
-                    let x = center.x + xN * size.width
-                    let y = center.y + yN * size.height
-                    
-                    let text = Text(String(p.char))
-                        .font(.system(size: particleFontSize, weight: .bold, design: .rounded))
-                        .foregroundStyle(baseColor.opacity(particleAlpha * 0.9))
-                    
-                    context.draw(text, at: CGPoint(x: x, y: y), anchor: .center)
-                }
-                
-                if wordAlpha > 0 {
-                    let text = Text(word)
-                        .font(.system(size: wordFontSize, weight: .heavy, design: .rounded))
-                        .foregroundStyle(baseColor.opacity(wordAlpha))
-                    context.drawLayer { layer in
-                        layer.addFilter(.shadow(color: shadowColor, radius: 10, x: 0, y: 3))
-                        layer.draw(text, at: center, anchor: .center)
+                Self.drawFrame(
+                    context: &context,
+                    size: size,
+                    t: 0.88,
+                    freezeT: nil,
+                    baseColorScheme: colorScheme,
+                    word: word,
+                    particles: particles,
+                    targets: targets,
+                    drawParticles: false
+                )
+            }
+        } else if let frozen = freezeT {
+            Canvas { context, size in
+                Self.drawFrame(
+                    context: &context,
+                    size: size,
+                    t: frozen,
+                    freezeT: frozen,
+                    baseColorScheme: colorScheme,
+                    word: word,
+                    particles: particles,
+                    targets: targets,
+                    drawParticles: true
+                )
+            }
+        } else {
+            TimelineView(.periodic(from: startDate, by: 1.0 / 24.0)) { timeline in
+                Canvas { context, size in
+                    let t = Self.loopFraction(time: timeline.date.timeIntervalSinceReferenceDate, duration: duration)
+                    Self.drawFrame(
+                        context: &context,
+                        size: size,
+                        t: t,
+                        freezeT: freezeT,
+                        baseColorScheme: colorScheme,
+                        word: word,
+                        particles: particles,
+                        targets: targets,
+                        drawParticles: true
+                    )
+                    if freezeT == nil, t >= 0.88 {
+                        DispatchQueue.main.async {
+                            if freezeT == nil { freezeT = 0.88 }
+                        }
                     }
                 }
+            }
+            .onAppear {
+                startDate = .now
+                freezeT = nil
             }
         }
     }
@@ -168,7 +159,7 @@ public struct LetterStormLogoView: View {
         
         var points: [CGPoint] = []
         points.reserveCapacity(1600)
-        let step = 8
+        let step = 10
         for y in stride(from: 0, to: height, by: step) {
             for x in stride(from: 0, to: width, by: step) {
                 let i = y * bytesPerRow + x * 4
@@ -184,6 +175,85 @@ public struct LetterStormLogoView: View {
             }
         }
         return points.isEmpty ? [CGPoint(x: 0, y: 0)] : points
+    }
+    
+    private static func drawFrame(
+        context: inout GraphicsContext,
+        size: CGSize,
+        t: Double,
+        freezeT: Double?,
+        baseColorScheme: ColorScheme,
+        word: String,
+        particles: [Particle],
+        targets: [CGPoint],
+        drawParticles: Bool
+    ) {
+        let stormEnd = 0.56
+        let alignEnd = 0.76
+        let holdEnd = 0.88
+        
+        let alignProgress: Double = {
+            if t < stormEnd { return 0 }
+            if t < alignEnd { return Self.smoothstep((t - stormEnd) / (alignEnd - stormEnd)) }
+            if t < holdEnd { return 1 }
+            return 1 - Self.smoothstep((t - holdEnd) / (1 - holdEnd))
+        }()
+        
+        let wordAlpha: Double = {
+            if t < stormEnd { return 0 }
+            if t < alignEnd { return Self.smoothstep((t - stormEnd) / (alignEnd - stormEnd)) }
+            if t < holdEnd { return 1 }
+            return 1 - Self.smoothstep((t - holdEnd) / (1 - holdEnd))
+        }()
+        
+        let particleAlpha = 1 - (wordAlpha * 0.55)
+        
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let particleFontSize = max(9, min(size.width, size.height) * 0.03)
+        let wordFontSize = max(22, min(size.width, size.height) * 0.17)
+        
+        let baseColor: Color = (baseColorScheme == .dark) ? .white : Color.black.opacity(0.86)
+        let shadowColor: Color = (baseColorScheme == .dark) ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
+        
+        if drawParticles {
+            for i in particles.indices {
+                let p = particles[i]
+                let angle = ((p.seedA * 0.001) + t * p.speed * 2.0) * (Double.pi * 2.0)
+                let wobble = 0.08 * sin((t * 7.0 + p.seedB * 0.0007) * (Double.pi * 2.0))
+                let r = min(0.55, max(0.05, p.radius + wobble))
+                
+                let stormX = cos(angle) * r
+                let stormY = sin(angle * 1.03) * r * 0.72
+                
+                let target = targets[i % targets.count]
+                let targetX = target.x * 0.92
+                let targetY = target.y * 0.30
+                
+                let xN = Self.lerp(stormX, targetX, alignProgress)
+                let yN = Self.lerp(stormY, targetY, alignProgress)
+                
+                let x = center.x + xN * size.width
+                let y = center.y + yN * size.height
+                
+                let text = Text(String(p.char))
+                    .font(.system(size: particleFontSize, weight: .bold, design: .rounded))
+                    .foregroundStyle(baseColor.opacity(particleAlpha * 0.9))
+                
+                context.draw(text, at: CGPoint(x: x, y: y), anchor: .center)
+            }
+        }
+        
+        let shouldShowWord = freezeT != nil || wordAlpha > 0
+        if shouldShowWord {
+            let alpha = freezeT != nil ? 1.0 : wordAlpha
+            let text = Text(word)
+                .font(.system(size: wordFontSize, weight: .heavy, design: .rounded))
+                .foregroundStyle(baseColor.opacity(alpha))
+            context.drawLayer { layer in
+                layer.addFilter(.shadow(color: shadowColor, radius: 10, x: 0, y: 3))
+                layer.draw(text, at: center, anchor: .center)
+            }
+        }
     }
 }
 

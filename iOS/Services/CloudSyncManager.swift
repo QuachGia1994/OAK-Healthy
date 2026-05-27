@@ -589,10 +589,22 @@ enum CloudSyncAutoSync {
     }
 
     private static func markFailure(ctx: SyncContext, error: Error) {
-        UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
-        UserDefaults.standard.set(error.localizedDescription, forKey: ctx.lastErrorKey)
+        let nowMs = Double(Date().timeIntervalSince1970 * 1000)
+        let message = error.localizedDescription
+        UserDefaults.standard.set(nowMs, forKey: ctx.lastAttemptKey)
+        UserDefaults.standard.set(message, forKey: ctx.lastErrorKey)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastFailureKey)
-        print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
+        
+        let logTsKey = "cloudSyncLastFailureLogEpochMs_\(ctx.id)"
+        let logMsgKey = "cloudSyncLastFailureLogMessage_\(ctx.id)"
+        let lastLoggedMs = UserDefaults.standard.double(forKey: logTsKey)
+        let lastLoggedMsg = UserDefaults.standard.string(forKey: logMsgKey) ?? ""
+        if lastLoggedMsg == message, (nowMs - lastLoggedMs) < 60_000 {
+            return
+        }
+        UserDefaults.standard.set(nowMs, forKey: logTsKey)
+        UserDefaults.standard.set(message, forKey: logMsgKey)
+        print("☁️ Auto-Sync: Failed – \(message)")
         DebugReporter.report("cloud_sync_failure", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: error))
     }
     
@@ -671,12 +683,23 @@ enum CloudSyncAutoSync {
     }
     
     private static func pollInterval() -> Duration {
+        let now = Date().timeIntervalSince1970
+        
         let lastFailure = UserDefaults.standard.double(forKey: lastFailureKey)
         if lastFailure > 0 {
-            let elapsed = Date().timeIntervalSince1970 - lastFailure
-            if elapsed < 15 { return .seconds(5) }
+            let elapsed = now - lastFailure
+            if elapsed < 30 { return .seconds(15) }
+            if elapsed < 2 * 60 { return .seconds(30) }
+            return .minutes(2)
         }
-        return .seconds(1)
+        
+        let lastActivity = UserDefaults.standard.double(forKey: lastActivityKey)
+        let activityElapsed = lastActivity > 0 ? (now - lastActivity) : 10_000
+        
+        if activityElapsed < 20 { return .seconds(5) }
+        if activityElapsed < 2 * 60 { return .seconds(30) }
+        if activityElapsed < 10 * 60 { return .minutes(2) }
+        return .minutes(5)
     }
     
     private static func activeBinId() -> String? {

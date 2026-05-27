@@ -15,10 +15,15 @@ public struct HomeView: View {
     @State private var isShowingAddClientSheet = false
     @State private var isShowingSettingsSheet = false
     @State private var doseFilter: HomeDoseFilter = .all
+    @State private var renderNow: Date = .now
+    @State private var cachedOverdue: [OverdueItem] = []
+    @State private var cachedTimeSections: [TimeSection] = []
     @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
     
     public let activeClientManager: ActiveClientManager
     public let notificationService: NotificationService
+    
+    private let refreshTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     
     public init(
         activeClientManager: ActiveClientManager,
@@ -51,8 +56,8 @@ public struct HomeView: View {
                     .oakCardStyle(.glass, cornerRadius: 16)
                     .padding(.horizontal, 24)
                 } else {
-                    let now = Date.now
-                    let overdue = overdueItems(now: now)
+                    let now = renderNow
+                    let overdue = cachedOverdue
                     List {
                         Section {
                             HomeDoseFilterBar(filter: $doseFilter, counts: viewModel.cachedTodayCounts)
@@ -103,37 +108,24 @@ public struct HomeView: View {
                         }
                         
                         if doseFilter != .overdue {
-                            ForEach(viewModel.activeSupplementTimes, id: \.self) { time in
-                                let items = viewModel.activeSupplements[time] ?? []
-                                let filtered = items.filter { supplement in
-                                    let status = viewModel.doseStatus(supplement, timeString: time, now: now)
-                                    switch doseFilter {
-                                    case .all: return status != .missed
-                                    case .overdue: return status == .missed
-                                    case .due: return viewModel.isDueNow(supplement, timeString: time, now: now)
-                                    case .taken: return status == .taken
-                                    case .skipped: return status == .skipped
+                            ForEach(cachedTimeSections) { section in
+                                Section {
+                                    ForEach(section.supplements) { supplement in
+                                        activeRow(supplement: supplement, timeString: section.time, now: now)
                                     }
-                                }
-                                if !filtered.isEmpty {
-                                    Section {
-                                        ForEach(filtered) { supplement in
-                                            activeRow(supplement: supplement, timeString: time, now: now)
-                                        }
-                                    } header: {
-                                        HStack {
-                                            Text(time)
-                                                .font(.subheadline)
-                                                .fontWeight(.semibold)
-                                                .foregroundStyle(.secondary)
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 6)
-                                                .background(.ultraThinMaterial)
-                                                .clipShape(Capsule())
-                                            Spacer()
-                                        }
-                                        .textCase(nil)
+                                } header: {
+                                    HStack {
+                                        Text(section.time)
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundStyle(.secondary)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(.ultraThinMaterial)
+                                            .clipShape(Capsule())
+                                        Spacer()
                                     }
+                                    .textCase(nil)
                                 }
                             }
                         }
@@ -255,10 +247,20 @@ public struct HomeView: View {
                     .onChange(of: supplements) {
                         viewModel.processSupplements(supplementsForActiveClient)
                         homeOverdueCount = viewModel.cachedTodayCounts.missed
+                        rebuildVisible(now: .now)
                     }
                     .task(id: activeClientManager.currentClientId) {
                         viewModel.processSupplements(supplementsForActiveClient)
                         homeOverdueCount = viewModel.cachedTodayCounts.missed
+                        rebuildVisible(now: .now)
+                    }
+                    .onChange(of: doseFilter) {
+                        rebuildVisible(now: renderNow)
+                    }
+                    .onReceive(refreshTimer) { _ in
+                        let now = Date.now
+                        renderNow = now
+                        rebuildVisible(now: now)
                     }
                     .alert(
                         "error_title".localized,
@@ -381,6 +383,34 @@ public struct HomeView: View {
             }
         }
         return items
+    }
+    
+    private func rebuildVisible(now: Date) {
+        renderNow = now
+        cachedOverdue = overdueItems(now: now)
+        guard doseFilter != .overdue else {
+            cachedTimeSections = []
+            return
+        }
+        
+        var sections: [TimeSection] = []
+        for time in viewModel.activeSupplementTimes {
+            let items = viewModel.activeSupplements[time] ?? []
+            let filtered = items.filter { supplement in
+                let status = viewModel.doseStatus(supplement, timeString: time, now: now)
+                switch doseFilter {
+                case .all: return status != .missed
+                case .overdue: return status == .missed
+                case .due: return viewModel.isDueNow(supplement, timeString: time, now: now)
+                case .taken: return status == .taken
+                case .skipped: return status == .skipped
+                }
+            }
+            if !filtered.isEmpty {
+                sections.append(TimeSection(time: time, supplements: filtered))
+            }
+        }
+        cachedTimeSections = sections
     }
 }
 
@@ -505,6 +535,12 @@ private struct OverdueItem: Identifiable, Hashable {
     let supplement: UserSupplement
     let timeString: String
     var id: String { "\(supplement.id.uuidString)-\(timeString)" }
+}
+
+private struct TimeSection: Identifiable {
+    let time: String
+    let supplements: [UserSupplement]
+    var id: String { time }
 }
 
 private struct TodayHeaderView: View {

@@ -45,6 +45,7 @@ import com.example.supplementtracker.domain.export.OAKBackupSchema
 import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.R
+import com.example.supplementtracker.BuildConfig
 import java.util.Locale
 import com.example.supplementtracker.service.CloudSyncManager
 import com.example.supplementtracker.service.CloudSyncCrypto
@@ -542,7 +543,7 @@ class HomeViewModel(
 
         val binId = activeAutoSyncBinId()
         if (binId != null) {
-            Log.d("AutoSync", "☁️ Auto-Sync: Starting upload...")
+            if (BuildConfig.DEBUG) Log.d("AutoSync", "☁️ Auto-Sync: Starting upload...")
             syncTwoWay(binId)
         }
     }
@@ -926,8 +927,16 @@ class HomeViewModel(
         val key = "cloudSyncLog_$id"
         val existing = prefs.getString(key, null)
         val array = runCatching { if (existing.isNullOrBlank()) JSONArray() else JSONArray(existing) }.getOrElse { JSONArray() }
+        val now = System.currentTimeMillis()
+        if (array.length() > 0) {
+            val last = runCatching { array.getJSONObject(array.length() - 1) }.getOrNull()
+            val lastPhase = last?.optString("phase").orEmpty()
+            val lastMsg = last?.optString("msg").orEmpty()
+            val lastTs = last?.optLong("ts") ?: 0L
+            if (lastPhase == phase && lastMsg == message && (now - lastTs) < 15_000L) return
+        }
         val entry = JSONObject()
-            .put("ts", System.currentTimeMillis())
+            .put("ts", now)
             .put("phase", phase)
             .put("msg", message)
         array.put(entry)
@@ -963,6 +972,7 @@ class HomeViewModel(
         prefs.edit().putString(phaseKey, CloudSyncPhase.ERROR.name).apply()
         prefs.edit().putLong(stageMsKey, SystemClock.elapsedRealtime() - stageStartedAt).apply()
         prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
+        prefs.edit().putLong("cloudSyncLastFailureEpochMs", System.currentTimeMillis()).apply()
         appendCloudSyncLog(prefs, manifestId, "ERROR", logMessage)
         if (errorMessage.startsWith("Missing cloud sync key:", ignoreCase = true)) {
             prefs.edit().putBoolean("isAutoSyncEnabled", false).apply()
@@ -1576,7 +1586,21 @@ class HomeViewModel(
     }
 
     private fun autoSyncDelayMs(prefs: android.content.SharedPreferences): Long {
-        return 1_000L
+        val now = System.currentTimeMillis()
+        val lastFailure = prefs.getLong("cloudSyncLastFailureEpochMs", 0L)
+        if (lastFailure > 0L) {
+            val e = now - lastFailure
+            if (e < 30_000L) return 15_000L
+            if (e < 120_000L) return 30_000L
+            return 120_000L
+        }
+        
+        val lastActivity = prefs.getLong("cloudSyncLastActivityEpochMs", 0L)
+        val a = if (lastActivity > 0L) now - lastActivity else 10_000_000L
+        if (a < 20_000L) return 5_000L
+        if (a < 120_000L) return 30_000L
+        if (a < 600_000L) return 120_000L
+        return 300_000L
     }
 
     private fun clearStaleBinId(binId: String) {
@@ -1587,7 +1611,7 @@ class HomeViewModel(
         if (hosted == binId) editor.putString("cloudSyncHostedBinId", "")
         if (linked == binId) editor.putString("cloudSyncLinkedBinId", "")
         editor.apply()
-        Log.d("AutoSync", "☁️ Auto-Sync: Cleared stale binId: $binId")
+        if (BuildConfig.DEBUG) Log.d("AutoSync", "☁️ Auto-Sync: Cleared stale binId: $binId")
     }
 
     fun createClient(profile: ClientProfile) {

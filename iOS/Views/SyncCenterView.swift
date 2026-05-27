@@ -1181,7 +1181,14 @@ public struct SyncCenterView: View {
         let resolvedBinId = binId == "pending" ? activeBinId : binId
         guard !resolvedBinId.isEmpty else { return }
         var current = loadLogEntries(binId: resolvedBinId)
-        current.insert(CloudSyncLogEntry(epochMs: nowEpochMs(), phase: phase, message: message), at: 0)
+        let entry = CloudSyncLogEntry(epochMs: nowEpochMs(), phase: phase, message: message)
+        if let first = current.first,
+           first.phase == entry.phase,
+           first.message == entry.message,
+           (entry.epochMs - first.epochMs) < 15_000 {
+            return
+        }
+        current.insert(entry, at: 0)
         if current.count > 30 { current = Array(current.prefix(30)) }
         saveLogEntries(binId: resolvedBinId, entries: current)
         if activeBinId == resolvedBinId { logEntries = current }

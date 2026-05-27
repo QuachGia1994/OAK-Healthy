@@ -15,21 +15,21 @@
     <string name="settings_title">Cài đặt</string>
     <string name="app_information_title">Thông tin ứng dụng</string>
     <string name="settings_guide_title">Hướng dẫn sử dụng</string>
-    <string name="settings_guide_content">1. Thiết lập Stack: Nhấn (+) để thêm chất. App tự động tính chu kỳ On/Off (uống/nghỉ) dựa trên ngày bắt đầu.\n2. Đồng bộ đa thiết bị: Vào Cài đặt → Sync Center. Thiết bị A (Host): (khuyến nghị) bật \"Mã hoá dữ liệu cloud\" rồi bấm \"Phát dữ liệu\" để tạo mã. Thiết bị B (Link): nhập mã và bấm \"Tải về\". Bật “Tự động đồng bộ” nếu muốn sync realtime.\n3. Bảo mật tối cao: Nếu bật mã hoá, Copy \"Sync key\" từ Host và Import trên thiết bị còn lại. Sau khi Rotate key thì phải import lại key mới. Nhấn biểu tượng \"Con mắt\" để ẩn mã ở nơi công cộng. Dùng \"Thu hồi\" để xoá vĩnh viễn dữ liệu Cloud khi không còn nhu cầu sync.\n4. Chẩn đoán thông báo: Nếu lỡ mốc giờ, vào \"Kiểm tra danh sách\" để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt \"Tối ưu hóa pin\" (Android) hoặc \"Không làm phiền\" (iOS).\n5. Lịch linh hoạt: Bật “Uống cách N ngày” (>=2) cho lịch cách ngày. App cũng hỗ trợ “Lặp theo thứ” (hàng tuần). Khi bật “cách N ngày”, lịch sẽ trượt theo ngày bạn bấm Đã uống (tick).\n6. Thời hạn: “Tổng thời hạn” được tính theo ngày (để trống nếu muốn vô hạn).\n7. Trạng thái &amp; quá hạn: Xanh = Đã uống, đỏ = Quá hạn, cam = Bỏ qua. Trước hạn có thể hiện “Sắp tới” / “Sắp trễ” để bạn kịp xử lý.</string>
-    <string name="user_guide_1_title">Mục 1: Thiết lập Stack</string>
-    <string name="user_guide_1_body">Nhấn (+) để thêm chất. App tự động tính chu kỳ On/Off (uống/nghỉ) dựa trên ngày bắt đầu.</string>
-    <string name="user_guide_2_title">Mục 2: Đồng bộ đa thiết bị</string>
-    <string name="user_guide_2_body">Vào Cài đặt → Sync Center. Thiết bị A (Host): (khuyến nghị) bật \"Mã hoá dữ liệu cloud\" rồi bấm \"Phát dữ liệu\" để tạo mã. Thiết bị B (Link): nhập mã và bấm \"Tải về\". Bật “Tự động đồng bộ” nếu muốn sync realtime.</string>
-    <string name="user_guide_3_title">Mục 3: Bảo mật tối cao</string>
-    <string name="user_guide_3_body">Nếu bật mã hoá, Copy \"Sync key\" từ Host và Import trên thiết bị còn lại. Sau khi Rotate key thì phải import lại key mới. Nhấn biểu tượng “Con mắt” để ẩn mã ở nơi công cộng. Dùng “Thu hồi” để xóa vĩnh viễn dữ liệu trên Cloud khi không còn nhu cầu sync.</string>
-    <string name="user_guide_4_title">Mục 4: Chẩn đoán thông báo</string>
-    <string name="user_guide_4_body">Nếu lỡ mốc giờ, vào “Kiểm tra danh sách” để xem app đã đặt lệnh cho hệ điều hành chưa. Đảm bảo đã tắt “Tối ưu hóa pin” (Android) hoặc “Không làm phiền” (iOS).</string>
-    <string name="user_guide_5_title">Mục 5: Lịch linh hoạt</string>
-    <string name="user_guide_5_body">Bật “Uống cách N ngày” (>=2) cho lịch cách ngày. App cũng hỗ trợ “Lặp theo thứ” (hàng tuần). Khi bật “cách N ngày”, lịch sẽ trượt theo ngày bạn bấm Đã uống (tick).</string>
-    <string name="user_guide_6_title">Mục 6: Thời hạn</string>
-    <string name="user_guide_6_body">“Tổng thời hạn” được tính theo ngày (để trống nếu muốn vô hạn).</string>
-    <string name="user_guide_7_title">Mục 7: Trạng thái &amp; Quá hạn</string>
-    <string name="user_guide_7_body">Xanh = Đã uống, đỏ = Quá hạn, cam = Bỏ qua. Trước hạn có thể hiện “Sắp tới” / “Sắp trễ” để bạn kịp xử lý.</string>
+    <string name="settings_guide_content">1. Stack &amp; Lịch uống: Thêm chất và chọn lịch (liên tục, On/Off, cách N ngày, theo thứ). Trang chủ sẽ hiển thị những mục cần uống hôm nay.\n2. Sync Center: Thiết bị A (Host) tạo Link Code. Thiết bị B (Link) dán mã và bấm Tải về.\n3. Mã hoá &amp; key: Bật Mã hoá cloud (khuyến nghị). Chạm vào key để copy; dùng nút Dán để import. Sau khi Rotate key, cần import lại key mới. Dùng Con mắt để ẩn mã. Thu hồi sẽ xoá vĩnh viễn dữ liệu cloud.\n4. Thông báo: Cho phép thông báo để nhắc uống hoạt động ổn định. Có thể bấm Taken/Skip trực tiếp trên thông báo để lưu nhanh.\n5. Auto‑Sync: Bật Tự động đồng bộ để 2 máy luôn đồng nhất. Nếu đã có Link Code nhưng thiếu key, Auto‑Sync có thể tự tắt để tránh retry vô hạn; import key rồi bật lại.\n6. Khắc phục: Dùng Chẩn đoán thông báo để kiểm tra app đã đặt lịch nhắc chưa. Đảm bảo Không làm phiền/Focus không chặn thông báo.\n7. Trạng thái &amp; lọc: Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung nhanh vào Due/Quá hạn.</string>
+    <string name="user_guide_1_title">Mục 1: Stack &amp; Lịch uống</string>
+    <string name="user_guide_1_body">Thêm chất và chọn lịch (liên tục, On/Off, cách N ngày, theo thứ). Trang chủ hiển thị những mục cần uống hôm nay.</string>
+    <string name="user_guide_2_title">Mục 2: Sync Center</string>
+    <string name="user_guide_2_body">Thiết bị A (Host) tạo Link Code. Thiết bị B (Link) dùng nút Dán và bấm Tải về để pull + merge.</string>
+    <string name="user_guide_3_title">Mục 3: Mã hoá &amp; Key</string>
+    <string name="user_guide_3_body">Bật Mã hoá cloud (khuyến nghị). Chạm key để copy; dùng Dán để import. Sau khi Rotate key, cần import lại key mới. Dùng Con mắt để ẩn mã. Thu hồi sẽ xoá vĩnh viễn dữ liệu cloud.</string>
+    <string name="user_guide_4_title">Mục 4: Thông báo</string>
+    <string name="user_guide_4_body">Cho phép thông báo để nhắc uống ổn định. Bạn có thể bấm Taken/Skip trực tiếp trên thông báo để lưu nhanh.</string>
+    <string name="user_guide_5_title">Mục 5: Auto‑Sync</string>
+    <string name="user_guide_5_body">Bật Tự động đồng bộ để 2 máy luôn đồng nhất. Nếu đã có Link Code nhưng thiếu key, Auto‑Sync có thể tự tắt; import key rồi bật lại.</string>
+    <string name="user_guide_6_title">Mục 6: Khắc phục</string>
+    <string name="user_guide_6_body">Dùng Chẩn đoán thông báo để kiểm tra lịch nhắc. Đảm bảo Không làm phiền/Focus không chặn thông báo.</string>
+    <string name="user_guide_7_title">Mục 7: Trạng thái &amp; Lọc</string>
+    <string name="user_guide_7_body">Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung nhanh vào Due/Quá hạn.</string>
 
     <string name="settings_intro_title">Giới thiệu</string>
     <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader, Vận Động Viên và cả Bác Sĩ theo dõi bệnh nhân. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>

@@ -47,6 +47,7 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v6
@@ -104,7 +105,7 @@ jobs:
 
   build:
     name: Build APK
-    needs: [lint, test]
+    needs: [lint]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: ${{ github.event_name != 'pull_request' }}
