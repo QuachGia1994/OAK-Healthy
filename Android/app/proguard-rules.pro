@@ -1,6 +1,10 @@
-# Bảo vệ các Model khỏi bị Obfuscation (Xáo trộn tên) để Room/Gson hoạt động đúng
--keep class com.example.supplementtracker.domain.model.** { *; }
--keep class com.example.supplementtracker.data.local.** { *; }
+# Room
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep @androidx.room.Database class * { *; }
+-keep @androidx.room.Dao class * { *; }
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.TypeConverters class * { *; }
+-keep class com.example.supplementtracker.data.local.*Entity { *; }
 
 # Giữ lại các annotation cần thiết
 -keepattributes *Annotation*, Signature, InnerClasses
