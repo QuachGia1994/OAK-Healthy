@@ -43,6 +43,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -111,6 +112,17 @@ fun SyncCenterScreen(
         val hosted = (hostedBinId ?: "").trim()
         val linked = linkedBinId.trim()
         if (hosted.isNotEmpty()) hosted else linked
+    }
+    
+    DisposableEffect(Unit) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                "isAutoSyncEnabled" -> isAutoSyncEnabled = prefs.getBoolean("isAutoSyncEnabled", false)
+                "cloudSyncEncryptionEnabled" -> isEncryptionEnabled = prefs.getBoolean("cloudSyncEncryptionEnabled", false)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     LaunchedEffect(isAutoSyncEnabled) {

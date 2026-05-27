@@ -964,6 +964,10 @@ class HomeViewModel(
         prefs.edit().putLong(stageMsKey, SystemClock.elapsedRealtime() - stageStartedAt).apply()
         prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
         appendCloudSyncLog(prefs, manifestId, "ERROR", logMessage)
+        if (errorMessage.startsWith("Missing cloud sync key:", ignoreCase = true)) {
+            prefs.edit().putBoolean("isAutoSyncEnabled", false).apply()
+            stopAutoSync()
+        }
         _cloudSyncLoading.value = false
         viewModelScope.launch { updateCloudSyncUiStatus(manifestId) }
     }

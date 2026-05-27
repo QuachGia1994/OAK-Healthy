@@ -71,6 +71,7 @@ fun SplashScreen(
     ) {
         LetterStormLogo(
             word = "OAK HEALTHY",
+            isDark = isDark,
             modifier = Modifier
                 .padding(horizontal = 18.dp)
                 .fillMaxWidth()
@@ -92,6 +93,7 @@ private data class StormParticle(
 @Composable
 private fun LetterStormLogo(
     word: String,
+    isDark: Boolean,
     modifier: Modifier = Modifier,
     particleCount: Int = 220,
     loopMillis: Int = 5200
@@ -121,27 +123,40 @@ private fun LetterStormLogo(
         animationSpec = infiniteRepeatable(animation = tween(loopMillis, easing = LinearEasing))
     )
 
-    val particlePaint = remember {
+    val particlePaint = remember(isDark) {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.WHITE
+            color = if (isDark) {
+                android.graphics.Color.WHITE
+            } else {
+                android.graphics.Color.argb(230, 15, 23, 42)
+            }
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
     }
-    val wordPaint = remember {
+    val wordPaint = remember(isDark) {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.WHITE
+            color = if (isDark) {
+                android.graphics.Color.WHITE
+            } else {
+                android.graphics.Color.argb(235, 15, 23, 42)
+            }
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            if (isDark) {
+                setShadowLayer(12f, 0f, 3f, android.graphics.Color.argb(140, 0, 0, 0))
+            } else {
+                setShadowLayer(10f, 0f, 2f, android.graphics.Color.argb(170, 255, 255, 255))
+            }
         }
     }
 
     Canvas(modifier = modifier) {
         val center = Offset(size.width / 2f, size.height / 2f)
 
-        val stormEnd = 0.56f
-        val alignEnd = 0.76f
-        val holdEnd = 0.88f
+        val stormEnd = 0.38f
+        val alignEnd = 0.66f
+        val holdEnd = 0.82f
 
         val alignProgress = when {
             t < stormEnd -> 0f
