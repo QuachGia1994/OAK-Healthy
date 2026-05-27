@@ -55,6 +55,7 @@ import com.example.supplementtracker.service.CloudSyncCryptoError
 import com.example.supplementtracker.service.CloudSyncPayloadCodec
 import com.example.supplementtracker.service.CloudSyncManifestCodec
 import com.example.supplementtracker.service.NotificationSchedulerImpl
+import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -891,34 +892,11 @@ class HomeViewModel(
     }
     
     fun startAutoSync() {
-        if (autoSyncJob != null) return
-        autoSyncJob = viewModelScope.launch {
-            while (isActive) {
-                val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
-                val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
-                val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
-                val delayMs = autoSyncDelayMs(prefs)
-
-                if (hosted.isNotEmpty()) {
-                    if (!_cloudSyncLoading.value) syncTwoWay(hosted)
-                    delay(delayMs)
-                    continue
-                }
-
-                if (linked.isNotEmpty()) {
-                    if (!_cloudSyncLoading.value) syncTwoWay(linked)
-                    delay(delayMs)
-                    continue
-                }
-
-                delay(delayMs)
-            }
-        }
+        CloudAutoSyncWork.setEnabled(context, true)
     }
     
     fun stopAutoSync() {
-        autoSyncJob?.cancel()
-        autoSyncJob = null
+        CloudAutoSyncWork.setEnabled(context, false)
     }
     
     private fun activeAutoSyncBinId(): String? {
@@ -939,6 +917,7 @@ class HomeViewModel(
             delay(1_500L)
             if (activeAutoSyncBinId() != id) return@launch
             if (_cloudSyncLoading.value) return@launch
+            CloudAutoSyncWork.enqueueNow(context)
             syncTwoWay(id)
         }
     }
@@ -1458,6 +1437,10 @@ class HomeViewModel(
 
     fun silentDownloadAndMerge(binId: String) {
         viewModelScope.launch { syncTwoWay(binId) }
+    }
+
+    suspend fun runSyncTwoWayNow(binId: String) {
+        syncTwoWay(binId)
     }
     
     private suspend fun mergeRemoteIntoLocal(json: String, clientId: java.util.UUID) {

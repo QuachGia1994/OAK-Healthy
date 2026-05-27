@@ -45,6 +45,7 @@ import androidx.core.content.ContextCompat
 import android.util.Log
 import com.example.supplementtracker.presentation.splash.SplashScreen
 import com.example.supplementtracker.security.AppIntegrity
+import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -173,6 +174,8 @@ class MainActivity : ComponentActivity() {
 
                         this@MainActivity.homeViewModel = homeViewModel
                         homeViewModel.refreshNotificationSchedules()
+                        val prefs = applicationContext.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+                        CloudAutoSyncWork.setEnabled(applicationContext, prefs.getBoolean("isAutoSyncEnabled", false))
                         consumePendingIntakeActionIfPossible(homeViewModel)
 
                         val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
