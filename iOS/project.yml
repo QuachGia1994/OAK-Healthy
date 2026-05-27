@@ -59,6 +59,8 @@ targets:
         product: FirebaseAuth
       - package: Firebase
         product: FirebaseDatabase
+      - package: Firebase
+        product: FirebaseAppCheck
   OAKHealthyTests:
     type: bundle.unit-test
     platform: iOS

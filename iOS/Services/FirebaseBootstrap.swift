@@ -1,4 +1,5 @@
 @preconcurrency import FirebaseAuth
+@preconcurrency import FirebaseAppCheck
 @preconcurrency import FirebaseDatabase
 import FirebaseCore
 import Foundation
@@ -16,6 +17,12 @@ enum FirebaseBootstrap {
     static func configureIfNeeded() {
         guard !didConfigure else { return }
         didConfigure = true
+        
+#if DEBUG
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+#else
+        AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
+#endif
         if FirebaseApp.app() != nil {
             postConfigure()
             return
