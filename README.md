@@ -1,13 +1,46 @@
 # OAK Healthy
 
-OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ On/Off (uống/nghỉ), hỗ trợ đa học viên (Coach Mode) và đồng bộ đa thiết bị qua JSONBin. App hướng tới Trader, Vận Động Viên và cả Bác Sĩ theo dõi bệnh nhân.
+OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ On/Off (uống/nghỉ), hỗ trợ đa học viên (Coach Mode) và đồng bộ đa thiết bị qua Firebase Realtime Database. App hướng tới Trader, Vận Động Viên và cả Bác Sĩ theo dõi bệnh nhân.
 
 ## Tải app (artifacts mới nhất)
 
-- Android (APK): [https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26348847785/artifacts/7181335521](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26360922680/artifacts/7185041607)
-- iOS (IPA): [https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26349223925/artifacts/7181456459](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26360752791/artifacts/7185014410)
+- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26495292098/artifacts/7233664250
+- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26495292097/artifacts/7233749553
 
 Lưu ý: artifacts tải từ GitHub Actions có thể yêu cầu đăng nhập GitHub và sẽ hết hạn theo chính sách lưu trữ của GitHub.
+
+## Hướng dẫn sử dụng nhanh
+
+### Thiết lập ban đầu
+
+1) Mở app → cấp quyền thông báo (nếu muốn nhắc uống).
+2) (Tuỳ chọn) Bật chế độ giao diện theo “Hệ thống” trong Cài đặt.
+
+### Tạo stack và lịch uống
+
+1) Vào tab Stack → thêm thực phẩm bổ sung.
+2) Chọn lịch:
+   - Uống liên tục / Chu kỳ On‑Off / Uống cách N ngày / Theo thứ trong tuần.
+3) Quay lại Trang chủ để xem “Cần uống hôm nay”.
+
+### Tick “Đã uống / Bỏ qua”
+
+- Bạn có thể tick trực tiếp trên Trang chủ hoặc tick ngay trên thông báo (Taken/Skip) để thao tác nhanh.
+
+### Đồng bộ 2 thiết bị (Sync Center)
+
+Thiết bị A (máy đang có dữ liệu):
+1) Mở Sync Center → Xuất key (chạm vào key để copy).
+2) Tạo Link Code.
+
+Thiết bị B (máy mới):
+1) Mở Sync Center → Dán key (nút Dán).
+2) Dán Link Code.
+3) Bấm Tải về / Đồng bộ.
+
+Gợi ý:
+- Nếu bật Auto‑Sync thì cả 2 máy sẽ tự cập nhật theo định kỳ.
+- Nếu lỡ dán Link Code mà chưa có key, Auto‑Sync sẽ tự tắt để tránh “đứng vĩnh viễn”; chỉ cần dán key rồi bật lại Auto‑Sync.
 
 ## Tính năng chính
 
