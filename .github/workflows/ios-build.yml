@@ -294,6 +294,9 @@ jobs:
 
       - name: Build iOS App with Fastlane
         working-directory: ./iOS
+        env:
+          FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: "120"
+          FASTLANE_XCODEBUILD_SETTINGS_RETRIES: "6"
         run: bundle exec fastlane build
       
       - name: Dump gym log (on failure)
