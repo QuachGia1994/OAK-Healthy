@@ -88,11 +88,14 @@ private struct RootLaunchView: View {
     @Binding var dependencies: AppDependencyContainer?
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
+    @State private var integrity: AppIntegrityVerdict = AppIntegrity.evaluate()
     
     var body: some View {
         if isAppLaunched, let dependencies {
             Group {
-                if shouldShowSafeMode {
+                if !integrity.ok {
+                    IntegrityBlockedView()
+                } else if shouldShowSafeMode {
                     SafeModeView(activeClientManager: dependencies.activeClientManager)
                 } else {
                     MainTabView(
@@ -173,6 +176,23 @@ struct AppDependencyContainer {
     let modelContainer: ModelContainer
     let activeClientManager: ActiveClientManager
     let notificationService: NotificationService
+}
+
+private struct IntegrityBlockedView: View {
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("integrity_blocked_body".localized)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("integrity_blocked_title".localized)
+                }
+            }
+            .navigationTitle("integrity_blocked_title".localized)
+        }
+    }
 }
 
 private struct SafeBootView: View {

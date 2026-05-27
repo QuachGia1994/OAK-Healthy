@@ -5,6 +5,9 @@
     <string name="nav_history">History</string>
     <string name="nav_settings">Settings</string>
     <string name="sync_center_title">Sync Center</string>
+    <string name="integrity_blocked_title">Security notice</string>
+    <string name="integrity_blocked_body">This device failed integrity checks (root/jailbreak/debug). For your safety, the app is disabled.</string>
+    <string name="integrity_blocked_exit">Exit</string>
 
     <string name="filter_all">All</string>
     <string name="no_overdue_today">No overdue items.</string>

@@ -5,6 +5,9 @@
     <string name="nav_history">Lịch sử</string>
     <string name="nav_settings">Cài đặt</string>
     <string name="sync_center_title">Sync Center</string>
+    <string name="integrity_blocked_title">Cảnh báo bảo mật</string>
+    <string name="integrity_blocked_body">Thiết bị không đạt kiểm tra toàn vẹn (root/jailbreak/debug). Ứng dụng tạm ngừng để bảo vệ dữ liệu.</string>
+    <string name="integrity_blocked_exit">Thoát</string>
 
     <string name="filter_all">Tất cả</string>
     <string name="no_overdue_today">Không có mốc nào quá hạn.</string>

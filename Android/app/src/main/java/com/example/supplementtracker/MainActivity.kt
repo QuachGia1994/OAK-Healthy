@@ -4,7 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -12,6 +18,10 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.data.local.SupplementDatabase
 import com.example.supplementtracker.data.repository.SupplementRepositoryImpl
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
@@ -34,6 +44,7 @@ import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import android.util.Log
 import com.example.supplementtracker.presentation.splash.SplashScreen
+import com.example.supplementtracker.security.AppIntegrity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -118,76 +129,102 @@ class MainActivity : ComponentActivity() {
         registerReceiver(timeZoneReceiver, IntentFilter(Intent.ACTION_TIMEZONE_CHANGED))
 
         setContent {
-            var appTheme by rememberSaveable { mutableStateOf(AppTheme.SYSTEM) }
-            val isDarkTheme = when (appTheme) {
-                AppTheme.DARK -> true
-                AppTheme.LIGHT -> false
-                AppTheme.SYSTEM -> isSystemInDarkTheme()
-            }
-
-            var deps by remember { mutableStateOf<AppDeps?>(null) }
-            var initError by remember { mutableStateOf<String?>(null) }
-
-            LaunchedEffect(Unit) {
-                val minSplashMs = 6_000L
-                val splashStartedAt = SystemClock.elapsedRealtime()
-                try {
-                    val (repository, activeClientManager) = withContext(Dispatchers.IO) {
-                        val db = SupplementDatabase.getInstance(applicationContext)
-                        val repository = SupplementRepositoryImpl(db.supplementDao)
-                        val activeClientManager = ActiveClientManager(applicationContext, repository)
-                        repository to activeClientManager
+            val integrityVerdict = remember { AppIntegrity.evaluate(applicationContext) }
+            if (!integrityVerdict.ok) {
+                MaterialTheme(colorScheme = lightColorScheme()) {
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        IntegrityBlockedScreen(onExit = { finish() })
                     }
-
-                    val homeViewModel = HomeViewModel(
-                        context = applicationContext,
-                        repository = repository,
-                        activeClientManager = activeClientManager
-                    )
-                    val historyViewModel = HistoryViewModel(repository, activeClientManager)
-                    val addSupplementViewModel = AddSupplementViewModel(
-                        saveSupplementUseCase = SaveSupplementUseCase(repository),
-                        repository = repository,
-                        context = applicationContext,
-                        activeClientManager = activeClientManager
-                    )
-
-                    this@MainActivity.homeViewModel = homeViewModel
-                    homeViewModel.refreshNotificationSchedules()
-                    consumePendingIntakeActionIfPossible(homeViewModel)
-
-                    val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
-                    if (elapsed < minSplashMs) delay(minSplashMs - elapsed)
-                    deps = AppDeps(
-                        homeViewModel = homeViewModel,
-                        historyViewModel = historyViewModel,
-                        addSupplementViewModel = addSupplementViewModel,
-                        activeClientManager = activeClientManager
-                    )
-                } catch (e: Exception) {
-                    Log.e("Startup", "Init failed", e)
-                    initError = e.message ?: "Unknown"
                 }
-            }
+            } else {
+                var appTheme by rememberSaveable { mutableStateOf(AppTheme.SYSTEM) }
+                val isDarkTheme = when (appTheme) {
+                    AppTheme.DARK -> true
+                    AppTheme.LIGHT -> false
+                    AppTheme.SYSTEM -> isSystemInDarkTheme()
+                }
 
-            MaterialTheme(colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()) {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    val ready = deps
-                    if (initError != null) {
-                        Text(text = initError ?: "Unknown error")
-                    } else if (ready == null) {
-                        SplashScreen(autoFinish = false)
-                    } else {
-                        AppNavigation(
-                            homeViewModel = ready.homeViewModel,
-                            historyViewModel = ready.historyViewModel,
-                            addSupplementViewModel = ready.addSupplementViewModel,
-                            activeClientManager = ready.activeClientManager,
-                            appTheme = appTheme,
-                            onThemeChange = { appTheme = it }
+                var deps by remember { mutableStateOf<AppDeps?>(null) }
+                var initError by remember { mutableStateOf<String?>(null) }
+
+                LaunchedEffect(Unit) {
+                    val minSplashMs = 6_000L
+                    val splashStartedAt = SystemClock.elapsedRealtime()
+                    try {
+                        val (repository, activeClientManager) = withContext(Dispatchers.IO) {
+                            val db = SupplementDatabase.getInstance(applicationContext)
+                            val repository = SupplementRepositoryImpl(db.supplementDao)
+                            val activeClientManager = ActiveClientManager(applicationContext, repository)
+                            repository to activeClientManager
+                        }
+
+                        val homeViewModel = HomeViewModel(
+                            context = applicationContext,
+                            repository = repository,
+                            activeClientManager = activeClientManager
                         )
+                        val historyViewModel = HistoryViewModel(repository, activeClientManager)
+                        val addSupplementViewModel = AddSupplementViewModel(
+                            saveSupplementUseCase = SaveSupplementUseCase(repository),
+                            repository = repository,
+                            context = applicationContext,
+                            activeClientManager = activeClientManager
+                        )
+
+                        this@MainActivity.homeViewModel = homeViewModel
+                        homeViewModel.refreshNotificationSchedules()
+                        consumePendingIntakeActionIfPossible(homeViewModel)
+
+                        val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
+                        if (elapsed < minSplashMs) delay(minSplashMs - elapsed)
+                        deps = AppDeps(
+                            homeViewModel = homeViewModel,
+                            historyViewModel = historyViewModel,
+                            addSupplementViewModel = addSupplementViewModel,
+                            activeClientManager = activeClientManager
+                        )
+                    } catch (e: Exception) {
+                        Log.e("Startup", "Init failed", e)
+                        initError = e.message ?: "Unknown"
                     }
                 }
+
+                MaterialTheme(colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()) {
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        val ready = deps
+                        if (initError != null) {
+                            Text(text = initError ?: "Unknown error")
+                        } else if (ready == null) {
+                            SplashScreen(autoFinish = false)
+                        } else {
+                            AppNavigation(
+                                homeViewModel = ready.homeViewModel,
+                                historyViewModel = ready.historyViewModel,
+                                addSupplementViewModel = ready.addSupplementViewModel,
+                                activeClientManager = ready.activeClientManager,
+                                appTheme = appTheme,
+                                onThemeChange = { appTheme = it }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun IntegrityBlockedScreen(onExit: () -> Unit) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = stringResource(R.string.integrity_blocked_title), style = MaterialTheme.typography.headlineSmall)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(text = stringResource(R.string.integrity_blocked_body), style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.height(18.dp))
+            Button(onClick = onExit) {
+                Text(text = stringResource(R.string.integrity_blocked_exit))
             }
         }
     }

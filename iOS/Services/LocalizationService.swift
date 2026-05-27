@@ -379,6 +379,10 @@ public struct LocalizationService: Sendable {
         "safe_mode_apply_success_message": ("Data applied. Exit Safe Mode to continue using the app.", "Áp dụng dữ liệu thành công. Hãy thoát chế độ an toàn để sử dụng app."),
         "safe_mode_apply_failed_format": ("Apply failed: %@", "Áp dụng dữ liệu thất bại: %@"),
         
+        "integrity_blocked_title": ("Security notice", "Cảnh báo bảo mật"),
+        "integrity_blocked_body": ("This device failed integrity checks (root/jailbreak/debug). For your safety, the app is disabled.", "Thiết bị không đạt kiểm tra toàn vẹn (root/jailbreak/debug). Ứng dụng tạm ngừng để bảo vệ dữ liệu."),
+        "integrity_blocked_exit": ("Exit", "Thoát"),
+        
         "safe_boot_retry": ("Retry", "Thử lại"),
         "safe_boot_wipe_data": ("Recover (wipe data)", "Khôi phục dữ liệu (xóa)"),
         "bootstrap_init_failed_message": ("Failed to initialize data. Existing data may be corrupted.", "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."),

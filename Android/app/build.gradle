@@ -43,6 +43,7 @@ android {
         versionCode 2
         versionName "1.0.1"
         buildConfigField "String", "JSONBIN_API_KEY", "\"${jsonbinApiKeyEscaped}\""
+        buildConfigField "String", "EXPECTED_CERT_SHA256", "\"\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
