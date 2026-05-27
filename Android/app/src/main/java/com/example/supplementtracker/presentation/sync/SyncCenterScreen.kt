@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -403,7 +404,12 @@ fun SyncCenterScreen(
                                     Text(stringResource(R.string.sync_center_link_code_label), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text(
                                         text = if (isBinIdVisible) hosted else "•".repeat(24),
-                                        style = MaterialTheme.typography.titleMedium
+                                        style = MaterialTheme.typography.titleMedium,
+                                        modifier = Modifier.clickable(enabled = hosted.isNotEmpty()) {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("binId", hosted))
+                                            Toast.makeText(context, context.getString(R.string.sync_center_toast_code_copied), Toast.LENGTH_SHORT).show()
+                                        }
                                     )
                                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         OutlinedButton(
@@ -667,7 +673,13 @@ fun SyncCenterScreen(
                                     onValueChange = { _: String -> },
                                     readOnly = true,
                                     label = { Text(stringResource(R.string.sync_center_export_key_label)) },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = exportedKey.isNotEmpty()) {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncKey", exportedKey))
+                                            Toast.makeText(context, context.getString(R.string.sync_center_toast_key_copied), Toast.LENGTH_SHORT).show()
+                                        },
                                     maxLines = 2
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -688,12 +700,22 @@ fun SyncCenterScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     maxLines = 2
                                 )
-                                OutlinedButton(
-                                    onClick = {
-                                        isImportKeyConfirmVisible = true
-                                    },
-                                    enabled = encryptionKeyInput.trim().isNotEmpty()
-                                ) { Text(stringResource(R.string.sync_center_action_import_key)) }
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedButton(onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val pasted = clipboard.primaryClip
+                                            ?.getItemAt(0)
+                                            ?.coerceToText(context)
+                                            ?.toString()
+                                            .orEmpty()
+                                            .trim()
+                                        if (pasted.isNotEmpty()) encryptionKeyInput = pasted
+                                    }) { Text(stringResource(R.string.sync_center_action_paste)) }
+                                    OutlinedButton(
+                                        onClick = { isImportKeyConfirmVisible = true },
+                                        enabled = encryptionKeyInput.trim().isNotEmpty()
+                                    ) { Text(stringResource(R.string.sync_center_action_import_key)) }
+                                }
                             }
                         }
                     }

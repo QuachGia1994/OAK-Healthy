@@ -36,7 +36,6 @@ public struct SettingsView: View {
                 settingsList
             }
         }
-        .preferredColorScheme(preferredColorSchemeOverride)
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
             Task { @MainActor in await syncNotificationPermissionState() }
@@ -346,17 +345,6 @@ public struct SettingsView: View {
                 performFactoryReset()
             }
             Button("cancel".localized, role: .cancel) {}
-        }
-    }
-
-    private var preferredColorSchemeOverride: ColorScheme? {
-        switch appTheme {
-        case "light":
-            return .light
-        case "dark":
-            return .dark
-        default:
-            return nil
         }
     }
     

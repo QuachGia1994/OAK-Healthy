@@ -270,6 +270,7 @@ public struct LocalizationService: Sendable {
         "sync_center_toast_import_key_done": ("Key imported.", "Đã import key."),
         "sync_center_toast_import_key_failed_format": ("Import failed: %@", "Import key thất bại: %@"),
         "sync_center_toast_code_copied": ("Copied to clipboard.", "Đã sao chép mã vào clipboard."),
+        "sync_center_action_paste": ("Paste", "Dán"),
         "sync_center_toast_log_cleared": ("Logs cleared.", "Đã xoá log."),
         "sync_center_stack_id_label_format": ("Stack: %@", "Stack: %@"),
         "sync_center_history_id_label_format": ("History: %@", "History: %@"),

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 public struct SyncCenterView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -390,6 +391,10 @@ public struct SyncCenterView: View {
                     .font(.title3)
                     .fontWeight(.bold)
                     .textSelection(.enabled)
+                    .onTapGesture {
+                        copyToClipboard(binId)
+                        showToast("sync_center_toast_code_copied".localized)
+                    }
                 
                 Button(action: { isBinIdVisible.toggle() }) {
                     Image(systemName: isBinIdVisible ? "eye.slash" : "eye")
@@ -438,6 +443,13 @@ public struct SyncCenterView: View {
                     .foregroundStyle(.gray)
             }
             .buttonStyle(.borderless)
+            Button("sync_center_action_paste".localized) {
+                let pasted = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !pasted.isEmpty { linkedBinId = pasted }
+            }
+            .font(.caption)
+            .buttonStyle(.borderless)
+            .disabled(isCloudSyncLoading)
         }
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
@@ -487,6 +499,10 @@ public struct SyncCenterView: View {
                         .font(.caption)
                         .textSelection(.enabled)
                         .foregroundStyle(.secondary)
+                        .onTapGesture {
+                            copyToClipboard(exportedCloudSyncKey)
+                            showToast("sync_center_toast_code_copied".localized)
+                        }
                 }
                 
                 HStack(spacing: 12) {
@@ -510,10 +526,19 @@ public struct SyncCenterView: View {
                     .buttonStyle(.borderless)
                 }
                 
-                TextField("sync_center_import_key_placeholder".localized, text: $importCloudSyncKeyInput)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .textFieldStyle(.roundedBorder)
+                HStack(spacing: 8) {
+                    TextField("sync_center_import_key_placeholder".localized, text: $importCloudSyncKeyInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textFieldStyle(.roundedBorder)
+                    Button("sync_center_action_paste".localized) {
+                        let pasted = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !pasted.isEmpty { importCloudSyncKeyInput = pasted }
+                    }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                    .disabled(isCloudSyncLoading)
+                }
                 
                 Button("sync_center_import_key_action".localized) {
                     isShowingImportKeyConfirm = true
@@ -1176,6 +1201,13 @@ public struct SyncCenterView: View {
     
     private func nowEpochMs() -> Int64 {
         Int64(Date().timeIntervalSince1970 * 1000.0)
+    }
+
+    @MainActor
+    private func copyToClipboard(_ text: String) {
+        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        UIPasteboard.general.string = value
     }
     
     @MainActor

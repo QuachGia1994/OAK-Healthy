@@ -192,8 +192,8 @@ private struct SafeBootView: View {
             .ignoresSafeArea()
             
             VStack(spacing: 16) {
-                OAKLogoView()
-                    .frame(width: 140, height: 140)
+                LetterStormLogoView(word: "OAK HEALTHY")
+                    .frame(height: 220)
                 if let message = errorMessage {
                     Text(message)
                         .font(.footnote)
