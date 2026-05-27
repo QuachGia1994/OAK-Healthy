@@ -80,7 +80,7 @@ public struct LetterStormLogoView: View {
         } else {
             TimelineView(.periodic(from: startDate, by: 1.0 / 24.0)) { timeline in
                 Canvas { context, size in
-                    let t = Self.loopFraction(time: timeline.date.timeIntervalSinceReferenceDate, duration: duration)
+                    let t = Self.loopFraction(time: timeline.date.timeIntervalSince(startDate), duration: duration)
                     Self.drawFrame(
                         context: &context,
                         size: size,
