@@ -21,6 +21,8 @@ public struct LetterStormLogoView: View {
     private let targets: [CGPoint]
     private let duration: Double
     
+    private static let freezeAt: Double = 0.76
+    
     public init(
         word: String = "OAK HEALTHY",
         particleCount: Int = 120,
@@ -52,7 +54,7 @@ public struct LetterStormLogoView: View {
                 Self.drawFrame(
                     context: &context,
                     size: size,
-                    t: 0.88,
+                    t: Self.freezeAt,
                     freezeT: nil,
                     baseColorScheme: colorScheme,
                     word: word,
@@ -90,9 +92,9 @@ public struct LetterStormLogoView: View {
                         targets: targets,
                         drawParticles: true
                     )
-                    if freezeT == nil, t >= 0.88 {
+                    if freezeT == nil, t >= Self.freezeAt {
                         DispatchQueue.main.async {
-                            if freezeT == nil { freezeT = 0.88 }
+                            if freezeT == nil { freezeT = Self.freezeAt }
                         }
                     }
                 }

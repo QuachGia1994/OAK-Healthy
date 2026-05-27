@@ -148,7 +148,7 @@ class MainActivity : ComponentActivity() {
                 var initError by remember { mutableStateOf<String?>(null) }
 
                 LaunchedEffect(Unit) {
-                    val minSplashMs = 6_000L
+                    val minSplashMs = 3_300L
                     val splashStartedAt = SystemClock.elapsedRealtime()
                     try {
                         val (repository, activeClientManager) = withContext(Dispatchers.IO) {

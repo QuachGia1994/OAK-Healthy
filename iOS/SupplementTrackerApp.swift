@@ -212,7 +212,7 @@ private struct SafeBootView: View {
             .ignoresSafeArea()
             
             VStack(spacing: 16) {
-                LetterStormLogoView(word: "OAK HEALTHY", duration: 6.0)
+                LetterStormLogoView(word: "OAK HEALTHY", duration: 2.8)
                     .frame(height: 220)
                 if let message = errorMessage {
                     Text(message)
@@ -247,7 +247,10 @@ private struct SafeBootView: View {
     
     @MainActor
     private func bootstrap() async {
-        let minSplashSeconds = 6.0
+        let logoDurationSeconds = 2.8
+        let logoWordVisibleSeconds = 1.0
+        let logoFreezeAtFraction = 0.76
+        let minSplashSeconds = max(1.8, (logoDurationSeconds * logoFreezeAtFraction) + logoWordVisibleSeconds)
         let splashStartedAt = Date()
         attemptCrashRecoveryIfNeeded()
         DebugReporter.report("bootstrap_start")

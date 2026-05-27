@@ -96,7 +96,7 @@ private fun LetterStormLogo(
     isDark: Boolean,
     modifier: Modifier = Modifier,
     particleCount: Int = 150,
-    loopMillis: Int = 6000
+    loopMillis: Int = 3200
 ) {
     val w = word.trim().ifEmpty { "OAK HEALTHY" }
     val density = LocalDensity.current
@@ -156,7 +156,7 @@ private fun LetterStormLogo(
 
         val stormEnd = 0.38f
         val alignEnd = 0.66f
-        val holdEnd = 0.82f
+        val holdEnd = 0.95f
 
         val alignProgress = when {
             t < stormEnd -> 0f

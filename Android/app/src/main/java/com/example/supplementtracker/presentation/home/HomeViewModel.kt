@@ -21,6 +21,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -114,6 +116,7 @@ class HomeViewModel(
     private val _cloudSyncUiStatus = MutableStateFlow<CloudSyncUiStatus?>(null)
     val cloudSyncUiStatus: StateFlow<CloudSyncUiStatus?> = _cloudSyncUiStatus
     private var autoSyncJob: Job? = null
+    private var pendingAutoSyncJob: Job? = null
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
     private val intakeTimesCache = ConcurrentHashMap<String, List<String>>()
@@ -543,8 +546,7 @@ class HomeViewModel(
 
         val binId = activeAutoSyncBinId()
         if (binId != null) {
-            if (BuildConfig.DEBUG) Log.d("AutoSync", "☁️ Auto-Sync: Starting upload...")
-            syncTwoWay(binId)
+            requestAutoSyncDebounced(binId)
         }
     }
 
@@ -921,6 +923,18 @@ class HomeViewModel(
         return id.takeIf { it.isNotEmpty() }
     }
     
+    private fun requestAutoSyncDebounced(binId: String) {
+        val id = binId.trim()
+        if (id.isEmpty()) return
+        pendingAutoSyncJob?.cancel()
+        pendingAutoSyncJob = viewModelScope.launch {
+            delay(1_500L)
+            if (activeAutoSyncBinId() != id) return@launch
+            if (_cloudSyncLoading.value) return@launch
+            syncTwoWay(id)
+        }
+    }
+    
     private fun appendCloudSyncLog(prefs: android.content.SharedPreferences, binId: String, phase: String, message: String) {
         val id = binId.trim()
         if (id.isEmpty()) return
@@ -1218,34 +1232,41 @@ class HomeViewModel(
 
         val prevStackEtag = prefs.getString(etagStackKey, "").orEmpty().trim()
         val prevHistoryEtag = prefs.getString(etagHistoryKey, "").orEmpty().trim()
-        val stackDownload = CloudSyncManager().downloadBackupIfChanged(stackId, prevStackEtag).getOrElse { error ->
-            abortCloudSync(
-                prefs = prefs,
-                manifestId = manifestId,
-                lastErrorKey = lastErrorKey,
-                phaseKey = phaseKey,
-                stageMsKey = pullMsKey,
-                stageStartedAt = pullStartedAt,
-                startedAt = startedAt,
-                errorMessage = error.message ?: "Stack pull failed",
-                logMessage = "Stack pull failed"
-            )
-            return
-        }
-        val historyDownload = CloudSyncManager().downloadBackupIfChanged(historyId, prevHistoryEtag).getOrElse { error ->
-            abortCloudSync(
-                prefs = prefs,
-                manifestId = manifestId,
-                lastErrorKey = lastErrorKey,
-                phaseKey = phaseKey,
-                stageMsKey = pullMsKey,
-                stageStartedAt = pullStartedAt,
-                startedAt = startedAt,
-                errorMessage = error.message ?: "History pull failed",
-                logMessage = "History pull failed"
-            )
-            return
-        }
+        val cloud = CloudSyncManager()
+        val (stackDownload, historyDownload) = coroutineScope {
+            val stackDeferred = async(Dispatchers.IO) { cloud.downloadBackupIfChanged(stackId, prevStackEtag) }
+            val historyDeferred = async(Dispatchers.IO) { cloud.downloadBackupIfChanged(historyId, prevHistoryEtag) }
+            val stack = stackDeferred.await().getOrElse { error ->
+                historyDeferred.cancel()
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = pullMsKey,
+                    stageStartedAt = pullStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = error.message ?: "Stack pull failed",
+                    logMessage = "Stack pull failed"
+                )
+                return@coroutineScope null
+            }
+            val history = historyDeferred.await().getOrElse { error ->
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = pullMsKey,
+                    stageStartedAt = pullStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = error.message ?: "History pull failed",
+                    logMessage = "History pull failed"
+                )
+                return@coroutineScope null
+            }
+            stack to history
+        } ?: return
 
         val pullMs = SystemClock.elapsedRealtime() - pullStartedAt
         prefs.edit().putLong(pullMsKey, pullMs).apply()
