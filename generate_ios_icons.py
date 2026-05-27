@@ -95,6 +95,28 @@ def save_png(img: Image.Image, out_path: Path, px: int) -> None:
     resized.save(out_path, format="PNG", optimize=True)
 
 
+def make_diagonal_gradient(size: int, start: tuple[int, int, int, int], end: tuple[int, int, int, int]) -> Image.Image:
+    bg_a = Image.new("RGBA", (size, size), start)
+    bg_b = Image.new("RGBA", (size, size), end)
+    mask = Image.new("L", (size, size))
+    denom = 2 * (size - 1) if size > 1 else 1
+    mask.putdata(
+        [
+            int(((x + y) / denom) * 255)
+            for y in range(size)
+            for x in range(size)
+        ]
+    )
+    return Image.composite(bg_b, bg_a, mask)
+
+
+def prepare_ios_base(base: Image.Image) -> Image.Image:
+    size = 1024
+    bg = make_diagonal_gradient(size, (0x75, 0xE1, 0xB6, 0xFF), (0x3B, 0x8F, 0x7B, 0xFF))
+    icon = base.convert("RGBA").resize((size, size), resample=resample_lanczos())
+    return Image.alpha_composite(bg, icon)
+
+
 def generate_ios(appiconset_dir: Path, base: Image.Image) -> None:
     appiconset_dir.mkdir(parents=True, exist_ok=True)
     write_ios_contents_json(appiconset_dir)
@@ -133,7 +155,7 @@ def main() -> int:
     base = open_base_image(source).resize((1024, 1024), resample=resample_lanczos())
     if not input_path.exists():
         base.save(input_path, format="PNG", optimize=True)
-    generate_ios(appiconset_dir, base)
+    generate_ios(appiconset_dir, prepare_ios_base(base))
     if args.generate_android:
         generate_android(Path(args.android_res), base)
     return 0
