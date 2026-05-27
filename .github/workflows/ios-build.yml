@@ -279,42 +279,33 @@ jobs:
           print(f"Removed {changed} duplicate group-child references.")
           PY
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-          bundler-cache: true
-          working-directory: iOS
-
-      - name: Initialize Xcode & CoreSimulator
+      - name: Initialize Xcode
         run: |
           sudo xcodebuild -license accept
           xcodebuild -runFirstLaunch
-          xcrun simctl list devices > /dev/null || true
-
-      - name: Build iOS App with Fastlane
-        working-directory: ./iOS
-        env:
-          FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: "120"
-          FASTLANE_XCODEBUILD_SETTINGS_RETRIES: "6"
-        run: bundle exec fastlane build
+      
+      - name: Resolve Swift Package Manager dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies -scheme OAKHealthy -project iOS/OAKHealthy.xcodeproj -configuration Release -destination generic/platform=iOS
+      
+      - name: Archive (unsigned)
+        run: |
+          set -o pipefail
+          rm -rf iOS/build/OAKHealthy.xcarchive
+          xcodebuild -project iOS/OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Release -destination generic/platform=iOS -archivePath iOS/build/OAKHealthy.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean archive | tee iOS/xcodebuild-archive.log
       
       - name: Dump gym log (on failure)
         if: ${{ failure() }}
         run: |
-          echo "=== /Users/runner/Library/Logs/gym ==="
-          ls -la /Users/runner/Library/Logs/gym || true
-          echo "=== grep -nE 'error:|SwiftCompile|CompileSwift|SwiftEmitModule' OAKHealthy-OAKHealthy.log ==="
-          grep -nE "error:|SwiftCompile|CompileSwift|SwiftEmitModule" /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
-          echo "=== tail -n 600 OAKHealthy-OAKHealthy.log ==="
-          tail -n 600 /Users/runner/Library/Logs/gym/OAKHealthy-OAKHealthy.log || true
+          echo "=== tail -n 600 iOS/xcodebuild-archive.log ==="
+          tail -n 600 iOS/xcodebuild-archive.log || true
 
       - name: Upload gym logs (on failure)
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
-          name: OAKHealthy-iOS-gym-logs
-          path: /Users/runner/Library/Logs/gym
+          name: OAKHealthy-iOS-archive-log
+          path: iOS/xcodebuild-archive.log
           if-no-files-found: warn
 
       - name: Package Unsigned IPA
