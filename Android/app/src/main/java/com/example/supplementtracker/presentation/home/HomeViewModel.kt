@@ -554,6 +554,10 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.deleteSupplement(supplement)
             rescheduleNotificationsNow()
+            val binId = activeAutoSyncBinId()
+            if (binId != null) {
+                requestAutoSyncDebounced(binId)
+            }
         }
     }
 
@@ -562,6 +566,10 @@ class HomeViewModel(
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
             repository.deleteSupplement(supplement)
             rescheduleNotificationsNow()
+            val binId = activeAutoSyncBinId()
+            if (binId != null) {
+                requestAutoSyncDebounced(binId)
+            }
         }
     }
     
@@ -1336,6 +1344,7 @@ class HomeViewModel(
         prefs.edit().putString(phaseKey, CloudSyncPhase.PUSHING.name).apply()
         updateCloudSyncUiStatus(manifestId)
         val pushStartedAt = SystemClock.elapsedRealtime()
+        val mergeMutex = kotlinx.coroutines.sync.Mutex()
         var bytesUp = 0L
 
         suspend fun pushPart(
@@ -1343,41 +1352,52 @@ class HomeViewModel(
             etagKey: String,
             build: suspend () -> Result<String>,
             label: String
-        ): String? {
+        ): Pair<String?, Long> {
             val plaintext = build().getOrElse { throw it }
             val encrypted = encryptAndPrepare(plaintext)
-            bytesUp += encrypted.toByteArray(Charsets.UTF_8).size.toLong()
+            var bytesUp = encrypted.toByteArray(Charsets.UTF_8).size.toLong()
             val etag = prefs.getString(etagKey, "").orEmpty().trim()
-            val upsert = CloudSyncManager().upsertBackup(partId, encrypted, etag.takeIf { it.isNotEmpty() })
-            return upsert.getOrElse { error ->
+            val upsert = cloud.upsertBackup(partId, encrypted, etag.takeIf { it.isNotEmpty() })
+            val newEtag = upsert.getOrElse { error ->
                 val msg = error.message.orEmpty()
                 if (!msg.contains("412") && !msg.contains("409")) throw error
                 prefs.edit().putString(phaseKey, CloudSyncPhase.RETRYING_CONFLICT.name).apply()
                 prefs.edit().putInt(retryKey, 1).apply()
                 updateCloudSyncUiStatus(manifestId)
                 appendCloudSyncLog(prefs, manifestId, "ERROR", "$label conflict, retry")
-                val latest = CloudSyncManager().downloadBackupAlways(partId).getOrThrow()
+                val latest = cloud.downloadBackupAlways(partId).getOrThrow()
                 if (!latest.json.isNullOrBlank()) {
                     val prepared = decryptAndPrepare(latest.json.orEmpty())
-                    mergeRemoteIntoLocal(prepared, clientId)
+                    mergeMutex.lock()
+                    try {
+                        mergeRemoteIntoLocal(prepared, clientId)
+                    } finally {
+                        mergeMutex.unlock()
+                    }
                 }
                 val retryPlain = build().getOrThrow()
                 val retryEnc = encryptAndPrepare(retryPlain)
                 bytesUp += retryEnc.toByteArray(Charsets.UTF_8).size.toLong()
-                CloudSyncManager().upsertBackup(partId, retryEnc, latest.etag).getOrThrow()
+                cloud.upsertBackup(partId, retryEnc, latest.etag).getOrThrow()
                 latest.etag
             }?.orEmpty()?.trim()
+            return newEtag to bytesUp
         }
 
         try {
-            if (localStackChanged) {
-                val newEtag = pushPart(stackId, etagStackKey, ::buildStackBackupJson, "STACK")
-                if (!newEtag.isNullOrBlank()) prefs.edit().putString(etagStackKey, newEtag).apply()
+            val (stackResult, historyResult) = coroutineScope {
+                val stackDeferred = async(Dispatchers.IO) {
+                    if (localStackChanged) pushPart(stackId, etagStackKey, ::buildStackBackupJson, "STACK") else null
+                }
+                val historyDeferred = async(Dispatchers.IO) {
+                    if (localHistoryChanged) pushPart(historyId, etagHistoryKey, ::buildHistoryBackupJson, "HISTORY") else null
+                }
+                stackDeferred.await() to historyDeferred.await()
             }
-            if (localHistoryChanged) {
-                val newEtag = pushPart(historyId, etagHistoryKey, ::buildHistoryBackupJson, "HISTORY")
-                if (!newEtag.isNullOrBlank()) prefs.edit().putString(etagHistoryKey, newEtag).apply()
-            }
+            stackResult?.first?.let { if (it.isNotBlank()) prefs.edit().putString(etagStackKey, it).apply() }
+            historyResult?.first?.let { if (it.isNotBlank()) prefs.edit().putString(etagHistoryKey, it).apply() }
+            bytesUp = (stackResult?.second ?: 0L) + (historyResult?.second ?: 0L)
+            prefs.edit().putLong(bytesUploadedKey, bytesUp).apply()
         } catch (t: Throwable) {
             abortCloudSync(
                 prefs = prefs,
@@ -1392,8 +1412,6 @@ class HomeViewModel(
             )
             return
         }
-
-        prefs.edit().putLong(bytesUploadedKey, bytesUp).apply()
         prefs.edit().putLong(pushMsKey, SystemClock.elapsedRealtime() - pushStartedAt).apply()
         prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
         prefs.edit().remove(lastErrorKey).apply()

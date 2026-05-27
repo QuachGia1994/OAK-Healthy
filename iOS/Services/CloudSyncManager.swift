@@ -487,6 +487,75 @@ enum CloudSyncAutoSync {
         client: ClientProfile,
         parts: CloudSyncManifest
     ) async throws {
+        if ctx.localStackChanged, ctx.localHistoryChanged {
+            let stackPayload = try makeStackBackup(modelContext: modelContext, clientId: ctx.clientId)
+            let historyPayload = try makeHistoryBackup(modelContext: modelContext, clientId: ctx.clientId)
+            let stackEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(parts.stackBinId)")
+            let historyEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(parts.historyBinId)")
+            let stackManager = CloudSyncManager()
+            let historyManager = CloudSyncManager()
+            
+            let stackTask = Task.detached(priority: .userInitiated) { () -> Result<Void, Error> in
+                do {
+                    try await stackManager.upsertBackup(binId: parts.stackBinId, jsonData: stackPayload, ifMatchEtag: stackEtag)
+                    return .success(())
+                } catch {
+                    return .failure(error)
+                }
+            }
+            let historyTask = Task.detached(priority: .userInitiated) { () -> Result<Void, Error> in
+                do {
+                    try await historyManager.upsertBackup(binId: parts.historyBinId, jsonData: historyPayload, ifMatchEtag: historyEtag)
+                    return .success(())
+                } catch {
+                    return .failure(error)
+                }
+            }
+            
+            let stackResult = await stackTask.value
+            let historyResult = await historyTask.value
+            
+            func isConflict(_ error: Error) -> Bool {
+                guard let sync = error as? CloudSyncError else { return false }
+                if case let .serverError(statusCode, _) = sync {
+                    return statusCode == 412 || statusCode == 409
+                }
+                return false
+            }
+            
+            func handleConflict(partId: String, retryPayload: () throws -> Data) async throws {
+                let latest = try await CloudSyncManager.shared.downloadBackup(binId: partId)
+                try mergeRemotePartIfNeeded(latest, client: client, modelContext: modelContext)
+                try await upsertPart(binId: partId, payload: retryPayload())
+            }
+            
+            switch stackResult {
+            case .success:
+                break
+            case .failure(let error):
+                if isConflict(error) {
+                    try await handleConflict(partId: parts.stackBinId) {
+                        try makeStackBackup(modelContext: modelContext, clientId: ctx.clientId)
+                    }
+                } else {
+                    throw error
+                }
+            }
+            
+            switch historyResult {
+            case .success:
+                break
+            case .failure(let error):
+                if isConflict(error) {
+                    try await handleConflict(partId: parts.historyBinId) {
+                        try makeHistoryBackup(modelContext: modelContext, clientId: ctx.clientId)
+                    }
+                } else {
+                    throw error
+                }
+            }
+            return
+        }
         if ctx.localStackChanged {
             let payload = try makeStackBackup(modelContext: modelContext, clientId: ctx.clientId)
             try await upsertPartWithRetry(binId: parts.stackBinId, modelContext: modelContext, client: client) {
