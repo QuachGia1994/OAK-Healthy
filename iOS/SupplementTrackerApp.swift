@@ -327,7 +327,7 @@ private struct SafeBootView: View {
     @MainActor
     private func attemptCrashRecoveryIfNeeded() {
         let lastStage = UserDefaults.standard.string(forKey: BootKeys.stage) ?? ""
-        guard !lastStage.isEmpty, lastStage != BootKeys.uiStable else { return }
+        guard lastStage == BootKeys.bootStarted || lastStage == BootKeys.containerReady else { return }
         let lastEpoch = UserDefaults.standard.double(forKey: BootKeys.timestampEpoch)
         guard lastEpoch > 0 else { return }
         let elapsed = Date().timeIntervalSince1970 - lastEpoch

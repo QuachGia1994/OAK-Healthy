@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 
 public struct LetterStormLogoView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     private struct Particle: Hashable {
         let char: Character
         let seedA: Double
@@ -69,6 +71,9 @@ public struct LetterStormLogoView: View {
                 let particleFontSize = max(9, min(size.width, size.height) * 0.03)
                 let wordFontSize = max(22, min(size.width, size.height) * 0.17)
                 
+                let baseColor: Color = (colorScheme == .dark) ? .white : Color.black.opacity(0.86)
+                let shadowColor: Color = (colorScheme == .dark) ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
+                
                 for i in particles.indices {
                     let p = particles[i]
                     let angle = ((p.seedA * 0.001) + t * p.speed * 2.0) * (Double.pi * 2.0)
@@ -90,7 +95,7 @@ public struct LetterStormLogoView: View {
                     
                     let text = Text(String(p.char))
                         .font(.system(size: particleFontSize, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(particleAlpha))
+                        .foregroundStyle(baseColor.opacity(particleAlpha * 0.9))
                     
                     context.draw(text, at: CGPoint(x: x, y: y), anchor: .center)
                 }
@@ -98,8 +103,11 @@ public struct LetterStormLogoView: View {
                 if wordAlpha > 0 {
                     let text = Text(word)
                         .font(.system(size: wordFontSize, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.white.opacity(wordAlpha))
-                    context.draw(text, at: center, anchor: .center)
+                        .foregroundStyle(baseColor.opacity(wordAlpha))
+                    context.drawLayer { layer in
+                        layer.addFilter(.shadow(color: shadowColor, radius: 10, x: 0, y: 3))
+                        layer.draw(text, at: center, anchor: .center)
+                    }
                 }
             }
         }
@@ -190,4 +198,3 @@ private struct SeededGenerator: RandomNumberGenerator {
         return z ^ (z >> 31)
     }
 }
-
