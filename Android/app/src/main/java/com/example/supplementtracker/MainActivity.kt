@@ -30,10 +30,12 @@ import com.example.supplementtracker.receiver.TimeZoneChangeReceiver
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import android.util.Log
 import com.example.supplementtracker.presentation.splash.SplashScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
@@ -127,6 +129,8 @@ class MainActivity : ComponentActivity() {
             var initError by remember { mutableStateOf<String?>(null) }
 
             LaunchedEffect(Unit) {
+                val minSplashMs = 6_000L
+                val splashStartedAt = SystemClock.elapsedRealtime()
                 try {
                     val (repository, activeClientManager) = withContext(Dispatchers.IO) {
                         val db = SupplementDatabase.getInstance(applicationContext)
@@ -152,6 +156,8 @@ class MainActivity : ComponentActivity() {
                     homeViewModel.refreshNotificationSchedules()
                     consumePendingIntakeActionIfPossible(homeViewModel)
 
+                    val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
+                    if (elapsed < minSplashMs) delay(minSplashMs - elapsed)
                     deps = AppDeps(
                         homeViewModel = homeViewModel,
                         historyViewModel = historyViewModel,

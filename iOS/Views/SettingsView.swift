@@ -36,6 +36,7 @@ public struct SettingsView: View {
                 settingsList
             }
         }
+        .id("\(appTheme)-\(colorScheme == .dark ? "dark" : "light")")
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
             Task { @MainActor in await syncNotificationPermissionState() }

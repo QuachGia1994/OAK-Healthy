@@ -192,7 +192,7 @@ private struct SafeBootView: View {
             .ignoresSafeArea()
             
             VStack(spacing: 16) {
-                LetterStormLogoView(word: "OAK HEALTHY")
+                LetterStormLogoView(word: "OAK HEALTHY", duration: 6.0)
                     .frame(height: 220)
                 if let message = errorMessage {
                     Text(message)
@@ -227,11 +227,8 @@ private struct SafeBootView: View {
     
     @MainActor
     private func bootstrap() async {
-        do {
-            try await Task.sleep(for: .seconds(2))
-        } catch {
-            return
-        }
+        let minSplashSeconds = 6.0
+        let splashStartedAt = Date()
         attemptCrashRecoveryIfNeeded()
         DebugReporter.report("bootstrap_start")
         UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)
@@ -258,6 +255,11 @@ private struct SafeBootView: View {
         await notificationService.registerNotificationActions()
         if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") {
             await notificationService.rebuildShadowFromPendingRequests()
+        }
+        let elapsed = Date().timeIntervalSince(splashStartedAt)
+        if elapsed < minSplashSeconds {
+            let remainingNs = UInt64((minSplashSeconds - elapsed) * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: remainingNs)
         }
         onReady(
             AppDependencyContainer(
