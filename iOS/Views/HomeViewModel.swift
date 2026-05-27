@@ -253,7 +253,7 @@ public final class HomeViewModel {
                 }
             }
         }
-        Task { await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id) }
+        CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
     }
 
     private func updateLastTakenIfNeeded(
@@ -352,7 +352,7 @@ public final class HomeViewModel {
         
         Task {
             await notificationService.cancelReminders(for: supplement)
-            await CloudSyncAutoSync.syncIfEnabled(modelContext: context, clientId: supplement.client?.id)
+            CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
         }
     }
     

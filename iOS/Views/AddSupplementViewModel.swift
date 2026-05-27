@@ -118,6 +118,7 @@ public final class AddSupplementViewModel {
         do {
             let result = try persistSupplement()
             try await syncNotifications(for: result.supplement, wasEditing: result.wasEditing)
+            CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: result.supplement.client?.id)
             return result.supplement
         } catch let failure as SaveFailure {
             errorMessage = failure.message

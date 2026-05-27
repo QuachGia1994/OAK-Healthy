@@ -1639,7 +1639,7 @@ class HomeViewModel(
         if (a < 20_000L) return 5_000L
         if (a < 120_000L) return 30_000L
         if (a < 600_000L) return 120_000L
-        return 300_000L
+        return 600_000L
     }
 
     private fun clearStaleBinId(binId: String) {

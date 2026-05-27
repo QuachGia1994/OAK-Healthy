@@ -776,7 +776,7 @@ struct MainTabView: View {
         if !requestIdentifier.isEmpty {
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [requestIdentifier])
         }
-        await CloudSyncAutoSync.syncIfEnabled(modelContext: modelContext, clientId: supplement.client?.id)
+        CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: supplement.client?.id)
     }
     
     private func hasRecord(supplement: UserSupplement, scheduledAt: Date, intakeTime: String) -> Bool {

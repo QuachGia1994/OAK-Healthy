@@ -213,7 +213,7 @@ public struct StackView: View {
         
         Task {
             await notificationService.cancelReminders(for: supplement)
-            await CloudSyncAutoSync.syncIfEnabled(modelContext: modelContext, clientId: supplement.client?.id)
+            CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: supplement.client?.id)
         }
     }
 }
