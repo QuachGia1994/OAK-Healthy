@@ -706,6 +706,17 @@ struct MainTabView: View {
         guard let supplement = fetchSupplement(id: payload.supplementId) else { return }
         let scheduledAt = Date(timeIntervalSince1970: TimeInterval(payload.scheduledAtEpochMs) / 1000)
         let normalizedTime = TimeStrings.normalizeList(payload.intakeTime).first ?? payload.intakeTime
+        let recordKey = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: payload.scheduledAtEpochMs)
+        let recordId = DoseEventKey.stableUUID(from: recordKey)
+        if fetchDoseRecord(id: recordId) != nil {
+            await finalizeDoseAction(
+                supplement: supplement,
+                scheduledAt: scheduledAt,
+                intakeTime: normalizedTime,
+                requestIdentifier: payload.requestIdentifier
+            )
+            return
+        }
         if hasRecord(supplement: supplement, scheduledAt: scheduledAt, intakeTime: normalizedTime) { return }
 
         let status = payload.actionIdentifier == NotificationService.Action.skipped.rawValue
@@ -748,6 +759,7 @@ struct MainTabView: View {
         let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
         let recordId = DoseEventKey.stableUUID(from: key)
+        if fetchDoseRecord(id: recordId) != nil { return false }
         modelContext.insert(IntakeRecord(
             id: recordId,
             date: scheduledAt,
@@ -763,6 +775,12 @@ struct MainTabView: View {
             DebugReporter.report("dose_action_save_failed", fields: ["error": error.localizedDescription])
             return false
         }
+    }
+    
+    @MainActor
+    private func fetchDoseRecord(id: UUID) -> IntakeRecord? {
+        let descriptor = FetchDescriptor<IntakeRecord>(predicate: #Predicate { $0.id == id })
+        return (try? modelContext.fetch(descriptor))?.first
     }
 
     @MainActor
