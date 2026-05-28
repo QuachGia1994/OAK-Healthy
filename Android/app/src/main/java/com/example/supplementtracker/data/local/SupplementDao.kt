@@ -50,6 +50,9 @@ interface SupplementDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertIntakeRecord(record: IntakeRecordEntity)
+    
+    @Query("SELECT * FROM intake_records WHERE id = :id LIMIT 1")
+    suspend fun getIntakeRecordById(id: String): IntakeRecordEntity?
 
     @Query(
         """

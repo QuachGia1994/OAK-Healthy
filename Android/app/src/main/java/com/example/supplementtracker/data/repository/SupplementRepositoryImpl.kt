@@ -148,6 +148,19 @@ class SupplementRepositoryImpl(
             )
         )
     }
+    
+    override suspend fun getIntakeRecordById(id: String): IntakeRecord? = withContext(Dispatchers.IO) {
+        val key = id.trim()
+        if (key.isEmpty()) return@withContext null
+        val entity = dao.getIntakeRecordById(key) ?: return@withContext null
+        IntakeRecord(
+            id = entity.id,
+            supplementId = entity.supplementId,
+            date = entity.date,
+            status = entity.status,
+            updatedAtEpochMs = entity.updatedAtEpochMs
+        )
+    }
 
     override suspend fun deleteDuplicateIntakeRecords(supplementId: String, date: Long, keepId: String) = withContext(Dispatchers.IO) {
         val normalizedSupplementId = supplementId.trim()

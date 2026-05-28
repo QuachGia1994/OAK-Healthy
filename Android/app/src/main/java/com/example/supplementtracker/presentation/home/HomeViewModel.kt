@@ -513,6 +513,9 @@ class HomeViewModel(
         action: DoseAction
     ) {
         viewModelScope.launch {
+            val normalizedSupplementId = supplementId.lowercase(Locale.ROOT)
+            val recordId = DoseEventKey.make(normalizedSupplementId, scheduledAtEpochMs)
+            if (repository.getIntakeRecordById(recordId) != null) return@launch
             recordDoseInternal(supplementId = supplementId, scheduledAtEpochMs = scheduledAtEpochMs, action = action)
         }
     }
