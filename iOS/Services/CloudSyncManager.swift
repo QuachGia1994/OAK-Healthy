@@ -812,21 +812,21 @@ enum CloudSyncAutoSync {
     }
     
     private static func makeStackBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
-        let descriptor = FetchDescriptor<UserSupplement>(
-            predicate: #Predicate { $0.client?.id == clientId }
-        )
-        let supplements = try modelContext.fetch(descriptor)
+        let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
+            .filter { $0.client?.id == clientId }
         return try SupplementExportCodec.encodeBackup(supplements: supplements, records: [])
     }
     
     private static func makeHistoryBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
         let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: .now) ?? .now
         var descriptor = FetchDescriptor<IntakeRecord>(
-            predicate: #Predicate { $0.supplement?.client?.id == clientId && $0.date >= cutoff },
+            predicate: #Predicate { $0.date >= cutoff },
             sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
         )
-        descriptor.fetchLimit = 5_000
+        descriptor.fetchLimit = 8_000
         let records = try modelContext.fetch(descriptor)
+            .filter { $0.supplement?.client?.id == clientId }
+            .prefix(5_000)
         return try SupplementExportCodec.encodeBackup(supplements: [], records: Array(records))
     }
 }
