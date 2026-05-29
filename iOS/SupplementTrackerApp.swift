@@ -566,7 +566,6 @@ struct MainTabView: View {
                 .tabItem {
                     Label("tab_home".localized, systemImage: "house.fill")
                 }
-                .badge(homeOverdueCount)
                 .tag(0)
             
             StackView(
@@ -586,8 +585,13 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            OAKFloatingTabBar(selectedTab: $selectedTab, homeBadgeCount: homeOverdueCount)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 10)
+                .padding(.top, 6)
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
