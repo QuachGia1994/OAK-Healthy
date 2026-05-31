@@ -4,10 +4,23 @@ OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ
 
 ## Tải app (artifacts mới nhất)
 
-- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26495292098/artifacts/7233664250
-- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26495292097/artifacts/7233749553
+- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26573204681/artifacts/7265233059
+- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26623433499/artifacts/7285095007
 
 Lưu ý: artifacts tải từ GitHub Actions có thể yêu cầu đăng nhập GitHub và sẽ hết hạn theo chính sách lưu trữ của GitHub.
+
+## Thay đổi gần đây
+
+- iOS:
+  - Fix splash “letter storm” không chạy (đảm bảo animation luôn start từ t=0).
+  - Fix crash khi tick “Đã uống” do SwiftData predicate join trong export/sync (đổi sang fetch đơn giản + filter in-memory).
+  - Fix conflict ưu tiên thao tác Home: nếu đã tick từ Home thì thao tác Taken/Skip từ Notification không ghi đè record.
+  - CI: build unsigned IPA và upload thêm dSYMs artifact để symbolicate crash.
+  - Sync: debounce trigger + giảm idle polling để tiết kiệm pin.
+- Android:
+  - Fix conflict ưu tiên thao tác Home: thao tác Taken/Skip từ Notification không ghi đè record đã có.
+  - Release: siết proguard keep rules và bật R8 full mode để giảm size.
+  - Auto‑Sync: chuyển hướng tối ưu theo WorkManager (periodic + one‑off coalesce) để giảm wakeups.
 
 ## Hướng dẫn sử dụng nhanh
 
@@ -70,6 +83,9 @@ Gợi ý:
 
 - Android: tải APK và cài trực tiếp (có thể cần bật “Cài đặt ứng dụng không rõ nguồn gốc”).
 - iOS: IPA yêu cầu cài qua TestFlight hoặc tự ký (AltStore/Sideloadly). Nếu bạn chỉ muốn xem demo UI/flow thì vẫn có thể tải IPA để tham khảo build.
+- Auto‑Sync:
+  - Android chạy theo WorkManager định kỳ (tối thiểu 15 phút theo giới hạn hệ điều hành) + có job one‑off để sync sớm khi bạn thao tác.
+  - iOS debounce các trigger sync và giảm polling khi idle để tiết kiệm pin.
 
 ## Rules
 
