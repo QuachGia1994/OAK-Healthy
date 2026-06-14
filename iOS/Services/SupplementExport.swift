@@ -104,13 +104,9 @@ struct OAKBackupData: Codable, Sendable {
 }
 
 enum ZlibBase64Codec {
-    private static let threshold = 200
-    
     static func encodeIfLarge<T: Encodable>(items: [T]) -> String? {
-        guard items.count > threshold else { return nil }
-        guard let data = try? JSONEncoder().encode(items) else { return nil }
-        guard let compressed = compress(data: data) else { return nil }
-        return compressed.base64EncodedString()
+        // Keep newly exported history inline to avoid compressing on the UI-bound sync path.
+        nil
     }
     
     static func decodeArray(base64: String) -> [OAKBackupHistory]? {

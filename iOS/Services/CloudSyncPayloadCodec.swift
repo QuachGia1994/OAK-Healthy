@@ -9,21 +9,9 @@ public enum CloudSyncPayloadCodecError: Error, Sendable {
 }
 
 enum CloudSyncPayloadCodec {
-    private static let thresholdBytes = 40_000
-    
     static func compressIfUseful(_ jsonData: Data) -> Data {
-        guard jsonData.count >= thresholdBytes else { return jsonData }
-        guard let compressed = process(data: jsonData, operation: COMPRESSION_STREAM_ENCODE) else { return jsonData }
-        let wrapper: [String: Any] = [
-            "z": [
-                "v": 1,
-                "alg": "ZLIB",
-                "ct": compressed.base64EncodedString()
-            ]
-        ]
-        guard let wrapperData = try? JSONSerialization.data(withJSONObject: wrapper, options: []) else { return jsonData }
-        if wrapperData.count >= jsonData.count - 1024 { return jsonData }
-        return wrapperData
+        // Keep iOS sync payloads uncompressed to avoid watchdog stalls on the main actor.
+        jsonData
     }
     
     static func decompressIfNeeded(_ data: Data) throws(CloudSyncPayloadCodecError) -> Data {

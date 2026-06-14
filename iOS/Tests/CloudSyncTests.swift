@@ -30,12 +30,11 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
         XCTAssertEqual(out, data)
     }
 
-    func testCompressIfUseful_roundTripWhenLarge() throws {
+    func testCompressIfUseful_returnsInputWhenLarge() throws {
         let big = String(repeating: "a", count: 50_000)
         let data = try JSONSerialization.data(withJSONObject: ["k": big], options: [])
-        let compressed = CloudSyncPayloadCodec.compressIfUseful(data)
-        let roundTrip = try CloudSyncPayloadCodec.decompressIfNeeded(compressed)
-        XCTAssertEqual(roundTrip, data)
+        let out = CloudSyncPayloadCodec.compressIfUseful(data)
+        XCTAssertEqual(out, data)
     }
 }
 
