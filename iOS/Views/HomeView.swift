@@ -736,15 +736,11 @@ private struct ActiveSupplementRow: View {
         ) {
             Button("home_confirm_intake_action".localized) {
                 pulseIcon()
-                withAnimation(.snappy) {
-                    onAction(supplement, timeString, .taken, modelContext)
-                }
+                onAction(supplement, timeString, .taken, modelContext)
             }
             Button("notif_action_skip".localized) {
                 pulseIcon()
-                withAnimation(.snappy) {
-                    onAction(supplement, timeString, .skipped, modelContext)
-                }
+                onAction(supplement, timeString, .skipped, modelContext)
             }
             Button("cancel".localized, role: .cancel) {}
         } message: {

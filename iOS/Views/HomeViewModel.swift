@@ -232,8 +232,37 @@ public final class HomeViewModel {
     private func applyMarkToCaches(ctx: MarkDoseContext, action: DoseAction) {
         todayRecordStatusById[ctx.recordId] = ctx.status
         recentRecordIds.insert(ctx.recordId)
-        cachedTodayCounts = todayCounts(now: .now)
-        cachedStreakDays = streakDays(supplements: supplementsCache, now: .now)
+        adjustTodayCounts(previous: ctx.previous, action: action, scheduledAt: ctx.scheduledAt, now: .now)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            cachedStreakDays = streakDays(supplements: supplementsCache, now: .now)
+        }
+    }
+
+    private func adjustTodayCounts(
+        previous: DoseStatus,
+        action: DoseAction,
+        scheduledAt: Date,
+        now: Date
+    ) {
+        switch previous {
+        case .planned:
+            if scheduledAt <= now {
+                cachedTodayCounts.due = max(0, cachedTodayCounts.due - 1)
+            }
+        case .missed:
+            cachedTodayCounts.missed = max(0, cachedTodayCounts.missed - 1)
+        case .taken:
+            cachedTodayCounts.taken = max(0, cachedTodayCounts.taken - 1)
+        case .skipped:
+            cachedTodayCounts.skipped = max(0, cachedTodayCounts.skipped - 1)
+        }
+        switch action {
+        case .taken:
+            cachedTodayCounts.taken += 1
+        case .skipped:
+            cachedTodayCounts.skipped += 1
+        }
     }
 
     public func isDueNow(_ supplement: UserSupplement, timeString: String, now: Date = .now) -> Bool {
