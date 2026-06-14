@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 @preconcurrency import UserNotifications
 
 private enum BootKeys {
@@ -588,6 +589,7 @@ struct MainTabView: View {
         }
         .toolbarBackground(.ultraThinMaterial, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .background(LegacyTabBarLayoutConfigurator())
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
@@ -807,6 +809,39 @@ struct MainTabView: View {
                 return TimeStrings.formatTime(recordMinutes) == TimeStrings.formatTime(scheduledMinutes)
             }
             return recordTime == scheduledTime
+        }
+    }
+}
+
+private struct LegacyTabBarLayoutConfigurator: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Controller {
+        Controller()
+    }
+    
+    func updateUIViewController(_ uiViewController: Controller, context: Context) {
+        uiViewController.applyIfNeeded()
+    }
+    
+    final class Controller: UIViewController {
+        override func viewWillAppear(_ animated: Bool) {
+            super.viewWillAppear(animated)
+            applyIfNeeded()
+        }
+        
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            applyIfNeeded()
+        }
+        
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            applyIfNeeded()
+        }
+        
+        func applyIfNeeded() {
+            guard #available(iOS 18.0, *), UIDevice.current.userInterfaceIdiom == .pad else { return }
+            guard let tabBarController else { return }
+            tabBarController.traitOverrides.userInterfaceIdiom = .phone
         }
     }
 }
