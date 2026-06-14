@@ -125,10 +125,10 @@ public struct StackView: View {
                     Text(errorMessage ?? "")
                 }
                 .onChange(of: supplements) {
-                    cleanupExpiredSupplementsIfNeeded()
+                    pruneExpiredSupplementsIfNeeded()
                 }
                 .task(id: activeClientManager.currentClientId) {
-                    cleanupExpiredSupplementsIfNeeded()
+                    pruneExpiredSupplementsIfNeeded()
                 }
             }
         }
@@ -169,7 +169,7 @@ public struct StackView: View {
         activeClient?.name ?? "dashboard_title".localized
     }
 
-    private func cleanupExpiredSupplementsIfNeeded(today: Date = .now) {
+    private func pruneExpiredSupplementsIfNeeded(today: Date = .now) {
         guard let id = activeClientManager.currentClientId else { return }
         let expired = supplements.filter {
             $0.deletedAtEpochMs == nil &&
@@ -177,8 +177,15 @@ public struct StackView: View {
             isExpired($0, today: today)
         }
         guard !expired.isEmpty else { return }
+        let now = Int64(today.timeIntervalSince1970 * 1000)
         for supplement in expired {
-            deleteSupplement(supplement)
+            supplement.deletedAtEpochMs = now
+            supplement.updatedAtEpochMs = now
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            return
         }
     }
 

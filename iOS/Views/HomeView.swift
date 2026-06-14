@@ -245,13 +245,13 @@ public struct HomeView: View {
                         await updateService.checkForUpdates()
                     }
                     .onChange(of: supplements) {
-                        cleanupExpiredSupplementsIfNeeded()
+                        pruneExpiredSupplementsIfNeeded()
                         viewModel.processSupplements(supplementsForActiveClient)
                         homeOverdueCount = viewModel.cachedTodayCounts.missed
                         rebuildVisible(now: .now)
                     }
                     .task(id: activeClientManager.currentClientId) {
-                        cleanupExpiredSupplementsIfNeeded()
+                        pruneExpiredSupplementsIfNeeded()
                         viewModel.processSupplements(supplementsForActiveClient)
                         homeOverdueCount = viewModel.cachedTodayCounts.missed
                         rebuildVisible(now: .now)
@@ -326,11 +326,18 @@ public struct HomeView: View {
         activeClient?.name ?? "dashboard_title".localized
     }
 
-    private func cleanupExpiredSupplementsIfNeeded(today: Date = .now) {
+    private func pruneExpiredSupplementsIfNeeded(today: Date = .now) {
         let expired = supplementsForActiveClient.filter { isExpired($0, today: today) }
         guard !expired.isEmpty else { return }
+        let now = Int64(today.timeIntervalSince1970 * 1000)
         for supplement in expired {
-            viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
+            supplement.deletedAtEpochMs = now
+            supplement.updatedAtEpochMs = now
+        }
+        do {
+            try modelContext.save()
+        } catch {
+            return
         }
     }
 

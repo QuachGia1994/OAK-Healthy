@@ -936,7 +936,7 @@ private fun ActiveSupplementCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun RestingSupplementCard(
     info: RestingSupplementInfo,

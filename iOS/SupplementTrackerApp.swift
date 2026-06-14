@@ -599,7 +599,6 @@ struct MainTabView: View {
             handleAutoSync(phase: newPhase)
             guard newPhase == .active else { return }
             Task { @MainActor in
-                await rescheduleNotificationsIfEnabled()
                 await refreshHomeBadgeCount()
             }
         }
