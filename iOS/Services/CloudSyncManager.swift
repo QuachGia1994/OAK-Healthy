@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 public enum CloudSyncError: Error, Sendable, LocalizedError {
     case invalidBinId
@@ -399,13 +400,16 @@ enum CloudSyncAutoSync {
     }
     
     static func requestSyncSoon(modelContext: ModelContext, clientId: UUID?) {
+        markActivity()
         pendingSyncTask?.cancel()
+        guard UIApplication.shared.applicationState == .active else { return }
         pendingSyncTask = Task { @MainActor in
             do {
-                try await Task.sleep(for: .milliseconds(1200))
+                try await Task.sleep(for: .seconds(4))
             } catch {
                 return
             }
+            guard UIApplication.shared.applicationState == .active else { return }
             await syncIfEnabled(modelContext: modelContext, clientId: clientId)
         }
     }

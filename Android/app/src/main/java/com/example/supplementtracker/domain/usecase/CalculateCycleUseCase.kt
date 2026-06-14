@@ -10,6 +10,14 @@ import java.time.temporal.ChronoUnit
  * Logic khớp 100% với bản iOS.
  */
 class CalculateCycleUseCase {
+    fun isExpired(
+        startDate: LocalDate,
+        config: CycleConfig,
+        currentDate: LocalDate = LocalDate.now()
+    ): Boolean {
+        val endDate = endDateIfNeeded(startDate, config) ?: return false
+        return currentDate.isAfter(endDate)
+    }
     
     /**
      * Xác định trạng thái dựa trên ngày bắt đầu và cấu hình.
@@ -20,10 +28,7 @@ class CalculateCycleUseCase {
         currentDate: LocalDate = LocalDate.now()
     ): CycleStatus {
         // 1. Kiểm tra thời hạn (Duration)
-        config.durationMonths?.let { days ->
-            val endDate = startDate.plusDays(days.toLong())
-            if (currentDate.isAfter(endDate)) return CycleStatus.OFF
-        }
+        if (isExpired(startDate, config, currentDate)) return CycleStatus.OFF
 
         // 2. Early return cho uống liên tục
         if (config.isContinuous) return CycleStatus.ON
@@ -39,5 +44,10 @@ class CalculateCycleUseCase {
         val dayInCycle = daysElapsed % totalCycleDays
         
         return if (dayInCycle < config.daysOn) CycleStatus.ON else CycleStatus.OFF
+    }
+
+    private fun endDateIfNeeded(startDate: LocalDate, config: CycleConfig): LocalDate? {
+        val days = config.durationMonths ?: return null
+        return startDate.plusDays(days.toLong())
     }
 }

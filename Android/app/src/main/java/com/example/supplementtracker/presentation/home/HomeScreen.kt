@@ -426,7 +426,11 @@ private fun HomeContent(
                 key = { it.supplement.id },
                 contentType = { "resting" }
             ) { info ->
-                RestingSupplementCard(info)
+                RestingSupplementCard(
+                    info = info,
+                    onDelete = onDelete,
+                    onEdit = onEdit
+                )
             }
         }
     }
@@ -934,8 +938,20 @@ private fun ActiveSupplementCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RestingSupplementCard(info: RestingSupplementInfo) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+private fun RestingSupplementCard(
+    info: RestingSupplementInfo,
+    onDelete: (UserSupplement) -> Unit,
+    onEdit: (String) -> Unit
+) {
+    var isMenuOpen by remember { mutableStateOf(false) }
+    GlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = { onEdit(info.supplement.id.toString()) },
+                onLongClick = { isMenuOpen = true }
+            )
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(info.supplement.name, style = MaterialTheme.typography.titleMedium, color = Color.Gray)
@@ -950,6 +966,32 @@ private fun RestingSupplementCard(info: RestingSupplementInfo) {
             }
             Badge(containerColor = Color.Transparent) {
                 Text(stringResource(R.string.days_remaining, info.daysRemaining), modifier = Modifier.padding(4.dp))
+            }
+            Box {
+                IconButton(onClick = { isMenuOpen = true }) {
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit), tint = Color.Gray)
+                }
+                DropdownMenu(
+                    expanded = isMenuOpen,
+                    onDismissRequest = { isMenuOpen = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.edit)) },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        onClick = {
+                            isMenuOpen = false
+                            onEdit(info.supplement.id.toString())
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete)) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        onClick = {
+                            isMenuOpen = false
+                            onDelete(info.supplement)
+                        }
+                    )
+                }
             }
         }
     }

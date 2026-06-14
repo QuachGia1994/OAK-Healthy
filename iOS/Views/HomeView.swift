@@ -245,11 +245,13 @@ public struct HomeView: View {
                         await updateService.checkForUpdates()
                     }
                     .onChange(of: supplements) {
+                        cleanupExpiredSupplementsIfNeeded()
                         viewModel.processSupplements(supplementsForActiveClient)
                         homeOverdueCount = viewModel.cachedTodayCounts.missed
                         rebuildVisible(now: .now)
                     }
                     .task(id: activeClientManager.currentClientId) {
+                        cleanupExpiredSupplementsIfNeeded()
                         viewModel.processSupplements(supplementsForActiveClient)
                         homeOverdueCount = viewModel.cachedTodayCounts.missed
                         rebuildVisible(now: .now)
@@ -313,7 +315,7 @@ public struct HomeView: View {
 
     private var supplementsForActiveClient: [UserSupplement] {
         guard let id = activeClientManager.currentClientId else { return [] }
-        return supplements.filter { $0.client?.id == id }
+        return supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == id }
     }
     
     private var navigationTitle: String {
@@ -322,6 +324,21 @@ public struct HomeView: View {
     
     private var clientTitle: String {
         activeClient?.name ?? "dashboard_title".localized
+    }
+
+    private func cleanupExpiredSupplementsIfNeeded(today: Date = .now) {
+        let expired = supplementsForActiveClient.filter { isExpired($0, today: today) }
+        guard !expired.isEmpty else { return }
+        for supplement in expired {
+            viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
+        }
+    }
+
+    private func isExpired(_ supplement: UserSupplement, today: Date) -> Bool {
+        guard let days = supplement.cycleConfig.durationMonths, days > 0 else { return false }
+        let calendar = Calendar.current
+        guard let endDate = calendar.date(byAdding: .day, value: days, to: supplement.startDate) else { return false }
+        return calendar.startOfDay(for: today) > calendar.startOfDay(for: endDate)
     }
     
     private func activeRow(supplement: UserSupplement, timeString: String, now: Date) -> some View {

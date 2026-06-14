@@ -124,6 +124,12 @@ public struct StackView: View {
                 } message: {
                     Text(errorMessage ?? "")
                 }
+                .onChange(of: supplements) {
+                    cleanupExpiredSupplementsIfNeeded()
+                }
+                .task(id: activeClientManager.currentClientId) {
+                    cleanupExpiredSupplementsIfNeeded()
+                }
             }
         }
         .task {
@@ -152,7 +158,7 @@ public struct StackView: View {
     private var supplementsForActiveClient: [UserSupplement] {
         guard let id = activeClientManager.currentClientId else { return [] }
         let base = supplements
-            .filter { $0.deletedAtEpochMs == nil && $0.client?.id == id }
+            .filter { $0.deletedAtEpochMs == nil && $0.client?.id == id && !isExpired($0) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty { return base }
@@ -161,6 +167,26 @@ public struct StackView: View {
     
     private var clientTitle: String {
         activeClient?.name ?? "dashboard_title".localized
+    }
+
+    private func cleanupExpiredSupplementsIfNeeded(today: Date = .now) {
+        guard let id = activeClientManager.currentClientId else { return }
+        let expired = supplements.filter {
+            $0.deletedAtEpochMs == nil &&
+            $0.client?.id == id &&
+            isExpired($0, today: today)
+        }
+        guard !expired.isEmpty else { return }
+        for supplement in expired {
+            deleteSupplement(supplement)
+        }
+    }
+
+    private func isExpired(_ supplement: UserSupplement, today: Date = .now) -> Bool {
+        guard let days = supplement.cycleConfig.durationMonths, days > 0 else { return false }
+        let calendar = Calendar.current
+        guard let endDate = calendar.date(byAdding: .day, value: days, to: supplement.startDate) else { return false }
+        return calendar.startOfDay(for: today) > calendar.startOfDay(for: endDate)
     }
     
     private func displayName(for supplement: UserSupplement) -> String {

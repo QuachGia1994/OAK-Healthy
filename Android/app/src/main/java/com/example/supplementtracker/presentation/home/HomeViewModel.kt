@@ -121,6 +121,7 @@ class HomeViewModel(
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
     private val intakeTimesCache = ConcurrentHashMap<String, List<String>>()
+    private val expiredCleanupIds = ConcurrentHashMap.newKeySet<String>()
 
     val uiState: StateFlow<HomeUiState> = combine(
         activeClientManager.currentClientId,
@@ -133,6 +134,7 @@ class HomeViewModel(
                 repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 119), getEndOfTomorrow())
             ) { supplements, records -> supplements to records }
                 .mapLatest { (supplements, records) ->
+                    cleanupExpiredSupplements(supplements)
                     withContext(Dispatchers.Default) { processSupplements(supplements, records) }
                 }
         }
@@ -146,6 +148,11 @@ class HomeViewModel(
         .flatMapLatest { clientId ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(emptyList())
             repository.getAllSupplements(id)
+        }
+        .map { supplements ->
+            cleanupExpiredSupplements(supplements)
+            val today = LocalDate.now()
+            supplements.filter { it.deletedAtEpochMs == null && !isExpired(it, today) }
         }
         .stateIn(
             scope = viewModelScope,
@@ -312,7 +319,7 @@ class HomeViewModel(
         val nowEpochMs = System.currentTimeMillis()
         val zoneId = ZoneId.systemDefault()
         val recordIndex = buildRecordIndex(records)
-        val liveSupplements = supplements.filter { it.deletedAtEpochMs == null }
+        val liveSupplements = supplements.filter { it.deletedAtEpochMs == null && !isExpired(it, today) }
         if (liveSupplements.isEmpty()) return HomeUiState.Success(emptyMap(), emptyList(), 0)
         val streakDays = computeStreakDays(today, liveSupplements, recordIndex.hasRecordByDose, zoneId)
         val activeItems = buildActiveItems(liveSupplements, today, nowEpochMs, recordIndex.statusByDose, zoneId)
@@ -410,8 +417,37 @@ class HomeViewModel(
         today: LocalDate
     ): List<RestingSupplementInfo> {
         return supplements
-            .filter { calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF }
+            .filter {
+                !isExpired(it, today) &&
+                    calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF
+            }
             .map { RestingSupplementInfo(it, calculateDaysRemaining(it, today)) }
+    }
+
+    private fun isExpired(supplement: UserSupplement, today: LocalDate): Boolean {
+        return calculateCycleUseCase.isExpired(supplement.startDate, supplement.cycleConfig, today)
+    }
+
+    private fun cleanupExpiredSupplements(supplements: List<UserSupplement>) {
+        val today = LocalDate.now()
+        val expired = supplements.filter { it.deletedAtEpochMs == null && isExpired(it, today) }
+        if (expired.isEmpty()) return
+        viewModelScope.launch {
+            val removed = ArrayList<UserSupplement>(expired.size)
+            for (supplement in expired) {
+                val id = supplement.id.toString()
+                if (!expiredCleanupIds.add(id)) continue
+                try {
+                    repository.deleteSupplement(supplement)
+                    removed += supplement
+                } finally {
+                    expiredCleanupIds.remove(id)
+                }
+            }
+            if (removed.isEmpty()) return@launch
+            rescheduleNotificationsNow()
+            activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it) }
+        }
     }
 
     private fun isDayComplete(

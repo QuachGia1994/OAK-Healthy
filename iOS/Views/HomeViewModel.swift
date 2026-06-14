@@ -160,11 +160,8 @@ public final class HomeViewModel {
             updatedAtEpochMs: ctx.nowEpochMs,
             supplement: supplement
         )
-        guard insertAndSave(newRecord, context: context) else { return }
+        guard persistMark(newRecord, supplement: supplement, action: action, ctx: ctx, context: context) else { return }
         applyMarkToCaches(ctx: ctx, action: action)
-        if action == .taken {
-            updateLastTakenIfNeeded(supplement: supplement, scheduledAt: ctx.scheduledAt, nowEpochMs: ctx.nowEpochMs, context: context)
-        }
         scheduleMarkSideEffects(
             supplement: supplement,
             time: ctx.time,
@@ -211,8 +208,18 @@ public final class HomeViewModel {
         )
     }
 
-    private func insertAndSave(_ record: IntakeRecord, context: ModelContext) -> Bool {
+    private func persistMark(
+        _ record: IntakeRecord,
+        supplement: UserSupplement,
+        action: DoseAction,
+        ctx: MarkDoseContext,
+        context: ModelContext
+    ) -> Bool {
         context.insert(record)
+        if action == .taken {
+            supplement.lastTakenLocalDate = localDayString(from: ctx.scheduledAt)
+            supplement.updatedAtEpochMs = ctx.nowEpochMs
+        }
         do {
             try context.save()
             return true
@@ -254,21 +261,6 @@ public final class HomeViewModel {
             }
         }
         CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
-    }
-
-    private func updateLastTakenIfNeeded(
-        supplement: UserSupplement,
-        scheduledAt: Date,
-        nowEpochMs: Int64,
-        context: ModelContext
-    ) {
-        supplement.lastTakenLocalDate = localDayString(from: scheduledAt)
-        supplement.updatedAtEpochMs = nowEpochMs
-        do {
-            try context.save()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
     }
 
     private func localDayString(from date: Date) -> String {
@@ -373,6 +365,7 @@ public final class HomeViewModel {
         
         for supplement in supplements {
             if supplement.deletedAtEpochMs != nil { continue }
+            if isExpired(supplement, at: today) { continue }
             all.append(supplement)
             for record in supplement.intakeRecords {
                 if record.date >= minDate { recent.insert(record.id) }
@@ -448,6 +441,13 @@ public final class HomeViewModel {
         
         let dayInCycle = daysElapsed % totalCycleDays
         return totalCycleDays - dayInCycle
+    }
+
+    private func isExpired(_ supplement: UserSupplement, at today: Date) -> Bool {
+        guard let days = supplement.cycleConfig.durationMonths, days > 0 else { return false }
+        let calendar = Calendar.current
+        guard let endDate = calendar.date(byAdding: .day, value: days, to: supplement.startDate) else { return false }
+        return calendar.startOfDay(for: today) > calendar.startOfDay(for: endDate)
     }
     
     private func matchesWeeklyRecurrenceIfNeeded(config: CycleConfig, date: Date, calendar: Calendar) -> Bool {
