@@ -38,6 +38,20 @@ struct OAKBottomTabBar: View {
                         .fill(
                             LinearGradient(
                                 colors: [
+                                    Color.white.opacity(colorScheme == .dark ? 0.16 : 0.24),
+                                    Color.clear,
+                                    Color.black.opacity(colorScheme == .dark ? 0.10 : 0.04)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
                                     Color.white.opacity(colorScheme == .dark ? 0.14 : 0.22),
                                     Color.white.opacity(0.03)
                                 ],
@@ -57,8 +71,17 @@ struct OAKBottomTabBar: View {
                         .padding(.horizontal, 26)
                         .padding(.top, 1)
                 }
-                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.24 : 0.10), radius: 24, x: 0, y: 12)
-                .shadow(color: Color.accentColor.opacity(0.10), radius: 18, x: 0, y: 4)
+                .overlay(alignment: .bottom) {
+                    Capsule()
+                        .fill(Color.black.opacity(colorScheme == .dark ? 0.16 : 0.06))
+                        .frame(height: 10)
+                        .blur(radius: 10)
+                        .padding(.horizontal, 22)
+                        .padding(.bottom, 3)
+                }
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.30 : 0.12), radius: 30, x: 0, y: 16)
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.16 : 0.06), radius: 10, x: 0, y: 3)
+                .shadow(color: Color.accentColor.opacity(0.12), radius: 22, x: 0, y: 6)
         }
     }
     
@@ -97,8 +120,8 @@ struct OAKBottomTabBar: View {
             }
             .foregroundStyle(isSelected ? Color.white : Color.primary.opacity(0.76))
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .padding(.horizontal, 10)
+            .padding(.vertical, isSelected ? 13 : 11)
+            .padding(.horizontal, isSelected ? 12 : 10)
             .background {
                 if isSelected {
                     Capsule()
@@ -108,9 +131,9 @@ struct OAKBottomTabBar: View {
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            Color.accentColor.opacity(0.70),
-                                            Color.accentColor.opacity(0.42),
-                                            Color.white.opacity(0.10)
+                                            Color.accentColor.opacity(0.78),
+                                            Color.accentColor.opacity(0.50),
+                                            Color.white.opacity(0.12)
                                         ],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
@@ -123,19 +146,27 @@ struct OAKBottomTabBar: View {
                         )
                         .overlay(alignment: .top) {
                             Capsule()
-                                .fill(Color.white.opacity(0.14))
-                                .frame(height: 1)
-                                .padding(.horizontal, 18)
+                                .fill(Color.white.opacity(0.18))
+                                .frame(height: 1.5)
+                                .padding(.horizontal, 16)
                                 .padding(.top, 1)
                         }
-                        .shadow(color: Color.accentColor.opacity(0.30), radius: 14, x: 0, y: 6)
-                        .shadow(color: .black.opacity(0.16), radius: 12, x: 0, y: 6)
+                        .overlay(alignment: .bottom) {
+                            Capsule()
+                                .fill(Color.black.opacity(0.14))
+                                .frame(height: 10)
+                                .blur(radius: 9)
+                                .padding(.horizontal, 18)
+                                .padding(.bottom, 2)
+                        }
+                        .shadow(color: Color.accentColor.opacity(0.34), radius: 18, x: 0, y: 8)
+                        .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
                         .matchedGeometryEffect(id: "oak-tab-selection", in: selectionAnimation)
                 }
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(OAKTabPressStyle())
     }
     
     private func badge(count: Int) -> some View {
@@ -160,5 +191,17 @@ struct OAKBottomTabBar: View {
                     .stroke(Color.white.opacity(0.16), lineWidth: 1)
             )
             .shadow(color: Color.red.opacity(0.22), radius: 8, x: 0, y: 3)
+    }
+}
+
+private struct OAKTabPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.965 : 1.0)
+            .offset(y: configuration.isPressed ? 1 : 0)
+            .animation(
+                .spring(response: 0.24, dampingFraction: 0.72, blendDuration: 0.12),
+                value: configuration.isPressed
+            )
     }
 }
