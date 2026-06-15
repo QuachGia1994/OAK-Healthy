@@ -126,9 +126,7 @@ class MainActivity : ComponentActivity() {
                 AppTheme.LIGHT -> UiModeManager.MODE_NIGHT_NO
                 AppTheme.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
             }
-            if (uiModeManager.applicationNightMode != mode) {
-                uiModeManager.setApplicationNightMode(mode)
-            }
+            uiModeManager.setApplicationNightMode(mode)
         }
 
         val compatMode = when (theme) {
