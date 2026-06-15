@@ -841,7 +841,10 @@ private struct LegacyTabBarLayoutConfigurator: UIViewControllerRepresentable {
         func applyIfNeeded() {
             guard #available(iOS 18.0, *), UIDevice.current.userInterfaceIdiom == .pad else { return }
             guard let tabBarController else { return }
+            tabBarController.traitOverrides.horizontalSizeClass = .compact
             tabBarController.traitOverrides.userInterfaceIdiom = .phone
+            tabBarController.view.setNeedsLayout()
+            tabBarController.view.layoutIfNeeded()
         }
     }
 }
