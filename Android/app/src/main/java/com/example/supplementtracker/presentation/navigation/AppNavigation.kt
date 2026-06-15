@@ -4,11 +4,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
@@ -292,7 +293,7 @@ private fun OakBottomBar(
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .shadow(20.dp, containerShape, clip = false)
@@ -316,23 +317,29 @@ private fun OakBottomBar(
                 )
                 .border(1.dp, Color.White.copy(alpha = if (isDark) 0.14f else 0.24f), containerShape)
         ) {
+            val horizontalPadding = 12.dp
+            val spacing = 10.dp
+            val contentWidth = maxWidth - (horizontalPadding * 2) - (spacing * 2)
+            val itemWidth = contentWidth / 3
+            
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
                     .fillMaxWidth(0.88f)
                     .padding(bottom = 4.dp)
                     .clip(RoundedCornerShape(100))
                     .background(Color.Black.copy(alpha = if (isDark) 0.18f else 0.06f))
+                    .align(Alignment.BottomCenter)
             )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(horizontal = horizontalPadding, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing)
             ) {
                 items.forEach { screen ->
                     val selected = currentRoute == screen.route
                     OakBottomBarItem(
+                        modifier = Modifier.width(itemWidth),
                         title = stringResource(screen.titleRes),
                         selected = selected,
                         badgeCount = if (screen == Screen.Home) overdueCount else 0,
@@ -346,7 +353,8 @@ private fun OakBottomBar(
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.OakBottomBarItem(
+private fun OakBottomBarItem(
+    modifier: Modifier = Modifier,
     title: String,
     selected: Boolean,
     badgeCount: Int,
@@ -381,8 +389,7 @@ private fun androidx.compose.foundation.layout.RowScope.OakBottomBarItem(
         )
     }
     Box(
-        modifier = Modifier
-            .weight(1f)
+        modifier = modifier
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -411,7 +418,6 @@ private fun androidx.compose.foundation.layout.RowScope.OakBottomBarItem(
                 }
                 if (badgeCount > 0) {
                     OakBottomBadge(count = badgeCount)
-                        .align(Alignment.TopEnd)
                         .offset(x = 10.dp, y = (-8).dp)
                 }
             }
