@@ -1,5 +1,6 @@
 package com.example.supplementtracker
 
+import android.app.UiModeManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -117,20 +118,36 @@ class MainActivity : ComponentActivity() {
         val activeClientManager: ActiveClientManager
     )
 
+    private fun applySavedNightMode(theme: AppTheme) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val uiModeManager = getSystemService(UiModeManager::class.java)
+            val mode = when (theme) {
+                AppTheme.DARK -> UiModeManager.MODE_NIGHT_YES
+                AppTheme.LIGHT -> UiModeManager.MODE_NIGHT_NO
+                AppTheme.SYSTEM -> UiModeManager.MODE_NIGHT_AUTO
+            }
+            if (uiModeManager.applicationNightMode != mode) {
+                uiModeManager.setApplicationNightMode(mode)
+            }
+        }
+
+        val compatMode = when (theme) {
+            AppTheme.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+            AppTheme.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            AppTheme.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        if (AppCompatDelegate.getDefaultNightMode() != compatMode) {
+            AppCompatDelegate.setDefaultNightMode(compatMode)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val prefs = applicationContext.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
         val initialTheme = runCatching {
             val raw = prefs.getString("appTheme", AppTheme.SYSTEM.name) ?: AppTheme.SYSTEM.name
             AppTheme.valueOf(raw)
         }.getOrDefault(AppTheme.SYSTEM)
-        val initialNightMode = when (initialTheme) {
-            AppTheme.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-            AppTheme.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-            AppTheme.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-        }
-        if (AppCompatDelegate.getDefaultNightMode() != initialNightMode) {
-            AppCompatDelegate.setDefaultNightMode(initialNightMode)
-        }
+        applySavedNightMode(initialTheme)
 
         installSplashScreen()
 
@@ -225,14 +242,7 @@ class MainActivity : ComponentActivity() {
                                 onThemeChange = {
                                     appTheme = it
                                     prefs.edit().putString("appTheme", it.name).apply()
-                                    val nightMode = when (it) {
-                                        AppTheme.DARK -> AppCompatDelegate.MODE_NIGHT_YES
-                                        AppTheme.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
-                                        AppTheme.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-                                    }
-                                    if (AppCompatDelegate.getDefaultNightMode() != nightMode) {
-                                        AppCompatDelegate.setDefaultNightMode(nightMode)
-                                    }
+                                    applySavedNightMode(it)
                                 }
                             )
                         }
