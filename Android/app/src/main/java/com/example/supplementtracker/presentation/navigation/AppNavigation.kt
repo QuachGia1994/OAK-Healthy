@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
@@ -282,21 +284,20 @@ private fun OakBottomBar(
     isDark: Boolean,
     onTabSelected: (String) -> Unit
 ) {
-    val containerShape = RoundedCornerShape(32.dp)
-    Surface(
+    val containerShape = RoundedCornerShape(100)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 10.dp),
-        color = Color.Transparent,
-        shape = containerShape,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+        contentAlignment = Alignment.Center
     ) {
         BoxWithConstraints(
             modifier = Modifier
+                .widthIn(max = 420.dp)
                 .fillMaxWidth()
-                .shadow(20.dp, containerShape, clip = false)
+                .wrapContentHeight()
+                .shadow(22.dp, containerShape, clip = false)
                 .clip(containerShape)
                 .background(
                     Brush.verticalGradient(
@@ -308,9 +309,9 @@ private fun OakBottomBar(
                             )
                         } else {
                             listOf(
-                                Color.White.copy(alpha = 0.92f),
-                                Color.White.copy(alpha = 0.82f),
-                                Color.White.copy(alpha = 0.70f)
+                                Color.White.copy(alpha = 0.72f),
+                                Color.White.copy(alpha = 0.64f),
+                                Color.White.copy(alpha = 0.56f)
                             )
                         }
                     )
@@ -322,14 +323,6 @@ private fun OakBottomBar(
             val contentWidth = maxWidth - (horizontalPadding * 2) - (spacing * 2)
             val itemWidth = contentWidth / 3
             
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .padding(bottom = 4.dp)
-                    .clip(RoundedCornerShape(100))
-                    .background(Color.Black.copy(alpha = if (isDark) 0.18f else 0.06f))
-                    .align(Alignment.BottomCenter)
-            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -368,7 +361,7 @@ private fun OakBottomBarItem(
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 700f),
         label = "oakBottomBarPress"
     )
-    val pillShape = RoundedCornerShape(28.dp)
+    val pillShape = RoundedCornerShape(100)
     val pillBrush = Brush.linearGradient(
         colors = listOf(
             MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
@@ -378,8 +371,8 @@ private fun OakBottomBarItem(
     )
     val pillContainerModifier = if (selected) {
         Modifier
-            .shadow(14.dp, pillShape, clip = false)
-            .background(pillBrush)
+            .shadow(14.dp, pillShape, clip = true)
+            .background(pillBrush, pillShape)
             .border(1.dp, Color.White.copy(alpha = 0.18f), pillShape)
     } else {
         Modifier.background(
