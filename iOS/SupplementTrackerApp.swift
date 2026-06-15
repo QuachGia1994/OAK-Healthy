@@ -1,6 +1,5 @@
 import SwiftUI
 import SwiftData
-import UIKit
 @preconcurrency import UserNotifications
 
 private enum BootKeys {
@@ -590,9 +589,16 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
-        .background(LegacyTabBarLayoutConfigurator())
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            OAKBottomTabBar(
+                selectedTab: $selectedTab,
+                homeBadgeCount: homeOverdueCount
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
@@ -812,53 +818,6 @@ struct MainTabView: View {
                 return TimeStrings.formatTime(recordMinutes) == TimeStrings.formatTime(scheduledMinutes)
             }
             return recordTime == scheduledTime
-        }
-    }
-}
-
-private struct LegacyTabBarLayoutConfigurator: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> Controller {
-        Controller()
-    }
-    
-    func updateUIViewController(_ uiViewController: Controller, context: Context) {
-        uiViewController.applyIfNeeded()
-    }
-    
-    final class Controller: UIViewController {
-        override func viewWillAppear(_ animated: Bool) {
-            super.viewWillAppear(animated)
-            applyIfNeeded()
-        }
-        
-        override func viewDidAppear(_ animated: Bool) {
-            super.viewDidAppear(animated)
-            applyIfNeeded()
-        }
-        
-        override func viewDidLayoutSubviews() {
-            super.viewDidLayoutSubviews()
-            applyIfNeeded()
-        }
-        
-        func applyIfNeeded() {
-            guard let tabBarController else { return }
-            let tabBar = tabBarController.tabBar
-            tabBar.itemPositioning = .fill
-            tabBar.itemWidth = 0
-            tabBar.itemSpacing = 0
-            tabBar.setNeedsLayout()
-            if let items = tabBar.items, items.count >= 3 {
-                items[0].titlePositionAdjustment = .zero
-                items[0].imageInsets = .zero
-                items[1].titlePositionAdjustment = UIOffset(horizontal: 0, vertical: -1)
-                items[1].imageInsets = UIEdgeInsets(top: -2, left: 0, bottom: 2, right: 0)
-                items[2].titlePositionAdjustment = .zero
-                items[2].imageInsets = .zero
-            }
-            guard #available(iOS 18.0, *), UIDevice.current.userInterfaceIdiom == .pad else { return }
-            tabBarController.traitOverrides.horizontalSizeClass = .compact
-            tabBarController.traitOverrides.userInterfaceIdiom = .phone
         }
     }
 }
