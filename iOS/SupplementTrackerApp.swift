@@ -576,7 +576,7 @@ struct MainTabView: View {
             )
                 .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("tab_stack".localized, systemImage: "list.bullet")
+                    Label("tab_stack".localized, systemImage: "square.stack.3d.up.fill")
                 }
                 .tag(1)
             
@@ -839,12 +839,15 @@ private struct LegacyTabBarLayoutConfigurator: UIViewControllerRepresentable {
         }
         
         func applyIfNeeded() {
-            guard #available(iOS 18.0, *), UIDevice.current.userInterfaceIdiom == .pad else { return }
             guard let tabBarController else { return }
+            let tabBar = tabBarController.tabBar
+            tabBar.itemPositioning = .fill
+            tabBar.itemWidth = 0
+            tabBar.itemSpacing = 0
+            tabBar.setNeedsLayout()
+            guard #available(iOS 18.0, *), UIDevice.current.userInterfaceIdiom == .pad else { return }
             tabBarController.traitOverrides.horizontalSizeClass = .compact
             tabBarController.traitOverrides.userInterfaceIdiom = .phone
-            tabBarController.view.setNeedsLayout()
-            tabBarController.view.layoutIfNeeded()
         }
     }
 }
