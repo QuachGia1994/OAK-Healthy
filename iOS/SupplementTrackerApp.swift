@@ -91,44 +91,46 @@ private struct RootLaunchView: View {
     @State private var integrity: AppIntegrityVerdict = AppIntegrity.evaluate()
     
     var body: some View {
-        if isAppLaunched, let dependencies {
-            Group {
-                if !integrity.ok {
-                    IntegrityBlockedView()
-                } else if shouldShowSafeMode {
-                    SafeModeView(activeClientManager: dependencies.activeClientManager)
-                } else {
-                    MainTabView(
-                        selectedTab: $selectedTab,
-                        activeClientManager: dependencies.activeClientManager,
-                        notificationService: dependencies.notificationService
-                    )
+        Group {
+            if isAppLaunched, let dependencies {
+                Group {
+                    if !integrity.ok {
+                        IntegrityBlockedView()
+                    } else if shouldShowSafeMode {
+                        SafeModeView(activeClientManager: dependencies.activeClientManager)
+                    } else {
+                        MainTabView(
+                            selectedTab: $selectedTab,
+                            activeClientManager: dependencies.activeClientManager,
+                            notificationService: dependencies.notificationService
+                        )
+                    }
                 }
-            }
-            .preferredColorScheme(preferredColorScheme)
-            .modelContainer(dependencies.modelContainer)
-            .task {
-                DebugReporter.report("ui_task_start", fields: [
-                    "safeMode": String(isSafeModeEnabled),
-                    "pendingImport": String(!pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                ])
-                UserDefaults.standard.set(BootKeys.uiReady, forKey: BootKeys.stage)
-                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
-                do {
-                    try await Task.sleep(for: .seconds(3))
-                } catch {
-                    return
+                .modelContainer(dependencies.modelContainer)
+                .task {
+                    DebugReporter.report("ui_task_start", fields: [
+                        "safeMode": String(isSafeModeEnabled),
+                        "pendingImport": String(!pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    ])
+                    UserDefaults.standard.set(BootKeys.uiReady, forKey: BootKeys.stage)
+                    UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+                    do {
+                        try await Task.sleep(for: .seconds(3))
+                    } catch {
+                        return
+                    }
+                    UserDefaults.standard.set(BootKeys.uiStable, forKey: BootKeys.stage)
+                    UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
+                    DebugReporter.report("ui_task_stable")
                 }
-                UserDefaults.standard.set(BootKeys.uiStable, forKey: BootKeys.stage)
-                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
-                DebugReporter.report("ui_task_stable")
-            }
-        } else {
-            SafeBootView { container in
-                dependencies = container
-                isAppLaunched = true
+            } else {
+                SafeBootView { container in
+                    dependencies = container
+                    isAppLaunched = true
+                }
             }
         }
+        .preferredColorScheme(preferredColorScheme)
     }
     
     private var shouldShowSafeMode: Bool {
@@ -197,6 +199,7 @@ private struct IntegrityBlockedView: View {
 
 private struct SafeBootView: View {
     let onReady: (AppDependencyContainer) -> Void
+    @Environment(\.colorScheme) private var colorScheme
     @State private var errorMessage: String?
     @State private var hasBootstrapped: Bool = false
     @State private var bootAttempt: Int = 0
@@ -204,11 +207,7 @@ private struct SafeBootView: View {
     
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(.systemGroupedBackground), Color(.systemBackground)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            (colorScheme == .dark ? Color.black : Color.white)
             .ignoresSafeArea()
             
             VStack(spacing: 16) {
@@ -235,6 +234,7 @@ private struct SafeBootView: View {
                     .buttonStyle(.bordered)
                 } else {
                     ProgressView()
+                        .tint(colorScheme == .dark ? .white : .black)
                 }
             }
         }

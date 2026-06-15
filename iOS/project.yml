@@ -24,6 +24,7 @@ targets:
       - path: Views
     resources:
       - path: GoogleService-Info.plist
+      - path: LaunchScreen.storyboard
     settings:
       base:
         INFOPLIST_FILE: Info.plist
@@ -53,7 +54,7 @@ targets:
         JSONBIN_API_KEY: "$(JSONBIN_API_KEY)"
         UIApplicationSceneManifest:
           UISceneConfigurations: {}
-        UILaunchScreen: {}
+        UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
     dependencies:

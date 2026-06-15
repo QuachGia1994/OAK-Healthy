@@ -1,4 +1,21 @@
-<?xml version="1.0" encoding="utf-8"?>
-<inset xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/ic_oak_logo"
-    android:inset="18dp" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:pathData="M18,10 H82 A8,8 0 0,1 90,18 V82 A8,8 0 0,1 82,90 H18 A8,8 0 0,1 10,82 V18 A8,8 0 0,1 18,10 Z"
+        android:fillColor="#22E58F" />
+    <path
+        android:pathData="M44,26 A28,28 0 1,1 44,82 A28,28 0 1,1 44,26 Z"
+        android:fillColor="#F4FFFB" />
+    <path
+        android:pathData="M36,34 L52,34 L48,22 L40,22 Z"
+        android:fillColor="#E9FFF6" />
+    <path
+        android:pathData="M58,34 H80 A16,16 0 0,1 80,66 H58 A16,16 0 0,1 58,34 Z"
+        android:fillColor="#BFF7DF" />
+    <path
+        android:pathData="M56,22 H62 V86 H56 Z"
+        android:fillColor="#4DFFFFFF" />
+</vector>

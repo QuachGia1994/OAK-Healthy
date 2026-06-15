@@ -214,7 +214,7 @@ public struct LetterStormLogoView: View {
         let particleFontSize = max(9, min(size.width, size.height) * 0.03)
         let wordFontSize = max(22, min(size.width, size.height) * 0.17)
         
-        let baseColor: Color = (baseColorScheme == .dark) ? .white : Color.black.opacity(0.86)
+        let baseColor: Color = (baseColorScheme == .dark) ? .white : .black
         let shadowColor: Color = (baseColorScheme == .dark) ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
         
         if drawParticles {

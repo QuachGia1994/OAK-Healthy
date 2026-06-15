@@ -20,7 +20,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -34,6 +33,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import com.example.supplementtracker.presentation.designsystem.OakLogoMark
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.cos
@@ -47,13 +47,6 @@ fun SplashScreen(
     minDurationMillis: Long = 1100
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = androidx.compose.runtime.remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
 
     LaunchedEffect(autoFinish, minDurationMillis, onFinished) {
         if (!autoFinish) return@LaunchedEffect
@@ -65,20 +58,25 @@ fun SplashScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundBrush),
+            .background(if (isDark) Color.Black else Color.White),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        OakLogoMark(size = 84.dp)
+        Spacer(modifier = Modifier.height(24.dp))
         LetterStormLogo(
             word = "OAK HEALTHY",
             isDark = isDark,
             modifier = Modifier
                 .padding(horizontal = 18.dp)
                 .fillMaxWidth()
-                .height(240.dp)
+                .height(200.dp)
         )
         Spacer(modifier = Modifier.height(16.dp))
-        CircularProgressIndicator(strokeWidth = 2.dp)
+        CircularProgressIndicator(
+            strokeWidth = 2.dp,
+            color = if (isDark) Color.White else Color.Black
+        )
     }
 }
 
@@ -128,7 +126,7 @@ private fun LetterStormLogo(
             color = if (isDark) {
                 android.graphics.Color.WHITE
             } else {
-                android.graphics.Color.argb(230, 15, 23, 42)
+                android.graphics.Color.BLACK
             }
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -139,7 +137,7 @@ private fun LetterStormLogo(
             color = if (isDark) {
                 android.graphics.Color.WHITE
             } else {
-                android.graphics.Color.argb(235, 15, 23, 42)
+                android.graphics.Color.BLACK
             }
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
