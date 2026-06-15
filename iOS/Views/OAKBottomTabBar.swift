@@ -69,13 +69,6 @@ struct OAKBottomTabBar: View {
                         RoundedRectangle(cornerRadius: metrics.containerCornerRadius, style: .continuous)
                             .stroke(Color.white.opacity(colorScheme == .dark ? 0.12 : 0.18), lineWidth: 1)
                     }
-                    .overlay(alignment: .top) {
-                        Capsule()
-                            .fill(Color.white.opacity(colorScheme == .dark ? 0.16 : 0.24))
-                            .frame(height: 1)
-                            .padding(.horizontal, metrics.outerHorizontalPadding + 14)
-                            .padding(.top, 1)
-                    }
                     .overlay(alignment: .bottom) {
                         Capsule()
                             .fill(Color.black.opacity(colorScheme == .dark ? 0.16 : 0.06))
@@ -170,13 +163,6 @@ struct OAKBottomTabBar: View {
                             Capsule()
                                 .stroke(Color.white.opacity(0.22), lineWidth: 1)
                         )
-                        .overlay(alignment: .top) {
-                            Capsule()
-                                .fill(Color.white.opacity(0.18))
-                                .frame(height: 1.5)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 1)
-                        }
                         .overlay(alignment: .leading) {
                             Capsule()
                                 .fill(

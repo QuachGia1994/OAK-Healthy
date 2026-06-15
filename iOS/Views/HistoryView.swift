@@ -118,7 +118,7 @@ public struct HistoryView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 136)
                 }
             }
             .navigationTitle("history_title".localized)

@@ -172,6 +172,7 @@ public struct HomeView: View {
                         }
                     }
                     .scrollContentBackground(.hidden)
+                    .safeAreaPadding(.bottom, 128)
                     .listStyle(.plain)
                     .navigationTitle("dashboard_title".localized)
                     .navigationBarTitleDisplayMode(.inline)

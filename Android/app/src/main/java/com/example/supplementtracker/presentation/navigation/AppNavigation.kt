@@ -2,18 +2,39 @@ package com.example.supplementtracker.presentation.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -30,12 +51,13 @@ import com.example.supplementtracker.presentation.home.HomeViewModel
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.home.DoseStatus
 import com.example.supplementtracker.presentation.home.HomeUiState
@@ -114,11 +136,6 @@ fun AppNavigation(
 
     val items = listOf(Screen.Home, Screen.MyStack, Screen.History)
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val navContainerColor = if (isDark) {
-        Color.White.copy(alpha = 0.10f)
-    } else {
-        Color.White.copy(alpha = 0.70f)
-    }
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val overdueCount by remember(homeUiState) {
         derivedStateOf {
@@ -137,41 +154,21 @@ fun AppNavigation(
         bottomBar = {
             val isBottomTab = items.any { it.route == currentDestination?.route }
             if (isBottomTab && hasCompletedOnboarding) {
-                NavigationBar(
-                    containerColor = navContainerColor,
-                    tonalElevation = 0.dp
-                ) {
-                    items.forEach { screen ->
-                        NavigationBarItem(
-                            icon = {
-                                if (screen == Screen.Home && overdueCount > 0) {
-                                    BadgedBox(
-                                        badge = {
-                                            Badge {
-                                                Text(if (overdueCount > 99) "99+" else overdueCount.toString())
-                                            }
-                                        }
-                                    ) {
-                                        screen.icon()
-                                    }
-                                } else {
-                                    screen.icon()
-                                }
-                            },
-                            label = { Text(stringResource(screen.titleRes)) },
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                OakBottomBar(
+                    items = items,
+                    currentRoute = currentDestination?.route,
+                    overdueCount = overdueCount,
+                    isDark = isDark,
+                    onTabSelected = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
                             }
-                        )
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
-                }
+                )
             }
         }
     ) { innerPadding ->
@@ -272,5 +269,143 @@ fun AppNavigation(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OakBottomBar(
+    items: List<Screen>,
+    currentRoute: String?,
+    overdueCount: Int,
+    isDark: Boolean,
+    onTabSelected: (String) -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        color = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.72f),
+        shape = RoundedCornerShape(32.dp),
+        tonalElevation = 0.dp,
+        shadowElevation = 18.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items.forEach { screen ->
+                val selected = currentRoute == screen.route
+                OakBottomBarItem(
+                    title = stringResource(screen.titleRes),
+                    selected = selected,
+                    badgeCount = if (screen == Screen.Home) overdueCount else 0,
+                    onClick = { onTabSelected(screen.route) },
+                    icon = screen.icon
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.OakBottomBarItem(
+    title: String,
+    selected: Boolean,
+    badgeCount: Int,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 700f),
+        label = "oakBottomBarPress"
+    )
+    val pillShape = RoundedCornerShape(28.dp)
+    val pillBrush = Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.60f),
+            Color.White.copy(alpha = 0.14f)
+        )
+    )
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(pillShape)
+            .background(
+                if (selected) pillBrush else Brush.linearGradient(
+                    colors = listOf(Color.Transparent, Color.Transparent)
+                )
+            )
+            .border(
+                width = if (selected) 1.dp else 0.dp,
+                color = if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent,
+                shape = pillShape
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = if (selected) 12.dp else 10.dp, vertical = if (selected) 13.dp else 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.foundation.layout.Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(contentAlignment = Alignment.TopEnd) {
+                CompositionLocalProvider(
+                    LocalContentColor provides if (selected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
+                ) {
+                    Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                        icon()
+                    }
+                }
+                if (badgeCount > 0) {
+                    OakBottomBadge(count = badgeCount)
+                        .align(Alignment.TopEnd)
+                        .offset(x = 10.dp, y = (-8).dp)
+                }
+            }
+            Text(
+                text = title,
+                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun OakBottomBadge(count: Int) {
+    val text = if (count > 99) "99+" else count.toString()
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(Color(0xFFFF5A5F), Color(0xFFFF9F43))
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
+            .padding(horizontal = if (text.length > 2) 6.dp else 5.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold)
+        )
     }
 }
