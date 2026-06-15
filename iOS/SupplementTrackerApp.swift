@@ -557,38 +557,7 @@ struct MainTabView: View {
     @State private var badgeViewModel = HomeViewModel()
     
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView(
-                activeClientManager: activeClientManager,
-                notificationService: notificationService
-            )
-                .id(activeClientManager.currentClientId)
-                .tabItem {
-                    Image(systemName: "house.fill")
-                    Text("tab_home".localized)
-                }
-                .badge(homeOverdueCount)
-                .tag(0)
-            
-            StackView(
-                activeClientManager: activeClientManager,
-                notificationService: notificationService
-            )
-                .id(activeClientManager.currentClientId)
-                .tabItem {
-                    Image(systemName: "square.stack.3d.up.fill")
-                    Text("tab_stack".localized)
-                }
-                .tag(1)
-            
-            HistoryView(activeClientManager: activeClientManager)
-                .id(activeClientManager.currentClientId)
-                .tabItem {
-                    Image(systemName: "clock.fill")
-                    Text("tab_history".localized)
-                }
-                .tag(2)
-        }
+        selectedContent
         .toolbar(.hidden, for: .tabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             OAKBottomTabBar(
@@ -631,6 +600,27 @@ struct MainTabView: View {
             )
         ) {
             OnboardingView(activeClientManager: activeClientManager, notificationService: notificationService)
+        }
+    }
+    
+    @ViewBuilder
+    private var selectedContent: some View {
+        switch selectedTab {
+        case 1:
+            StackView(
+                activeClientManager: activeClientManager,
+                notificationService: notificationService
+            )
+            .id("stack-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+        case 2:
+            HistoryView(activeClientManager: activeClientManager)
+                .id("history-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+        default:
+            HomeView(
+                activeClientManager: activeClientManager,
+                notificationService: notificationService
+            )
+            .id("home-\(activeClientManager.currentClientId?.uuidString ?? "none")")
         }
     }
     
