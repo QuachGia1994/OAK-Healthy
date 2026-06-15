@@ -565,7 +565,8 @@ struct MainTabView: View {
             )
                 .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("tab_home".localized, systemImage: "house.fill")
+                    Image(systemName: "house.fill")
+                    Text("tab_home".localized)
                 }
                 .badge(homeOverdueCount)
                 .tag(0)
@@ -576,14 +577,16 @@ struct MainTabView: View {
             )
                 .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("tab_stack".localized, systemImage: "square.stack.3d.up.fill")
+                    Image(systemName: "square.stack.3d.up.fill")
+                    Text("tab_stack".localized)
                 }
                 .tag(1)
             
             HistoryView(activeClientManager: activeClientManager)
                 .id(activeClientManager.currentClientId)
                 .tabItem {
-                    Label("tab_history".localized, systemImage: "clock.fill")
+                    Image(systemName: "clock.fill")
+                    Text("tab_history".localized)
                 }
                 .tag(2)
         }
@@ -845,6 +848,14 @@ private struct LegacyTabBarLayoutConfigurator: UIViewControllerRepresentable {
             tabBar.itemWidth = 0
             tabBar.itemSpacing = 0
             tabBar.setNeedsLayout()
+            if let items = tabBar.items, items.count >= 3 {
+                items[0].titlePositionAdjustment = .zero
+                items[0].imageInsets = .zero
+                items[1].titlePositionAdjustment = UIOffset(horizontal: 0, vertical: -1)
+                items[1].imageInsets = UIEdgeInsets(top: -2, left: 0, bottom: 2, right: 0)
+                items[2].titlePositionAdjustment = .zero
+                items[2].imageInsets = .zero
+            }
             guard #available(iOS 18.0, *), UIDevice.current.userInterfaceIdiom == .pad else { return }
             tabBarController.traitOverrides.horizontalSizeClass = .compact
             tabBarController.traitOverrides.userInterfaceIdiom = .phone
