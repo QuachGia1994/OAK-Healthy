@@ -109,7 +109,9 @@ public final class HomeViewModel {
                 guard let scheduledAt = scheduledAtLocal(for: day, timeString: time) else { continue }
                 let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
                 let recordId = recordIdForDoseCachedLocal(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs, cache: &cache)
-                if !recentRecordIds.contains(recordId) { return false }
+                if !hasCompletedDose(supplement: supplement, scheduledAt: scheduledAt, normalizedTime: time, recordId: recordId) {
+                    return false
+                }
             }
         }
         return true
@@ -519,6 +521,21 @@ public final class HomeViewModel {
         formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: trimmed)
+    }
+
+    private func hasCompletedDose(
+        supplement: UserSupplement,
+        scheduledAt: Date,
+        normalizedTime: String,
+        recordId: UUID
+    ) -> Bool {
+        if recentRecordIds.contains(recordId) { return true }
+        let calendar = Calendar.current
+        return supplement.intakeRecords.contains { record in
+            guard calendar.isDate(record.date, inSameDayAs: scheduledAt) else { return false }
+            let recordTime = normalizedTimeString(record.intakeTime) ?? DoseEventKey.intakeTimeString(from: record.date)
+            return recordTime == normalizedTime
+        }
     }
     
     private func weekdayBitIndex(for date: Date, calendar: Calendar) -> Int? {
