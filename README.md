@@ -12,12 +12,15 @@ Lưu ý: artifacts tải từ GitHub Actions có thể yêu cầu đăng nhập 
 ## Thay đổi gần đây
 
 - iOS:
+  - UI: thay TabView mặc định bằng custom glass tab bar (fix lệch tab “Stack”, tránh bar chồng bar, polish animation/spacing).
   - Fix splash “letter storm” không chạy (đảm bảo animation luôn start từ t=0).
   - Fix crash khi tick “Đã uống” do SwiftData predicate join trong export/sync (đổi sang fetch đơn giản + filter in-memory).
   - Fix conflict ưu tiên thao tác Home: nếu đã tick từ Home thì thao tác Taken/Skip từ Notification không ghi đè record.
   - CI: build unsigned IPA và upload thêm dSYMs artifact để symbolicate crash.
   - Sync: debounce trigger + giảm idle polling để tiết kiệm pin.
 - Android:
+  - UI: custom glass bottom nav (capsule + pill active) theo style iOS, fix nền “slab” phía sau.
+  - Build: sửa lỗi compile liên quan Compose version (weight/offset/align receiver mismatch) khi thay bottom nav.
   - Fix conflict ưu tiên thao tác Home: thao tác Taken/Skip từ Notification không ghi đè record đã có.
   - Release: siết proguard keep rules và bật R8 full mode để giảm size.
   - Auto‑Sync: chuyển hướng tối ưu theo WorkManager (periodic + one‑off coalesce) để giảm wakeups.
