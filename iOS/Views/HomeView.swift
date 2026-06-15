@@ -574,14 +574,11 @@ private struct TodayHeaderView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(title)
-                    .font(.title3)
-                    .fontWeight(.bold)
-                if streakDays > 0 {
-                    StreakChip(streakDays: streakDays)
-                }
-                Spacer()
+            Text(title)
+                .font(.title3)
+                .fontWeight(.bold)
+            if streakDays > 0 {
+                StreakChip(streakDays: streakDays)
             }
         }
     }
