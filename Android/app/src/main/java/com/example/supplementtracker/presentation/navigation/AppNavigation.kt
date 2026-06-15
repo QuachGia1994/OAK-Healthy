@@ -21,6 +21,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -280,31 +281,65 @@ private fun OakBottomBar(
     isDark: Boolean,
     onTabSelected: (String) -> Unit
 ) {
+    val containerShape = RoundedCornerShape(32.dp)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 10.dp),
-        color = if (isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.72f),
-        shape = RoundedCornerShape(32.dp),
+        color = Color.Transparent,
+        shape = containerShape,
         tonalElevation = 0.dp,
-        shadowElevation = 18.dp
+        shadowElevation = 0.dp
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items.forEach { screen ->
-                val selected = currentRoute == screen.route
-                OakBottomBarItem(
-                    title = stringResource(screen.titleRes),
-                    selected = selected,
-                    badgeCount = if (screen == Screen.Home) overdueCount else 0,
-                    onClick = { onTabSelected(screen.route) },
-                    icon = screen.icon
+                .shadow(20.dp, containerShape, clip = false)
+                .clip(containerShape)
+                .background(
+                    Brush.verticalGradient(
+                        colors = if (isDark) {
+                            listOf(
+                                Color.White.copy(alpha = 0.16f),
+                                Color.White.copy(alpha = 0.10f),
+                                Color.Black.copy(alpha = 0.18f)
+                            )
+                        } else {
+                            listOf(
+                                Color.White.copy(alpha = 0.92f),
+                                Color.White.copy(alpha = 0.82f),
+                                Color.White.copy(alpha = 0.70f)
+                            )
+                        }
+                    )
                 )
+                .border(1.dp, Color.White.copy(alpha = if (isDark) 0.14f else 0.24f), containerShape)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth(0.88f)
+                    .padding(bottom = 4.dp)
+                    .clip(RoundedCornerShape(100))
+                    .background(Color.Black.copy(alpha = if (isDark) 0.18f else 0.06f))
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items.forEach { screen ->
+                    val selected = currentRoute == screen.route
+                    OakBottomBarItem(
+                        title = stringResource(screen.titleRes),
+                        selected = selected,
+                        badgeCount = if (screen == Screen.Home) overdueCount else 0,
+                        onClick = { onTabSelected(screen.route) },
+                        icon = screen.icon
+                    )
+                }
             }
         }
     }
@@ -333,6 +368,18 @@ private fun androidx.compose.foundation.layout.RowScope.OakBottomBarItem(
             Color.White.copy(alpha = 0.14f)
         )
     )
+    val pillContainerModifier = if (selected) {
+        Modifier
+            .shadow(14.dp, pillShape, clip = false)
+            .background(pillBrush)
+            .border(1.dp, Color.White.copy(alpha = 0.18f), pillShape)
+    } else {
+        Modifier.background(
+            Brush.linearGradient(
+                colors = listOf(Color.Transparent, Color.Transparent)
+            )
+        )
+    }
     Box(
         modifier = Modifier
             .weight(1f)
@@ -341,16 +388,7 @@ private fun androidx.compose.foundation.layout.RowScope.OakBottomBarItem(
                 scaleY = scale
             }
             .clip(pillShape)
-            .background(
-                if (selected) pillBrush else Brush.linearGradient(
-                    colors = listOf(Color.Transparent, Color.Transparent)
-                )
-            )
-            .border(
-                width = if (selected) 1.dp else 0.dp,
-                color = if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent,
-                shape = pillShape
-            )
+            .then(pillContainerModifier)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
