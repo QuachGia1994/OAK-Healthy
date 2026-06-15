@@ -28,6 +28,7 @@ import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
 import com.example.supplementtracker.presentation.add_supplement.AddSupplementViewModel
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.home.HistoryViewModel
+import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.navigation.AppNavigation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
@@ -193,7 +194,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 MaterialTheme(colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()) {
-                    Surface(color = MaterialTheme.colorScheme.background) {
+                    OakBackground {
                         val ready = deps
                         if (initError != null) {
                             Text(text = initError ?: "Unknown error")
