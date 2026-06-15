@@ -50,6 +50,7 @@ import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import androidx.appcompat.app.AppCompatDelegate
 
 class MainActivity : ComponentActivity() {
     private var timeZoneReceiver: TimeZoneChangeReceiver? = null
@@ -117,6 +118,20 @@ class MainActivity : ComponentActivity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val prefs = applicationContext.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val initialTheme = runCatching {
+            val raw = prefs.getString("appTheme", AppTheme.SYSTEM.name) ?: AppTheme.SYSTEM.name
+            AppTheme.valueOf(raw)
+        }.getOrDefault(AppTheme.SYSTEM)
+        val initialNightMode = when (initialTheme) {
+            AppTheme.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+            AppTheme.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            AppTheme.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+        if (AppCompatDelegate.getDefaultNightMode() != initialNightMode) {
+            AppCompatDelegate.setDefaultNightMode(initialNightMode)
+        }
+
         installSplashScreen()
 
         super.onCreate(savedInstanceState)
@@ -139,7 +154,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             } else {
-                var appTheme by rememberSaveable { mutableStateOf(AppTheme.SYSTEM) }
+                var appTheme by rememberSaveable { mutableStateOf(initialTheme) }
                 val isDarkTheme = when (appTheme) {
                     AppTheme.DARK -> true
                     AppTheme.LIGHT -> false
@@ -207,7 +222,18 @@ class MainActivity : ComponentActivity() {
                                 addSupplementViewModel = ready.addSupplementViewModel,
                                 activeClientManager = ready.activeClientManager,
                                 appTheme = appTheme,
-                                onThemeChange = { appTheme = it }
+                                onThemeChange = {
+                                    appTheme = it
+                                    prefs.edit().putString("appTheme", it.name).apply()
+                                    val nightMode = when (it) {
+                                        AppTheme.DARK -> AppCompatDelegate.MODE_NIGHT_YES
+                                        AppTheme.LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+                                        AppTheme.SYSTEM -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+                                    }
+                                    if (AppCompatDelegate.getDefaultNightMode() != nightMode) {
+                                        AppCompatDelegate.setDefaultNightMode(nightMode)
+                                    }
+                                }
                             )
                         }
                     }
