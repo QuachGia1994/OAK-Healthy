@@ -417,8 +417,10 @@ private fun OakBottomBarItem(
                     }
                 }
                 if (badgeCount > 0) {
-                    OakBottomBadge(count = badgeCount)
-                        .offset(x = 10.dp, y = (-8).dp)
+                    OakBottomBadge(
+                        count = badgeCount,
+                        modifier = Modifier.offset(x = 10.dp, y = (-8).dp)
+                    )
                 }
             }
             Text(
@@ -432,10 +434,13 @@ private fun OakBottomBarItem(
 }
 
 @Composable
-private fun OakBottomBadge(count: Int) {
+private fun OakBottomBadge(
+    count: Int,
+    modifier: Modifier = Modifier
+) {
     val text = if (count > 99) "99+" else count.toString()
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(CircleShape)
             .background(
                 Brush.linearGradient(
