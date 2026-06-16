@@ -386,13 +386,9 @@ enum CloudSyncAutoSync {
         modelContext: ModelContext,
         activeClientManager: ActiveClientManager
     ) {
+        markActivity()
         guard realtimeTask == nil else { return }
         realtimeTask = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .seconds(3))
-            } catch {
-                return
-            }
             await realtimeLoop(modelContext: modelContext, activeClientManager: activeClientManager)
         }
     }
