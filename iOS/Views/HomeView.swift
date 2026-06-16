@@ -580,9 +580,7 @@ private struct TodayHeaderView: View {
             Text(title)
                 .font(.title3)
                 .fontWeight(.bold)
-            if streakDays > 0 {
-                StreakChip(streakDays: streakDays)
-            }
+            StreakChip(streakDays: streakDays)
         }
     }
 }
