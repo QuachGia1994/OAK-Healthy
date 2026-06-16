@@ -435,7 +435,7 @@ enum CloudSyncAutoSync {
             markAttempt(ctx: ctx)
             guard let client = fetchClient(modelContext: modelContext, clientId: ctx.clientId) else { return }
             let parts = try await resolveManifestParts(manifestId: ctx.id)
-            let (stackData, historyData) = try await downloadPartsIfChanged(parts: parts)
+            let (stackData, historyData) = try await downloadPartsForImmediateConsistency(parts: parts)
             try mergeRemotePartIfNeeded(stackData, client: client, modelContext: modelContext)
             try mergeRemotePartIfNeeded(historyData, client: client, modelContext: modelContext)
             let remoteChanged = stackData != nil || historyData != nil
@@ -616,6 +616,19 @@ enum CloudSyncAutoSync {
         async let stackTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.stackBinId)
         async let historyTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.historyBinId)
         return try await (stackTask, historyTask)
+    }
+
+    private static func downloadPartsForImmediateConsistency(parts: CloudSyncManifest) async throws -> (Data?, Data?) {
+        let first = try await downloadPartsIfChanged(parts: parts)
+        let onlyOnePartChanged = (first.0 != nil) != (first.1 != nil)
+        guard onlyOnePartChanged else { return first }
+        do {
+            try await Task.sleep(for: .milliseconds(700))
+        } catch {
+            return first
+        }
+        let second = try await downloadPartsIfChanged(parts: parts)
+        return (first.0 ?? second.0, first.1 ?? second.1)
     }
     
     private static func resolveManifestParts(manifestId: String) async throws -> CloudSyncManifest {

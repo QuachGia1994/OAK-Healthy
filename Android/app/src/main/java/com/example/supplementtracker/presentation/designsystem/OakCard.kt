@@ -41,10 +41,10 @@ fun OakCard(
     when (variant) {
         OakCardVariant.Glass -> {
             val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-            val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f) }
-            val stroke = remember(isDark, accent) { (accent ?: Color.White).copy(alpha = if (isDark) 0.16f else 0.28f) }
+            val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.62f) }
+            val stroke = remember(isDark, accent) { (accent ?: Color.White).copy(alpha = if (isDark) 0.24f else 0.28f) }
             val highlight = remember(isDark, base) {
-                if (isDark) listOf(base.copy(alpha = 0.16f), base) else listOf(base.copy(alpha = 0.74f), base)
+                if (isDark) listOf(base.copy(alpha = 0.22f), base) else listOf(base.copy(alpha = 0.74f), base)
             }
             Box(
                 modifier = modifier

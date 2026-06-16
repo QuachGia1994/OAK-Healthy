@@ -567,6 +567,7 @@ private data class TodayCounts(
 
 @Composable
 private fun TodaySummaryCard(counts: TodayCounts, streakDays: Int) {
+    val dueTint = MaterialTheme.colorScheme.onSurfaceVariant
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             StreakPill(days = streakDays)
@@ -585,7 +586,7 @@ private fun TodaySummaryCard(counts: TodayCounts, streakDays: Int) {
             CountPill(
                 title = stringResource(R.string.home_status_due),
                 value = counts.due,
-                tint = Color.Gray,
+                tint = dueTint,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -807,6 +808,8 @@ private fun ActiveSupplementCard(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     var showConfirmDialog by remember(item.supplement.id) { mutableStateOf(false) }
     val urgencyAccent = when {
         item.isMissedSoon -> Color(0xFFD32F2F)
@@ -816,20 +819,24 @@ private fun ActiveSupplementCard(
     GlassCard(modifier = modifier.fillMaxWidth(), accent = urgencyAccent) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(item.supplement.name, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    item.supplement.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = primaryTextColor
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
+                    Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = secondaryTextColor)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(item.timeString, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    Text(" • ", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                    Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    Text(item.timeString, style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
+                    Text(" • ", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
+                    Text(item.supplement.dailyDose, style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
                 }
             }
             val targetTint = when (item.doseStatus) {
                 DoseStatus.TAKEN -> Color(0xFF2E7D32)
                 DoseStatus.SKIPPED -> Color(0xFFFF9800)
                 DoseStatus.MISSED -> Color(0xFFD32F2F)
-                DoseStatus.PLANNED -> Color.Gray
+                DoseStatus.PLANNED -> secondaryTextColor
             }
             val tint by androidx.compose.animation.animateColorAsState(targetValue = targetTint, label = "doseTint")
             val pulse = remember { Animatable(1f) }
@@ -898,7 +905,11 @@ private fun ActiveSupplementCard(
             Text(
                 text = item.advice,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                } else {
+                    MaterialTheme.colorScheme.primary
+                },
                 fontStyle = FontStyle.Italic
             )
         }
@@ -944,6 +955,8 @@ private fun RestingSupplementCard(
     onEdit: (String) -> Unit
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     GlassCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -954,14 +967,14 @@ private fun RestingSupplementCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(info.supplement.name, style = MaterialTheme.typography.titleMedium, color = Color.Gray)
+                Text(info.supplement.name, style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
                 Text(
                     stringResource(
                         R.string.rest_until,
                         LocalDate.now().plusDays(info.daysRemaining.toLong()).format(DateTimeFormatter.ofPattern("dd/MM"))
                     ),
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = secondaryTextColor
                 )
             }
             Badge(containerColor = Color.Transparent) {
@@ -969,7 +982,7 @@ private fun RestingSupplementCard(
             }
             Box {
                 IconButton(onClick = { isMenuOpen = true }) {
-                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit), tint = Color.Gray)
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit), tint = secondaryTextColor)
                 }
                 DropdownMenu(
                     expanded = isMenuOpen,
@@ -1002,7 +1015,7 @@ private fun EmptyStateMessage(message: String) {
     Text(
         text = message,
         style = MaterialTheme.typography.bodyMedium,
-        color = Color.Gray,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.fillMaxWidth().padding(16.dp)
     )
 }
