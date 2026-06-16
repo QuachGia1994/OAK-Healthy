@@ -60,6 +60,14 @@ public struct HomeView: View {
                     let overdue = cachedOverdue
                     List {
                         Section {
+                            TodayHeaderView(
+                                title: "today_intake_title".localized,
+                                streakDays: viewModel.cachedStreakDays
+                            )
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 8, trailing: 16))
+
                             HomeDoseFilterBar(filter: $doseFilter, counts: viewModel.cachedTodayCounts)
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
@@ -72,11 +80,6 @@ public struct HomeView: View {
                                     .listRowSeparator(.hidden)
                                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             }
-                        } header: {
-                            TodayHeaderView(
-                                title: "today_intake_title".localized,
-                                streakDays: viewModel.cachedStreakDays
-                            )
                         }
                         
                         if doseFilter == .overdue {
