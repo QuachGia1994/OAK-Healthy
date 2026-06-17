@@ -81,6 +81,7 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val currentDay by viewModel.currentDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val updateService = remember(context) { UpdateService(context.applicationContext) }
     val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
@@ -181,7 +182,7 @@ fun HomeScreen(
                                 }
                             }
                             Text(
-                                text = LocalDate.now().format(dateHeaderFormatter),
+                                text = currentDay.format(dateHeaderFormatter),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -205,6 +206,7 @@ fun HomeScreen(
                     is HomeUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     is HomeUiState.Success -> HomeContent(
                         state = state,
+                        currentDay = currentDay,
                         onToggleIntake = viewModel::toggleIntake,
                         onDelete = viewModel::deleteItem,
                         onEdit = onNavigateToEdit
@@ -265,6 +267,7 @@ fun HomeScreen(
 @Composable
 private fun HomeContent(
     state: HomeUiState.Success,
+    currentDay: LocalDate,
     onToggleIntake: (String, String, DoseAction) -> Unit,
     onDelete: (UserSupplement) -> Unit,
     onEdit: (String) -> Unit
@@ -428,6 +431,7 @@ private fun HomeContent(
             ) { info ->
                 RestingSupplementCard(
                     info = info,
+                    currentDay = currentDay,
                     onDelete = onDelete,
                     onEdit = onEdit
                 )
@@ -951,6 +955,7 @@ private fun ActiveSupplementCard(
 @Composable
 private fun RestingSupplementCard(
     info: RestingSupplementInfo,
+    currentDay: LocalDate,
     onDelete: (UserSupplement) -> Unit,
     onEdit: (String) -> Unit
 ) {
@@ -971,7 +976,7 @@ private fun RestingSupplementCard(
                 Text(
                     stringResource(
                         R.string.rest_until,
-                        LocalDate.now().plusDays(info.daysRemaining.toLong()).format(DateTimeFormatter.ofPattern("dd/MM"))
+                        currentDay.plusDays(info.daysRemaining.toLong()).format(DateTimeFormatter.ofPattern("dd/MM"))
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = secondaryTextColor

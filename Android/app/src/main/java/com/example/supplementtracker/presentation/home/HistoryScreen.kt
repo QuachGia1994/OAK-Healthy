@@ -60,6 +60,8 @@ fun HistoryScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val backgroundBrush = remember(isDark) {
@@ -80,10 +82,10 @@ fun HistoryScreen(
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text(stringResource(R.string.history_title)) },
+                    title = { Text(stringResource(R.string.history_title), color = primaryTextColor) },
                     actions = {
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = null)
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = primaryTextColor)
                         }
                     }
                 )
@@ -100,7 +102,7 @@ fun HistoryScreen(
                                 .align(Alignment.Center)
                                 .padding(horizontal = 24.dp),
                             textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryTextColor
                         )
                     }
                 }
@@ -114,6 +116,7 @@ fun HistoryScreen(
 private fun HistoryContent(state: HistoryUiState.Success) {
     val shape = RoundedCornerShape(28.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val listState = rememberLazyListState()
     var searchText by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
@@ -154,7 +157,12 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             key = "chart",
             contentType = "chart"
         ) {
-            Text(stringResource(R.string.intake_frequency_last_7), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.intake_frequency_last_7),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = primaryTextColor
+            )
             OakCard(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -172,7 +180,12 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             key = "details_title",
             contentType = "title"
         ) {
-            Text(stringResource(R.string.log_details), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.log_details),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = primaryTextColor
+            )
         }
         
         item(
@@ -230,6 +243,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                             text = historySectionTitle(date),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
+                            color = primaryTextColor,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                         )
                     }
@@ -520,13 +534,27 @@ private fun HistoryFilterBar(
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
     val shape = RoundedCornerShape(18.dp)
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
             value = searchText,
             onValueChange = onSearchTextChange,
-            placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { Text(stringResource(R.string.history_search_placeholder), color = secondaryTextColor) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = secondaryTextColor) },
             singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = primaryTextColor,
+                unfocusedTextColor = primaryTextColor,
+                focusedPlaceholderColor = secondaryTextColor,
+                unfocusedPlaceholderColor = secondaryTextColor,
+                focusedLeadingIconColor = secondaryTextColor,
+                unfocusedLeadingIconColor = secondaryTextColor,
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent
+            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .background(base, shape)
@@ -695,7 +723,8 @@ private fun HistoryRecordItem(record: IntakeRecord) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = record.supplementName ?: stringResource(R.string.history_not_available),
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Icon(

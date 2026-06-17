@@ -101,6 +101,8 @@ fun SettingsScreen(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val allSupplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
@@ -157,10 +159,10 @@ fun SettingsScreen(
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text(stringResource(R.string.settings_title)) },
+                    title = { Text(stringResource(R.string.settings_title), color = primaryTextColor) },
                     navigationIcon = {
                         IconButton(onClick = onClose) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = null)
+                            Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = primaryTextColor)
                         }
                     }
                 )
@@ -185,7 +187,8 @@ fun SettingsScreen(
                             Text(
                                 text = stringResource(R.string.settings_dedication),
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontStyle = FontStyle.Italic
+                                fontStyle = FontStyle.Italic,
+                                color = secondaryTextColor
                             )
                         }
 
@@ -194,7 +197,8 @@ fun SettingsScreen(
                         if (clients.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.add_client_to_start),
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = secondaryTextColor
                             )
                         } else {
                             val clientListState = rememberLazyListState()
@@ -218,13 +222,13 @@ fun SettingsScreen(
                                             .padding(vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(text = client.name, modifier = Modifier.weight(1f))
+                                        Text(text = client.name, color = primaryTextColor, modifier = Modifier.weight(1f))
                                         if (isActive) {
                                             Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
                                         }
 
                                         IconButton(onClick = { isMenuExpanded = true }) {
-                                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = null)
+                                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = null, tint = secondaryTextColor)
                                         }
 
                                         DropdownMenu(
@@ -365,7 +369,7 @@ fun SettingsScreen(
                         Text(
                             text = stringResource(R.string.settings_intro_content),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryTextColor
                         )
 
                         Divider(modifier = Modifier.padding(vertical = 12.dp))
@@ -373,17 +377,17 @@ fun SettingsScreen(
                         Text(
                             text = stringResource(R.string.settings_app_version),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryTextColor
                         )
                         Text(
                             text = stringResource(R.string.settings_author),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryTextColor
                         )
                         Text(
                             text = stringResource(R.string.settings_copyright),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryTextColor
                         )
                     }
                 }
@@ -502,7 +506,7 @@ fun SettingsScreen(
                             Text(
                                 text = stringResource(R.string.settings_exact_alarm_tip),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = secondaryTextColor
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             SettingsRow(
@@ -533,7 +537,7 @@ fun SettingsScreen(
                             Text(
                                 text = stringResource(R.string.settings_battery_opt_tip),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = secondaryTextColor
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             SettingsRow(
@@ -689,12 +693,14 @@ private fun SettingsSection(
     title: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title != null) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
+                color = primaryTextColor,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -721,6 +727,7 @@ private fun formatBytes(bytes: Long): String {
 
 @Composable
 private fun StepChip(label: String, done: Boolean) {
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -740,7 +747,7 @@ private fun StepChip(label: String, done: Boolean) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = secondaryTextColor
         )
     }
 }
@@ -751,6 +758,8 @@ private fun SettingsRow(
     trailing: String? = null,
     onClick: (() -> Unit)? = null
 ) {
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -758,10 +767,10 @@ private fun SettingsRow(
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = title, style = MaterialTheme.typography.bodyLarge)
+        Text(text = title, style = MaterialTheme.typography.bodyLarge, color = primaryTextColor)
         Spacer(modifier = Modifier.weight(1f))
         if (trailing != null) {
-            Text(text = trailing, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = trailing, color = secondaryTextColor)
         }
     }
 }
@@ -772,13 +781,14 @@ private fun SettingsSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = title, style = MaterialTheme.typography.bodyLarge)
+        Text(text = title, style = MaterialTheme.typography.bodyLarge, color = primaryTextColor)
         Spacer(modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
@@ -1010,6 +1020,7 @@ fun MyStackListScreen(
     onOpenSettings: () -> Unit
 ) {
     val supplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
+    val currentDay by homeViewModel.currentDay.collectAsStateWithLifecycle()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val backgroundBrush = remember(isDark) {
         if (isDark) {
@@ -1028,7 +1039,6 @@ fun MyStackListScreen(
     }
     val listState = rememberLazyListState()
     val calculateCycleUseCase = remember { CalculateCycleUseCase() }
-    val today = remember { LocalDate.now() }
 
     Box(
         modifier = Modifier
@@ -1092,13 +1102,13 @@ fun MyStackListScreen(
                 ) { supplement ->
                     val time = supplement.intakeTime.trim()
                     val title = if (time.isEmpty()) supplement.name else "${supplement.name} ($time)"
-                    val isOffCycle = calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, today) == CycleStatus.OFF
+                    val isOffCycle = calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, currentDay) == CycleStatus.OFF
                     InfoCard(
                         title = title,
                         content = getCycleSummary(
                             supplement = supplement,
                             calculateCycleUseCase = calculateCycleUseCase,
-                            today = today
+                            today = currentDay
                         ),
                         isOffCycle = isOffCycle
                     )

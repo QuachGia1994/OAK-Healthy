@@ -75,6 +75,8 @@ class HomeViewModel(
     private val activeClientManager: ActiveClientManager,
     private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
 ) : ViewModel() {
+    private val _today = MutableStateFlow(LocalDate.now())
+    val currentDay: StateFlow<LocalDate> = _today
 
     private enum class RecordStatus(val raw: String) {
         TAKEN("Taken"),
@@ -123,19 +125,24 @@ class HomeViewModel(
     private val intakeTimesCache = ConcurrentHashMap<String, List<String>>()
     private val expiredCleanupIds = ConcurrentHashMap.newKeySet<String>()
 
+    init {
+        observeDayChanges()
+    }
+
     val uiState: StateFlow<HomeUiState> = combine(
         activeClientManager.currentClientId,
-        _refreshTrigger
-    ) { clientId, _ -> clientId }
-        .flatMapLatest { clientId ->
+        _refreshTrigger,
+        _today
+    ) { clientId, _, today -> clientId to today }
+        .flatMapLatest { (clientId, today) ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HomeUiState.NoClient)
             combine(
                 repository.getAllSupplements(id),
                 repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 119), getEndOfTomorrow())
             ) { supplements, records -> supplements to records }
                 .mapLatest { (supplements, records) ->
-                    cleanupExpiredSupplements(supplements)
-                    withContext(Dispatchers.Default) { processSupplements(supplements, records) }
+                    cleanupExpiredSupplements(supplements, today)
+                    withContext(Dispatchers.Default) { processSupplements(supplements, records, today) }
                 }
         }
         .stateIn(
@@ -144,15 +151,17 @@ class HomeViewModel(
             initialValue = HomeUiState.Loading
         )
 
-    val allClientSupplements: StateFlow<List<UserSupplement>> = activeClientManager.currentClientId
-        .flatMapLatest { clientId ->
+    val allClientSupplements: StateFlow<List<UserSupplement>> = combine(
+        activeClientManager.currentClientId,
+        _today
+    ) { clientId, today -> clientId to today }
+        .flatMapLatest { (clientId, today) ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(emptyList())
             repository.getAllSupplements(id)
-        }
-        .map { supplements ->
-            cleanupExpiredSupplements(supplements)
-            val today = LocalDate.now()
-            supplements.filter { it.deletedAtEpochMs == null && !isExpired(it, today) }
+                .map { supplements ->
+                    cleanupExpiredSupplements(supplements, today)
+                    supplements.filter { it.deletedAtEpochMs == null && !isExpired(it, today) }
+                }
         }
         .stateIn(
             scope = viewModelScope,
@@ -161,6 +170,7 @@ class HomeViewModel(
         )
 
     fun refresh() {
+        _today.value = LocalDate.now()
         _refreshTrigger.value += 1
     }
     
@@ -313,9 +323,9 @@ class HomeViewModel(
 
     private fun processSupplements(
         supplements: List<UserSupplement>,
-        records: List<IntakeRecord>
+        records: List<IntakeRecord>,
+        today: LocalDate
     ): HomeUiState {
-        val today = LocalDate.now()
         val nowEpochMs = System.currentTimeMillis()
         val zoneId = ZoneId.systemDefault()
         val recordIndex = buildRecordIndex(records)
@@ -428,8 +438,7 @@ class HomeViewModel(
         return calculateCycleUseCase.isExpired(supplement.startDate, supplement.cycleConfig, today)
     }
 
-    private fun cleanupExpiredSupplements(supplements: List<UserSupplement>) {
-        val today = LocalDate.now()
+    private fun cleanupExpiredSupplements(supplements: List<UserSupplement>, today: LocalDate) {
         val expired = supplements.filter { it.deletedAtEpochMs == null && isExpired(it, today) }
         if (expired.isEmpty()) return
         viewModelScope.launch {
@@ -1710,5 +1719,16 @@ class HomeViewModel(
         val dayInCycle = daysElapsed % totalCycleDays
         
         return totalCycleDays - dayInCycle
+    }
+
+    private fun observeDayChanges() {
+        viewModelScope.launch {
+            while (isActive) {
+                val now = java.time.ZonedDateTime.now()
+                val nextDay = now.toLocalDate().plusDays(1).atStartOfDay(now.zone)
+                delay(java.time.Duration.between(now, nextDay).toMillis().coerceAtLeast(1_000L))
+                _today.value = LocalDate.now()
+            }
+        }
     }
 }
