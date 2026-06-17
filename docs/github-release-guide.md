@@ -13,10 +13,19 @@ Muc tieu: chuan bi noi dung va link can thiet de dang GitHub release cho `OAK He
 
 1. Push tag theo format `v*`, vi du `v1.0.1`.
 2. Mo tab Releases tren GitHub va tao release moi theo tag vua push.
-3. Dat title gon ro, vi du `OAK Healthy v1.0.1`.
-4. Copy noi dung tu `docs/release-notes-v1.0.1.md` vao phan description.
+3. Dat title theo mau san trong `docs/github-release-copy-paste-v1.0.1.md`.
+4. Copy noi dung description tu `docs/github-release-copy-paste-v1.0.1.md` hoac `docs/release-notes-v1.0.1.md`.
 5. Dat link artifact Android/iOS o dau release note hoac pin them trong comment/mo ta neu can.
 6. Publish release sau khi kiem tra lai artifact, version va changelog.
+
+## Mau copy-paste
+
+- File san de dan len GitHub:
+  - `docs/github-release-copy-paste-v1.0.1.md`
+- Title goi y:
+  - `OAK Healthy v1.0.1`
+- Neu can ban gon hon, co the dung:
+  - `v1.0.1 - UI polish, sync fixes, theme persistence`
 
 ## Luu y workflow
 
