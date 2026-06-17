@@ -4,26 +4,28 @@ OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ
 
 ## Tải app (artifacts mới nhất)
 
-- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26573204681/artifacts/7265233059
-- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/26623433499/artifacts/7285095007
+- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728551/artifacts/7668623507
+- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728615/artifacts/7668672556
+- iOS (dSYMs): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728615/artifacts/7668671910
 
 Lưu ý: artifacts tải từ GitHub Actions có thể yêu cầu đăng nhập GitHub và sẽ hết hạn theo chính sách lưu trữ của GitHub.
 
 ## Thay đổi gần đây
 
 - iOS:
-  - UI: thay TabView mặc định bằng custom glass tab bar (fix lệch tab “Stack”, tránh bar chồng bar, polish animation/spacing).
-  - Fix splash “letter storm” không chạy (đảm bảo animation luôn start từ t=0).
+  - UI: thay TabView mặc định bằng custom glass tab bar, fix lệch tab “Stack”, tránh bar chồng bar và tăng khoảng trống đáy để không che nút gần cuối.
+  - Loading/Launch: đồng bộ giao diện Light/Dark, thêm logo ở launch/loading để nền trắng/chữ đen và nền đen/chữ trắng hiển thị nhất quán hơn.
+  - Sync: bỏ delay foreground trên iOS và thêm retry ngắn khi chỉ một phần `stack/history` đổi, giúp Android -> iOS cập nhật gần realtime hơn và giảm lệch dữ liệu.
+  - Home: khôi phục hiển thị chip “Chuỗi” trong khu vực “Cần uống hôm nay”.
   - Fix crash khi tick “Đã uống” do SwiftData predicate join trong export/sync (đổi sang fetch đơn giản + filter in-memory).
-  - Fix conflict ưu tiên thao tác Home: nếu đã tick từ Home thì thao tác Taken/Skip từ Notification không ghi đè record.
   - CI: build unsigned IPA và upload thêm dSYMs artifact để symbolicate crash.
-  - Sync: debounce trigger + giảm idle polling để tiết kiệm pin.
 - Android:
-  - UI: custom glass bottom nav (capsule + pill active) theo style iOS, fix nền “slab” phía sau.
+  - UI: custom glass bottom nav (capsule + pill active) theo style iOS, fix nền “slab” phía sau và tăng độ tương phản text/icon khi dùng dark mode.
+  - Theme: lưu lựa chọn giao diện Light/Dark/System để mở lại app không bị trả về sáng ngoài ý muốn.
+  - Loading: splash và loading screen đổi màu đúng theo theme hiện tại.
   - Build: sửa lỗi compile liên quan Compose version (weight/offset/align receiver mismatch) khi thay bottom nav.
   - Fix conflict ưu tiên thao tác Home: thao tác Taken/Skip từ Notification không ghi đè record đã có.
   - Release: siết proguard keep rules và bật R8 full mode để giảm size.
-  - Auto‑Sync: chuyển hướng tối ưu theo WorkManager (periodic + one‑off coalesce) để giảm wakeups.
 
 ## Hướng dẫn sử dụng nhanh
 
@@ -56,7 +58,13 @@ Thiết bị B (máy mới):
 
 Gợi ý:
 - Nếu bật Auto‑Sync thì cả 2 máy sẽ tự cập nhật theo định kỳ.
+- Khi mở lại app sau khi thao tác trên máy còn lại, bản iOS mới sẽ kéo sync foreground sớm hơn để giảm cảm giác chờ.
 - Nếu lỡ dán Link Code mà chưa có key, Auto‑Sync sẽ tự tắt để tránh “đứng vĩnh viễn”; chỉ cần dán key rồi bật lại Auto‑Sync.
+
+## Guide & Release Notes
+
+- Hướng dẫn up GitHub release: `docs/github-release-guide.md`
+- Release notes để dán lên GitHub: `docs/release-notes-v1.0.1.md`
 
 ## Tính năng chính
 
