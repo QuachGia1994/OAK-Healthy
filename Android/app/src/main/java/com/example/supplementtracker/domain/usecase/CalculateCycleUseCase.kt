@@ -16,7 +16,7 @@ class CalculateCycleUseCase {
         currentDate: LocalDate = LocalDate.now()
     ): Boolean {
         val endDate = endDateIfNeeded(startDate, config) ?: return false
-        return currentDate.isAfter(endDate)
+        return !currentDate.isBefore(endDate)
     }
     
     /**
@@ -48,6 +48,7 @@ class CalculateCycleUseCase {
 
     private fun endDateIfNeeded(startDate: LocalDate, config: CycleConfig): LocalDate? {
         val days = config.durationMonths ?: return null
+        if (days <= 0) return null
         return startDate.plusDays(days.toLong())
     }
 }

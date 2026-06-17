@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
@@ -86,6 +87,8 @@ fun SyncCenterScreen(
     val formatter = remember {
         DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
     }
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var linkedBinId by remember { mutableStateOf(prefs.getString("cloudSyncLinkedBinId", "").orEmpty()) }
@@ -333,10 +336,10 @@ fun SyncCenterScreen(
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text(stringResource(R.string.sync_center_title)) },
+                    title = { Text(stringResource(R.string.sync_center_title), color = primaryTextColor) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null, tint = primaryTextColor)
                         }
                     }
                 )
@@ -365,12 +368,12 @@ fun SyncCenterScreen(
                             Tab(
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
-                                text = { Text(stringResource(R.string.sync_center_tab_host)) }
+                                text = { Text(stringResource(R.string.sync_center_tab_host), color = primaryTextColor) }
                             )
                             Tab(
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
-                                text = { Text(stringResource(R.string.sync_center_tab_link)) }
+                                text = { Text(stringResource(R.string.sync_center_tab_link), color = primaryTextColor) }
                             )
                         }
                     }
@@ -386,11 +389,11 @@ fun SyncCenterScreen(
                     ) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             if (selectedTab == 0) {
-                                Text(stringResource(R.string.sync_center_device_a_title), style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.sync_center_device_a_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
                                 Text(
                                     stringResource(R.string.sync_center_device_a_desc),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = secondaryTextColor
                                 )
                                 Divider()
                                 StepRow(number = 1, text = stringResource(R.string.sync_center_step_host_1))
@@ -413,10 +416,11 @@ fun SyncCenterScreen(
                                 val hosted = (hostedBinId ?: "").trim()
                                 if (hosted.isNotEmpty()) {
                                     Divider()
-                                    Text(stringResource(R.string.sync_center_link_code_label), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(stringResource(R.string.sync_center_link_code_label), style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
                                     Text(
                                         text = if (isBinIdVisible) hosted else "•".repeat(24),
                                         style = MaterialTheme.typography.titleMedium,
+                                        color = primaryTextColor,
                                         modifier = Modifier.clickable(enabled = hosted.isNotEmpty()) {
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                             clipboard.setPrimaryClip(ClipData.newPlainText("binId", hosted))
@@ -441,11 +445,11 @@ fun SyncCenterScreen(
                                     }
                                 }
                             } else {
-                                Text(stringResource(R.string.sync_center_device_b_title), style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.sync_center_device_b_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
                                 Text(
                                     stringResource(R.string.sync_center_device_b_desc),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = secondaryTextColor
                                 )
                                 Divider()
                                 StepRow(number = 1, text = stringResource(R.string.sync_center_step_link_1))
@@ -454,7 +458,7 @@ fun SyncCenterScreen(
                                 OutlinedTextField(
                                     value = linkedBinId,
                                     onValueChange = { linkedBinId = it },
-                                    label = { Text(stringResource(R.string.sync_center_link_code_input_label)) },
+                                    label = { Text(stringResource(R.string.sync_center_link_code_input_label), color = secondaryTextColor) },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
                                     visualTransformation = if (isLinkedBinIdVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -462,10 +466,20 @@ fun SyncCenterScreen(
                                         IconButton(onClick = { isLinkedBinIdVisible = !isLinkedBinIdVisible }) {
                                             Icon(
                                                 imageVector = if (isLinkedBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                                contentDescription = null
+                                                contentDescription = null,
+                                                tint = secondaryTextColor
                                             )
                                         }
-                                    }
+                                    },
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = primaryTextColor,
+                                        unfocusedTextColor = primaryTextColor,
+                                        focusedLabelColor = secondaryTextColor,
+                                        unfocusedLabelColor = secondaryTextColor,
+                                        focusedTrailingIconColor = secondaryTextColor,
+                                        unfocusedTrailingIconColor = secondaryTextColor
+                                    )
                                 )
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -494,7 +508,7 @@ fun SyncCenterScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(stringResource(R.string.sync_center_auto_sync_label), style = MaterialTheme.typography.bodyLarge)
+                                Text(stringResource(R.string.sync_center_auto_sync_label), style = MaterialTheme.typography.bodyLarge, color = primaryTextColor)
                                 Spacer(modifier = Modifier.weight(1f))
                                 Switch(checked = isAutoSyncEnabled, onCheckedChange = { isAutoSyncEnabled = it })
                             }
@@ -516,7 +530,7 @@ fun SyncCenterScreen(
                             elevation = 2.dp
                         ) {
                             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(stringResource(R.string.sync_center_status_title), style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.sync_center_status_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
@@ -527,23 +541,23 @@ fun SyncCenterScreen(
                                             if (isStatusBinIdVisible) status.binId else "•".repeat(24)
                                         ),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = secondaryTextColor,
                                         modifier = Modifier.weight(1f)
                                     )
                                     IconButton(onClick = { isStatusBinIdVisible = !isStatusBinIdVisible }) {
                                         Icon(
                                             imageVector = if (isStatusBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            tint = secondaryTextColor
                                         )
                                     }
                                 }
-                                Text(stringResource(R.string.sync_center_status_last_sync_format, lastSyncText), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(stringResource(R.string.sync_center_status_last_attempt_format, lastAttemptText), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(stringResource(R.string.sync_center_status_last_sync_format, lastSyncText), style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
+                                Text(stringResource(R.string.sync_center_status_last_attempt_format, lastAttemptText), style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
                                 Text(
                                     if (status.hasPendingChanges) stringResource(R.string.sync_center_status_pending_changes) else stringResource(R.string.sync_center_status_no_pending_changes),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = secondaryTextColor
                                 )
                                 Text(
                                     stringResource(
@@ -552,7 +566,7 @@ fun SyncCenterScreen(
                                         formatBytes(status.bytesUploaded)
                                     ),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = secondaryTextColor
                                 )
                                 Text(
                                     stringResource(
@@ -563,7 +577,7 @@ fun SyncCenterScreen(
                                         status.totalMs
                                     ),
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = secondaryTextColor,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -582,7 +596,7 @@ fun SyncCenterScreen(
                                                         if (isManifestPartsVisible) stackId else "•".repeat(16)
                                                     ),
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = secondaryTextColor
                                                 )
                                             }
                                             if (historyId.isNotEmpty()) {
@@ -592,7 +606,7 @@ fun SyncCenterScreen(
                                                         if (isManifestPartsVisible) historyId else "•".repeat(16)
                                                     ),
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = secondaryTextColor
                                                 )
                                             }
                                         }
@@ -600,7 +614,7 @@ fun SyncCenterScreen(
                                             Icon(
                                                 imageVector = if (isManifestPartsVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                                 contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                tint = secondaryTextColor
                                             )
                                         }
                                         IconButton(onClick = {
@@ -614,7 +628,7 @@ fun SyncCenterScreen(
                                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_code_copied), Toast.LENGTH_SHORT).show()
                                             }
                                         }) {
-                                            Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = secondaryTextColor)
                                         }
                                     }
                                 }
@@ -634,7 +648,7 @@ fun SyncCenterScreen(
                                         Text(
                                             stringResource(R.string.sync_center_status_hint_missing_key),
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = secondaryTextColor,
                                             maxLines = 3,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -663,7 +677,7 @@ fun SyncCenterScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(stringResource(R.string.sync_center_encryption_title), style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.sync_center_encryption_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
                                 Spacer(modifier = Modifier.weight(1f))
                                 Switch(
                                     checked = isEncryptionEnabled,
@@ -684,7 +698,7 @@ fun SyncCenterScreen(
                                     value = exportedKey,
                                     onValueChange = { _: String -> },
                                     readOnly = true,
-                                    label = { Text(stringResource(R.string.sync_center_export_key_label)) },
+                                    label = { Text(stringResource(R.string.sync_center_export_key_label), color = secondaryTextColor) },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable(enabled = exportedKey.isNotEmpty()) {
@@ -692,7 +706,14 @@ fun SyncCenterScreen(
                                             clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncKey", exportedKey))
                                             Toast.makeText(context, context.getString(R.string.sync_center_toast_key_copied), Toast.LENGTH_SHORT).show()
                                         },
-                                    maxLines = 2
+                                    maxLines = 2,
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = primaryTextColor),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = primaryTextColor,
+                                        unfocusedTextColor = primaryTextColor,
+                                        focusedLabelColor = secondaryTextColor,
+                                        unfocusedLabelColor = secondaryTextColor
+                                    )
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     OutlinedButton(
@@ -708,9 +729,16 @@ fun SyncCenterScreen(
                                 OutlinedTextField(
                                     value = encryptionKeyInput,
                                     onValueChange = { encryptionKeyInput = it },
-                                    label = { Text(stringResource(R.string.sync_center_import_key_input_label)) },
+                                    label = { Text(stringResource(R.string.sync_center_import_key_input_label), color = secondaryTextColor) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    maxLines = 2
+                                    maxLines = 2,
+                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = primaryTextColor),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = primaryTextColor,
+                                        unfocusedTextColor = primaryTextColor,
+                                        focusedLabelColor = secondaryTextColor,
+                                        unfocusedLabelColor = secondaryTextColor
+                                    )
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                     OutlinedButton(onClick = {
@@ -735,14 +763,21 @@ fun SyncCenterScreen(
 
                 item(key = "logs_title") {
                     if (activeBinId.isNotBlank()) {
-                        Text(stringResource(R.string.sync_center_logs_title), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.sync_center_logs_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
                         Spacer(modifier = Modifier.height(6.dp))
                         OutlinedTextField(
                             value = logQuery,
                             onValueChange = { logQuery = it },
-                            label = { Text(stringResource(R.string.sync_center_logs_search_label)) },
+                            label = { Text(stringResource(R.string.sync_center_logs_search_label), color = secondaryTextColor) },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = primaryTextColor,
+                                unfocusedTextColor = primaryTextColor,
+                                focusedLabelColor = secondaryTextColor,
+                                unfocusedLabelColor = secondaryTextColor
+                            )
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         val phaseLabel = when (logPhaseFilter.uppercase()) {
@@ -758,7 +793,7 @@ fun SyncCenterScreen(
                             Text(
                                 text = stringResource(R.string.sync_center_phase_label),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = secondaryTextColor
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Box {
@@ -825,8 +860,8 @@ fun SyncCenterScreen(
                                 "DONE" -> stringResource(R.string.sync_center_filter_done)
                                 else -> item.phase
                             }
-                            Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(item.msg, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
+                            Text(item.msg, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -859,16 +894,17 @@ private fun formatLogPretty(raw: String, formatter: DateTimeFormatter): String {
 @Composable
 private fun StepRow(number: Int, text: String) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
         Text(
             text = "$number.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = secondaryTextColor
         )
         Spacer(modifier = Modifier.size(8.dp))
         Text(
             text = text,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = secondaryTextColor
         )
     }
 }

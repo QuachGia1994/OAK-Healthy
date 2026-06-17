@@ -428,7 +428,9 @@ class HomeViewModel(
     ): List<RestingSupplementInfo> {
         return supplements
             .filter {
-                !isExpired(it, today) &&
+                val duration = it.cycleConfig.durationMonths
+                val unlimited = duration == null || duration <= 0
+                unlimited && !isExpired(it, today) &&
                     calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF
             }
             .map { RestingSupplementInfo(it, calculateDaysRemaining(it, today)) }

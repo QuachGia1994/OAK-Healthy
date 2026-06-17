@@ -194,7 +194,7 @@ public struct StackView: View {
         guard let days = supplement.cycleConfig.durationMonths, days > 0 else { return false }
         let calendar = Calendar.current
         guard let endDate = calendar.date(byAdding: .day, value: days, to: supplement.startDate) else { return false }
-        return calendar.startOfDay(for: today) > calendar.startOfDay(for: endDate)
+        return calendar.startOfDay(for: today) >= calendar.startOfDay(for: endDate)
     }
     
     private func displayName(for supplement: UserSupplement) -> String {

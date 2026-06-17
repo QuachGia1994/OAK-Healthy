@@ -417,6 +417,8 @@ public final class HomeViewModel {
                     active[time, default: []].append(supplement)
                 }
             } else if status == .off {
+                let duration = supplement.cycleConfig.durationMonths ?? 0
+                if duration > 0 { continue }
                 let daysRemaining = calculateDaysRemaining(for: supplement, at: today)
                 resting.append(RestingSupplementInfo(supplement: supplement, daysRemaining: daysRemaining))
             }
@@ -478,7 +480,7 @@ public final class HomeViewModel {
         guard let days = supplement.cycleConfig.durationMonths, days > 0 else { return false }
         let calendar = Calendar.current
         guard let endDate = calendar.date(byAdding: .day, value: days, to: supplement.startDate) else { return false }
-        return calendar.startOfDay(for: today) > calendar.startOfDay(for: endDate)
+        return calendar.startOfDay(for: today) >= calendar.startOfDay(for: endDate)
     }
     
     private func matchesWeeklyRecurrenceIfNeeded(config: CycleConfig, date: Date, calendar: Calendar) -> Bool {

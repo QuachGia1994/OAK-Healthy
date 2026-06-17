@@ -42,7 +42,9 @@ public struct CycleCalculator: CycleCalculating {
         let calendar = Calendar.current
 
         if let endDate = endDateIfNeeded(startDate: startDate, config: config, calendar: calendar) {
-            guard currentDate <= endDate else { return .off }
+            let currentDay = calendar.startOfDay(for: currentDate)
+            let endDay = calendar.startOfDay(for: endDate)
+            guard currentDay < endDay else { return .off }
         }
 
         guard !config.isContinuous else { return .on }
@@ -56,7 +58,7 @@ public struct CycleCalculator: CycleCalculating {
     }
 
     private func endDateIfNeeded(startDate: Date, config: CycleConfig, calendar: Calendar) -> Date? {
-        guard let days = config.durationMonths else { return nil }
+        guard let days = config.durationMonths, days > 0 else { return nil }
         return calendar.date(byAdding: .day, value: days, to: startDate)
     }
 
