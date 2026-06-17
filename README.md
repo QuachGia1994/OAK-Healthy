@@ -4,9 +4,9 @@ OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ
 
 ## Tải app (artifacts mới nhất)
 
-- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728551/artifacts/7668623507
-- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728615/artifacts/7668672556
-- iOS (dSYMs): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728615/artifacts/7668671910
+- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27661073979/artifacts/7684439290
+- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27661073976/artifacts/7684453839
+- iOS (dSYMs): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27661073976/artifacts/7684453513
 
 Lưu ý: artifacts tải từ GitHub Actions có thể yêu cầu đăng nhập GitHub và sẽ hết hạn theo chính sách lưu trữ của GitHub.
 
