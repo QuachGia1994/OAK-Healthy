@@ -270,6 +270,7 @@ private fun InsightsTrendCard(
 ) {
     var window by rememberSaveable { mutableStateOf(30) }
     var isDetailsVisible by rememberSaveable { mutableStateOf(false) }
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val summary = if (window == 7) insights7 else insights30
     val trend = if (window == 7) trend7 else trend30
     val total = (summary?.takenCount ?: 0) + (summary?.skippedCount ?: 0)
@@ -277,7 +278,12 @@ private fun InsightsTrendCard(
     val late = summary?.lateCount ?: 0
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.insights_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            stringResource(R.string.insights_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = primaryTextColor
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -396,8 +402,9 @@ private fun InsightsDetailsDialog(summary: InsightsSummary, onDismiss: () -> Uni
 @Composable
 private fun InsightsDetailsSection(title: String, items: List<InsightsItem>) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = title, fontWeight = FontWeight.SemiBold)
+        Text(text = title, fontWeight = FontWeight.SemiBold, color = primaryTextColor)
         if (items.isEmpty()) {
             Text(text = stringResource(R.string.insights_no_data), style = MaterialTheme.typography.bodySmall, color = muted)
             return

@@ -801,6 +801,7 @@ private fun AppearanceCard(
 ) {
     val shape = RoundedCornerShape(32.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -809,7 +810,12 @@ private fun AppearanceCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(R.string.appearance_title), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.appearance_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = primaryTextColor
+            )
             Spacer(modifier = Modifier.height(12.dp))
             AppThemeSegmentedControl(
                 appTheme = appTheme,
@@ -1022,6 +1028,8 @@ fun MyStackListScreen(
     val supplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
     val currentDay by homeViewModel.currentDay.collectAsStateWithLifecycle()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     val backgroundBrush = remember(isDark) {
         if (isDark) {
             Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
@@ -1050,10 +1058,10 @@ fun MyStackListScreen(
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text(stringResource(R.string.my_list_title)) },
+                    title = { Text(stringResource(R.string.my_list_title), color = primaryTextColor) },
                     actions = {
                         IconButton(onClick = onOpenSettings) {
-                            Icon(imageVector = Icons.Default.Settings, contentDescription = null)
+                            Icon(imageVector = Icons.Default.Settings, contentDescription = null, tint = primaryTextColor)
                         }
                     }
                 )
@@ -1092,7 +1100,14 @@ fun MyStackListScreen(
                         onValueChange = { searchText = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        placeholder = { Text(stringResource(R.string.history_search_placeholder)) }
+                        placeholder = { Text(stringResource(R.string.history_search_placeholder), color = secondaryTextColor) },
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = primaryTextColor,
+                            unfocusedTextColor = primaryTextColor,
+                            focusedPlaceholderColor = secondaryTextColor,
+                            unfocusedPlaceholderColor = secondaryTextColor
+                        )
                     )
                 }
                 items(

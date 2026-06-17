@@ -83,6 +83,8 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentDay by viewModel.currentDay.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val primaryTextColor = MaterialTheme.colorScheme.onSurface
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     val updateService = remember(context) { UpdateService(context.applicationContext) }
     val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
     val updateInfo by updateService.updateInfo.collectAsStateWithLifecycle()
@@ -154,9 +156,10 @@ fun HomeScreen(
                                     Text(
                                         text = currentClientName?.let { stringResource(R.string.student_prefix, it) } ?: stringResource(R.string.add_a_client),
                                         modifier = Modifier.weight(1f),
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        color = primaryTextColor
                                     )
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = primaryTextColor)
                                 }
                                 DropdownMenu(
                                     expanded = isClientMenuExpanded,
@@ -184,13 +187,13 @@ fun HomeScreen(
                             Text(
                                 text = currentDay.format(dateHeaderFormatter),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = secondaryTextColor
                             )
                         }
                     },
                     actions = {
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = null)
+                            Icon(Icons.Default.Settings, contentDescription = null, tint = primaryTextColor)
                         }
                     }
                 )
