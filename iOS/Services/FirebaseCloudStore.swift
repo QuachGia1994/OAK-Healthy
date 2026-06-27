@@ -171,9 +171,14 @@ final class FirebaseRealtimeSyncListener {
     }
 
     private func observeManifest(manifestId: String) -> DatabaseHandle {
-        let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(manifestId).child("payload")
+        let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(manifestId).child("meta").child("rev")
         return ref.observe(.value) { [weak self] snapshot, _ in
-            guard let self, let payload = snapshot.value as? String, !payload.isEmpty else { return }
+            guard let self, let newRev = snapshot.value as? NSNumber else { return }
+            let key = "cloudSyncLastSeenRev_\(manifestId)"
+            let oldRev = UserDefaults.standard.string(forKey: key)
+            let newRevStr = newRev.stringValue
+            if oldRev == newRevStr { return }
+            UserDefaults.standard.set(newRevStr, forKey: key)
             Task { @MainActor in
                 await CloudSyncAutoSync.syncIfEnabled(modelContext: self.modelContext, clientId: self.activeClientManager.currentClientId)
             }

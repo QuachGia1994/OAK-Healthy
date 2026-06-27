@@ -33,7 +33,7 @@ class FirebaseRealtimeSyncListener(
             addRevListener(root.child(historyBinId).child("meta").child("rev"), historyBinId, prefs)
         }
         if (stackBinId.isEmpty() || historyBinId.isEmpty()) {
-            addPayloadListener(root.child(manifestId).child("payload"))
+            addRevListener(root.child(manifestId).child("meta").child("rev"), manifestId, prefs)
         }
     }
 
@@ -54,19 +54,6 @@ class FirebaseRealtimeSyncListener(
                 val oldRev = prefs.getString(key, "")
                 if (oldRev == newRev) return
                 prefs.edit().putString(key, newRev).apply()
-                scope.launch { onSyncNeeded() }
-            }
-            override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
-        }
-        ref.addValueEventListener(listener)
-        listeners.add(ref to listener)
-    }
-
-    private fun addPayloadListener(ref: com.google.firebase.database.DatabaseReference) {
-        val listener = object : ValueEventListener {
-            override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                val payload = snapshot.getValue(String::class.java)?.trim()
-                if (payload.isNullOrEmpty()) return
                 scope.launch { onSyncNeeded() }
             }
             override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
