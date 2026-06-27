@@ -175,6 +175,8 @@ public struct HomeView: View {
                         }
                     }
                     .scrollContentBackground(.hidden)
+                    .scrollIndicators(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
                     .safeAreaPadding(.bottom, 128)
                     .listStyle(.plain)
                     .navigationTitle("dashboard_title".localized)

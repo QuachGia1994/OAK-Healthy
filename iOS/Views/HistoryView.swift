@@ -120,6 +120,8 @@ public struct HistoryView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 136)
                 }
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("history_title".localized)
             .navigationBarTitleDisplayMode(.inline)

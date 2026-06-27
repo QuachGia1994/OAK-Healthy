@@ -73,6 +73,8 @@ public struct StackView: View {
                     .listRowBackground(glassRowBackground)
                 }
                 .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
                 .safeAreaPadding(.bottom, 128)
                 .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always))
                 .navigationTitle("my_list_title".localized)
