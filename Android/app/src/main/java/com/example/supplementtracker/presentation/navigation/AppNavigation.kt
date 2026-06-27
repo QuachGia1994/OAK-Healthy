@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -57,7 +56,6 @@ import com.example.supplementtracker.presentation.home.HomeViewModel
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -77,9 +75,6 @@ import com.example.supplementtracker.presentation.onboarding.OnboardingScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import kotlinx.coroutines.launch
 import android.content.Context
 
 enum class AppTheme {
@@ -161,144 +156,123 @@ fun AppNavigation(
     }
 
     Scaffold(
-        containerColor = Color.Transparent
-    ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            val startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route
-            val isMainTab = items.any { it.route == currentDestination?.route }
-            val pagerIndex = if (isMainTab) items.indexOfFirst { it.route == currentDestination?.route }.coerceAtLeast(0) else 0
-            val pagerState = rememberPagerState(initialPage = pagerIndex, pageCount = { items.size })
-            var selectedTabIndex by rememberSaveable { mutableIntStateOf(pagerIndex) }
-
-            LaunchedEffect(pagerState.currentPage) {
-                if (isMainTab && pagerState.currentPage != selectedTabIndex) {
-                    selectedTabIndex = pagerState.currentPage
-                    val targetRoute = items[pagerState.currentPage].route
-                    if (currentDestination?.route != targetRoute) {
-                        navController.navigate(targetRoute) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+        containerColor = Color.Transparent,
+        bottomBar = {
+            val isBottomTab = items.any { it.route == currentDestination?.route }
+            if (isBottomTab && hasCompletedOnboarding) {
+                OakBottomBar(
+                    items = items,
+                    currentRoute = currentDestination?.route,
+                    overdueCount = overdueCount,
+                    isDark = isDark,
+                    onTabSelected = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
                             launchSingleTop = true
                             restoreState = true
                         }
                     }
-                }
-            }
-
-            if (isMainTab && hasCompletedOnboarding) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    userScrollEnabled = true
-                ) { page ->
-                    when (items[page]) {
-                        Screen.Home -> HomeScreen(
-                            viewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
-                            onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") },
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                        Screen.MyStack -> MyStackListScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
-                            onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) },
-                            onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
-                            onOpenSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                        Screen.History -> HistoryScreen(
-                            viewModel = historyViewModel,
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                        else -> {}
-                    }
-                }
-            } else {
-                NavHost(navController = navController, startDestination = startDestination) {
-                    composable(Screen.Onboarding.route) {
-                        OnboardingScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onDone = {
-                                prefs.edit().putBoolean("hasCompletedOnboarding", true).apply()
-                                refreshOnboardingFlag()
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(Screen.Onboarding.route) { inclusive = true }
-                                    launchSingleTop = true
-                                }
-                            }
-                        )
-                    }
-                    composable(Screen.NotificationCheck.route) {
-                        NotificationCheckScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.SyncCenter.route) {
-                        SyncCenterScreen(
-                            homeViewModel = homeViewModel,
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.UserGuide.route) {
-                        UserGuideScreen(
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.Settings.route) {
-                        SettingsScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            appTheme = appTheme,
-                            onThemeChange = onThemeChange,
-                            onNavigateToNotificationCheck = { navController.navigate(Screen.NotificationCheck.route) },
-                            onClose = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.AddSupplement.route) {
-                        AddSupplementScreen(
-                            viewModel = addSupplementViewModel,
-                            supplementId = null,
-                            onBack = { navController.popBackStack() },
-                            onSave = {
-                                addSupplementViewModel.saveSupplement {
-                                    navController.popBackStack()
-                                }
-                            }
-                        )
-                    }
-                    composable(Screen.EditSupplement.route) { backStackEntry ->
-                        val id = backStackEntry.arguments?.getString("id")
-                        AddSupplementScreen(
-                            viewModel = addSupplementViewModel,
-                            supplementId = id,
-                            onBack = { navController.popBackStack() },
-                            onSave = {
-                                addSupplementViewModel.saveSupplement {
-                                    navController.popBackStack()
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (isMainTab && hasCompletedOnboarding) {
-                OakBottomBar(
-                    items = items,
-                    currentRoute = items.getOrElse(selectedTabIndex) { items[0] }.route,
-                    overdueCount = overdueCount,
-                    isDark = isDark,
-                    onTabSelected = { route ->
-                        val idx = items.indexOfFirst { it.route == route }
-                        if (idx >= 0) {
-                            selectedTabIndex = idx
-                            coroutineScope.launch { pagerState.animateScrollToPage(idx) }
-                        }
-                    }
                 )
+            }
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding)) {
+            val startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route
+            NavHost(navController = navController, startDestination = startDestination) {
+                composable(Screen.Onboarding.route) {
+                    OnboardingScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onDone = {
+                            prefs.edit().putBoolean("hasCompletedOnboarding", true).apply()
+                            refreshOnboardingFlag()
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+                composable(Screen.Home.route) {
+                    HomeScreen(
+                        viewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
+                        onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") },
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                    )
+                }
+                composable(Screen.MyStack.route) {
+                    MyStackListScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
+                        onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) },
+                        onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
+                        onOpenSettings = { navController.navigate(Screen.Settings.route) }
+                    )
+                }
+                composable(Screen.History.route) {
+                    HistoryScreen(
+                        viewModel = historyViewModel,
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                    )
+                }
+                composable(Screen.NotificationCheck.route) {
+                    NotificationCheckScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.SyncCenter.route) {
+                    SyncCenterScreen(
+                        homeViewModel = homeViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.UserGuide.route) {
+                    UserGuideScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        appTheme = appTheme,
+                        onThemeChange = onThemeChange,
+                        onNavigateToNotificationCheck = { navController.navigate(Screen.NotificationCheck.route) },
+                        onClose = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.AddSupplement.route) {
+                    AddSupplementScreen(
+                        viewModel = addSupplementViewModel,
+                        supplementId = null,
+                        onBack = { navController.popBackStack() },
+                        onSave = {
+                            addSupplementViewModel.saveSupplement {
+                                navController.popBackStack()
+                            }
+                        }
+                    )
+                }
+                composable(Screen.EditSupplement.route) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getString("id")
+                    AddSupplementScreen(
+                        viewModel = addSupplementViewModel,
+                        supplementId = id,
+                        onBack = { navController.popBackStack() },
+                        onSave = {
+                            addSupplementViewModel.saveSupplement {
+                                navController.popBackStack()
+                            }
+                        }
+                    )
+                }
             }
         }
     }
