@@ -1,5 +1,6 @@
 @preconcurrency import FirebaseDatabase
 import Foundation
+import SwiftData
 
 enum FirebaseCloudStore {
     private static let rootKey = "oakBins"
@@ -156,7 +157,7 @@ final class FirebaseRealtimeSyncListener {
 
     private func observeRevChange(binId: String, manifestId: String) -> DatabaseHandle {
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(binId).child("meta").child("rev")
-        return ref.observe(.value) { [weak self] snapshot in
+        return ref.observe(.value) { [weak self] snapshot, _ in
             guard let self, let newRev = snapshot.value as? NSNumber else { return }
             let key = "cloudSyncLastSeenRev_\(binId)"
             let oldRev = UserDefaults.standard.string(forKey: key)
@@ -171,7 +172,7 @@ final class FirebaseRealtimeSyncListener {
 
     private func observeManifest(manifestId: String) -> DatabaseHandle {
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(manifestId).child("payload")
-        return ref.observe(.value) { [weak self] snapshot in
+        return ref.observe(.value) { [weak self] snapshot, _ in
             guard let self, let payload = snapshot.value as? String, !payload.isEmpty else { return }
             Task { @MainActor in
                 await CloudSyncAutoSync.syncIfEnabled(modelContext: self.modelContext, clientId: self.activeClientManager.currentClientId)

@@ -678,6 +678,12 @@ struct SupplementExportCodec {
         return byDoseKey
     }
 
+    private static func recordDoseKey(_ record: IntakeRecord) -> String? {
+        guard let supplementId = record.supplement?.id else { return nil }
+        let dateEpochMs = Int64(record.date.timeIntervalSince1970 * 1000)
+        return DoseEventKey.make(supplementId: supplementId, scheduledAtEpochMs: dateEpochMs)
+    }
+
     private static func mergeHistorySafely(
         backup: OAKBackupData,
         clientId: UUID,

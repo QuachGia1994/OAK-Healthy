@@ -588,7 +588,6 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .tabBarDefaultAppearance()
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
