@@ -365,7 +365,12 @@ enum CloudSyncAutoSync {
         activeClientManager: ActiveClientManager
     ) {
         markActivity()
-        guard realtimeTask == nil else { return }
+        guard realtimeTask == nil else {
+            if let binId = activeBinId(), !binId.isEmpty {
+                Task { await realtimeListener?.start(manifestId: binId) }
+            }
+            return
+        }
         realtimeTask = Task { @MainActor in
             await realtimeLoop(modelContext: modelContext, activeClientManager: activeClientManager)
         }
