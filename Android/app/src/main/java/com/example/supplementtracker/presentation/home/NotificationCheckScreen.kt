@@ -96,7 +96,7 @@ fun NotificationCheckScreen(
 
     var upcoming by remember { mutableStateOf(emptyList<ScheduledAlarmInfo>()) }
     var isNotificationEnabledByUser by rememberSaveable { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
-    var hasNotificationPermission by rememberSaveable { mutableStateOf(hasNotificationPermission(context)) }
+    var hasNotificationPermission by rememberSaveable { mutableStateOf(checkNotificationPermission(context)) }
     var canScheduleExactAlarms by rememberSaveable { mutableStateOf(canScheduleExactAlarms(context)) }
     var isIgnoringBatteryOptimizations by rememberSaveable { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
 
@@ -163,7 +163,7 @@ fun NotificationCheckScreen(
     val reload: () -> Unit = {
         upcoming = NotificationDebugStore.getUpcoming(context)
         isNotificationEnabledByUser = prefs.getBoolean("isNotificationEnabledByUser", false)
-        hasNotificationPermission = hasNotificationPermission(context)
+        hasNotificationPermission = checkNotificationPermission(context)
         canScheduleExactAlarms = canScheduleExactAlarms(context)
         isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
     }
@@ -462,7 +462,7 @@ private fun iconForName(name: String): ImageVector {
     return Icons.Default.Science
 }
 
-private fun hasNotificationPermission(context: Context): Boolean {
+private fun checkNotificationPermission(context: Context): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
     return context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 }

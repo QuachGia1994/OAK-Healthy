@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -80,6 +81,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import android.content.Context
 
 enum class AppTheme {
@@ -101,7 +103,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object Onboarding : Screen("onboarding", R.string.app_name, { })
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AppNavigation(
     homeViewModel: HomeViewModel,
@@ -286,6 +288,7 @@ fun AppNavigation(
             }
 
             if (isMainTab && hasCompletedOnboarding) {
+                val barCoroutineScope = rememberCoroutineScope()
                 OakBottomBar(
                     items = items,
                     currentRoute = items.getOrElse(selectedTabIndex) { items[0] }.route,
@@ -295,7 +298,7 @@ fun AppNavigation(
                         val idx = items.indexOfFirst { it.route == route }
                         if (idx >= 0) {
                             selectedTabIndex = idx
-                            coroutineScope.launch { pagerState.animateScrollToPage(idx) }
+                            barCoroutineScope.launch { pagerState.animateScrollToPage(idx) }
                         }
                     }
                 )
