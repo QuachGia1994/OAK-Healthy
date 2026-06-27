@@ -9,11 +9,6 @@ public enum CloudSyncPayloadCodecError: Error, Sendable {
 }
 
 enum CloudSyncPayloadCodec {
-    static func compressIfUseful(_ jsonData: Data) -> Data {
-        // Keep iOS sync payloads uncompressed to avoid watchdog stalls on the main actor.
-        jsonData
-    }
-    
     static func decompressIfNeeded(_ data: Data) throws(CloudSyncPayloadCodecError) -> Data {
         guard let objAny = try? JSONSerialization.jsonObject(with: data) else { return data }
         guard let obj = objAny as? [String: Any] else { return data }

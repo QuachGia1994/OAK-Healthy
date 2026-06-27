@@ -551,25 +551,44 @@ struct MainTabView: View {
     @Binding var selectedTab: Int
     let activeClientManager: ActiveClientManager
     let notificationService: NotificationService
-    
+
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
     @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
     @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     @State private var badgeViewModel = HomeViewModel()
-    
+
     var body: some View {
-        selectedContent
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            OAKBottomTabBar(
-                selectedTab: $selectedTab,
-                homeBadgeCount: homeOverdueCount
+        TabView(selection: $selectedTab) {
+            HomeView(
+                activeClientManager: activeClientManager,
+                notificationService: notificationService
             )
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, 8)
+            .id("home-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+            .tabItem {
+                Label("tab_home".localized, systemImage: "house.fill")
+            }
+            .tag(0)
+            .badge(homeOverdueCount > 0 ? homeOverdueCount : 0)
+
+            StackView(
+                activeClientManager: activeClientManager,
+                notificationService: notificationService
+            )
+            .id("stack-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+            .tabItem {
+                Label("tab_stack".localized, systemImage: "square.stack.3d.up.fill")
+            }
+            .tag(1)
+
+            HistoryView(activeClientManager: activeClientManager)
+                .id("history-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+                .tabItem {
+                    Label("tab_history".localized, systemImage: "clock.fill")
+                }
+                .tag(2)
         }
+        .tabBarDefaultAppearance()
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
@@ -602,27 +621,6 @@ struct MainTabView: View {
             )
         ) {
             OnboardingView(activeClientManager: activeClientManager, notificationService: notificationService)
-        }
-    }
-    
-    @ViewBuilder
-    private var selectedContent: some View {
-        switch selectedTab {
-        case 1:
-            StackView(
-                activeClientManager: activeClientManager,
-                notificationService: notificationService
-            )
-            .id("stack-\(activeClientManager.currentClientId?.uuidString ?? "none")")
-        case 2:
-            HistoryView(activeClientManager: activeClientManager)
-                .id("history-\(activeClientManager.currentClientId?.uuidString ?? "none")")
-        default:
-            HomeView(
-                activeClientManager: activeClientManager,
-                notificationService: notificationService
-            )
-            .id("home-\(activeClientManager.currentClientId?.uuidString ?? "none")")
         }
     }
     

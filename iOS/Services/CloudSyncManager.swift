@@ -65,13 +65,12 @@ public actor CloudSyncManager {
     
     public static let shared = CloudSyncManager()
     
-    private var autoSyncTask: Task<Void, Never>?
     private let session: URLSession
-    
+
     public init() {
         self.session = Self.makeSession()
     }
-    
+
     private static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.waitsForConnectivity = false
@@ -79,24 +78,6 @@ public actor CloudSyncManager {
         config.timeoutIntervalForResource = 20
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         return URLSession(configuration: config)
-    }
-    
-    public func startAutoSync() {
-        guard autoSyncTask == nil else { return }
-        autoSyncTask = Task {
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(15 * 60))
-                } catch {
-                    break
-                }
-            }
-        }
-    }
-    
-    public func stopAutoSync() {
-        autoSyncTask?.cancel()
-        autoSyncTask = nil
     }
     
     public func upsertBackup(
@@ -122,9 +103,9 @@ public actor CloudSyncManager {
     ) async throws(CloudSyncError) -> String {
         let payload = try encodePayloadForCloud(jsonData)
         do {
-            let id = try await FirebaseCloudStore.createBin(payload: payload)
-            if let rev = try await FirebaseCloudStore.readMetaRev(id: id) { saveEtag(rev, binId: id) }
-            return id
+            let result = try await FirebaseCloudStore.createBin(payload: payload)
+            saveEtag(result.rev, binId: result.id)
+            return result.id
         } catch {
             throw CloudSyncError.networkError(message: error.localizedDescription)
         }
@@ -326,19 +307,15 @@ public actor CloudSyncManager {
     
     private func encryptPayloadIfNeeded(_ data: Data) throws(CloudSyncError) -> Data {
         do {
-            let prepared = CloudSyncPayloadCodec.compressIfUseful(data)
-            return try CloudSyncCrypto.encryptIfEnabled(prepared)
+            return try CloudSyncCrypto.encryptIfEnabled(data)
         } catch {
             throw CloudSyncError.cryptoError(message: error.localizedDescription)
         }
     }
-    
+
     private func decryptPayloadIfNeeded(_ data: Data) throws(CloudSyncError) -> Data {
         do {
-            let decrypted = try CloudSyncCrypto.decryptIfNeeded(data)
-            return try CloudSyncPayloadCodec.decompressIfNeeded(decrypted)
-        } catch let error as CloudSyncPayloadCodecError {
-            throw CloudSyncError.payloadCodec(error)
+            return try CloudSyncCrypto.decryptIfNeeded(data)
         } catch {
             throw CloudSyncError.cryptoError(message: error.localizedDescription)
         }
@@ -379,9 +356,10 @@ public actor CloudSyncManager {
 enum CloudSyncAutoSync {
     private static var realtimeTask: Task<Void, Never>?
     private static var pendingSyncTask: Task<Void, Never>?
+    private static var realtimeListener: FirebaseRealtimeSyncListener?
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
     private static let lastFailureKey = "cloudSyncLastFailureEpoch"
-    
+
     static func startRealtimeSync(
         modelContext: ModelContext,
         activeClientManager: ActiveClientManager
@@ -391,13 +369,20 @@ enum CloudSyncAutoSync {
         realtimeTask = Task { @MainActor in
             await realtimeLoop(modelContext: modelContext, activeClientManager: activeClientManager)
         }
+        let listener = FirebaseRealtimeSyncListener(modelContext: modelContext, activeClientManager: activeClientManager)
+        realtimeListener = listener
+        if let binId = activeBinId(), !binId.isEmpty {
+            Task { await listener.start(manifestId: binId) }
+        }
     }
-    
+
     static func stopRealtimeSync() {
         realtimeTask?.cancel()
         realtimeTask = nil
         pendingSyncTask?.cancel()
         pendingSyncTask = nil
+        realtimeListener?.stop()
+        realtimeListener = nil
     }
     
     static func requestSyncSoon(modelContext: ModelContext, clientId: UUID?) {

@@ -54,7 +54,8 @@ data class OAKBackupSupplementDTO(
     val cycle: SupplementExportCycleDTO,
     val lastTakenLocalDate: String? = null,
     val updatedAtEpochMs: Long = 0L,
-    val deletedAtEpochMs: Long? = null
+    val deletedAtEpochMs: Long? = null,
+    val modifiedFields: Set<String>? = null
 )
 
 data class OAKBackupHistoryDTO(

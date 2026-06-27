@@ -8,12 +8,12 @@ enum FirebaseCloudStore {
         Database.database(url: FirebaseBootstrap.databaseURL).reference().child(rootKey)
     }
     
-    static func createBin(payload: String) async throws -> String {
+    static func createBin(payload: String) async throws -> (id: String, rev: String) {
         try await FirebaseBootstrap.ensureSignedIn()
         let id = root().childByAutoId().key ?? UUID().uuidString
         let rev = Int64(Date().timeIntervalSince1970 * 1000)
         try await update(id: id, values: ["payload": payload, "meta/rev": rev])
-        return id
+        return (id, "\(rev)")
     }
     
     static func readMetaRev(id: String) async throws -> String? {
@@ -111,4 +111,77 @@ struct FirebaseConflictError: Error {}
 struct FirebaseMissingSnapshotError: Error {}
 struct FirebaseOfflineError: LocalizedError {
     var errorDescription: String? { "Không có kết nối Internet hoặc Firebase đang tạm lỗi. Vui lòng thử lại." }
+}
+
+@MainActor
+final class FirebaseRealtimeSyncListener {
+    private var stackHandle: DatabaseHandle?
+    private var historyHandle: DatabaseHandle?
+    private var manifestHandle: DatabaseHandle?
+    private let modelContext: ModelContext
+    private let activeClientManager: ActiveClientManager
+
+    init(modelContext: ModelContext, activeClientManager: ActiveClientManager) {
+        self.modelContext = modelContext
+        self.activeClientManager = activeClientManager
+    }
+
+    func start(manifestId: String) async {
+        stop()
+        guard !manifestId.isEmpty else { return }
+        try? await FirebaseBootstrap.ensureSignedIn()
+        let stackKey = "cloudSyncStackBinId_\(manifestId)"
+        let historyKey = "cloudSyncHistoryBinId_\(manifestId)"
+        let stackBinId = (UserDefaults.standard.string(forKey: stackKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let historyBinId = (UserDefaults.standard.string(forKey: historyKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !stackBinId.isEmpty {
+            stackHandle = observeRevChange(binId: stackBinId, manifestId: manifestId)
+        }
+        if !historyBinId.isEmpty {
+            historyHandle = observeRevChange(binId: historyBinId, manifestId: manifestId)
+        }
+        if stackBinId.isEmpty || historyBinId.isEmpty {
+            manifestHandle = observeManifest(manifestId: manifestId)
+        }
+    }
+
+    func stop() {
+        if let h = stackHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+        if let h = historyHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+        if let h = manifestHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+        stackHandle = nil
+        historyHandle = nil
+        manifestHandle = nil
+    }
+
+    private func observeRevChange(binId: String, manifestId: String) -> DatabaseHandle {
+        let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(binId).child("meta").child("rev")
+        return ref.observe(.value) { [weak self] snapshot in
+            guard let self, let newRev = snapshot.value as? NSNumber else { return }
+            let key = "cloudSyncLastSeenRev_\(binId)"
+            let oldRev = UserDefaults.standard.string(forKey: key)
+            let newRevStr = newRev.stringValue
+            if oldRev == newRevStr { return }
+            UserDefaults.standard.set(newRevStr, forKey: key)
+            Task { @MainActor in
+                await CloudSyncAutoSync.syncIfEnabled(modelContext: self.modelContext, clientId: self.activeClientManager.currentClientId)
+            }
+        }
+    }
+
+    private func observeManifest(manifestId: String) -> DatabaseHandle {
+        let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(manifestId).child("payload")
+        return ref.observe(.value) { [weak self] snapshot in
+            guard let self, let payload = snapshot.value as? String, !payload.isEmpty else { return }
+            Task { @MainActor in
+                await CloudSyncAutoSync.syncIfEnabled(modelContext: self.modelContext, clientId: self.activeClientManager.currentClientId)
+            }
+        }
+    }
+
+    deinit {
+        if let h = stackHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+        if let h = historyHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+        if let h = manifestHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+    }
 }

@@ -120,6 +120,32 @@ class HomeViewModel(
     val cloudSyncUiStatus: StateFlow<CloudSyncUiStatus?> = _cloudSyncUiStatus
     private var autoSyncJob: Job? = null
     private var pendingAutoSyncJob: Job? = null
+    private var realtimeListener: com.example.supplementtracker.service.FirebaseRealtimeSyncListener? = null
+
+    fun startAutoSync() {
+        CloudAutoSyncWork.setEnabled(context, true)
+        startRealtimeListener()
+    }
+
+    fun stopAutoSync() {
+        CloudAutoSyncWork.setEnabled(context, false)
+        stopRealtimeListener()
+    }
+
+    private fun startRealtimeListener() {
+        stopRealtimeListener()
+        val binId = activeAutoSyncBinId() ?: return
+        val listener = com.example.supplementtracker.service.FirebaseRealtimeSyncListener(context) {
+            if (!_cloudSyncLoading.value) syncTwoWay(binId)
+        }
+        realtimeListener = listener
+        listener.start(binId)
+    }
+
+    private fun stopRealtimeListener() {
+        realtimeListener?.stop()
+        realtimeListener = null
+    }
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
     private val intakeTimesCache = ConcurrentHashMap<String, List<String>>()
@@ -251,6 +277,7 @@ class HomeViewModel(
             val now = System.currentTimeMillis()
 
             val stack = if (includeStack) {
+                val allFields = setOf("name", "dailyDose", "intakeTime", "startDate", "cycle", "lastTakenLocalDate")
                 repository.getAllSupplementsForSync(clientIdString).map { supplement ->
                     OAKBackupSupplementDTO(
                         id = supplement.id.toString(),
@@ -270,7 +297,8 @@ class HomeViewModel(
                         ),
                         lastTakenLocalDate = supplement.lastTakenLocalDate?.toString(),
                         updatedAtEpochMs = supplement.updatedAtEpochMs,
-                        deletedAtEpochMs = supplement.deletedAtEpochMs
+                        deletedAtEpochMs = supplement.deletedAtEpochMs,
+                        modifiedFields = allFields
                     )
                 }
             } else {
@@ -1527,12 +1555,20 @@ class HomeViewModel(
             }
             
             val localTs = maxOf(local.updatedAtEpochMs, local.deletedAtEpochMs ?: 0L)
-            if (remoteUpdatedAt > localTs) {
+            val fields = remote.modifiedFields
+            val shouldUpdate = if (fields != null) {
+                remoteUpdatedAt > local.updatedAtEpochMs
+            } else {
+                remoteUpdatedAt > localTs
+            }
+            if (shouldUpdate) {
+                val f = fields
+                val hasField = { name: String -> f == null || f.contains(name) }
                 repository.updateSupplement(
                     local.copy(
-                        name = remote.name,
-                        startDate = runCatching { LocalDate.parse(remote.startDate) }.getOrElse { local.startDate },
-                        cycleConfig = local.cycleConfig.copy(
+                        name = if (hasField("name")) remote.name else local.name,
+                        startDate = if (hasField("startDate")) runCatching { LocalDate.parse(remote.startDate) }.getOrElse { local.startDate } else local.startDate,
+                        cycleConfig = if (hasField("cycle")) local.cycleConfig.copy(
                             isContinuous = remote.cycle.isContinuous,
                             daysOn = remote.cycle.daysOn,
                             daysOff = remote.cycle.daysOff,
@@ -1544,10 +1580,10 @@ class HomeViewModel(
                                 WeeklyRecurrenceConfig(weekdaysMask = mask, intervalWeeks = interval, anchorDate = anchor)
                             },
                             intervalDays = remote.cycle.intervalDays ?: local.cycleConfig.intervalDays
-                        ),
-                        dailyDose = remote.dailyDose,
-                        intakeTime = remote.intakeTime,
-                        lastTakenLocalDate = remote.lastTakenLocalDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: local.lastTakenLocalDate,
+                        ) else local.cycleConfig,
+                        dailyDose = if (hasField("dailyDose")) remote.dailyDose else local.dailyDose,
+                        intakeTime = if (hasField("intakeTime")) remote.intakeTime else local.intakeTime,
+                        lastTakenLocalDate = if (hasField("lastTakenLocalDate")) remote.lastTakenLocalDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: local.lastTakenLocalDate else local.lastTakenLocalDate,
                         updatedAtEpochMs = remoteUpdatedAt,
                         deletedAtEpochMs = null
                     )
@@ -1732,5 +1768,10 @@ class HomeViewModel(
                 _today.value = LocalDate.now()
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopRealtimeListener()
     }
 }

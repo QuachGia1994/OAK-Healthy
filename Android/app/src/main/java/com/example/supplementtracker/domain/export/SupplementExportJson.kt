@@ -299,6 +299,11 @@ object OAKBackupJson {
         dto.lastTakenLocalDate?.let { obj.put("lastTakenLocalDate", it) }
         obj.put("updatedAtEpochMs", dto.updatedAtEpochMs)
         dto.deletedAtEpochMs?.let { obj.put("deletedAtEpochMs", it) }
+        dto.modifiedFields?.let { fields ->
+            val arr = org.json.JSONArray()
+            fields.forEach { arr.put(it) }
+            obj.put("modifiedFields", arr)
+        }
         return obj
     }
 
@@ -306,6 +311,10 @@ object OAKBackupJson {
         val name = obj.optString("name", "")
         val startDate = obj.optString("startDate", "1970-01-01")
         val intakeTime = obj.optString("intakeTime", "08:00")
+        val modifiedFieldsArray = obj.optJSONArray("modifiedFields")
+        val modifiedFields = if (modifiedFieldsArray != null) {
+            (0 until modifiedFieldsArray.length()).mapNotNull { modifiedFieldsArray.optString(it) }.filter { it.isNotBlank() }.toSet()
+        } else null
         return OAKBackupSupplementDTO(
             id = obj.optString("id", "").ifBlank { stableSupplementId(name, startDate, intakeTime) },
             name = name,
@@ -315,7 +324,8 @@ object OAKBackupJson {
             cycle = decodeCycle(obj.optJSONObject("cycle") ?: JSONObject()),
             lastTakenLocalDate = obj.optString("lastTakenLocalDate", "").ifBlank { null },
             updatedAtEpochMs = obj.optLong("updatedAtEpochMs", 0L),
-            deletedAtEpochMs = obj.optLong("deletedAtEpochMs", -1L).takeIf { it >= 0L }
+            deletedAtEpochMs = obj.optLong("deletedAtEpochMs", -1L).takeIf { it >= 0L },
+            modifiedFields = modifiedFields
         )
     }
 
