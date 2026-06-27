@@ -845,7 +845,7 @@ private fun AppThemeSegmentedControl(
 }
 
 @Composable
-private fun getCycleSummary(
+internal fun getCycleSummary(
     supplement: UserSupplement,
     calculateCycleUseCase: CalculateCycleUseCase,
     today: LocalDate
@@ -876,7 +876,7 @@ private fun getCycleSummary(
 }
 
 @Composable
-private fun InfoCard(title: String, content: String, isOffCycle: Boolean = false) {
+internal fun InfoCard(title: String, content: String, isOffCycle: Boolean = false) {
     val shape = RoundedCornerShape(32.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
     val alpha = if (isOffCycle) 0.55f else 1f
@@ -955,7 +955,7 @@ private fun ExpandableInfoCard(
 }
 
 @Composable
-private fun InfoCardNavigationRow(
+internal fun InfoCardNavigationRow(
     title: String,
     subtitle: String,
     onClick: () -> Unit
@@ -984,124 +984,6 @@ private fun InfoCardNavigationRow(
             )
             if (subtitle.isNotBlank()) {
                 Text(text = subtitle, color = subtitleColor)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun MyStackListScreen(
-    homeViewModel: HomeViewModel,
-    activeClientManager: ActiveClientManager,
-    onNavigateToAdd: () -> Unit,
-    onNavigateToSyncCenter: () -> Unit,
-    onNavigateToUserGuide: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    val supplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
-    val currentDay by homeViewModel.currentDay.collectAsStateWithLifecycle()
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val primaryTextColor = MaterialTheme.colorScheme.onSurface
-    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
-    var searchText by rememberSaveable { mutableStateOf("") }
-    val filteredSupplements by remember(supplements, searchText) {
-        derivedStateOf {
-            val q = searchText.trim().lowercase(Locale.ROOT)
-            if (q.isEmpty()) return@derivedStateOf supplements
-            supplements.filter { it.name.lowercase(Locale.ROOT).contains(q) }
-        }
-    }
-    val listState = rememberLazyListState()
-    val calculateCycleUseCase = remember { CalculateCycleUseCase() }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-    ) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text(stringResource(R.string.my_list_title), color = primaryTextColor) },
-                    actions = {
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(imageVector = Icons.Default.Settings, contentDescription = null, tint = primaryTextColor)
-                        }
-                    }
-                )
-            },
-            floatingActionButton = {
-                FloatingActionButton(onClick = onNavigateToAdd) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                }
-            }
-        ) { padding ->
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item(key = "quick_actions", contentType = "quick_actions") {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        InfoCardNavigationRow(
-                            title = stringResource(R.string.sync_center_title),
-                            subtitle = "",
-                            onClick = onNavigateToSyncCenter
-                        )
-                        InfoCardNavigationRow(
-                            title = stringResource(R.string.settings_guide_title),
-                            subtitle = "",
-                            onClick = onNavigateToUserGuide
-                        )
-                    }
-                }
-                item(key = "search", contentType = "search") {
-                    OutlinedTextField(
-                        value = searchText,
-                        onValueChange = { searchText = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.history_search_placeholder), color = secondaryTextColor) },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = primaryTextColor,
-                            unfocusedTextColor = primaryTextColor,
-                            focusedPlaceholderColor = secondaryTextColor,
-                            unfocusedPlaceholderColor = secondaryTextColor
-                        )
-                    )
-                }
-                items(
-                    items = filteredSupplements,
-                    key = { it.id },
-                    contentType = { "supplement" }
-                ) { supplement ->
-                    val time = supplement.intakeTime.trim()
-                    val title = if (time.isEmpty()) supplement.name else "${supplement.name} ($time)"
-                    val isOffCycle = calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, currentDay) == CycleStatus.OFF
-                    InfoCard(
-                        title = title,
-                        content = getCycleSummary(
-                            supplement = supplement,
-                            calculateCycleUseCase = calculateCycleUseCase,
-                            today = currentDay
-                        ),
-                        isOffCycle = isOffCycle
-                    )
-                }
             }
         }
     }
