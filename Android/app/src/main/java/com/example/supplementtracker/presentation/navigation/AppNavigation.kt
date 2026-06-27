@@ -340,6 +340,7 @@ private fun OakBottomBar(
                         title = stringResource(screen.titleRes),
                         selected = selected,
                         badgeCount = if (screen == Screen.Home) overdueCount else 0,
+                        isDark = isDark,
                         onClick = { onTabSelected(screen.route) },
                         icon = screen.icon
                     )
@@ -355,6 +356,7 @@ private fun OakBottomBarItem(
     title: String,
     selected: Boolean,
     badgeCount: Int,
+    isDark: Boolean,
     onClick: () -> Unit,
     icon: @Composable () -> Unit
 ) {
