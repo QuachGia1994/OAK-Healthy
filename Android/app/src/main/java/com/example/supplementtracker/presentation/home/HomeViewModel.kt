@@ -969,14 +969,6 @@ class HomeViewModel(
         }
     }
     
-    fun startAutoSync() {
-        CloudAutoSyncWork.setEnabled(context, true)
-    }
-    
-    fun stopAutoSync() {
-        CloudAutoSyncWork.setEnabled(context, false)
-    }
-    
     private fun activeAutoSyncBinId(): String? {
         val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
         val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
