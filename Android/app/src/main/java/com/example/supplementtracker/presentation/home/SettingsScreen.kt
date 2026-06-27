@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.ScrollableDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -1053,8 +1052,7 @@ fun MyStackListScreen(
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                flingBehavior = ScrollableDefaults.flingBehavior()
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item(key = "quick_actions", contentType = "quick_actions") {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

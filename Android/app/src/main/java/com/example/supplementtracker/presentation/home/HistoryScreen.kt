@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.ScrollableDefaults
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
@@ -140,8 +139,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        flingBehavior = ScrollableDefaults.flingBehavior()
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item(
             key = "insights_trend",
