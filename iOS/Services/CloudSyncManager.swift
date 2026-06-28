@@ -762,32 +762,7 @@ enum CloudSyncAutoSync {
         let end = trimmed.index(trimmed.startIndex, offsetBy: limit)
         return String(trimmed[..<end])
     }
-    
-    private static func hasLocalChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
-        guard lastSyncEpochMs > 0 else { return true }
-        do {
-            var supplementsDescriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate {
-                    $0.updatedAtEpochMs > lastSyncEpochMs ||
-                        ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs)
-                }
-            )
-            supplementsDescriptor.fetchLimit = 50
-            let changedSupplements = try modelContext.fetch(supplementsDescriptor)
-            if changedSupplements.contains(where: { $0.client?.id == clientId }) { return true }
-            
-            var recordsDescriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate { $0.updatedAtEpochMs > lastSyncEpochMs },
-                sortBy: [SortDescriptor(\IntakeRecord.updatedAtEpochMs, order: .reverse)]
-            )
-            recordsDescriptor.fetchLimit = 100
-            let changedRecords = try modelContext.fetch(recordsDescriptor)
-            return changedRecords.contains(where: { $0.supplement?.client?.id == clientId })
-        } catch {
-            return true
-        }
-    }
-    
+
     private static func markActivity() {
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastActivityKey)
     }

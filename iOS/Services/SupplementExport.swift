@@ -116,10 +116,6 @@ enum ZlibBase64Codec {
             .compactMap { $0.value.max(by: { $0.updatedAtEpochMs < $1.updatedAtEpochMs }) }
     }
     
-    private static func compress(data: Data) -> Data? {
-        process(data: data, operation: COMPRESSION_STREAM_ENCODE)
-    }
-    
     private static func decompress(data: Data) -> Data? {
         process(data: data, operation: COMPRESSION_STREAM_DECODE)
     }
