@@ -1,142 +1,145 @@
 # OAK Healthy
 
-OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ On/Off (uống/nghỉ), hỗ trợ đa học viên (Coach Mode) và đồng bộ đa thiết bị qua Firebase Realtime Database. App hướng tới Trader, Vận Động Viên và cả Bác Sĩ theo dõi bệnh nhân.
+OAK Healthy la app quan ly "stack" thuc pham bo sung theo chu ky On/Off (uong/nghi), ho tro da hoc vien (Coach Mode) va dong bo da thiet bi qua Firebase Realtime Database. App huong toi Trader, Van Dong Vien va ca Bac Si theo doi benh nhan.
 
-## Tải app (artifacts mới nhất)
+## Tai app (artifacts moi nhat)
 
 - Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/28308418554/artifacts/7930168260
 - iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/28308418531/artifacts/7930173339
 - iOS (dSYMs): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/28308418531/artifacts/7930173223
 
-Lưu ý: artifacts tải từ GitHub Actions có thể yêu cầu đăng nhập GitHub và sẽ hết hạn theo chính sách lưu trữ của GitHub.
+Luu y: artifacts tai tu GitHub Actions co the yeu cau dang nhap GitHub va het han theo chinh sach luu tru cua GitHub.
 
-## Thay đổi gần đây
+## Thay doi gan day
 
+- Sync:
+  - Realtime sync iOS <-> Android qua Firebase Realtime Database listeners (khong can poll).
+  - Field-level merge: sua field khac nhau tren 2 may khong bi de nhau.
+  - Manifest cache invalidation khi re-host.
 - iOS:
-  - UI: thay TabView mặc định bằng custom glass tab bar, fix lệch tab “Stack”, tránh bar chồng bar và tăng khoảng trống đáy để không che nút gần cuối.
-  - Loading/Launch: đồng bộ giao diện Light/Dark, thêm logo ở launch/loading để nền trắng/chữ đen và nền đen/chữ trắng hiển thị nhất quán hơn.
-  - Sync: bỏ delay foreground trên iOS và thêm retry ngắn khi chỉ một phần `stack/history` đổi, giúp Android -> iOS cập nhật gần realtime hơn và giảm lệch dữ liệu.
-  - Home: khôi phục hiển thị chip “Chuỗi” trong khu vực “Cần uống hôm nay”.
-  - Fix crash khi tick “Đã uống” do SwiftData predicate join trong export/sync (đổi sang fetch đơn giản + filter in-memory).
-  - CI: build unsigned IPA và upload thêm dSYMs artifact để symbolicate crash.
+  - Native liquid glass TabView (iOS 26+).
+  - Xoa custom OAKBottomTabBar — dung native tab bar.
 - Android:
-  - UI: custom glass bottom nav (capsule + pill active) theo style iOS, fix nền “slab” phía sau và tăng độ tương phản text/icon khi dùng dark mode.
-  - Theme: lưu lựa chọn giao diện Light/Dark/System để mở lại app không bị trả về sáng ngoài ý muốn.
-  - Loading: splash và loading screen đổi màu đúng theo theme hiện tại.
-  - Build: sửa lỗi compile liên quan Compose version (weight/offset/align receiver mismatch) khi thay bottom nav.
-  - Fix conflict ưu tiên thao tác Home: thao tác Taken/Skip từ Notification không ghi đè record đã có.
-  - Release: siết proguard keep rules và bật R8 full mode để giảm size.
+  - Liquid glass bottom bar (inner glow, sheen, multi-shadow).
+  - Swipe giua 3 tab qua HorizontalPager.
+  - AGP 8.5.2 + Kotlin 2.0.21 + Compose BOM 2024.06.00.
+  - Room migrate tu kapt sang KSP.
+  - Split SettingsScreen.kt -> SettingsComponents.kt + MyStackListScreen.kt.
+- Ca 2 nen tang:
+  - Xoa ~250 dong dead code.
+  - Onboarding crash fix (Android).
+  - Tab bar layout overlap fix (Android).
+  - Manifest cache invalidation tren ca 2 nen tang.
 
-## Hướng dẫn sử dụng nhanh
+## Huong dan su dung nhanh
 
-### Thiết lập ban đầu
+### Thiet lap ban dau
 
-1) Mở app → cấp quyền thông báo (nếu muốn nhắc uống).
-2) (Tuỳ chọn) Bật chế độ giao diện theo “Hệ thống” trong Cài đặt.
+1) Mo app -> cap quyen thong bao (neu muon nhac uong).
+2) (Tu chon) Bat che do giao dien theo "He thong" trong Cai dat.
 
-### Tạo stack và lịch uống
+### Tao stack va lich uong
 
-1) Vào tab Stack → thêm thực phẩm bổ sung.
-2) Chọn lịch:
-   - Uống liên tục / Chu kỳ On‑Off / Uống cách N ngày / Theo thứ trong tuần.
-3) Quay lại Trang chủ để xem “Cần uống hôm nay”.
+1) Vao tab Stack -> them thuc pham bo sung.
+2) Chon lich:
+   - Uong lien tuc / Chu ky On-Off / Uong cach N ngay / Theo thu trong tuan.
+3) Quay lai Trang chu de xem "Can uong hom nay".
 
-### Tick “Đã uống / Bỏ qua”
+### Tick "Da uong / Bo qua"
 
-- Bạn có thể tick trực tiếp trên Trang chủ hoặc tick ngay trên thông báo (Taken/Skip) để thao tác nhanh.
+- Ban co the tick truc tiep tren Trang chu hoac tick ngay tren thong bao (Taken/Skip) de thao tac nhanh.
 
-### Đồng bộ 2 thiết bị (Sync Center)
+### Dong bo 2 thiet bi (Sync Center)
 
-Thiết bị A (máy đang có dữ liệu):
-1) Mở Sync Center → Xuất key (chạm vào key để copy).
-2) Tạo Link Code.
+Thiet bi A (may dang co du lieu):
+1) Mo Sync Center -> Xuat key (cham vao key de copy).
+2) Tao Link Code.
 
-Thiết bị B (máy mới):
-1) Mở Sync Center → Dán key (nút Dán).
-2) Dán Link Code.
-3) Bấm Tải về / Đồng bộ.
+Thiet bi B (may moi):
+1) Mo Sync Center -> Dan key (nut Dan).
+2) Dan Link Code.
+3) Bam Tai ve / Dong bo.
 
-Gợi ý:
-- Nếu bật Auto‑Sync thì cả 2 máy sẽ tự cập nhật theo định kỳ.
-- Khi mở lại app sau khi thao tác trên máy còn lại, bản iOS mới sẽ kéo sync foreground sớm hơn để giảm cảm giác chờ.
-- Nếu lỡ dán Link Code mà chưa có key, Auto‑Sync sẽ tự tắt để tránh “đứng vĩnh viễn”; chỉ cần dán key rồi bật lại Auto‑Sync.
+Goi y:
+- Auto-Sync dung Firebase realtime listeners, dong bo tan thoi khi app dang mo.
+- Auto-Sync tu tat neu thieu key; chi can dan key roi bat lai.
 
 ## Guide & Release Notes
 
-- Hướng dẫn up GitHub release: `docs/github-release-guide.md`
-- Release notes để dán lên GitHub: `docs/release-notes-v1.0.1.md`
+- Huong dan up GitHub release: `docs/github-release-guide.md`
+- Release notes de dan len GitHub: `docs/release-notes-v1.0.1.md`
 
-## Tính năng chính
+## Tinh nang chinh
 
-- Dashboard theo mốc giờ: “Cần uống hôm nay”, tick “Đã uống/Bỏ qua” và lưu vào Lịch sử.
-- Lịch uống linh hoạt:
-  - Uống liên tục
-  - Chu kỳ On/Off theo ngày bắt đầu (x ngày uống / y ngày nghỉ)
-  - Uống cách N ngày (phù hợp lịch uống/tiêm cách ngày)
-  - Lặp theo thứ trong tuần + cách N tuần (Weekly Recurrence)
-  - Tổng thời hạn tính theo ngày (để trống = vô thời hạn)
-- Tick ngay trên thông báo (Taken/Skip) để thao tác nhanh.
-- Đồng bộ đa thiết bị:
-  - Phát dữ liệu (tạo mã liên kết / Bin ID)
-  - Tải về (tải + áp dụng dữ liệu trực tiếp)
-  - Tự động đồng bộ (Auto‑Sync) (bật/tắt trong Cài đặt)
-- Bảo mật mã liên kết:
-  - Nút “Con mắt” để ẩn/hiện mã khi dùng nơi công cộng
-  - “Thu hồi mã” để xóa vĩnh viễn dữ liệu trên Cloud
-- Chẩn đoán thông báo:
-  - “Kiểm tra danh sách thông báo” để xem app đã gửi lệnh đặt lịch (phụ thuộc quyền hệ điều hành/chứng chỉ)
-- Nâng cấp giao diện/trải nghiệm:
-  - 3 tab: Trang chủ / Stack / Lịch sử
-  - Lọc nhanh Due/Quá hạn/Đã uống/Bỏ qua + badge Quá hạn
-  - Insights 7/30 ngày dạng chart + xem chi tiết bằng nút mũi tên
+- Dashboard theo moc gio: "Can uong hom nay", tick "Da uong/Bo qua" va luu vao Lich su.
+- Lich uong linh hoat:
+  - Uong lien tuc
+  - Chu ky On/Off theo ngay bat dau (x ngay uong / y ngay nghi)
+  - Uong cach N ngay (phu hop lich uong/tiem cach ngay)
+  - Lap theo thu trong tuan + cach N tuan (Weekly Recurrence)
+  - Tong thoi han tinh theo ngay (de trong = vo thoi han)
+- Tick ngay tren thong bao (Taken/Skip) de thao tac nhanh.
+- Dong bo da thiet bi:
+  - Phat du lieu (tao ma lien ket / Bin ID)
+  - Tai ve (Tai + ap dung du lieu truc tiep)
+  - Tu dong dong bo (Auto-Sync) (bat/tat trong Cai dat)
+- Bao mat ma lien ket:
+  - Nut "Con mat" de an/ hien ma khi dung noi cong cong.
+  - "Thu hoi ma" de xoa vinh vien du lieu tren Cloud.
+- Chan doan thong bao:
+  - "Kiem tra danh sach thong bao" de xem app da gui lenh dat lich (phu thuoc quyen he dieu hanh/chung chi)
+- Nang cap giao dien/trai nghiem:
+  - 3 tab: Trang chu / Stack / Lich su
+  - Loc nhanh Due/Qua han/Da uong/Bo qua + badge Qua han
+  - Insights 7/30 ngay dang chart + xem chi tiet bang nut mui ten
 
-## Ghi chú triển khai (mới)
+## Ghi chu trien khai (moi)
 
-- Android: tải APK và cài trực tiếp (có thể cần bật “Cài đặt ứng dụng không rõ nguồn gốc”).
-- iOS: IPA yêu cầu cài qua TestFlight hoặc tự ký (AltStore/Sideloadly). Nếu bạn chỉ muốn xem demo UI/flow thì vẫn có thể tải IPA để tham khảo build.
-- Auto‑Sync:
-  - Android chạy theo WorkManager định kỳ (tối thiểu 15 phút theo giới hạn hệ điều hành) + có job one‑off để sync sớm khi bạn thao tác.
-  - iOS debounce các trigger sync và giảm polling khi idle để tiết kiệm pin.
+- Android: tai APK va cai truc tiep (co the can bat "Cai dat ung dung khong ro nguon goc").
+- iOS: IPA yeu cau cai qua TestFlight hoac tu ky (AltStore/Sideloadly). Neu ban chi muon xem demo UI/flow thi van co the tai IPA de tham khao build.
+- Auto-Sync:
+  - Android chay theo WorkManager dinh ky (toi thieu 15 phut theo gioi han he dieu hanh) + co job one-off de sync som khi ban thao tac.
+  - iOS debounce cac trigger sync va giam polling khi idle de tiet kiem pin.
 
 ## Rules
 
 - Max 30 lines / function.
 
 - iOS:
-  - Sau khi “Tải về”, app sẽ tự áp dụng dữ liệu và tự lên lịch lại thông báo (nếu đã bật “Cho phép gửi thông báo”).
-  - Safe Mode là cơ chế tự phục hồi khi phát hiện crash loop; không còn nút bật Safe Mode thủ công ở màn khởi động.
-  - Decode `CycleConfig`/`WeeklyRecurrenceConfig` được làm “tolerant” để tránh crash khi dữ liệu lệch schema.
+  - Sau khi "Tai ve", app se tu ap dung du lieu va tu len lich lai thong bao (neu da bat "Cho phep gui thong bao").
+  - Safe Mode la co che tu phuc hoi khi phat hien crash loop; khong con nut bat Safe Mode thu man o man khoi dong.
+  - Decode CycleConfig/WeeklyRecurrenceConfig duoc lam "tolent" tranh crash khi du lieu lech schema.
 - Android:
-  - Cập nhật nội dung “Giới thiệu” (viết hoa Trader/Vận Động Viên/Bác Sĩ).
-  - Tối ưu scroll jank: thêm `LazyListState` và key ổn định cho các danh sách (Home/History).
+  - Cap nhat noi dung "Gioi thieu" ( viet hoa Trader/Van Dong Vien/Bac Si).
+  - Toi uu scroll jank: them LazyListState va key on dinh cho cac danh sach (Home/History).
 
-## Cấu trúc dự án
+## Cau truc du an
 
 - `iOS/` — Swift 6.2+, SwiftUI, Strict Concurrency
 - `Android/` — Kotlin + Jetpack Compose (Material 3)
-- `backup_project.py` — Script backup dự án (zip), có chế độ git sync
+- `backup_project.py` — Script backup du an (zip), co che do git sync
 
 ## Backup & Git Sync
 
-### Tạo backup
+### Tao backup
 
 ```bash
 python backup_project.py --root .
 ```
 
-### Backup + tự git add/commit/push
+### Backup + tu git add/commit/push
 
 ```bash
 python backup_project.py --root . --git-sync --git-remote origin --git-branch main
 ```
 
-Tuỳ chọn message:
+Tuy chon message:
 
 ```bash
 python backup_project.py --root . --git-sync --git-message "chore(backup): update"
 ```
 
-## Lưu ý bảo mật
+## Luu y bao mat
 
-- Không commit file chứa secrets (ví dụ `iOS/Secrets.xcconfig` đã được loại khỏi backup theo mặc định).
-- Không đưa API key vào README. Cấu hình key theo cơ chế build (CI/xcconfig/BuildConfig).
+- Khong commit file chua secrets (vi du `iOS/Secrets.xcconfig` da duoc loai khoi backup theo mac dinh).
+- Khong dua API key vao README. Cau hinh key theo co che build (CI/xcconfig/BuildConfig).
