@@ -358,9 +358,9 @@ private fun OakBottomBar(
                     Brush.verticalGradient(
                         colors = if (isDark) {
                             listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.White.copy(alpha = 0.12f),
-                                Color.Black.copy(alpha = 0.16f)
+                                Color.White.copy(alpha = 0.10f),
+                                Color.White.copy(alpha = 0.08f),
+                                Color.White.copy(alpha = 0.06f)
                             )
                         } else {
                             listOf(
@@ -371,7 +371,7 @@ private fun OakBottomBar(
                         }
                     )
                 )
-                .border(1.dp, Color.White.copy(alpha = if (isDark) 0.16f else 0.28f), containerShape)
+                .border(1.dp, Color.White.copy(alpha = if (isDark) 0.08f else 0.20f), containerShape)
         ) {
             val horizontalPadding = 12.dp
             val spacing = 10.dp
@@ -419,36 +419,36 @@ private fun OakBottomBarItem(
         label = "oakBottomBarPress"
     )
     val pillShape = RoundedCornerShape(100)
+    val selectedBgColor = if (isDark) Color.White.copy(alpha = 0.14f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
     val pillBrush = Brush.linearGradient(
         colors = listOf(
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.88f),
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.52f),
-            Color.White.copy(alpha = 0.12f)
+            selectedBgColor,
+            selectedBgColor.copy(alpha = 0.6f),
+            Color.Transparent
         )
     )
     val sheenBrush = Brush.linearGradient(
         colors = listOf(
-            Color.White.copy(alpha = 0.20f),
+            Color.White.copy(alpha = if (isDark) 0.10f else 0.15f),
             Color.Transparent
         )
     )
     val innerGlowBrush = Brush.radialGradient(
         colors = listOf(
-            Color.White.copy(alpha = if (isDark) 0.22f else 0.14f),
+            Color.White.copy(alpha = if (isDark) 0.12f else 0.10f),
             Color.Transparent
         ),
         radius = 48f
     )
     val pillContainerModifier = if (selected) {
         Modifier
-            .shadow(18.dp, pillShape, clip = true, ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f), spotColor = Color.Black.copy(alpha = 0.16f))
-            .shadow(10.dp, pillShape, clip = true, ambientColor = Color.Black.copy(alpha = 0.14f), spotColor = Color.Black.copy(alpha = 0.06f))
+            .shadow(8.dp, pillShape, clip = true, ambientColor = Color.Black.copy(alpha = 0.10f), spotColor = Color.Black.copy(alpha = 0.06f))
             .background(pillBrush, pillShape)
             .drawBehind {
-                drawRect(innerGlowBrush, size = size.copy(width = size.width * 0.6f))
-                drawRect(sheenBrush, size = size.copy(width = size.width * 0.35f))
+                drawRect(innerGlowBrush, size = size.copy(width = size.width * 0.5f))
+                drawRect(sheenBrush, size = size.copy(width = size.width * 0.3f))
             }
-            .border(1.dp, Color.White.copy(alpha = 0.20f), pillShape)
+            .border(1.dp, Color.White.copy(alpha = if (isDark) 0.10f else 0.15f), pillShape)
     } else {
         Modifier.background(
             Brush.linearGradient(
