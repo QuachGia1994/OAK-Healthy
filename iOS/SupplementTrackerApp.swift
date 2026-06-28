@@ -558,6 +558,9 @@ struct MainTabView: View {
     @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     @State private var badgeViewModel = HomeViewModel()
 
+    @State private var swipeOffset: CGFloat = 0
+    @State private var isSwipeActive = false
+
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView(
@@ -588,16 +591,26 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .gesture(
-            DragGesture(minimumDistance: 30)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 50)
+                .onChanged { value in
+                    let dx = value.translation.width
+                    if abs(dx) > 30 && !isSwipeActive {
+                        isSwipeActive = true
+                        swipeOffset = dx
+                    }
+                }
                 .onEnded { value in
+                    guard isSwipeActive else { return }
+                    isSwipeActive = false
                     let width = UIScreen.main.bounds.width
-                    let threshold = width * 0.25
+                    let threshold = width * 0.2
                     if value.translation.width < -threshold && selectedTab < 2 {
                         withAnimation(.snappy(duration: 0.25)) { selectedTab += 1 }
                     } else if value.translation.width > threshold && selectedTab > 0 {
                         withAnimation(.snappy(duration: 0.25)) { selectedTab -= 1 }
                     }
+                    swipeOffset = 0
                 }
         )
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
