@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.navigation
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -165,7 +166,7 @@ fun AppNavigation(
     Scaffold(
         containerColor = Color.Transparent
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
+        Column(modifier = Modifier.padding(innerPadding)) {
             val startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route
             val isMainTab = items.any { it.route == currentDestination?.route }
             val pagerIndex = if (isMainTab) items.indexOfFirst { it.route == currentDestination?.route }.coerceAtLeast(0) else 0
@@ -189,7 +190,7 @@ fun AppNavigation(
             if (isMainTab && hasCompletedOnboarding) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
                     userScrollEnabled = true
                 ) { page ->
                     when (items[page]) {
@@ -216,7 +217,7 @@ fun AppNavigation(
                     }
                 }
             } else {
-                NavHost(navController = navController, startDestination = startDestination) {
+                NavHost(navController = navController, startDestination = startDestination, modifier = Modifier.weight(1f).fillMaxWidth()) {
                     composable(Screen.Home.route) {
                         HomeScreen(
                             viewModel = homeViewModel,
