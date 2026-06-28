@@ -34,20 +34,4 @@ class CloudSyncPayloadCodecTest {
             assertTrue(e.reason.contains("base64"))
         }
     }
-
-    @Test
-    fun compressIfUseful_returnsInputWhenSmall() {
-        val input = """{"k":"v"}"""
-        val out = CloudSyncPayloadCodec.compressIfUseful(input)
-        assertEquals(input, out)
-    }
-
-    @Test
-    fun compressIfUseful_roundTripWhenLarge() {
-        val big = "a".repeat(50_000)
-        val input = JSONObject().put("k", big).toString()
-        val compressed = CloudSyncPayloadCodec.compressIfUseful(input)
-        val roundTrip = CloudSyncPayloadCodec.decompressIfNeeded(compressed)
-        assertEquals(input, roundTrip)
-    }
 }

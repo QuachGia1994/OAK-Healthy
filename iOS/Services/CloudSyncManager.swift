@@ -160,19 +160,6 @@ public actor CloudSyncManager {
         }
     }
 
-    private var apiKey: String {
-        Bundle.main.object(forInfoDictionaryKey: "JSONBIN_API_KEY") as? String ?? ""
-    }
-    
-    private func requireApiKey() throws(CloudSyncError) -> String {
-        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            print("CloudSync disabled: JSONBIN_API_KEY is missing/empty in Info.plist")
-            throw .missingAccessKey
-        }
-        return trimmed
-    }
-
     private func fetch(request: URLRequest) async throws(CloudSyncError) -> (Data, HTTPURLResponse) {
         let plan = makeFetchPlan(request: request)
         var lastError: CloudSyncError?

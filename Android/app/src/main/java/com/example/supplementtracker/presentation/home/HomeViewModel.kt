@@ -754,8 +754,7 @@ class HomeViewModel(
             }
 
             fun encryptPrepared(plaintext: String): String {
-                val prepared = CloudSyncPayloadCodec.compressIfUseful(plaintext)
-                return CloudSyncCrypto.wrapForUploadIfEnabled(context, prepared)
+                return CloudSyncCrypto.wrapForUploadIfEnabled(context, plaintext)
             }
 
             val stackEncrypted = runCatching { encryptPrepared(stackPlain) }.getOrElse {
@@ -1034,8 +1033,7 @@ class HomeViewModel(
     }
 
     private fun encryptAndPrepare(plaintextJson: String): String {
-        val prepared = CloudSyncPayloadCodec.compressIfUseful(plaintextJson)
-        return CloudSyncCrypto.wrapForUploadIfEnabled(context, prepared)
+        return CloudSyncCrypto.wrapForUploadIfEnabled(context, plaintextJson)
     }
 
     private fun abortCloudSync(
