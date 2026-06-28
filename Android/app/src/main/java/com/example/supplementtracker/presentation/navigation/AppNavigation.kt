@@ -189,7 +189,7 @@ fun AppNavigation(
             if (isMainTab && hasCompletedOnboarding) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxWidth().wrapContentHeight(),
                     userScrollEnabled = true
                 ) { page ->
                     when (items[page]) {
