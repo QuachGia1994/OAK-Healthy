@@ -559,32 +559,47 @@ struct MainTabView: View {
     @State private var badgeViewModel = HomeViewModel()
 
     var body: some View {
-        SwippableTabView(
-            selectedTab: $selectedTab,
-            tabs: [
-                ("tab_home".localized, "house.fill"),
-                ("tab_stack".localized, "square.stack.3d.up.fill"),
-                ("tab_history".localized, "clock.fill")
-            ]
-        ) { index in
-            switch index {
-            case 0:
-                HomeView(
-                    activeClientManager: activeClientManager,
-                    notificationService: notificationService
-                )
-                .id("home-\(activeClientManager.currentClientId?.uuidString ?? "none")")
-            case 1:
-                StackView(
-                    activeClientManager: activeClientManager,
-                    notificationService: notificationService
-                )
-                .id("stack-\(activeClientManager.currentClientId?.uuidString ?? "none")")
-            default:
-                HistoryView(activeClientManager: activeClientManager)
-                    .id("history-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+        TabView(selection: $selectedTab) {
+            HomeView(
+                activeClientManager: activeClientManager,
+                notificationService: notificationService
+            )
+            .id("home-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+            .tabItem {
+                Label("tab_home".localized, systemImage: "house.fill")
             }
+            .tag(0)
+            .badge(homeOverdueCount > 0 ? homeOverdueCount : 0)
+
+            StackView(
+                activeClientManager: activeClientManager,
+                notificationService: notificationService
+            )
+            .id("stack-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+            .tabItem {
+                Label("tab_stack".localized, systemImage: "square.stack.3d.up.fill")
+            }
+            .tag(1)
+
+            HistoryView(activeClientManager: activeClientManager)
+                .id("history-\(activeClientManager.currentClientId?.uuidString ?? "none")")
+                .tabItem {
+                    Label("tab_history".localized, systemImage: "clock.fill")
+                }
+                .tag(2)
         }
+        .gesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    let width = UIScreen.main.bounds.width
+                    let threshold = width * 0.25
+                    if value.translation.width < -threshold && selectedTab < 2 {
+                        withAnimation(.snappy(duration: 0.25)) { selectedTab += 1 }
+                    } else if value.translation.width > threshold && selectedTab > 0 {
+                        withAnimation(.snappy(duration: 0.25)) { selectedTab -= 1 }
+                    }
+                }
+        )
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
