@@ -977,6 +977,12 @@ public struct SyncCenterView: View {
         if !stack.isEmpty { try? await CloudSyncManager.shared.deleteBackup(binId: stack) }
         if !history.isEmpty { try? await CloudSyncManager.shared.deleteBackup(binId: history) }
         try await CloudSyncManager.shared.deleteBackup(binId: oldBinId)
+        UserDefaults.standard.removeObject(forKey: "cloudSyncStackBinId_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncHistoryBinId_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncEtag_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncEtagStack_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncEtagHistory_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncLastSeenRev_\(oldBinId)")
         hostedBinId = ""
     }
     

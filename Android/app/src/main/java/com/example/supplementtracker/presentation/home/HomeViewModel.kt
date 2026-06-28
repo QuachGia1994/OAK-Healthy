@@ -889,14 +889,24 @@ class HomeViewModel(
                 return@launch
             }
             _cloudSyncLoading.value = false
+            val oldManifestId = _hostedBinId.value?.trim().orEmpty()
             _hostedBinId.value = newManifestId
-            prefs.edit()
+            val editor = prefs.edit()
                 .putString("cloudSyncHostedBinId", newManifestId)
                 .putString("cloudSyncStackBinId_$newManifestId", stackId)
                 .putString("cloudSyncHistoryBinId_$newManifestId", historyId)
                 .putLong("cloudSyncLastSyncEpochMs_$newManifestId", System.currentTimeMillis())
                 .remove("cloudSyncLastError_$newManifestId")
-                .apply()
+            if (oldManifestId.isNotEmpty() && oldManifestId != newManifestId) {
+                editor.remove("cloudSyncStackBinId_$oldManifestId")
+                    .remove("cloudSyncHistoryBinId_$oldManifestId")
+                    .remove("cloudSyncEtag_$oldManifestId")
+                    .remove("cloudSyncEtagStack_$oldManifestId")
+                    .remove("cloudSyncEtagHistory_$oldManifestId")
+                    .remove("cloudSyncLastSeenRev_$oldManifestId")
+                    .remove("cloudSyncLastSyncEpochMs_$oldManifestId")
+            }
+            editor.apply()
             updateCloudSyncUiStatus(newManifestId)
             appendCloudSyncLog(prefs, newManifestId, "HOST", "Host created OK")
             _dataTransferMessage.value = context.getString(R.string.cloud_host_success)
