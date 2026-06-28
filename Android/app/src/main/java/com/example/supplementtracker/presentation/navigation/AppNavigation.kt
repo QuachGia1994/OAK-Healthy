@@ -217,6 +217,31 @@ fun AppNavigation(
                 }
             } else {
                 NavHost(navController = navController, startDestination = startDestination) {
+                    composable(Screen.Home.route) {
+                        HomeScreen(
+                            viewModel = homeViewModel,
+                            activeClientManager = activeClientManager,
+                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
+                            onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") },
+                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                        )
+                    }
+                    composable(Screen.MyStack.route) {
+                        MyStackListScreen(
+                            homeViewModel = homeViewModel,
+                            activeClientManager = activeClientManager,
+                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
+                            onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) },
+                            onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
+                            onOpenSettings = { navController.navigate(Screen.Settings.route) }
+                        )
+                    }
+                    composable(Screen.History.route) {
+                        HistoryScreen(
+                            viewModel = historyViewModel,
+                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                        )
+                    }
                     composable(Screen.Onboarding.route) {
                         OnboardingScreen(
                             homeViewModel = homeViewModel,
@@ -224,10 +249,6 @@ fun AppNavigation(
                             onDone = {
                                 prefs.edit().putBoolean("hasCompletedOnboarding", true).apply()
                                 refreshOnboardingFlag()
-                                navController.navigate(Screen.Home.route) {
-                                    popUpTo(Screen.Onboarding.route) { inclusive = true }
-                                    launchSingleTop = true
-                                }
                             }
                         )
                     }
