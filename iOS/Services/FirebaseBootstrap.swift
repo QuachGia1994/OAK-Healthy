@@ -25,7 +25,8 @@ enum FirebaseBootstrap {
         
         guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
               let options = FirebaseOptions(contentsOfFile: path) else {
-            fatalError("GoogleService-Info.plist missing — add it to the build via CI secrets")
+            NSLog("[Firebase] GoogleService-Info.plist missing — sync features disabled")
+            return
         }
         FirebaseApp.configure(options: options)
         postConfigure()
