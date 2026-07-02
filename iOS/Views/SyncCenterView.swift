@@ -49,7 +49,6 @@ public struct SyncCenterView: View {
     
     public var body: some View {
         ZStack {
-            backgroundGradient.ignoresSafeArea()
             List {
                 onboardingSection
                 statusSection
@@ -103,8 +102,9 @@ public struct SyncCenterView: View {
         } message: {
             Text(importErrorMessage)
         }
+        .oakBackground()
     }
-    
+
     @ViewBuilder
     private var onboardingSection: some View {
         Section {
@@ -139,7 +139,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_onboarding_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -268,6 +268,7 @@ public struct SyncCenterView: View {
                             Button(action: { isManifestPartsVisible.toggle() }) {
                                 Image(systemName: isManifestPartsVisible ? "eye.slash" : "eye")
                                     .foregroundStyle(.gray)
+                                    .accessibilityLabel(isManifestPartsVisible ? "a11y_hide".localized : "a11y_show".localized)
                             }
                             .buttonStyle(.borderless)
                         }
@@ -331,7 +332,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_status_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -352,7 +353,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_device_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -399,6 +400,7 @@ public struct SyncCenterView: View {
                 Button(action: { isBinIdVisible.toggle() }) {
                     Image(systemName: isBinIdVisible ? "eye.slash" : "eye")
                         .foregroundStyle(.gray)
+                        .accessibilityLabel(isBinIdVisible ? "a11y_hide".localized : "a11y_show".localized)
                 }
                 .buttonStyle(.borderless)
             }
@@ -441,6 +443,7 @@ public struct SyncCenterView: View {
             Button(action: { isInputCodeVisible.toggle() }) {
                 Image(systemName: isInputCodeVisible ? "eye.slash" : "eye")
                     .foregroundStyle(.gray)
+                    .accessibilityLabel(isInputCodeVisible ? "a11y_hide".localized : "a11y_show".localized)
             }
             .buttonStyle(.borderless)
             Button("sync_center_action_paste".localized) {
@@ -562,7 +565,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_security_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -631,7 +634,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_logs_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     private var availableLogPhases: [String] {
@@ -668,18 +671,7 @@ public struct SyncCenterView: View {
         if !hosted.isEmpty { return hosted }
         return linkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-    
-    private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
-    }
-    
+
     private var importKeyConfirmText: String {
         let raw = importCloudSyncKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let parts = raw.split(separator: ":", maxSplits: 1).map { String($0) }
@@ -1095,9 +1087,11 @@ public struct SyncCenterView: View {
     
     @MainActor
     private func finalizeError(keys: SyncKeys, error: Error) {
-        UserDefaults.standard.set(error.localizedDescription, forKey: keys.lastError)
+        // ponytail: store error code, not localized description (avoids leaking server details to UserDefaults)
+        let code = (error as NSError).code.description
+        UserDefaults.standard.set(code, forKey: keys.lastError)
         syncPhase = .error
-        appendLog(binId: keys.binId, phase: "SYNC", message: "ERROR: \(error.localizedDescription)")
+        appendLog(binId: keys.binId, phase: "SYNC", message: "ERROR: code=\(code)")
     }
     
     @MainActor

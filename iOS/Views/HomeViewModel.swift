@@ -26,19 +26,19 @@ public final class HomeViewModel {
     
     // MARK: - Logic
     
-    public enum DoseStatus: Sendable, Hashable {
+    public enum DoseStatus: Sendable {
         case planned
         case taken
         case skipped
         case missed
     }
     
-    public enum DoseAction: Sendable, Hashable {
+    public enum DoseAction: Sendable {
         case taken
         case skipped
     }
 
-    public struct TodayCounts: Sendable, Hashable {
+    public struct TodayCounts: Sendable {
         public var due: Int
         public var taken: Int
         public var skipped: Int
@@ -48,7 +48,7 @@ public final class HomeViewModel {
     public var cachedTodayCounts: TodayCounts = TodayCounts(due: 0, taken: 0, skipped: 0, missed: 0)
     public var cachedStreakDays: Int = 0
     
-    public enum DoseUrgency: Sendable, Hashable {
+    public enum DoseUrgency: Sendable {
         case none
         case dueSoon
         case missedSoon
