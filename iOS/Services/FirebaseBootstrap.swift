@@ -7,6 +7,11 @@ import Foundation
 @MainActor
 enum FirebaseBootstrap {
     nonisolated static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
+    nonisolated private static let googleAppID = "1:339994104835:ios:3662c12531ad716cac2a36"
+    nonisolated private static let gcmSenderID = "339994104835"
+    nonisolated private static let apiKey = "AIzaSyBi9c4GbH_XWl4y9qBJf0rgjBYsHBIewFw"
+    nonisolated private static let projectID = "oak-healthy"
+    nonisolated private static let storageBucket = "oak-healthy.firebasestorage.app"
     private static var didConfigure = false
     
     static func configureIfNeeded() {
@@ -23,25 +28,25 @@ enum FirebaseBootstrap {
             return
         }
         
-        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
-              let options = FirebaseOptions(contentsOfFile: path) else {
-            NSLog("[Firebase] GoogleService-Info.plist missing — sync features disabled")
+        if let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+           let options = FirebaseOptions(contentsOfFile: path) {
+            FirebaseApp.configure(options: options)
+            postConfigure()
             return
         }
+        
+        let options = FirebaseOptions(googleAppID: googleAppID, gcmSenderID: gcmSenderID)
+        options.apiKey = apiKey
+        options.projectID = projectID
+        options.databaseURL = databaseURL
+        options.storageBucket = storageBucket
         FirebaseApp.configure(options: options)
         postConfigure()
     }
     
-    private static let lastSignInAttemptKey = "oakLastFirebaseSignInAttempt"
-    private static let minSignInInterval: TimeInterval = 30
-
     static func ensureSignedIn() async throws {
         configureIfNeeded()
         if Auth.auth().currentUser != nil { return }
-        let now = Date().timeIntervalSince1970
-        let last = UserDefaults.standard.double(forKey: lastSignInAttemptKey)
-        guard now - last > minSignInInterval else { return }
-        UserDefaults.standard.set(now, forKey: lastSignInAttemptKey)
         _ = try await Auth.auth().signInAnonymously()
     }
     

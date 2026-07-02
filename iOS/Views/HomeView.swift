@@ -18,7 +18,6 @@ public struct HomeView: View {
     @State private var renderNow: Date = .now
     @State private var cachedOverdue: [OverdueItem] = []
     @State private var cachedTimeSections: [TimeSection] = []
-    @State private var supplementToDelete: UserSupplement?
     @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
     
     public let activeClientManager: ActiveClientManager
@@ -36,8 +35,10 @@ public struct HomeView: View {
     
     public var body: some View {
         NavigationStack {
-
             ZStack {
+                backgroundGradient
+                    .ignoresSafeArea()
+                
                 if clients.isEmpty {
                     VStack(spacing: 12) {
                         Text("add_client_to_start".localized)
@@ -52,7 +53,7 @@ public struct HomeView: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding(20)
-                    .oakCardStyle(.glass)
+                    .oakCardStyle(.glass, cornerRadius: 16)
                     .padding(.horizontal, 24)
                 } else {
                     let now = renderNow
@@ -141,7 +142,7 @@ public struct HomeView: View {
                                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                             Button(role: .destructive) {
-                                                supplementToDelete = info.supplement
+                                                viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
                                             } label: {
                                                 Label("delete".localized, systemImage: "trash")
                                             }
@@ -162,7 +163,7 @@ public struct HomeView: View {
                                             }
                                             
                                             Button(role: .destructive) {
-                                                supplementToDelete = info.supplement
+                                                viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
                                             } label: {
                                                 Label("delete".localized, systemImage: "trash")
                                             }
@@ -204,16 +205,14 @@ public struct HomeView: View {
                                 isShowingAddSheet = true
                             } label: {
                                 Image(systemName: "plus")
-                                    .accessibilityLabel("add_supplement".localized)
                             }
                         }
-
+                        
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
                                 isShowingSettingsSheet = true
                             } label: {
                                 Image(systemName: "gearshape.fill")
-                                    .accessibilityLabel("settings_title".localized)
                             }
                         }
                     }
@@ -287,14 +286,13 @@ public struct HomeView: View {
                 }
             }
         }
-        .oakBackground()
         .task {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
-            OakClientEditorSheet { name in
+            AddClientSheet { name in
                 guard !name.isEmpty else { return }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
@@ -307,26 +305,15 @@ public struct HomeView: View {
                 activeClientManager.setCurrentClientId(created.id)
             }
         }
-        .confirmationDialog(
-            "delete_supplement_confirm_title".localized,
-            isPresented: Binding(
-                get: { supplementToDelete != nil },
-                set: { if !$0 { supplementToDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("delete".localized, role: .destructive) {
-                if let supplement = supplementToDelete {
-                    viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
-                }
-                supplementToDelete = nil
-            }
-            Button("cancel".localized, role: .cancel) { supplementToDelete = nil }
-        } message: {
-            Text("delete_supplement_confirm_message".localized)
-        }
     }
-
+    
+    private var backgroundGradient: LinearGradient {
+        let colors: [Color] = colorScheme == .dark
+            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
+            : [Color(.systemGroupedBackground), Color(.systemBackground)]
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+    
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
         return clients.first { $0.id == id }
@@ -396,7 +383,7 @@ public struct HomeView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
-                supplementToDelete = supplement
+                viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
             } label: {
                 Label("delete".localized, systemImage: "trash")
             }
@@ -407,9 +394,9 @@ public struct HomeView: View {
             } label: {
                 Label("edit".localized, systemImage: "pencil")
             }
-
+            
             Button(role: .destructive) {
-                supplementToDelete = supplement
+                viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
             } label: {
                 Label("delete".localized, systemImage: "trash")
             }
@@ -574,7 +561,7 @@ private struct TodayStripButton: View {
     }
 }
 
-private struct OverdueItem: Identifiable {
+private struct OverdueItem: Identifiable, Hashable {
     let supplement: UserSupplement
     let timeString: String
     var id: String { "\(supplement.id.uuidString)-\(timeString)" }
@@ -608,7 +595,6 @@ private struct StreakChip: View {
             Image(systemName: "flame.fill")
                 .font(.caption)
                 .foregroundStyle(.orange)
-                .accessibilityHidden(true)
             Text(String.localizedStringWithFormat("home_streak_format".localized, streakDays))
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -644,6 +630,33 @@ private struct CountChip: View {
     }
 }
 
+private struct AddClientSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    let onSave: (String) -> Void
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("client_name_label".localized, text: $name)
+            }
+            .navigationTitle("add_client".localized)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("cancel".localized) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("save".localized) {
+                        onSave(name.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+}
+
 /// Thành phần hiển thị chất đang hoạt động.
 private struct ActiveSupplementRow: View {
     @Environment(\.modelContext) private var modelContext
@@ -663,7 +676,6 @@ private struct ActiveSupplementRow: View {
                 HStack {
                     Image(systemName: "clock")
                         .font(.caption2)
-                        .accessibilityHidden(true)
                     Text(timeString)
                         .font(.caption2)
                     Text("•")
@@ -708,7 +720,6 @@ private struct ActiveSupplementRow: View {
                     .scaleEffect(iconScale)
                     .animation(.snappy, value: status)
             }
-            .accessibilityLabel(statusAccessibilityLabel)
         }
         .padding()
         .background(.ultraThinMaterial)
@@ -726,12 +737,10 @@ private struct ActiveSupplementRow: View {
         ) {
             Button("home_confirm_intake_action".localized) {
                 pulseIcon()
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 onAction(supplement, timeString, .taken, modelContext)
             }
             Button("notif_action_skip".localized) {
                 pulseIcon()
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 onAction(supplement, timeString, .skipped, modelContext)
             }
             Button("cancel".localized, role: .cancel) {}
@@ -765,20 +774,7 @@ private struct ActiveSupplementRow: View {
             .red
         }
     }
-
-    private var statusAccessibilityLabel: String {
-        switch status {
-        case .planned:
-            "dose_status_planned".localized
-        case .taken:
-            "dose_status_taken".localized
-        case .skipped:
-            "dose_status_skipped".localized
-        case .missed:
-            "dose_status_missed".localized
-        }
-    }
-
+    
     private var borderColor: Color {
         switch urgency {
         case .none: .clear

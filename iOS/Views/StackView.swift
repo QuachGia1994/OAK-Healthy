@@ -27,6 +27,9 @@ public struct StackView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
+                backgroundGradient
+                    .ignoresSafeArea()
+                
                 List {
                     Section {
                         NavigationLink("sync_center_title".localized) {
@@ -36,7 +39,7 @@ public struct StackView: View {
                             UserGuideView()
                         }
                     }
-                    .listRowBackground(OakGlassRow.background)
+                    .listRowBackground(glassRowBackground)
                     
                     Section {
                         if supplementsForActiveClient.isEmpty {
@@ -67,7 +70,7 @@ public struct StackView: View {
                     } header: {
                         Text("my_list_title".localized)
                     }
-                    .listRowBackground(OakGlassRow.background)
+                    .listRowBackground(glassRowBackground)
                 }
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.hidden)
@@ -97,16 +100,14 @@ public struct StackView: View {
                             isShowingAddSheet = true
                         } label: {
                             Image(systemName: "plus")
-                                .accessibilityLabel("add_supplement".localized)
                         }
                     }
-
+                    
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             isShowingSettingsSheet = true
                         } label: {
                             Image(systemName: "gearshape.fill")
-                                .accessibilityLabel("a11y_settings".localized)
                         }
                     }
                 }
@@ -134,14 +135,24 @@ public struct StackView: View {
                 }
             }
         }
-        .oakBackground()
         .task {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
         }
     }
-
+    
+    private var glassRowBackground: some View {
+        Color.clear.background(.ultraThinMaterial)
+    }
+    
+    private var backgroundGradient: LinearGradient {
+        let colors: [Color] = colorScheme == .dark
+            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
+            : [Color(.systemGroupedBackground), Color(.systemBackground)]
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+    
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
         return clients.first { $0.id == id }

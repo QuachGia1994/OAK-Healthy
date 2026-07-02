@@ -20,16 +20,15 @@ private enum PendingImportKeys {
 }
 
 // #region debug-point ios-tab-crash-reporter
-#if DEBUG
 enum DebugReporter {
     private static let urlKey = "debugServerUrl"
     private static let runIdKey = "debugRunId"
-
+    
     static func report(_ name: String, fields: [String: String] = [:]) {
         let rawUrl = (UserDefaults.standard.string(forKey: urlKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !rawUrl.isEmpty, let url = URL(string: rawUrl) else { return }
         let runId = (UserDefaults.standard.string(forKey: runIdKey) ?? "pre").trimmingCharacters(in: .whitespacesAndNewlines)
-
+        
         var payload: [String: Any] = [
             "ts": Int64(Date().timeIntervalSince1970 * 1000),
             "sessionId": "ios-tab-crash",
@@ -38,22 +37,17 @@ enum DebugReporter {
         ]
         if !fields.isEmpty { payload["fields"] = fields }
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return }
-
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = data
-
+        
         Task {
             _ = try? await URLSession.shared.data(for: request)
         }
     }
 }
-#else
-enum DebugReporter {
-    static func report(_ name: String, fields: [String: String] = [:]) {}
-}
-#endif
 // #endregion debug-point ios-tab-crash-reporter
 
 @main
@@ -113,18 +107,6 @@ private struct RootLaunchView: View {
                     }
                 }
                 .modelContainer(dependencies.modelContainer)
-                #if DEBUG
-                .overlay(alignment: .top) {
-                    Text("DEBUG BUILD")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(.yellow.opacity(0.9))
-                        .foregroundStyle(.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        .padding(.top, 4)
-                }
-                #endif
                 .task {
                     DebugReporter.report("ui_task_start", fields: [
                         "safeMode": String(isSafeModeEnabled),
@@ -317,15 +299,8 @@ private struct SafeBootView: View {
     @MainActor
     private func makeModelContainer(schema: Schema) -> ModelContainer? {
         guard let storeURL = persistentStoreURL() else { return try? ModelContainer(for: schema) }
-
-        // ponytail: encrypt SwiftData store at rest — protects health data if device filesystem is extracted.
-        let protectionAttrs: [FileAttributeKey: Any] = [
-            .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
-        ]
-        try? FileManager.default.setAttributes(protectionAttrs, ofItemAtPath: storeURL.path)
-
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
-
+        
         do {
             return try ModelContainer(for: schema, configurations: configuration)
         } catch {
@@ -455,7 +430,6 @@ private struct SafeModeView: View {
                     Text("safe_mode_header".localized)
                 }
                 
-                #if DEBUG
                 Section {
                     TextField("debug_server_url_placeholder".localized, text: $debugServerUrl)
                         .textInputAutocapitalization(.never)
@@ -467,7 +441,6 @@ private struct SafeModeView: View {
                 } header: {
                     Text("debug_section_title".localized)
                 }
-                #endif
             }
             .navigationTitle("safe_mode_title".localized)
         }
@@ -700,7 +673,7 @@ struct MainTabView: View {
         Task { @MainActor in await applyDoseAction(payload) }
     }
 
-    private struct DoseActionPayload: Sendable {
+    private struct DoseActionPayload: Sendable, Hashable {
         let supplementId: UUID
         let intakeTime: String
         let actionIdentifier: String
