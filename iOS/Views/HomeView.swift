@@ -574,7 +574,7 @@ private struct TodayStripButton: View {
     }
 }
 
-private struct OverdueItem: Identifiable, Hashable {
+private struct OverdueItem: Identifiable {
     let supplement: UserSupplement
     let timeString: String
     var id: String { "\(supplement.id.uuidString)-\(timeString)" }

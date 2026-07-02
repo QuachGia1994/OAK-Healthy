@@ -700,7 +700,7 @@ struct MainTabView: View {
         Task { @MainActor in await applyDoseAction(payload) }
     }
 
-    private struct DoseActionPayload: Sendable, Hashable {
+    private struct DoseActionPayload: Sendable {
         let supplementId: UUID
         let intakeTime: String
         let actionIdentifier: String
