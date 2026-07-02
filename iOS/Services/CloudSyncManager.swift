@@ -46,6 +46,7 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
         case let .missingCompressedField(field): return "missing_field_\(field)"
         case .base64DecodeFailed: return "base64_decode_failed"
         case .inflateFailed: return "inflate_failed"
+        case .outputTooLarge: return "output_too_large"
         }
     }
     
