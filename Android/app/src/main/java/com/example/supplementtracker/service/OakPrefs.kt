@@ -9,21 +9,28 @@ import androidx.security.crypto.MasterKey
 // Fallback to plain prefs only if KeyStore is corrupted (rooted device edge case).
 object OakPrefs {
     private const val PREFS_NAME = "oak_settings"
+    @Volatile private var cached: SharedPreferences? = null
 
     fun get(context: Context): SharedPreferences {
-        return try {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            EncryptedSharedPreferences.create(
-                context,
-                PREFS_NAME,
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (_: Exception) {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        cached?.let { return it }
+        return synchronized(this) {
+            cached?.let { return@synchronized it }
+            val instance = try {
+                val masterKey = MasterKey.Builder(context.applicationContext)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    context.applicationContext,
+                    PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (_: Exception) {
+                context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            }
+            cached = instance
+            instance
         }
     }
 }
