@@ -3,14 +3,9 @@ import Security
 import CryptoKit
 
 // ponytail: cert pinning via URLSessionDelegate.
-// In DEBUG, logs real SPKI hashes on first connection so you can populate pinnedHashes.
-// In RELEASE, validates against the hardcoded pins. If no pins are set, skips validation (fail-open).
+// In DEBUG, logs real SPKI hashes. In RELEASE, validates pins. No pins = skip (fail-open).
 final class PinnedSessionDelegate: NSObject, URLSessionDelegate {
-    private static let pinnedHashes: [String: Set<String>] = [
-        // ponytail: capture real hashes by running a DEBUG build once, then paste them here.
-        // Format: Base64(SHA-256(DER(SubjectPublicKeyInfo)))
-    ]
-
+    private static let pinnedHashes: [String: Set<String>] = [:]
     private static let pinExpiration = Date(timeIntervalSince1970: 1830768000) // 2028-01-01
 
     func urlSession(
@@ -18,51 +13,45 @@ final class PinnedSessionDelegate: NSObject, URLSessionDelegate {
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
     ) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let serverTrust = challenge.protectionSpace.serverTrust,
-              SecTrustEvaluateWithError(serverTrust, nil),
-              let certificate = SecTrustGetCertificateAtIndex(serverTrust, 0)
-        else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-            return
+        guard let (trust, cert) = extractTrust(from: challenge) else {
+            return completionHandler(.cancelAuthenticationChallenge, nil)
         }
-
         let host = challenge.protectionSpace.host
-        let serverHash = sha256SPKIHash(of: certificate)
-
+        let hash = sha256SPKIHash(of: cert)
         #if DEBUG
-        // Log actual SPKI hash so we can populate pinnedHashes for production
-        NSLog("[CertPin] host=%@ spki_sha256=%@", host, serverHash)
-        completionHandler(.useCredential, URLCredential(trust: serverTrust))
-        return
+        NSLog("[CertPin] host=%@ spki_sha256=%@", host, hash)
+        return completionHandler(.useCredential, URLCredential(trust: trust))
         #endif
+        validatePin(host: host, hash: hash, trust: trust, completionHandler: completionHandler)
+    }
 
-        // No pins configured for this host — skip validation
+    private func validatePin(host: String, hash: String, trust: SecTrust,
+                             completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let credential = URLCredential(trust: trust)
         guard let pins = Self.pinnedHashes[host], !pins.isEmpty else {
-            completionHandler(.useCredential, URLCredential(trust: serverTrust))
-            return
+            return completionHandler(.useCredential, credential)
         }
-
         guard Date() < Self.pinExpiration else {
             NSLog("[CertPin] Pins expired for %@", host)
-            completionHandler(.cancelAuthenticationChallenge, nil)
-            return
+            return completionHandler(.cancelAuthenticationChallenge, nil)
         }
+        pins.contains(hash)
+            ? completionHandler(.useCredential, credential)
+            : { NSLog("[CertPin] Pin mismatch for %@ — got: %@", host, hash)
+                completionHandler(.cancelAuthenticationChallenge, nil) }()
+    }
 
-        if pins.contains(serverHash) {
-            completionHandler(.useCredential, URLCredential(trust: serverTrust))
-        } else {
-            NSLog("[CertPin] Pin mismatch for %@ — got: %@", host, serverHash)
-            completionHandler(.cancelAuthenticationChallenge, nil)
-        }
+    private func extractTrust(from challenge: URLAuthenticationChallenge) -> (SecTrust, SecCertificate)? {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust,
+              SecTrustEvaluateWithError(trust, nil),
+              let cert = SecTrustGetCertificateAtIndex(trust, 0) else { return nil }
+        return (trust, cert)
     }
 
     private func sha256SPKIHash(of certificate: SecCertificate) -> String {
-        guard let publicKey = SecCertificateCopyKey(certificate),
-              let publicKeyData = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else {
-            return ""
-        }
-        let digest = SHA256.hash(data: publicKeyData)
-        return Data(digest).base64EncodedString()
+        guard let key = SecCertificateCopyKey(certificate),
+              let data = SecKeyCopyExternalRepresentation(key, nil) as Data? else { return "" }
+        return Data(SHA256.hash(data: data)).base64EncodedString()
     }
 }
