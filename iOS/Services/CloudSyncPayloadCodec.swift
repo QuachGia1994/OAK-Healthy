@@ -6,7 +6,11 @@ public enum CloudSyncPayloadCodecError: Error, Sendable {
     case missingCompressedField(field: String)
     case base64DecodeFailed
     case inflateFailed
+    case outputTooLarge(Int)
 }
+
+// ponytail: 10MB cap prevents zip bomb decompression. Health data shouldn't exceed this.
+private let maxDecompressedSize = 10 * 1024 * 1024
 
 enum CloudSyncPayloadCodec {
     static func decompressIfNeeded(_ data: Data) throws(CloudSyncPayloadCodecError) -> Data {
@@ -59,6 +63,7 @@ enum CloudSyncPayloadCodec {
                 let status = compression_stream_process(&stream, flags)
                 let written = bufferSize - stream.dst_size
                 if written > 0 { dst.append(dstBuffer, count: written) }
+                if dst.count > maxDecompressedSize { return nil }
                 if status == COMPRESSION_STATUS_END { return dst }
                 if status == COMPRESSION_STATUS_ERROR { return nil }
                 if status == COMPRESSION_STATUS_OK && written == 0 && stream.src_size == 0 { return nil }
