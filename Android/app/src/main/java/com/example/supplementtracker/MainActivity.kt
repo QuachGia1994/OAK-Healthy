@@ -245,24 +245,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     }
-                    // ponytail: DEBUG banner so testers know integrity checks are off
-                    if (BuildConfig.DEBUG) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .wrapContentSize(Alignment.TopCenter)
-                                .padding(top = 4.dp)
-                        ) {
-                            Text(
-                                text = "DEBUG BUILD",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.Black,
-                                modifier = Modifier
-                                    .background(Color.Yellow.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
                 }
             }
         }
