@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- ponytail: pin Firebase RTDB and GitHub Gist domains. Update pins on cert rotation. -->
+    <!-- ponytail: block cleartext for Firebase and GitHub domains.
+         Certificate pinning: capture real SPKI hashes from a running app
+         and add a <pin-set> block here before production release. -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">firebasedatabase.app</domain>
         <domain includeSubdomains="true">firebaseio.com</domain>
         <domain includeSubdomains="true">githubusercontent.com</domain>
         <domain includeSubdomains="true">github.com</domain>
-        <pin-set expiration="2027-01-01">
-            <!-- Google Trust Services (Firebase) -->
-            <pin digest="SHA-256">JSMzE0c3l4ANxkt4ujPT/g5nuTYA2TapP120S5u7Dqo=</pin>
-            <pin digest="SHA-256">W2rgt8K5b0wM7UuV0BnXmBm1G3bN0bL4K8D9F2e1Z8=</pin>
-            <!-- DigiCert (GitHub) -->
-            <pin digest="SHA-256">x4QzPSC8N0lG45ochKb6AD6eLk7LbqJQ1aZ2dH5n1cA=</pin>
-        </pin-set>
     </domain-config>
 </network-security-config>
