@@ -6,10 +6,9 @@ import CryptoKit
 // In DEBUG, logs real SPKI hashes on first connection so you can populate pinnedHashes.
 // In RELEASE, validates against the hardcoded pins. If no pins are set, skips validation (fail-open).
 final class PinnedSessionDelegate: NSObject, URLSessionDelegate {
-    private static let pinnedHashes: [String: Set<String>] = [
-        // ponytail: capture real hashes by running a DEBUG build once, then paste them here.
-        // Format: Base64(SHA-256(DER(SubjectPublicKeyInfo)))
-    ]
+    private static let pinnedHashes: [String: Set<String>] = [:]
+    // ponytail: capture real hashes by running a DEBUG build once, then paste them here.
+    // Format: Base64(SHA-256(DER(SubjectPublicKeyInfo)))
     private static let pinExpiration = Date(timeIntervalSince1970: 1830768000) // 2028-01-01
 
     func urlSession(

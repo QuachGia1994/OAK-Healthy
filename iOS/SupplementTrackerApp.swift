@@ -319,7 +319,7 @@ private struct SafeBootView: View {
         guard let storeURL = persistentStoreURL() else { return try? ModelContainer(for: schema) }
 
         // ponytail: encrypt SwiftData store at rest — protects health data if device filesystem is extracted.
-        letProtectionAttrs: [FileAttributeKey: Any] = [
+        let protectionAttrs: [FileAttributeKey: Any] = [
             .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
         ]
         try? FileManager.default.setAttributes(protectionAttrs, ofItemAtPath: storeURL.path)
