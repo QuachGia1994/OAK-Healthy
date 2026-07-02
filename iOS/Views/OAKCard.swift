@@ -7,7 +7,7 @@ enum OAKCardVariant: Sendable {
 extension View {
     func oakCardStyle(
         _ variant: OAKCardVariant = .glass,
-        cornerRadius: CGFloat = 16,
+        cornerRadius: CGFloat = 20,
         strokeOpacity: Double = 0.18,
         shadowOpacity: Double = 0.10,
         shadowRadius: CGFloat = 12,

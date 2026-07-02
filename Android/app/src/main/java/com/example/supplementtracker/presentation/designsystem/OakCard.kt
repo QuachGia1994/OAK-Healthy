@@ -33,7 +33,7 @@ fun OakCard(
     modifier: Modifier = Modifier,
     variant: OakCardVariant = OakCardVariant.Glass,
     accent: Color? = null,
-    shape: Shape = RoundedCornerShape(28.dp),
+    shape: Shape = RoundedCornerShape(20.dp),
     contentPadding: PaddingValues = PaddingValues(16.dp),
     elevation: Dp = 2.dp,
     content: @Composable ColumnScope.() -> Unit

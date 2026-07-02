@@ -39,7 +39,7 @@ fun OakLogoMark(
     ) {
         Image(
             imageVector = androidx.compose.ui.graphics.vector.ImageVector.vectorResource(R.drawable.ic_oak_logo),
-            contentDescription = null,
+            contentDescription = androidx.compose.ui.res.stringResource(com.example.supplementtracker.R.string.a11y_oak_logo),
             modifier = Modifier.size(size * 0.72f)
         )
     }

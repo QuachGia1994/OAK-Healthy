@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 class FirebaseRealtimeSyncListener(
     private val context: Context,
     private val onSyncNeeded: suspend () -> Unit
-) {
+) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val DB_URL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
     private val ROOT = "oakBins"
@@ -21,7 +21,7 @@ class FirebaseRealtimeSyncListener(
     fun start(manifestId: String) {
         stop()
         if (manifestId.isEmpty()) return
-        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val stackBinId = prefs.getString("cloudSyncStackBinId_$manifestId", "").orEmpty().trim()
         val historyBinId = prefs.getString("cloudSyncHistoryBinId_$manifestId", "").orEmpty().trim()
         val root = FirebaseDatabase.getInstance(DB_URL).reference.child(ROOT)
@@ -42,6 +42,11 @@ class FirebaseRealtimeSyncListener(
             ref.removeEventListener(listener)
         }
         listeners.clear()
+    }
+
+    override fun close() {
+        stop()
+        scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
     }
 
     private fun addRevListener(ref: com.google.firebase.database.DatabaseReference, binId: String, prefs: SharedPreferences) {

@@ -32,10 +32,10 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient.ignoresSafeArea()
                 settingsList
             }
         }
+        .oakBackground()
         .id("\(appTheme)-\(colorScheme == .dark ? "dark" : "light")")
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
@@ -50,7 +50,7 @@ public struct SettingsView: View {
             await syncNotificationPermissionState()
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
-            ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
+            OakClientEditorSheet(title: "add_client".localized, initialName: "") { name in
                 guard !name.isEmpty else { return }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
@@ -64,7 +64,7 @@ public struct SettingsView: View {
             }
         }
         .sheet(item: $editingClient) { client in
-            ClientEditorSheet(title: "edit_client".localized, initialName: client.name) { name in
+            OakClientEditorSheet(title: "edit_client".localized, initialName: client.name) { name in
                 client.name = name
                 do {
                     try modelContext.save()
@@ -158,7 +158,7 @@ public struct SettingsView: View {
         } header: {
             Text("settings_notifications_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -180,21 +180,9 @@ public struct SettingsView: View {
         } header: {
             Text("data_tools".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
 
-    @ViewBuilder
-    private var syncCenterSection: some View {
-        Section {
-            NavigationLink("sync_center_title".localized) {
-                SyncCenterView(activeClientManager: activeClientManager)
-            }
-        } header: {
-            Text("multi_device_sync_header".localized)
-        }
-        .listRowBackground(glassRowBackground)
-    }
-    
     @ViewBuilder
     private var clientManagementSection: some View {
         Section {
@@ -219,7 +207,7 @@ public struct SettingsView: View {
         } header: {
             Text("client_management".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -260,40 +248,7 @@ public struct SettingsView: View {
         } header: {
             Text("appearance_title".localized)
         }
-        .listRowBackground(glassRowBackground)
-    }
-    
-    @ViewBuilder
-    private var supplementListSection: some View {
-        Section {
-            NavigationLink {
-                MyStackListView(
-                    title: "my_list_title".localized,
-                    supplements: supplementsForActiveClient,
-                    cycleSummary: getCycleSummary
-                )
-            } label: {
-                HStack {
-                    Text("manage_stack".localized)
-                    Spacer()
-                    Text("\(supplementsForActiveClient.count)")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } header: {
-            Text("my_list_title".localized)
-        }
-        .listRowBackground(glassRowBackground)
-    }
-    
-    @ViewBuilder
-    private var userGuideSection: some View {
-        Section {
-            NavigationLink("user_guide_title".localized) {
-                UserGuideView()
-            }
-        }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -305,7 +260,7 @@ public struct SettingsView: View {
         } header: {
             Text("about_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
     
     @ViewBuilder
@@ -326,7 +281,7 @@ public struct SettingsView: View {
         } header: {
             Text("copyright_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
     }
 
     @ViewBuilder
@@ -336,7 +291,7 @@ public struct SettingsView: View {
                 isShowingFactoryResetConfirm = true
             }
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(OakGlassRow.background)
         .confirmationDialog(
             "wipe_data_warning".localized,
             isPresented: $isShowingFactoryResetConfirm,
@@ -348,18 +303,7 @@ public struct SettingsView: View {
             Button("cancel".localized, role: .cancel) {}
         }
     }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
 
-    private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
-    }
-    
     private func deleteClient(_ client: ClientProfile) {
         let deletingActive = client.id == activeClientManager.currentClientId
         modelContext.delete(client)
@@ -493,6 +437,7 @@ private struct ClientRow: View {
             if isActive {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
+                    .accessibilityHidden(true)
             }
         }
         .contentShape(Rectangle())
@@ -580,40 +525,4 @@ private struct GuideRow: View {
 
 #Preview {
     SettingsView(activeClientManager: ActiveClientManager())
-}
-
-private struct ClientEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    let title: String
-    let onSave: (String) -> Void
-    
-    init(title: String, initialName: String, onSave: @escaping (String) -> Void) {
-        self.title = title
-        self._name = State(initialValue: initialName)
-        self.onSave = onSave
-    }
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("client_name_label".localized, text: $name)
-            }
-            .navigationTitle(title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("cancel".localized) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("save".localized) {
-                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        onSave(trimmed)
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-    }
 }

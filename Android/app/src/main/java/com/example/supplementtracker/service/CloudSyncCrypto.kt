@@ -30,12 +30,12 @@ object CloudSyncCrypto {
     private const val keystoreAlias = "cloudSyncEncMasterKeyV1"
 
     fun isEnabled(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         return prefs.getBoolean(enabledKey, false)
     }
 
     fun setEnabled(context: Context, enabled: Boolean): Result<Unit> {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         prefs.edit().putBoolean(enabledKey, enabled).apply()
         if (!enabled) return Result.success(Unit)
         return runCatching { ensureKeyExists(context) }
@@ -46,14 +46,14 @@ object CloudSyncCrypto {
     }
 
     fun ensureKeyExists(context: Context): String {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val current = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()
         if (current.isNotEmpty() && resolveKey(context, current) != null) return current
         return rotateKey(context)
     }
 
     fun exportCurrentKey(context: Context): String? {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val keyId = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()
         if (keyId.isEmpty()) return null
         val raw = resolveKey(context, keyId) ?: return null
@@ -71,7 +71,7 @@ object CloudSyncCrypto {
         val decoded = runCatching { Base64.getDecoder().decode(b64) }.getOrNull()
             ?: throw CloudSyncCryptoError.InvalidPayload("Invalid base64")
         if (decoded.size != 32) throw CloudSyncCryptoError.InvalidPayload("Expected 32 bytes key")
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val stored = wrapKeyForStorage(decoded)
         val old = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()
         val editor = prefs.edit()
@@ -83,7 +83,7 @@ object CloudSyncCrypto {
     }
 
     fun rotateKey(context: Context): String {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val old = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()
         val keyId = UUID.randomUUID().toString()
         val keyBytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
@@ -142,7 +142,7 @@ object CloudSyncCrypto {
     }
 
     private fun resolveKey(context: Context, keyId: String): ByteArray? {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val direct = readKeyEntry(prefs, keyId)
         if (direct != null) return direct
         val previous = prefs.getString(previousKeyIdKey, null)?.trim().orEmpty()

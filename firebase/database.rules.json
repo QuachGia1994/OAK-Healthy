@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "oakBins": {
+      "$binId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "meta": {
+          ".validate": "newData.hasChildren(['rev'])",
+          "rev": {
+            ".validate": "newData.isNumber()"
+          }
+        },
+        "payload": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 1048576"
+        }
+      }
+    }
+  }
+}

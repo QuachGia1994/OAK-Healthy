@@ -1,6 +1,7 @@
 package com.example.supplementtracker.worker
 
 import android.content.Context
+import com.example.supplementtracker.service.OakPrefs
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.supplementtracker.data.local.SupplementDatabase
@@ -15,7 +16,7 @@ class CloudAutoSyncWorker(
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val prefs = applicationContext.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(applicationContext)
         if (!prefs.getBoolean("isAutoSyncEnabled", false)) return@withContext Result.success()
 
         val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()

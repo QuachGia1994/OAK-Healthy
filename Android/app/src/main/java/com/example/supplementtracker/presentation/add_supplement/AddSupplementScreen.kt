@@ -100,7 +100,7 @@ fun AddSupplementScreen(
                     title = { Text(if (supplementId == null) stringResource(R.string.add_supplement_title) else stringResource(R.string.edit_supplement_title)) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_navigate_back))
                         }
                     },
                     actions = {
@@ -178,7 +178,7 @@ fun AddSupplementScreen(
                                 supportingContent = {
                                     Text(suggestion.advice ?: stringResource(R.string.suggested, suggestion.preferredTime))
                                 },
-                                trailingContent = { Icon(Icons.Default.AddCircle, contentDescription = null) },
+                                trailingContent = { Icon(Icons.Default.AddCircle, contentDescription = stringResource(R.string.a11y_add)) },
                                 modifier = Modifier.clickable { viewModel.onSuggestionClick(suggestion) }
                             )
                         }
@@ -227,7 +227,7 @@ fun AddSupplementScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null)
+                    Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.a11y_confirm))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.start_date_format, startDateText))
                 }
@@ -255,7 +255,7 @@ fun AddSupplementScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+Icon(Icons.Default.CheckCircle, contentDescription = stringResource(R.string.a11y_confirm))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.selected_time_format, state.selectedTime))
                     }

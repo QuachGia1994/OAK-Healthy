@@ -1,5 +1,7 @@
 package com.example.supplementtracker.presentation.home
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
+import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -63,14 +65,7 @@ fun HistoryScreen(
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
 
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
+    val backgroundBrush = oakBackgroundBrush()
 
     Box(
         modifier = Modifier
@@ -85,7 +80,7 @@ fun HistoryScreen(
                     title = { Text(stringResource(R.string.history_title), color = primaryTextColor) },
                     actions = {
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = null, tint = primaryTextColor)
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.a11y_settings), tint = primaryTextColor)
                         }
                     }
                 )
@@ -219,7 +214,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = muted)
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.a11y_search), tint = muted)
                         Text(stringResource(R.string.no_logs_yet), color = muted, textAlign = TextAlign.Center)
                     }
                 }
@@ -288,7 +283,7 @@ private fun InsightsTrendCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    Brush.linearGradient(listOf(Color(0xFF1A8CFF), Color(0xFF0D63F2))),
+                    Brush.linearGradient(listOf(OakColors.InsightCardStart, OakColors.InsightCardEnd)),
                     RoundedCornerShape(28.dp)
                 )
                 .padding(16.dp)
@@ -307,7 +302,7 @@ private fun InsightsTrendCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowRight,
-                            contentDescription = null,
+                            contentDescription = stringResource(R.string.a11y_more_options),
                             tint = Color.White.copy(alpha = if (summary != null) 0.75f else 0.35f)
                         )
                     }
@@ -327,13 +322,13 @@ private fun InsightsTrendCard(
                     )
                     InsightsChip(
                         text = stringResource(R.string.insights_late_chip_format, late),
-                        background = Color(0xFFB71C1C).copy(alpha = 0.35f)
+                        background = OakColors.SkippedBg.copy(alpha = 0.35f)
                     )
                 }
                 TrendLineChart(
                     points = trend,
                     takenColor = Color.White,
-                    skippedColor = Color(0xFFFF5252),
+                    skippedColor = OakColors.SkippedRecord,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(110.dp)
@@ -548,7 +543,7 @@ private fun HistoryFilterBar(
             value = searchText,
             onValueChange = onSearchTextChange,
             placeholder = { Text(stringResource(R.string.history_search_placeholder), color = secondaryTextColor) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = secondaryTextColor) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.a11y_search), tint = secondaryTextColor) },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
             colors = OutlinedTextFieldDefaults.colors(
@@ -598,8 +593,8 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val gridColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f) }
-    val axisTextColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.75f) else Color(0xFF374151) }
-    val barColor = remember(isDark) { if (isDark) Color(0xFF64B5F6) else Color(0xFF2196F3) }
+val axisTextColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.75f) else OakColors.TextSecondary }
+        val barColor = remember(isDark) { if (isDark) OakColors.ChartBarDark else OakColors.ChartBar }
     val axisWidth = 40.dp
     val chartHeight = 180.dp
 
@@ -736,8 +731,8 @@ private fun HistoryRecordItem(record: IntakeRecord) {
             }
             Icon(
                 imageVector = if (isSkipped) Icons.Default.Cancel else Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = if (isSkipped) Color(0xFFFF9800) else Color(0xFF2E7D32)
+                contentDescription = stringResource(if (isSkipped) R.string.dose_status_skipped else R.string.home_confirm_intake_action),
+                tint = if (isSkipped) OakColors.Skipped else OakColors.Taken
             )
         }
     }

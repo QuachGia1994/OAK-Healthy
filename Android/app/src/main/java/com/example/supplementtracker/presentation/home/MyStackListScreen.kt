@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.home
 
+import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,16 +38,9 @@ fun MyStackListScreen(
 ) {
     val supplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
     val currentDay by homeViewModel.currentDay.collectAsStateWithLifecycle()
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
+    val backgroundBrush = oakBackgroundBrush()
     var searchText by rememberSaveable { mutableStateOf("") }
     val filteredSupplements by remember(supplements, searchText) {
         derivedStateOf {
@@ -71,14 +65,14 @@ fun MyStackListScreen(
                     title = { Text(stringResource(R.string.my_list_title), color = primaryTextColor) },
                     actions = {
                         IconButton(onClick = onOpenSettings) {
-                            Icon(imageVector = Icons.Default.Settings, contentDescription = null, tint = primaryTextColor)
+                            Icon(imageVector = Icons.Default.Settings, contentDescription = stringResource(R.string.a11y_settings), tint = primaryTextColor)
                         }
                     }
                 )
             },
             floatingActionButton = {
                 FloatingActionButton(onClick = onNavigateToAdd) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                    Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(R.string.a11y_add_supplement))
                 }
             }
         ) { padding ->

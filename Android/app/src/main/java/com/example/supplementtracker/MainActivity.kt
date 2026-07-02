@@ -5,11 +5,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -21,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.data.local.SupplementDatabase
@@ -32,6 +31,7 @@ import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.navigation.AppNavigation
 import com.example.supplementtracker.presentation.navigation.AppTheme
+import com.example.supplementtracker.service.OakPrefs
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 
 import android.content.Intent
@@ -140,7 +140,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val prefs = applicationContext.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(applicationContext)
         val initialTheme = runCatching {
             val raw = prefs.getString("appTheme", AppTheme.SYSTEM.name) ?: AppTheme.SYSTEM.name
             AppTheme.valueOf(raw)
@@ -205,7 +205,7 @@ class MainActivity : ComponentActivity() {
 
                         this@MainActivity.homeViewModel = homeViewModel
                         homeViewModel.refreshNotificationSchedules()
-                        val prefs = applicationContext.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+                        val prefs = OakPrefs.get(applicationContext)
                         CloudAutoSyncWork.setEnabled(applicationContext, prefs.getBoolean("isAutoSyncEnabled", false))
                         consumePendingIntakeActionIfPossible(homeViewModel)
 
@@ -242,6 +242,24 @@ class MainActivity : ComponentActivity() {
                                     prefs.edit().putString("appTheme", it.name).apply()
                                     applySavedNightMode(it)
                                 }
+                            )
+                        }
+                    }
+                    // ponytail: DEBUG banner so testers know integrity checks are off
+                    if (BuildConfig.DEBUG) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .wrapContentSize(Alignment.TopCenter)
+                                .padding(top = 4.dp)
+                        ) {
+                            Text(
+                                text = "DEBUG BUILD",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Black,
+                                modifier = Modifier
+                                    .background(Color.Yellow.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
                     }
@@ -300,7 +318,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         homeViewModel?.refreshNotificationSchedules()
-        val prefs = applicationContext.getSharedPreferences("oak_settings", MODE_PRIVATE)
+        val prefs = OakPrefs.get(applicationContext)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -326,7 +344,7 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != 101) return
         val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
-        val prefs = applicationContext.getSharedPreferences("oak_settings", MODE_PRIVATE)
+        val prefs = OakPrefs.get(applicationContext)
         prefs.edit().putBoolean("isNotificationEnabledByUser", granted).apply()
         homeViewModel?.refreshNotificationSchedules()
     }

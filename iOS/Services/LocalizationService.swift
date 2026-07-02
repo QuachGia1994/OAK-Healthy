@@ -66,6 +66,13 @@ public struct LocalizationService: Sendable {
         "notif_action_skip": ("Skip", "Bỏ qua"),
         "repeat_weekly": ("Repeat by weekdays", "Lặp theo thứ"),
         "repeat_on_weekdays": ("Repeat on", "Lặp vào"),
+        "weekday_mon": ("Mo", "T2"),
+        "weekday_tue": ("Tu", "T3"),
+        "weekday_wed": ("We", "T4"),
+        "weekday_thu": ("Th", "T5"),
+        "weekday_fri": ("Fr", "T6"),
+        "weekday_sat": ("Sa", "T7"),
+        "weekday_sun": ("Su", "CN"),
         "repeat_every": ("Every (weeks)", "Cách mỗi (tuần)"),
         "every_x_weeks_format": ("Every %d week(s)", "Mỗi %d tuần"),
         "repeat_every_n_days": ("Repeat every N days", "Uống cách N ngày"),
@@ -388,7 +395,27 @@ public struct LocalizationService: Sendable {
         "bootstrap_init_failed_message": ("Failed to initialize data. Existing data may be corrupted.", "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."),
         "debug_section_title": ("Debug", "Debug"),
         "debug_server_url_placeholder": ("Debug server URL", "Debug server URL"),
-        "debug_send_test_event": ("Send test event", "Send test event")
+        "debug_send_test_event": ("Send test event", "Send test event"),
+
+        // Accessibility labels
+        "dose_status_planned": ("Planned", "Chưa đến giờ"),
+        "dose_status_taken": ("Taken", "Đã uống"),
+        "dose_status_skipped": ("Skipped", "Bỏ qua"),
+        "dose_status_missed": ("Overdue", "Trễ"),
+        "a11y_settings": ("Settings", "Cài đặt"),
+        "a11y_add_supplement": ("Add supplement", "Thêm thực phẩm bổ sung"),
+        "a11y_navigate_back": ("Go back", "Quay lại"),
+        "a11y_edit": ("Edit", "Chỉnh sửa"),
+        "a11y_delete": ("Delete", "Xóa"),
+        "a11y_close": ("Close", "Đóng"),
+        "a11y_search": ("Search", "Tìm kiếm"),
+        "a11y_copy": ("Copy", "Sao chép"),
+        "a11y_show": ("Show", "Hiện"),
+        "a11y_hide": ("Hide", "Ẩn"),
+        "a11y_more_options": ("More options", "Tùy chọn khác"),
+        "a11y_select_client": ("Select client", "Chọn khách hàng"),
+        "a11y_confirm": ("Confirm", "Xác nhận"),
+        "a11y_oak_logo": ("OAK Healthy logo", "Logo OAK Healthy")
     ]
     
     public func string(for key: String) -> String {

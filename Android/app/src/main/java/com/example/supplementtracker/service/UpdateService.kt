@@ -32,7 +32,7 @@ data class UpdateConfig(
 class UpdateService(
     context: Context
 ) {
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = OakPrefs.get(context)
     private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
     val updateInfo = _updateInfo.asStateFlow()
 
@@ -75,6 +75,16 @@ class UpdateService(
         return prefs.getString(KEY_SKIPPED_VERSION, null)
     }
 
+    // ponytail: only trust update URLs from known hosts.
+    private val allowedHosts = listOf("github.com", "githubusercontent.com", "oakhealthy.com")
+
+    private fun isUpdateUrlAllowed(urlString: String): Boolean {
+        return runCatching {
+            val host = URL(urlString).host?.lowercase() ?: return@runCatching false
+            allowedHosts.any { host.endsWith(it) }
+        }.getOrDefault(false)
+    }
+
     private suspend fun fetchConfig(): UpdateConfig? = withContext(Dispatchers.IO) {
         runCatching {
             val url = URL(CONFIG_URL)
@@ -86,11 +96,13 @@ class UpdateService(
 
             connection.inputStream.bufferedReader().use { reader ->
                 val json = JSONObject(reader.readText())
+                val updateUrl = json.getString("update_url")
+                if (!isUpdateUrlAllowed(updateUrl)) return@withContext null
                 UpdateConfig(
                     latestVersion = json.getString("latest_version"),
                     isForceUpdate = json.getBoolean("is_force_update"),
                     releaseNotes = json.getString("release_notes"),
-                    updateUrl = json.getString("update_url")
+                    updateUrl = updateUrl
                 )
             }
         }.getOrNull()

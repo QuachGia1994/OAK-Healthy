@@ -13,9 +13,16 @@ internal object FirebaseCloudStore {
 
     private fun root() = FirebaseDatabase.getInstance(DB_URL).reference.child(ROOT)
 
+    private const val MIN_SIGN_IN_INTERVAL_MS = 30_000L
+    @Volatile private var lastSignInAttemptMs = 0L
+
     private suspend fun ensureSignedIn() {
         val auth = FirebaseAuth.getInstance()
         if (auth.currentUser != null) return
+        // ponytail: rate-limit anonymous sign-in to prevent quota exhaustion
+        val now = System.currentTimeMillis()
+        if (now - lastSignInAttemptMs < MIN_SIGN_IN_INTERVAL_MS) return
+        lastSignInAttemptMs = now
         auth.signInAnonymously().awaitUnit()
     }
 
@@ -57,17 +64,33 @@ internal object FirebaseCloudStore {
         root().child(id).removeValue().awaitUnit()
     }
 
-    private suspend fun readRev(id: String): Long? {
-        val snap = root().child(id).child("meta").child("rev").get().await()
-        val asLong = snap.getValue(Long::class.java)
-        if (asLong != null) return asLong
-        val asString = snap.getValue(String::class.java)?.trim()
-        return asString?.toLongOrNull()
+    // ponytail: retry reads up to 3 times to match iOS behavior.
+    private suspend fun <T> retryRead(maxAttempts: Int = 3, block: suspend () -> T): T {
+        var lastException: Exception? = null
+        repeat(maxAttempts) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < maxAttempts - 1) {
+                    kotlinx.coroutines.delay(1000L * (attempt + 1))
+                }
+            }
+        }
+        throw lastException ?: IllegalStateException("Retry failed")
     }
 
-    private suspend fun readPayload(id: String): String? {
+    private suspend fun readRev(id: String): Long? = retryRead {
+        val snap = root().child(id).child("meta").child("rev").get().await()
+        val asLong = snap.getValue(Long::class.java)
+        if (asLong != null) return@retryRead asLong
+        val asString = snap.getValue(String::class.java)?.trim()
+        asString?.toLongOrNull()
+    }
+
+    private suspend fun readPayload(id: String): String? = retryRead {
         val snap = root().child(id).child("payload").get().await()
-        return snap.getValue(String::class.java)
+        snap.getValue(String::class.java)
     }
 }
 

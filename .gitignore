@@ -26,3 +26,15 @@ backups/
 Data/
 *.log
 /Info.plist
+.iOS Build.txt
+
+# Firebase config files (generate from CI secrets)
+iOS/GoogleService-Info.plist
+Android/app/google-services.json
+
+# Debug files with internal IPs
+.dbg/
+
+# Android secrets
+Android/local.properties
+Android/keystore.properties

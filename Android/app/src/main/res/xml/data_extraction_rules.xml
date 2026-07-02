@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="supplement_db"/>
+        <exclude domain="sharedpref" path="oak_settings"/>
+        <exclude domain="sharedpref" path="oak_db_encryption"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="supplement_db"/>
+        <exclude domain="sharedpref" path="oak_settings"/>
+        <exclude domain="sharedpref" path="oak_db_encryption"/>
+    </device-transfer>
+</data-extraction-rules>

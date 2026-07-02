@@ -26,9 +26,6 @@ public struct AddSupplementView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient
-                    .ignoresSafeArea()
-                
                 Form {
                     basicSection
                     cycleSection
@@ -79,27 +76,21 @@ public struct AddSupplementView: View {
                 }
             }
         }
+        .oakBackground()
     }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-    
+
     private var basicSection: some View {
         Section {
             TextField("name_hint".localized, text: $viewModel.name)
                 .onChange(of: viewModel.name) {
                     Task { await viewModel.updateSuggestions() }
                 }
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
             
             suggestionsSection
             
             TextField("dose_hint".localized, text: $viewModel.dailyDose)
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
         } header: {
             Text("basic_info_title".localized)
         }
@@ -128,9 +119,10 @@ public struct AddSupplementView: View {
                         }
                         Spacer()
                         Image(systemName: "plus.circle")
+                            .accessibilityLabel("a11y_add_supplement".localized)
                     }
                 }
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
             }
         }
     }
@@ -138,23 +130,24 @@ public struct AddSupplementView: View {
     private var cycleSection: some View {
         Section {
             DatePicker("start_date".localized, selection: $viewModel.startDate, displayedComponents: .date)
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
             TextField("intake_time".localized, text: $viewModel.intakeTimes)
+                .keyboardType(.numbersAndPunctuation)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onSubmit {
                     viewModel.intakeTimes = TimeStrings.normalizeString(viewModel.intakeTimes)
                 }
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
             HStack {
                 DatePicker("", selection: $viewModel.selectedTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
                 Spacer()
                 Button("add_time".localized) { viewModel.addSelectedTime() }
             }
-            .listRowBackground(glassRowBackground)
+            .listRowBackground(OakGlassRow.background)
             weeklyRecurrenceControls
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
             intervalDaysControls
             continuousCycleControls
         } header: {
@@ -165,10 +158,10 @@ public struct AddSupplementView: View {
     @ViewBuilder
     private var intervalDaysControls: some View {
         Toggle("repeat_every_n_days".localized, isOn: $viewModel.isIntervalDaysEnabled)
-            .listRowBackground(glassRowBackground)
+            .listRowBackground(OakGlassRow.background)
         if viewModel.isIntervalDaysEnabled {
             intervalDaysRow
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
         }
     }
 
@@ -186,18 +179,18 @@ public struct AddSupplementView: View {
     @ViewBuilder
     private var continuousCycleControls: some View {
         Toggle("continuous".localized, isOn: $viewModel.isContinuous)
-            .listRowBackground(glassRowBackground)
+            .listRowBackground(OakGlassRow.background)
         if !viewModel.isContinuous {
             cycleDaysOnRow
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
             cycleDaysOffRow
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
         }
         durationRow
-            .listRowBackground(glassRowBackground)
+            .listRowBackground(OakGlassRow.background)
         if !viewModel.durationMonths.isEmpty {
             durationHintRow
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(OakGlassRow.background)
         }
     }
 
@@ -285,13 +278,10 @@ public struct AddSupplementView: View {
             }
         }
     }
-    
-    private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
-    }
-    
+
     private var weekdayLabels: [String] {
-        ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        ["weekday_mon".localized, "weekday_tue".localized, "weekday_wed".localized,
+         "weekday_thu".localized, "weekday_fri".localized, "weekday_sat".localized, "weekday_sun".localized]
     }
     
     private var weeklySummaryText: String {

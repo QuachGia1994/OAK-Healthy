@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.home
 
+import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,7 +49,7 @@ fun UserGuideScreen(onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UserGuideScaffold(onBack: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().background(guideBackgroundBrush())) {
+    Box(modifier = Modifier.fillMaxSize().background(oakBackgroundBrush())) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = { UserGuideTopBar(onBack = onBack) }
@@ -66,7 +67,7 @@ private fun UserGuideTopBar(onBack: () -> Unit) {
         title = { Text(stringResource(R.string.settings_guide_title)) },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_navigate_back))
             }
         }
     )
@@ -90,18 +91,6 @@ private fun UserGuideContent(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun guideBackgroundBrush(): Brush {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    return androidx.compose.runtime.remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
-}
-
-@Composable
 private fun GuideCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -109,7 +98,7 @@ private fun GuideCard(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(imageVector = icon, contentDescription = title, tint = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.size(10.dp))
                 Text(text = title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }

@@ -3,6 +3,7 @@ package com.example.supplementtracker.presentation.navigation
 import android.content.Context
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.domain.repository.SupplementRepository
+import com.example.supplementtracker.service.OakPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,7 +21,7 @@ class ActiveClientManager(
     context: Context,
     repository: SupplementRepository
 ) {
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs = OakPrefs.get(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val clients: StateFlow<List<ClientProfile>> = repository.observeClients()
@@ -58,7 +59,6 @@ class ActiveClientManager(
     }
 
     companion object {
-        private const val PREFS_NAME = "oak_active_client"
         private const val KEY_ACTIVE_CLIENT_ID = "activeClientId"
     }
 }

@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.home
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,12 +17,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.DismissDirection
-import androidx.compose.material.DismissValue
-import androidx.compose.material.Divider
-import androidx.compose.material.ExperimentalMaterialApi
-import androidx.compose.material.SwipeToDismiss
-import androidx.compose.material.rememberDismissState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -159,7 +158,7 @@ fun HomeScreen(
                                         maxLines = 1,
                                         color = primaryTextColor
                                     )
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = primaryTextColor)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.a11y_select_client), tint = primaryTextColor)
                                 }
                                 DropdownMenu(
                                     expanded = isClientMenuExpanded,
@@ -174,7 +173,7 @@ fun HomeScreen(
                                             }
                                         )
                                     }
-                                    Divider()
+                                    HorizontalDivider()
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.add_a_client)) },
                                         onClick = {
@@ -193,7 +192,7 @@ fun HomeScreen(
                     },
                     actions = {
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Default.Settings, contentDescription = null, tint = primaryTextColor)
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.a11y_settings), tint = primaryTextColor)
                         }
                     }
                 )
@@ -462,7 +461,7 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.home_status_due),
                 count = counts.due,
-                tint = Color(0xFF42A5F5),
+                tint = OakColors.DueSoon,
                 selected = selected == HomeDoseFilter.DUE,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -472,7 +471,7 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.dose_status_missed),
                 count = counts.missed,
-                tint = Color(0xFFD32F2F),
+                tint = OakColors.Missed,
                 selected = selected == HomeDoseFilter.OVERDUE,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -484,7 +483,7 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.notif_action_taken),
                 count = counts.taken,
-                tint = Color(0xFF2E7D32),
+                tint = OakColors.Taken,
                 selected = selected == HomeDoseFilter.TAKEN,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -494,7 +493,7 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.notif_action_skip),
                 count = counts.skipped,
-                tint = Color(0xFFFF9800),
+                tint = OakColors.Skipped,
                 selected = selected == HomeDoseFilter.SKIPPED,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -515,7 +514,7 @@ private fun TodayStripButton(
     onClick: () -> Unit
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val textColor = if (isDark) Color.White else Color(0xFF111111)
+    val textColor = if (isDark) Color.White else OakColors.TextPrimary
     val borderColor = if (selected) tint.copy(alpha = 0.55f) else Color.Transparent
     GlassCard(
         modifier = modifier
@@ -587,7 +586,7 @@ private fun TodaySummaryCard(counts: TodayCounts, streakDays: Int) {
             CountPill(
                 title = stringResource(R.string.notif_action_taken),
                 value = counts.taken,
-                tint = Color(0xFF2E7D32),
+                tint = OakColors.Taken,
                 modifier = Modifier.weight(1f)
             )
             CountPill(
@@ -605,13 +604,13 @@ private fun TodaySummaryCard(counts: TodayCounts, streakDays: Int) {
             CountPill(
                 title = stringResource(R.string.notif_action_skip),
                 value = counts.skipped,
-                tint = Color(0xFFFF9800),
+                tint = OakColors.Skipped,
                 modifier = Modifier.weight(1f)
             )
             CountPill(
                 title = stringResource(R.string.home_status_missed),
                 value = counts.missed,
-                tint = Color(0xFFD32F2F),
+                tint = OakColors.Missed,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -625,13 +624,13 @@ private fun StreakPill(days: Int) {
     Box(
         modifier = Modifier
             .background(base, RoundedCornerShape(18.dp))
-            .border(1.dp, Color(0xFFFFB300).copy(alpha = 0.30f), RoundedCornerShape(18.dp))
+            .border(1.dp, OakColors.StreakBorder.copy(alpha = 0.30f), RoundedCornerShape(18.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Text(
             text = stringResource(R.string.home_streak_format, days),
             style = MaterialTheme.typography.labelLarge,
-            color = if (isDark) Color.White else Color(0xFF111111),
+            color = if (isDark) Color.White else OakColors.TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -646,7 +645,7 @@ private fun CountPill(
     modifier: Modifier = Modifier
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val textColor = if (isDark) Color.White else Color(0xFF111111)
+    val textColor = if (isDark) Color.White else OakColors.TextPrimary
     Box(
         modifier = modifier
             .background(Color.Transparent, RoundedCornerShape(18.dp))
@@ -689,7 +688,7 @@ private fun GlassCard(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 private fun DismissibleSupplementCard(
     item: SupplementUiItem,
     onToggleIntake: (String, String, DoseAction) -> Unit,
@@ -698,41 +697,43 @@ private fun DismissibleSupplementCard(
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
     var isDeleteConfirmVisible by remember { mutableStateOf(false) }
-    val dismissState = rememberDismissState(confirmStateChange = { value: DismissValue ->
-        when (value) {
-            DismissValue.DismissedToStart -> {
-                isMenuOpen = true
-                false
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.EndToStart -> {
+                    isMenuOpen = true
+                    false
+                }
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    isMenuOpen = true
+                    false
+                }
+                else -> true
             }
-            DismissValue.DismissedToEnd -> {
-                isMenuOpen = true
-                false
-            }
-            else -> true
         }
-    })
+    )
 
     LaunchedEffect(item.supplement.id, item.timeString) {
-        if (dismissState.currentValue != DismissValue.Default || dismissState.dismissDirection != null) {
-            dismissState.reset()
+        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+            dismissState.snapTo(SwipeToDismissBoxValue.Settled)
         }
     }
 
     LaunchedEffect(dismissState.currentValue) {
-        if (dismissState.currentValue != DismissValue.Default) {
-            dismissState.reset()
+        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+            dismissState.snapTo(SwipeToDismissBoxValue.Settled)
         }
     }
 
-    SwipeToDismiss(
+    SwipeToDismissBox(
         state = dismissState,
-        background = {
+        backgroundContent = {
             val direction = dismissState.dismissDirection
-            val isDelete = direction == DismissDirection.EndToStart
+            val isDelete = direction == SwipeToDismissBoxValue.EndToStart
             val backgroundColor = when (direction) {
-                DismissDirection.EndToStart -> Color.Red
-                DismissDirection.StartToEnd -> Color(0xFF2E7D32)
-                null -> Color.Transparent
+                SwipeToDismissBoxValue.EndToStart -> Color.Red
+                SwipeToDismissBoxValue.StartToEnd -> OakColors.Taken
+                else -> Color.Transparent
             }
             Box(
                 modifier = Modifier
@@ -741,16 +742,16 @@ private fun DismissibleSupplementCard(
                     .padding(horizontal = 16.dp),
                 contentAlignment = if (isDelete) Alignment.CenterEnd else Alignment.CenterStart
             ) {
-                if (direction != null) {
+                if (direction != SwipeToDismissBoxValue.Settled) {
                     Icon(
                         imageVector = if (isDelete) Icons.Default.Delete else Icons.Default.Edit,
-                        contentDescription = null,
+                        contentDescription = stringResource(if (isDelete) R.string.a11y_delete else R.string.a11y_edit),
                         tint = Color.White
                     )
                 }
             }
-        },
-        dismissContent = {
+        }
+    ) {
         Box {
             ActiveSupplementCard(
                 item = item,
@@ -766,7 +767,7 @@ private fun DismissibleSupplementCard(
             ) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.edit)) },
-                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.a11y_edit)) },
                     onClick = {
                         isMenuOpen = false
                         onEdit(item.supplement.id.toString())
@@ -774,7 +775,7 @@ private fun DismissibleSupplementCard(
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.delete)) },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.a11y_delete)) },
                     onClick = {
                         isMenuOpen = false
                         isDeleteConfirmVisible = true
@@ -782,8 +783,7 @@ private fun DismissibleSupplementCard(
                 )
             }
         }
-        }
-    )
+    }
 
     if (isDeleteConfirmVisible) {
         AlertDialog(
@@ -819,8 +819,8 @@ private fun ActiveSupplementCard(
     val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     var showConfirmDialog by remember(item.supplement.id) { mutableStateOf(false) }
     val urgencyAccent = when {
-        item.isMissedSoon -> Color(0xFFD32F2F)
-        item.isDueSoon -> Color(0xFF42A5F5)
+        item.isMissedSoon -> OakColors.Missed
+        item.isDueSoon -> OakColors.DueSoon
         else -> null
     }
     GlassCard(modifier = modifier.fillMaxWidth(), accent = urgencyAccent) {
@@ -832,7 +832,7 @@ private fun ActiveSupplementCard(
                     color = primaryTextColor
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = secondaryTextColor)
+                    Icon(Icons.Default.Schedule, contentDescription = stringResource(R.string.a11y_schedule), modifier = Modifier.size(14.dp), tint = secondaryTextColor)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(item.timeString, style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
                     Text(" • ", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
@@ -840,9 +840,9 @@ private fun ActiveSupplementCard(
                 }
             }
             val targetTint = when (item.doseStatus) {
-                DoseStatus.TAKEN -> Color(0xFF2E7D32)
-                DoseStatus.SKIPPED -> Color(0xFFFF9800)
-                DoseStatus.MISSED -> Color(0xFFD32F2F)
+                DoseStatus.TAKEN -> OakColors.Taken
+                DoseStatus.SKIPPED -> OakColors.Skipped
+                DoseStatus.MISSED -> OakColors.Missed
                 DoseStatus.PLANNED -> secondaryTextColor
             }
             val tint by androidx.compose.animation.animateColorAsState(targetValue = targetTint, label = "doseTint")
@@ -871,7 +871,15 @@ private fun ActiveSupplementCard(
                 }
                 Icon(
                     icon,
-                    contentDescription = null,
+                    contentDescription = stringResource(
+                        R.string.a11y_dose_status_format,
+                        when (item.doseStatus) {
+                            DoseStatus.TAKEN -> stringResource(R.string.home_confirm_intake_action)
+                            DoseStatus.SKIPPED -> stringResource(R.string.notif_action_skip)
+                            DoseStatus.MISSED -> stringResource(R.string.dose_status_missed)
+                            DoseStatus.PLANNED -> stringResource(R.string.home_due_soon)
+                        }
+                    ),
                     tint = tint,
                     modifier = Modifier.graphicsLayer(scaleX = pulse.value, scaleY = pulse.value)
                 )
@@ -882,14 +890,14 @@ private fun ActiveSupplementCard(
             Text(
                 text = stringResource(R.string.dose_status_missed),
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFD32F2F)
+                color = OakColors.Missed
             )
         } else if (item.doseStatus == DoseStatus.SKIPPED) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = stringResource(R.string.dose_status_skipped),
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFFF9800)
+                color = OakColors.Skipped
             )
         } else {
             AnimatedVisibility(
@@ -902,7 +910,7 @@ private fun ActiveSupplementCard(
                 } else {
                     stringResource(R.string.home_due_soon)
                 }
-                val color = if (item.isMissedSoon) Color(0xFFD32F2F) else Color(0xFF42A5F5)
+                val color = if (item.isMissedSoon) OakColors.Missed else OakColors.DueSoon
                 Spacer(modifier = Modifier.height(10.dp))
                 CountPill(title = text, value = null, tint = color, modifier = Modifier.fillMaxWidth())
             }
@@ -998,7 +1006,7 @@ private fun RestingSupplementCard(
                 ) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.edit)) },
-                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.a11y_edit)) },
                         onClick = {
                             isMenuOpen = false
                             onEdit(info.supplement.id.toString())
@@ -1006,7 +1014,7 @@ private fun RestingSupplementCard(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.delete)) },
-                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.a11y_delete)) },
                         onClick = {
                             isMenuOpen = false
                             onDelete(info.supplement)

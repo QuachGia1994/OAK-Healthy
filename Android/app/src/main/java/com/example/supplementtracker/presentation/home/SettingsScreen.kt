@@ -1,9 +1,11 @@
 package com.example.supplementtracker.presentation.home
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
 import android.app.Activity
 import android.app.AlarmManager
 import android.Manifest
 import android.content.Context
+import com.example.supplementtracker.service.OakPrefs
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -31,6 +33,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -90,7 +93,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
-    val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
+    val prefs = remember { OakPrefs.get(context) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val allSupplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
@@ -149,7 +152,7 @@ fun SettingsScreen(
                     title = { Text(stringResource(R.string.settings_title), color = primaryTextColor) },
                     navigationIcon = {
                         IconButton(onClick = onClose) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = primaryTextColor)
+                            Icon(imageVector = Icons.Default.Close, contentDescription = stringResource(R.string.a11y_close), tint = primaryTextColor)
                         }
                     }
                 )
@@ -179,7 +182,7 @@ fun SettingsScreen(
                             )
                         }
 
-                        Divider(modifier = Modifier.padding(vertical = 12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                         if (clients.isEmpty()) {
                             Text(
@@ -211,11 +214,11 @@ fun SettingsScreen(
                                     ) {
                                         Text(text = client.name, color = primaryTextColor, modifier = Modifier.weight(1f))
                                         if (isActive) {
-                                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                                            Icon(imageVector = Icons.Default.CheckCircle, contentDescription = stringResource(R.string.a11y_confirm), tint = OakColors.Taken)
                                         }
 
                                         IconButton(onClick = { isMenuExpanded = true }) {
-                                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = null, tint = secondaryTextColor)
+                                            Icon(imageVector = Icons.Default.MoreVert, contentDescription = stringResource(R.string.a11y_more_options), tint = secondaryTextColor)
                                         }
 
                                         DropdownMenu(
@@ -359,7 +362,7 @@ fun SettingsScreen(
                             color = secondaryTextColor
                         )
 
-                        Divider(modifier = Modifier.padding(vertical = 12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                         Text(
                             text = stringResource(R.string.settings_app_version),
@@ -421,7 +424,7 @@ fun SettingsScreen(
                                 null
                             }
                         )
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         
                         SettingsRow(
                             title = stringResource(R.string.notification_check_open_diagnostics),
@@ -457,7 +460,7 @@ fun SettingsScreen(
                             }
                         )
 
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                         val notificationChecked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             isNotificationEnabledByUser && hasNotificationPermission
@@ -487,7 +490,7 @@ fun SettingsScreen(
                             }
                         )
                         
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         
                         if (!canScheduleExactAlarms) {
                             Text(
@@ -518,7 +521,7 @@ fun SettingsScreen(
                             )
                         }
                         
-                        Divider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         
                         if (!isIgnoringBatteryOptimizations) {
                             Text(
@@ -550,7 +553,7 @@ fun SettingsScreen(
                                     }
                                 }
                             )
-                            Divider(modifier = Modifier.padding(vertical = 8.dp))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             SettingsRow(
                                 title = stringResource(R.string.settings_open_app_settings),
                                 onClick = {
@@ -578,7 +581,7 @@ fun SettingsScreen(
                         TextButton(onClick = { isFactoryResetDialogVisible = true }) {
                             Text(
                                 text = stringResource(R.string.factory_reset),
-                                color = Color(0xFFD32F2F),
+                                color = OakColors.Error,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }

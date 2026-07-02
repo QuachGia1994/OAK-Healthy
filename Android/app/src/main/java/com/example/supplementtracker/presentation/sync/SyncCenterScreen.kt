@@ -1,8 +1,10 @@
 package com.example.supplementtracker.presentation.sync
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import com.example.supplementtracker.service.OakPrefs
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -24,7 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Card
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -80,7 +82,7 @@ fun SyncCenterScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
+    val prefs = remember { OakPrefs.get(context) }
     val hostedBinId by homeViewModel.hostedBinId.collectAsStateWithLifecycle()
     val cloudSyncLoading by homeViewModel.cloudSyncLoading.collectAsStateWithLifecycle()
     val uiStatus by homeViewModel.cloudSyncUiStatus.collectAsStateWithLifecycle()
@@ -339,7 +341,7 @@ fun SyncCenterScreen(
                     title = { Text(stringResource(R.string.sync_center_title), color = primaryTextColor) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null, tint = primaryTextColor)
+                            Icon(imageVector = Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_navigate_back), tint = primaryTextColor)
                         }
                     }
                 )
@@ -395,7 +397,7 @@ fun SyncCenterScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = secondaryTextColor
                                 )
-                                Divider()
+                                HorizontalDivider()
                                 StepRow(number = 1, text = stringResource(R.string.sync_center_step_host_1))
                                 StepRow(number = 2, text = stringResource(R.string.sync_center_step_host_2))
                                 StepRow(number = 3, text = stringResource(R.string.sync_center_step_host_3))
@@ -415,7 +417,7 @@ fun SyncCenterScreen(
 
                                 val hosted = (hostedBinId ?: "").trim()
                                 if (hosted.isNotEmpty()) {
-                                    Divider()
+                                    HorizontalDivider()
                                     Text(stringResource(R.string.sync_center_link_code_label), style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
                                     Text(
                                         text = if (isBinIdVisible) hosted else "•".repeat(24),
@@ -451,7 +453,7 @@ fun SyncCenterScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = secondaryTextColor
                                 )
-                                Divider()
+                                HorizontalDivider()
                                 StepRow(number = 1, text = stringResource(R.string.sync_center_step_link_1))
                                 StepRow(number = 2, text = stringResource(R.string.sync_center_step_link_2))
                                 StepRow(number = 3, text = stringResource(R.string.sync_center_step_link_3))
@@ -466,7 +468,7 @@ fun SyncCenterScreen(
                                         IconButton(onClick = { isLinkedBinIdVisible = !isLinkedBinIdVisible }) {
                                             Icon(
                                                 imageVector = if (isLinkedBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                                contentDescription = null,
+                                                contentDescription = stringResource(if (isLinkedBinIdVisible) R.string.a11y_hide else R.string.a11y_show),
                                                 tint = secondaryTextColor
                                             )
                                         }
@@ -502,7 +504,7 @@ fun SyncCenterScreen(
                                 }
                             }
 
-                            Divider()
+                            HorizontalDivider()
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -547,8 +549,8 @@ fun SyncCenterScreen(
                                     IconButton(onClick = { isStatusBinIdVisible = !isStatusBinIdVisible }) {
                                         Icon(
                                             imageVector = if (isStatusBinIdVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                            contentDescription = null,
-                                            tint = secondaryTextColor
+                                                contentDescription = stringResource(if (isLinkedBinIdVisible) R.string.a11y_hide else R.string.a11y_show),
+                                                tint = secondaryTextColor
                                         )
                                     }
                                 }
@@ -613,7 +615,7 @@ fun SyncCenterScreen(
                                         IconButton(onClick = { isManifestPartsVisible = !isManifestPartsVisible }) {
                                             Icon(
                                                 imageVector = if (isManifestPartsVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                                contentDescription = null,
+                                                contentDescription = stringResource(if (isManifestPartsVisible) R.string.a11y_hide else R.string.a11y_show),
                                                 tint = secondaryTextColor
                                             )
                                         }
@@ -628,7 +630,7 @@ fun SyncCenterScreen(
                                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_code_copied), Toast.LENGTH_SHORT).show()
                                             }
                                         }) {
-                                            Icon(imageVector = Icons.Default.ContentCopy, contentDescription = null, tint = secondaryTextColor)
+                                            Icon(imageVector = Icons.Default.ContentCopy, contentDescription = stringResource(R.string.a11y_copy), tint = secondaryTextColor)
                                         }
                                     }
                                 }
@@ -636,7 +638,7 @@ fun SyncCenterScreen(
                                     Text(
                                         stringResource(R.string.sync_center_status_last_error_format, status.lastError.orEmpty()),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFD32F2F),
+                                        color = OakColors.Error,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )

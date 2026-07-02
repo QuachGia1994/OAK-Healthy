@@ -1,8 +1,11 @@
 package com.example.supplementtracker.presentation.onboarding
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
+import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import com.example.supplementtracker.service.OakPrefs
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -88,17 +91,10 @@ fun OnboardingScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
+    val prefs = remember { OakPrefs.get(context) }
     val clients by activeClientManager.clients.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val backgroundBrush = remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
+    val backgroundBrush = oakBackgroundBrush()
     val cardShape = remember { RoundedCornerShape(28.dp) }
 
     var step by remember { mutableStateOf(OnboardingStep.CLIENT) }
@@ -159,7 +155,7 @@ fun OnboardingScreen(
             ) {
                 Icon(
                     imageVector = Icons.Filled.AutoAwesome,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.a11y_oak_logo),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(44.dp)
                 )
@@ -319,8 +315,8 @@ private fun ClientStep(
                 if (selected) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = Color(0xFF2E7D32),
+                        contentDescription = stringResource(R.string.a11y_confirm),
+                        tint = OakColors.Taken,
                         modifier = Modifier.size(20.dp)
                     )
                 } else {
@@ -346,7 +342,7 @@ private fun NotificationsStep(
     onOpenAppSettings: () -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(18.dp))
+        Icon(Icons.Default.Notifications, contentDescription = stringResource(R.string.a11y_notifications), modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.size(8.dp))
         Text(
             text = stringResource(R.string.onboarding_step_notifications_title),
@@ -370,7 +366,7 @@ private fun NotificationsStep(
 @Composable
 private fun ExactAlarmStep(onOpenExactAlarm: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+        Icon(Icons.Default.Schedule, contentDescription = stringResource(R.string.a11y_schedule), modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.size(8.dp))
         Text(
             text = stringResource(R.string.onboarding_step_exact_alarm_title),
@@ -390,7 +386,7 @@ private fun BatteryStep(
     onOpenAppSettings: () -> Unit
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Icon(Icons.Default.Power, contentDescription = null, modifier = Modifier.size(18.dp))
+        Icon(Icons.Default.Power, contentDescription = stringResource(R.string.a11y_power), modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.size(8.dp))
         Text(
             text = stringResource(R.string.onboarding_step_battery_title),

@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.home
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -91,8 +92,8 @@ internal fun StepChip(label: String, done: Boolean) {
     ) {
         Icon(
             imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.KeyboardArrowRight,
-            contentDescription = null,
-            tint = if (done) Color(0xFF22C55E) else MaterialTheme.colorScheme.onSurfaceVariant,
+            contentDescription = if (done) "Done" else "Pending",
+            tint = if (done) OakColors.Done else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
@@ -315,7 +316,7 @@ internal fun ExpandableInfoCard(
                 )
                 Icon(
                     imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = null
+                    contentDescription = stringResource(if (expanded) R.string.a11y_hide else R.string.a11y_show)
                 )
             }
             AnimatedVisibility(visible = expanded) {
@@ -415,11 +416,11 @@ internal fun ClientManagementCard(
                         ) {
                             Text(text = client.name, modifier = Modifier.weight(1f))
                             if (isActive) {
-                                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF2E7D32))
+                                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = stringResource(R.string.a11y_confirm), tint = OakColors.Taken)
                             }
 
                             IconButton(onClick = { isMenuExpanded = true }) {
-                                Icon(imageVector = Icons.Default.MoreVert, contentDescription = null)
+                                Icon(imageVector = Icons.Default.MoreVert, contentDescription = stringResource(R.string.a11y_more_options))
                             }
 
                             DropdownMenu(

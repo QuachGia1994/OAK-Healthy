@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.navigation
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
@@ -59,7 +60,7 @@ import com.example.supplementtracker.presentation.home.HomeViewModel
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableIntStateOf
+
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -79,11 +80,9 @@ import com.example.supplementtracker.presentation.onboarding.OnboardingScreen
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
+
 import android.content.Context
+import com.example.supplementtracker.service.OakPrefs
 
 enum class AppTheme {
     LIGHT,
@@ -92,10 +91,10 @@ enum class AppTheme {
 }
 
 sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable () -> Unit) {
-    data object Home : Screen("home", R.string.nav_home, { Icon(Icons.Default.Home, contentDescription = null) })
-    data object History : Screen("history", R.string.nav_history, { Icon(Icons.Default.DateRange, contentDescription = null) })
-    data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = null) })
-    data object MyStack : Screen("my_stack", R.string.nav_stack, { Icon(Icons.Default.List, contentDescription = null) })
+    data object Home : Screen("home", R.string.nav_home, { Icon(Icons.Default.Home, contentDescription = stringResource(R.string.a11y_home)) })
+    data object History : Screen("history", R.string.nav_history, { Icon(Icons.Default.DateRange, contentDescription = stringResource(R.string.a11y_history)) })
+    data object Settings : Screen("settings", R.string.nav_settings, { Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.a11y_settings)) })
+    data object MyStack : Screen("my_stack", R.string.nav_stack, { Icon(Icons.Default.List, contentDescription = stringResource(R.string.a11y_stack)) })
     data object UserGuide : Screen("user_guide", R.string.settings_guide_title, { })
     data object NotificationCheck : Screen("notification_check", R.string.notification_check_title, { })
     data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
@@ -119,7 +118,7 @@ fun AppNavigation(
     val currentDestination = navBackStackEntry?.destination
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val prefs = remember { context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE) }
+    val prefs = remember { OakPrefs.get(context) }
     var hasCompletedOnboarding by rememberSaveable { mutableStateOf(prefs.getBoolean("hasCompletedOnboarding", false)) }
 
     fun refreshOnboardingFlag() {
@@ -163,164 +162,122 @@ fun AppNavigation(
         }
     }
 
+    val startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route
+    val isMainTab = items.any { it.route == currentDestination?.route }
+
     Scaffold(
         containerColor = Color.Transparent
     ) { innerPadding ->
         Column(modifier = Modifier.padding(innerPadding)) {
-            val startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route
-            val isMainTab = items.any { it.route == currentDestination?.route }
-            val pagerIndex = if (isMainTab) items.indexOfFirst { it.route == currentDestination?.route }.coerceAtLeast(0) else 0
-            val pagerState = rememberPagerState(initialPage = pagerIndex, pageCount = { items.size })
-            var selectedTabIndex by rememberSaveable { mutableIntStateOf(pagerIndex) }
-
-            LaunchedEffect(pagerState.currentPage) {
-                if (isMainTab && pagerState.currentPage != selectedTabIndex) {
-                    selectedTabIndex = pagerState.currentPage
-                    val targetRoute = items[pagerState.currentPage].route
-                    if (currentDestination?.route != targetRoute) {
-                        navController.navigate(targetRoute) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+            // ponytail: single NavHost for all routes — fixes fragmented back stack
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
+                composable(Screen.Home.route) {
+                    HomeScreen(
+                        viewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
+                        onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") },
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                    )
+                }
+                composable(Screen.MyStack.route) {
+                    MyStackListScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
+                        onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) },
+                        onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
+                        onOpenSettings = { navController.navigate(Screen.Settings.route) }
+                    )
+                }
+                composable(Screen.History.route) {
+                    HistoryScreen(
+                        viewModel = historyViewModel,
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                    )
+                }
+                composable(Screen.Onboarding.route) {
+                    OnboardingScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onDone = {
+                            prefs.edit().putBoolean("hasCompletedOnboarding", true).apply()
+                            refreshOnboardingFlag()
                         }
-                    }
+                    )
+                }
+                composable(Screen.NotificationCheck.route) {
+                    NotificationCheckScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.SyncCenter.route) {
+                    SyncCenterScreen(
+                        homeViewModel = homeViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.UserGuide.route) {
+                    UserGuideScreen(
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
+                        homeViewModel = homeViewModel,
+                        activeClientManager = activeClientManager,
+                        appTheme = appTheme,
+                        onThemeChange = onThemeChange,
+                        onNavigateToNotificationCheck = { navController.navigate(Screen.NotificationCheck.route) },
+                        onClose = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.AddSupplement.route) {
+                    AddSupplementScreen(
+                        viewModel = addSupplementViewModel,
+                        supplementId = null,
+                        onBack = { navController.popBackStack() },
+                        onSave = {
+                            addSupplementViewModel.saveSupplement {
+                                navController.popBackStack()
+                            }
+                        }
+                    )
+                }
+                composable(Screen.EditSupplement.route) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getString("id")
+                    AddSupplementScreen(
+                        viewModel = addSupplementViewModel,
+                        supplementId = id,
+                        onBack = { navController.popBackStack() },
+                        onSave = {
+                            addSupplementViewModel.saveSupplement {
+                                navController.popBackStack()
+                            }
+                        }
+                    )
                 }
             }
 
             if (isMainTab && hasCompletedOnboarding) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    userScrollEnabled = true
-                ) { page ->
-                    when (items[page]) {
-                        Screen.Home -> HomeScreen(
-                            viewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
-                            onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") },
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                        Screen.MyStack -> MyStackListScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
-                            onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) },
-                            onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
-                            onOpenSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                        Screen.History -> HistoryScreen(
-                            viewModel = historyViewModel,
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                        else -> {}
-                    }
-                }
-            } else {
-                NavHost(navController = navController, startDestination = startDestination, modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    composable(Screen.Home.route) {
-                        HomeScreen(
-                            viewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
-                            onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") },
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                    }
-                    composable(Screen.MyStack.route) {
-                        MyStackListScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
-                            onNavigateToSyncCenter = { navController.navigate(Screen.SyncCenter.route) },
-                            onNavigateToUserGuide = { navController.navigate(Screen.UserGuide.route) },
-                            onOpenSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                    }
-                    composable(Screen.History.route) {
-                        HistoryScreen(
-                            viewModel = historyViewModel,
-                            onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
-                        )
-                    }
-                    composable(Screen.Onboarding.route) {
-                        OnboardingScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onDone = {
-                                prefs.edit().putBoolean("hasCompletedOnboarding", true).apply()
-                                refreshOnboardingFlag()
-                            }
-                        )
-                    }
-                    composable(Screen.NotificationCheck.route) {
-                        NotificationCheckScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.SyncCenter.route) {
-                        SyncCenterScreen(
-                            homeViewModel = homeViewModel,
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.UserGuide.route) {
-                        UserGuideScreen(
-                            onBack = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.Settings.route) {
-                        SettingsScreen(
-                            homeViewModel = homeViewModel,
-                            activeClientManager = activeClientManager,
-                            appTheme = appTheme,
-                            onThemeChange = onThemeChange,
-                            onNavigateToNotificationCheck = { navController.navigate(Screen.NotificationCheck.route) },
-                            onClose = { navController.popBackStack() }
-                        )
-                    }
-                    composable(Screen.AddSupplement.route) {
-                        AddSupplementScreen(
-                            viewModel = addSupplementViewModel,
-                            supplementId = null,
-                            onBack = { navController.popBackStack() },
-                            onSave = {
-                                addSupplementViewModel.saveSupplement {
-                                    navController.popBackStack()
-                                }
-                            }
-                        )
-                    }
-                    composable(Screen.EditSupplement.route) { backStackEntry ->
-                        val id = backStackEntry.arguments?.getString("id")
-                        AddSupplementScreen(
-                            viewModel = addSupplementViewModel,
-                            supplementId = id,
-                            onBack = { navController.popBackStack() },
-                            onSave = {
-                                addSupplementViewModel.saveSupplement {
-                                    navController.popBackStack()
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (isMainTab && hasCompletedOnboarding) {
-                val barCoroutineScope = rememberCoroutineScope()
                 OakBottomBar(
                     items = items,
-                    currentRoute = items.getOrElse(selectedTabIndex) { items[0] }.route,
+                    currentRoute = currentDestination?.route,
                     overdueCount = overdueCount,
                     isDark = isDark,
                     onTabSelected = { route ->
-                        val idx = items.indexOfFirst { it.route == route }
-                        if (idx >= 0) {
-                            selectedTabIndex = idx
-                            barCoroutineScope.launch { pagerState.animateScrollToPage(idx) }
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
                     }
                 )
@@ -512,7 +469,7 @@ private fun OakBottomBadge(
             .clip(CircleShape)
             .background(
                 Brush.linearGradient(
-                    colors = listOf(Color(0xFFFF5A5F), Color(0xFFFF9F43))
+                    colors = listOf(OakColors.BadgeStart, OakColors.BadgeEnd)
                 )
             )
             .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)

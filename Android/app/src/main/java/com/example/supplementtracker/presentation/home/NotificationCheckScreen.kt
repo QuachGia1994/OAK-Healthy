@@ -1,7 +1,10 @@
 package com.example.supplementtracker.presentation.home
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
+import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import android.app.AlarmManager
 import android.content.Context.MODE_PRIVATE
+import com.example.supplementtracker.service.OakPrefs
 import android.content.Context
 import android.os.Build
 import android.os.PowerManager
@@ -90,7 +93,7 @@ fun NotificationCheckScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("oak_settings", MODE_PRIVATE) }
+    val prefs = remember { OakPrefs.get(context) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
 
@@ -197,7 +200,7 @@ private fun NotificationCheckScaffold(
     onBack: () -> Unit,
     content: @Composable (PaddingValues) -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize().background(backgroundBrush())) {
+    Box(modifier = Modifier.fillMaxSize().background(oakBackgroundBrush())) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = { NotificationCheckTopBar(onBack = onBack) },
@@ -214,7 +217,7 @@ private fun NotificationCheckTopBar(onBack: () -> Unit) {
         title = { Text(stringResource(R.string.notification_check_title)) },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = null)
+                Icon(imageVector = Icons.Default.ArrowBack, contentDescription = stringResource(R.string.a11y_navigate_back))
             }
         }
     )
@@ -331,10 +334,10 @@ private fun DiagnosticsCard(
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val chipContainerColor = when (diagnosis) {
-        NotificationDiagnosis.OK -> Color(0xFF2E7D32)
-        NotificationDiagnosis.DENIED -> Color(0xFFC62828)
-        NotificationDiagnosis.OFF -> if (isDark) Color(0xFF546E7A) else Color(0xFF607D8B)
-        else -> Color(0xFFEF6C00)
+NotificationDiagnosis.OK -> OakColors.Success
+            NotificationDiagnosis.DENIED -> OakColors.ErrorDark
+            NotificationDiagnosis.OFF -> if (isDark) OakColors.NeutralDark else OakColors.Neutral
+            else -> OakColors.Warning
     }
     val chipTextColor = Color.White
 
@@ -416,7 +419,7 @@ private fun AlarmCard(item: ScheduledAlarmInfo, timeFormatter: DateTimeFormatter
         ) {
             Icon(
                 imageVector = iconForName(item.title),
-                contentDescription = null,
+                contentDescription = item.title,
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.size(12.dp))
@@ -439,18 +442,6 @@ private fun groupByDate(items: List<ScheduledAlarmInfo>): List<NotificationDayGr
         .groupBy { Instant.ofEpochMilli(it.scheduledAtMillis).atZone(zoneId).toLocalDate() }
         .map { (day, list) -> NotificationDayGroup(day = day, items = list.sortedBy { it.scheduledAtMillis }) }
         .sortedBy { it.day }
-}
-
-@Composable
-private fun backgroundBrush(): Brush {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    return remember(isDark) {
-        if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
-        } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
-        }
-    }
 }
 
 private fun iconForName(name: String): ImageVector {

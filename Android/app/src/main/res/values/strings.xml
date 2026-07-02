@@ -407,4 +407,31 @@
     <string name="add_supplement_error_invalid_cycle_days">Please enter valid On/Off days.</string>
     <string name="add_supplement_error_invalid_interval_days">Please enter a valid interval (>= 2 days).</string>
     <string name="add_supplement_error_save_failed_format">Failed to save: %1$s</string>
+    <string name="home_confirm_intake_action">Taken</string>
+
+    <!-- Accessibility labels -->
+    <string name="a11y_navigate_back">Go back</string>
+    <string name="a11y_settings">Settings</string>
+    <string name="a11y_add">Add</string>
+    <string name="a11y_add_supplement">Add supplement</string>
+    <string name="a11y_select_client">Select client</string>
+    <string name="a11y_edit">Edit</string>
+    <string name="a11y_delete">Delete</string>
+    <string name="a11y_search">Search</string>
+    <string name="a11y_copy">Copy</string>
+    <string name="a11y_close">Close</string>
+    <string name="a11y_show">Show</string>
+    <string name="a11y_hide">Hide</string>
+    <string name="a11y_more_options">More options</string>
+    <string name="a11y_schedule">Schedule</string>
+    <string name="a11y_notifications">Notifications</string>
+    <string name="a11y_power">Power settings</string>
+    <string name="a11y_oak_logo">OAK Healthy logo</string>
+    <string name="a11y_confirm">Confirm</string>
+    <string name="a11y_dose_taken">Mark as taken</string>
+    <string name="a11y_dose_skipped">Mark as skipped</string>
+    <string name="a11y_dose_status_format">Status: %1$s</string>
+    <string name="a11y_home">Home</string>
+    <string name="a11y_history">History</string>
+    <string name="a11y_stack">Stack</string>
 </resources>

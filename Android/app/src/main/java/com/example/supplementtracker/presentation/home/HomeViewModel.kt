@@ -1,6 +1,7 @@
 package com.example.supplementtracker.presentation.home
 
 import android.content.Context
+import com.example.supplementtracker.service.OakPrefs
 import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -214,7 +215,7 @@ class HomeViewModel(
     
     private suspend fun updateCloudSyncUiStatus(binId: String) {
         val clientId = activeClientManager.currentClientId.value ?: return
-        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val id = binId.trim()
         if (id.isEmpty()) {
             _cloudSyncUiStatus.value = null
@@ -268,7 +269,7 @@ class HomeViewModel(
                 ?: error(context.getString(R.string.missing_active_client))
             val clientIdString = clientId.toString()
 
-            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            val prefs = OakPrefs.get(context)
             val deviceId = prefs.getString("cloudSyncDeviceId", null) ?: run {
                 val created = java.util.UUID.randomUUID().toString()
                 prefs.edit().putString("cloudSyncDeviceId", created).apply()
@@ -723,7 +724,7 @@ class HomeViewModel(
             
             refresh()
             rescheduleNotificationsNow()
-            context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            OakPrefs.get(context)
                 .edit()
                 .putLong("oakLastBackupImportEpochMs", System.currentTimeMillis())
                 .apply()
@@ -741,7 +742,7 @@ class HomeViewModel(
         viewModelScope.launch {
             _cloudSyncLoading.value = true
             val manifestId = _hostedBinId.value?.trim().orEmpty()
-            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            val prefs = OakPrefs.get(context)
             val stackPlain = buildStackBackupJson().getOrElse { error ->
                 _cloudSyncLoading.value = false
                 _dataTransferMessage.value = error.message ?: context.getString(R.string.cloud_host_export_stack_failed)
@@ -946,7 +947,7 @@ class HomeViewModel(
                 _dataTransferMessage.value = context.getString(R.string.cloud_revoke_missing_code)
                 return@launch
             }
-            val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+            val prefs = OakPrefs.get(context)
             val stackId = prefs.getString("cloudSyncStackBinId_$manifestId", "").orEmpty().trim()
             val historyId = prefs.getString("cloudSyncHistoryBinId_$manifestId", "").orEmpty().trim()
             _cloudSyncLoading.value = true
@@ -979,7 +980,7 @@ class HomeViewModel(
     }
     
     private fun activeAutoSyncBinId(): String? {
-        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
         if (!enabled) return null
         val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
@@ -1087,7 +1088,7 @@ class HomeViewModel(
     
     private suspend fun syncTwoWay(binId: String) {
         val clientId = activeClientManager.currentClientId.value ?: return
-        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val manifestId = binId.trim()
         if (manifestId.isEmpty()) return
 
@@ -1689,7 +1690,7 @@ class HomeViewModel(
     }
 
     private fun markSyncActivity() {
-        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         prefs.edit().putLong("cloudSyncLastActivityEpochMs", System.currentTimeMillis()).apply()
     }
 
@@ -1712,7 +1713,7 @@ class HomeViewModel(
     }
 
     private fun clearStaleBinId(binId: String) {
-        val prefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
         val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
         val editor = prefs.edit()

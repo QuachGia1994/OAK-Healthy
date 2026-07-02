@@ -1,5 +1,6 @@
 package com.example.supplementtracker.presentation.share
 
+import com.example.supplementtracker.presentation.designsystem.OakColors
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
@@ -128,16 +129,16 @@ private fun StackShareCapture(
     isDark: Boolean
 ) {
     val backgroundBrush = if (isDark) {
-        Brush.linearGradient(listOf(Color(0xFF1A1A1A), Color(0xFF0D0D0D)))
+        Brush.linearGradient(listOf(OakColors.ShareDarkStart, OakColors.ShareDarkEnd))
     } else {
         Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
     }
 
     val panelColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.04f)
     val borderColor = Color.White.copy(alpha = if (isDark) 0.20f else 0.12f)
-    val titleColor = if (isDark) Color.White else Color(0xFF111111)
-    val secondaryColor = if (isDark) Color.White.copy(alpha = 0.70f) else Color(0xFF374151)
-    val tertiaryColor = if (isDark) Color.White.copy(alpha = 0.70f) else Color(0xFF6B7280)
+    val titleColor = if (isDark) Color.White else OakColors.TextPrimary
+    val secondaryColor = if (isDark) Color.White.copy(alpha = 0.70f) else OakColors.TextSecondary
+    val tertiaryColor = if (isDark) Color.White.copy(alpha = 0.70f) else OakColors.TextTertiary
     val shape = RoundedCornerShape(24.dp)
 
     Column(

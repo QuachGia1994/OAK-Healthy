@@ -31,7 +31,7 @@ object NotificationDebugStore {
     private const val keyEntries = "scheduled_entries"
 
     fun recordScheduled(context: Context, info: ScheduledAlarmInfo) {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val current = prefs.getStringSet(keyEntries, emptySet()).orEmpty()
         val updated = current
             .filterNot { it.startsWith("${info.requestCode}|") }
@@ -41,19 +41,19 @@ object NotificationDebugStore {
     }
 
     fun recordCancelled(context: Context, requestCode: Int) {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val current = prefs.getStringSet(keyEntries, emptySet()).orEmpty()
         val updated = current.filterNot { it.startsWith("$requestCode|") }.toSet()
         prefs.edit().putStringSet(keyEntries, updated).apply()
     }
 
     fun clearAll(context: Context) {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         prefs.edit().putStringSet(keyEntries, emptySet()).apply()
     }
 
     fun getAll(context: Context): List<ScheduledAlarmInfo> {
-        val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val prefs = OakPrefs.get(context)
         val entries = prefs.getStringSet(keyEntries, emptySet()).orEmpty()
         return entries.mapNotNull { parse(it) }.sortedBy { it.scheduledAtMillis }
     }
@@ -90,7 +90,7 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     private val cycleUseCase = CalculateCycleUseCase()
-    private val settingsPrefs = context.getSharedPreferences("oak_settings", Context.MODE_PRIVATE)
+    private val settingsPrefs = OakPrefs.get(context)
 
     override fun schedule(supplement: UserSupplement) {
         cancelKnownForSupplement(supplement.id.toString())
