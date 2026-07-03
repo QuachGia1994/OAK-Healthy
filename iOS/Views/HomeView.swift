@@ -120,8 +120,8 @@ public struct HomeView: View {
                                             .font(.subheadline)
                                             .fontWeight(.semibold)
                                             .foregroundStyle(.secondary)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
                                             .background(.ultraThinMaterial)
                                             .clipShape(Capsule())
                                         Spacer()
@@ -463,11 +463,11 @@ private struct HomeDoseFilterBar: View {
     
     var body: some View {
         let columns = [
-            GridItem(.flexible(), spacing: 10),
-            GridItem(.flexible(), spacing: 10)
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
         ]
         VStack(alignment: .leading, spacing: 8) {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
                 TodayStripButton(
                     title: "dose_status_due".localized,
                     count: counts.due,
@@ -550,7 +550,7 @@ private struct TodayStripButton: View {
                     .stroke(isSelected ? tint.opacity(0.55) : Color.clear, lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(count)")
     }
 }
 
@@ -571,7 +571,7 @@ private struct TodayHeaderView: View {
     let streakDays: Int
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.title3)
                 .fontWeight(.bold)
@@ -713,6 +713,7 @@ private struct ActiveSupplementRow: View {
                     .scaleEffect(iconScale)
                     .animation(.snappy, value: status)
             }
+            .accessibilityLabel(symbolAccessibilityLabel(for: status))
         }
         .padding()
         .background(.ultraThinMaterial)
@@ -765,6 +766,19 @@ private struct ActiveSupplementRow: View {
             .orange
         case .missed:
             .red
+        }
+    }
+
+    private func symbolAccessibilityLabel(for status: HomeViewModel.DoseStatus) -> String {
+        switch status {
+        case .planned:
+            "mark_as_taken".localized
+        case .taken:
+            "already_taken".localized
+        case .skipped:
+            "already_skipped".localized
+        case .missed:
+            "mark_as_taken".localized
         }
     }
     

@@ -267,6 +267,7 @@ public struct SyncCenterView: View {
                             Button(action: { isManifestPartsVisible.toggle() }) {
                                 Image(systemName: isManifestPartsVisible ? "eye.slash" : "eye")
                                     .foregroundStyle(.gray)
+                                    .accessibilityLabel(isManifestPartsVisible ? "hide_details".localized : "show_details".localized)
                             }
                             .buttonStyle(.borderless)
                         }
@@ -394,10 +395,13 @@ public struct SyncCenterView: View {
                         copyToClipboard(binId)
                         showToast("sync_center_toast_code_copied".localized)
                     }
+                    .accessibilityLabel("sync_center_your_link_code".localized)
+                    .accessibilityAddTraits(.isStaticText)
                 
                 Button(action: { isBinIdVisible.toggle() }) {
                     Image(systemName: isBinIdVisible ? "eye.slash" : "eye")
                         .foregroundStyle(.gray)
+                        .accessibilityLabel(isBinIdVisible ? "hide_link_code".localized : "show_link_code".localized)
                 }
                 .buttonStyle(.borderless)
             }

@@ -404,6 +404,18 @@ public struct SettingsView: View {
         UserDefaults.standard.removeObject(forKey: "SkippedUpdateVersion")
         appTheme = "system"
         activeClientManager.setCurrentClientId(nil)
+        clearKeychainItems()
+    }
+
+    private func clearKeychainItems() {
+        let services = ["com.oakhealthy.cloudsync"]
+        for service in services {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service
+            ]
+            SecItemDelete(query as CFDictionary)
+        }
     }
     
     @MainActor
@@ -480,18 +492,20 @@ private struct ClientRow: View {
     let onDelete: () -> Void
     
     var body: some View {
-        HStack {
-            Text(client.name)
-            Spacer()
-            if isActive {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+        Button {
+            onSelect()
+        } label: {
+            HStack {
+                Text(client.name)
+                Spacer()
+                if isActive {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                }
             }
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(client.name), \(isActive ? "active".localized : "")")
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 onDelete()

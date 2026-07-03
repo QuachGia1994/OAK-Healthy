@@ -32,6 +32,8 @@ public final class UpdateService {
     
     public init() {}
     
+    private static let allowedUpdateHosts = ["apps.apple.com", "testflight.apple.com"]
+
     /// Kiểm tra phiên bản mới từ GitHub Gist/Remote JSON.
     public func checkForUpdates() async {
         guard let url = URL(string: "https://gist.githubusercontent.com/QuachGia1994/901e36f6bab91729d5dd0e2ccce7202f/raw/oak_update.json") else { return }
@@ -42,6 +44,7 @@ public final class UpdateService {
             let config = try JSONDecoder().decode(UpdateConfig.self, from: data)
             guard isVersion(config.latestVersion, newerThan: currentVersion) else { return }
             if config.isForceUpdate == false, skippedUpdateVersion == config.latestVersion { return }
+            guard isTrustedUpdateURL(config.updateUrl) else { return }
             
             updateInfo = AppUpdateInfo(
                 version: config.latestVersion,
@@ -53,6 +56,11 @@ public final class UpdateService {
         } catch {
             return
         }
+    }
+
+    private func isTrustedUpdateURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString), let host = url.host else { return false }
+        return Self.allowedUpdateHosts.contains(host)
     }
 
     public func skipUpdate(version: String) {

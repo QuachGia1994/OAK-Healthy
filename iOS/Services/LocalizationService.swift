@@ -388,7 +388,16 @@ public struct LocalizationService: Sendable {
         "bootstrap_init_failed_message": ("Failed to initialize data. Existing data may be corrupted.", "Không thể khởi tạo dữ liệu. Dữ liệu cũ có thể đã bị lỗi."),
         "debug_section_title": ("Debug", "Debug"),
         "debug_server_url_placeholder": ("Debug server URL", "Debug server URL"),
-        "debug_send_test_event": ("Send test event", "Send test event")
+        "debug_send_test_event": ("Send test event", "Send test event"),
+        
+        "mark_as_taken": ("Mark as taken", "Đánh dấu đã uống"),
+        "already_taken": ("Already taken", "Đã uống"),
+        "already_skipped": ("Already skipped", "Đã bỏ qua"),
+        "active": ("Active", "Đang active"),
+        "show_details": ("Show details", "Hiện chi tiết"),
+        "hide_details": ("Hide details", "Ẩn chi tiết"),
+        "show_link_code": ("Show link code", "Hiện mã liên kết"),
+        "hide_link_code": ("Hide link code", "Ẩn mã liên kết")
     ]
     
     public func string(for key: String) -> String {

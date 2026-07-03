@@ -455,7 +455,7 @@ private struct HistoryFilterBar: View {
     @Binding var filter: HistoryFilter
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             TextField("history_search_placeholder".localized, text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()

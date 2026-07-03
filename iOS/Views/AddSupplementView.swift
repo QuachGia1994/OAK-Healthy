@@ -232,7 +232,7 @@ public struct AddSupplementView: View {
     }
     
     private var weeklyRecurrenceControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Toggle("repeat_weekly".localized, isOn: $viewModel.isWeeklyRecurrenceEnabled)
             if viewModel.isWeeklyRecurrenceEnabled {
                 VStack(alignment: .leading, spacing: 8) {
