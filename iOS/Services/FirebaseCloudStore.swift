@@ -60,7 +60,7 @@ enum FirebaseCloudStore {
     static func delete(id: String) async throws {
         try await FirebaseBootstrap.ensureSignedIn()
         guard let root = root() else { throw FirebaseOfflineError() }
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
             root.child(id).removeValue { error, _ in
                 if let error { cont.resume(throwing: error); return }
                 cont.resume(returning: ())
@@ -83,7 +83,7 @@ enum FirebaseCloudStore {
     
     private static func getOnce(path: [String]) async throws -> DataSnapshot {
         guard let root = root() else { throw FirebaseOfflineError() }
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<DataSnapshot, any Error>) in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<DataSnapshot, any Error>) in
             root.child(path.joined(separator: "/")).observeSingleEvent(
                 of: .value,
                 with: { snapshot in
@@ -115,7 +115,7 @@ enum FirebaseCloudStore {
     
     private static func update(id: String, values: [AnyHashable: Any]) async throws {
         guard let root = root() else { throw FirebaseOfflineError() }
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
             root.child(id).updateChildValues(values) { error, _ in
                 if let error { cont.resume(throwing: error); return }
                 cont.resume(returning: ())
