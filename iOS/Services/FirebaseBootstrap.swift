@@ -9,6 +9,39 @@ enum FirebaseBootstrap {
     nonisolated static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
     private static var didConfigure = false
 
+    private static let embeddedPlistXML = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>API_KEY</key>
+        <string>AIzaSyBi9c4GbH_XWl4y9qBJf0rgjBYsHBIewFw</string>
+        <key>GCM_SENDER_ID</key>
+        <string>339994104835</string>
+        <key>PLIST_VERSION</key>
+        <string>1</string>
+        <key>BUNDLE_ID</key>
+        <string>com.phongqk.oakhealthy</string>
+        <key>PROJECT_ID</key>
+        <string>oak-healthy</string>
+        <key>STORAGE_BUCKET</key>
+        <string>oak-healthy.firebasestorage.app</string>
+        <key>IS_ADS_ENABLED</key>
+        <false/>
+        <key>IS_ANALYTICS_ENABLED</key>
+        <false/>
+        <key>IS_APPINVITE_ENABLED</key>
+        <true/>
+        <key>IS_GCM_ENABLED</key>
+        <true/>
+        <key>IS_SIGNIN_ENABLED</key>
+        <true/>
+        <key>GOOGLE_APP_ID</key>
+        <string>1:339994104835:ios:3662c12531ad716cac2a36</string>
+    </dict>
+    </plist>
+    """
+
     static func configureIfNeeded() {
         guard !didConfigure else { return }
 
@@ -24,17 +57,23 @@ enum FirebaseBootstrap {
             return
         }
 
+        // 1) Try bundle plist first
         if configureFromPlist() {
             didConfigure = true
             UserDefaults.standard.set("configured", forKey: "fbDiagState")
             postConfigure()
-        } else if configureFromFallback() {
-            didConfigure = true
-            UserDefaults.standard.set("fallback", forKey: "fbDiagState")
-            postConfigure()
-        } else {
-            UserDefaults.standard.set("plist_not_found", forKey: "fbDiagState")
+            return
         }
+
+        // 2) Write embedded plist to temp, then load from there
+        if configureFromEmbeddedPlist() {
+            didConfigure = true
+            UserDefaults.standard.set("embedded", forKey: "fbDiagState")
+            postConfigure()
+            return
+        }
+
+        UserDefaults.standard.set("all_failed", forKey: "fbDiagState")
     }
 
     private static func configureFromPlist() -> Bool {
@@ -44,14 +83,11 @@ enum FirebaseBootstrap {
         return FirebaseApp.app() != nil
     }
 
-    private static func configureFromFallback() -> Bool {
-        let options = FirebaseOptions(
-            googleAppID: "1:339994104835:ios:3662c12531ad716cac2a36",
-            gcmSenderID: "339994104835"
-        )
-        options.projectID = "oak-healthy"
-        options.databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
-        options.storageBucket = "oak-healthy.firebasestorage.app"
+    private static func configureFromEmbeddedPlist() -> Bool {
+        let tempDir = NSTemporaryDirectory()
+        let tempPlist = (tempDir as NSString).appendingPathComponent("GoogleService-Info.plist")
+        guard (try? embeddedPlistXML.write(toFile: tempPlist, atomically: true, encoding: .utf8)) != nil,
+              let options = FirebaseOptions(contentsOfFile: tempPlist) else { return false }
         FirebaseApp.configure(options: options)
         return FirebaseApp.app() != nil
     }
