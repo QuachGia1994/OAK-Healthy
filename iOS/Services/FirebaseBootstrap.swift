@@ -12,6 +12,7 @@ enum FirebaseBootstrap {
     static func configureIfNeeded() {
         guard !didConfigure else { return }
         didConfigure = true
+        print("[FB-DIAG] configureIfNeeded entered")
 
 #if DEBUG
         AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
@@ -19,22 +20,29 @@ enum FirebaseBootstrap {
         AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
 #endif
         if FirebaseApp.app() != nil {
+            print("[FB-DIAG] FirebaseApp already exists")
             postConfigure()
             return
         }
 
-        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+        let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
+        print("[FB-DIAG] plist path: \(plistPath ?? "NOT FOUND")")
+        guard let path = plistPath,
               let options = FirebaseOptions(contentsOfFile: path) else {
-            print("[FirebaseBootstrap] GoogleService-Info.plist not found — Firebase disabled.")
+            print("[FB-DIAG] FirebaseOptions parse failed — Firebase disabled.")
             return
         }
         FirebaseApp.configure(options: options)
+        let appExists = FirebaseApp.app() != nil
+        print("[FB-DIAG] after configure, FirebaseApp.app() = \(appExists)")
         postConfigure()
     }
 
     static func ensureSignedIn() async throws {
         configureIfNeeded()
-        guard FirebaseApp.app() != nil else { throw FirebaseOfflineError() }
+        let appOK = FirebaseApp.app() != nil
+        print("[FB-DIAG] ensureSignedIn: appOK=\(appOK)")
+        guard appOK else { throw FirebaseOfflineError() }
         if Auth.auth().currentUser != nil { return }
         _ = try await Auth.auth().signInAnonymously()
     }
