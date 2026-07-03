@@ -618,8 +618,8 @@ enum CloudSyncAutoSync {
         let decoded: CloudSyncManifest
         do {
             decoded = try CloudSyncManifestCodec.decode(data)
-        } catch let error as CloudSyncManifestCodecError {
-            throw CloudSyncError.manifestCodec(error)
+        } catch {
+            throw CloudSyncError.manifestCodec(error as! CloudSyncManifestCodecError)
         }
         UserDefaults.standard.set(decoded.stackBinId, forKey: stackKey)
         UserDefaults.standard.set(decoded.historyBinId, forKey: historyKey)
