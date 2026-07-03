@@ -28,8 +28,7 @@ Data/
 /Info.plist
 .iOS Build.txt
 
-# Firebase config files (generate from CI secrets)
-iOS/GoogleService-Info.plist
+# Firebase config files
 Android/app/google-services.json
 
 # Debug files with internal IPs
