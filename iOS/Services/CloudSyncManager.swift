@@ -621,6 +621,7 @@ enum CloudSyncAutoSync {
         } catch {
             throw CloudSyncError.manifestCodec(error)
         }
+        }
         UserDefaults.standard.set(decoded.stackBinId, forKey: stackKey)
         UserDefaults.standard.set(decoded.historyBinId, forKey: historyKey)
         return decoded
