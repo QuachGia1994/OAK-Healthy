@@ -4,7 +4,7 @@ import SwiftData
 
 enum FirebaseCloudStore {
     private static let rootKey = "oakBins"
-    private static let validBinIdPattern = /^[A-Za-z0-9_-]{1,64}$/
+    nonisolated(unsafe) private static let validBinIdPattern = /^[A-Za-z0-9_-]{1,64}$/
 
     private static func root() -> DatabaseReference {
         Database.database(url: FirebaseBootstrap.databaseURL).reference().child(rootKey)
@@ -12,7 +12,7 @@ enum FirebaseCloudStore {
 
     static func isValidBinId(_ id: String) -> Bool {
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty && trimmed.range(of: validBinIdPattern) != nil
+        return !trimmed.isEmpty && trimmed.firstMatch(of: validBinIdPattern) != nil
     }
     
     static func createBin(payload: String) async throws -> (id: String, rev: String) {
