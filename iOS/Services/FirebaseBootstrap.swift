@@ -8,7 +8,7 @@ import Foundation
 enum FirebaseBootstrap {
     nonisolated static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
     private static var didConfigure = false
-    private static var isConfigured = false
+    nonisolated(unsafe) private static var isConfigured = false
 
     static func configureIfNeeded() {
         guard !didConfigure else { return }
@@ -35,7 +35,7 @@ enum FirebaseBootstrap {
         postConfigure()
     }
 
-    static var isFirebaseEnabled: Bool { isConfigured }
+    nonisolated static var isFirebaseEnabled: Bool { isConfigured }
 
     static func ensureSignedIn() async throws {
         configureIfNeeded()

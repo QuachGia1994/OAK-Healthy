@@ -18,7 +18,7 @@ enum FirebaseCloudStore {
     
     static func createBin(payload: String) async throws -> (id: String, rev: String) {
         try await FirebaseBootstrap.ensureSignedIn()
-        guard let root else { throw FirebaseOfflineError() }
+        guard let root = root() else { throw FirebaseOfflineError() }
         let id = root.childByAutoId().key ?? UUID().uuidString
         let rev = Int64(Date().timeIntervalSince1970 * 1000)
         try await update(id: id, values: ["payload": payload, "meta/rev": rev])
@@ -28,7 +28,7 @@ enum FirebaseCloudStore {
     static func readMetaRev(id: String) async throws -> String? {
         try await FirebaseBootstrap.ensureSignedIn()
         guard isValidBinId(id) else { return nil }
-        guard let root else { return nil }
+        guard let root = root() else { return nil }
         root.child(id).keepSynced(true)
         let snap = try await get(path: [id, "meta", "rev"])
         let num = snap.value as? NSNumber
@@ -38,7 +38,7 @@ enum FirebaseCloudStore {
     static func readPayload(id: String) async throws -> String? {
         try await FirebaseBootstrap.ensureSignedIn()
         guard isValidBinId(id) else { return nil }
-        guard let root else { return nil }
+        guard let root = root() else { return nil }
         root.child(id).keepSynced(true)
         let snap = try await get(path: [id, "payload"])
         return snap.value as? String
@@ -59,7 +59,7 @@ enum FirebaseCloudStore {
     
     static func delete(id: String) async throws {
         try await FirebaseBootstrap.ensureSignedIn()
-        guard let root else { throw FirebaseOfflineError() }
+        guard let root = root() else { throw FirebaseOfflineError() }
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
             root.child(id).removeValue { error, _ in
                 if let error { cont.resume(throwing: error); return }
@@ -82,7 +82,7 @@ enum FirebaseCloudStore {
     }
     
     private static func getOnce(path: [String]) async throws -> DataSnapshot {
-        guard let root else { throw FirebaseOfflineError() }
+        guard let root = root() else { throw FirebaseOfflineError() }
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<DataSnapshot, any Error>) in
             root.child(path.joined(separator: "/")).observeSingleEvent(
                 of: .value,
@@ -114,7 +114,7 @@ enum FirebaseCloudStore {
     }
     
     private static func update(id: String, values: [AnyHashable: Any]) async throws {
-        guard let root else { throw FirebaseOfflineError() }
+        guard let root = root() else { throw FirebaseOfflineError() }
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
             root.child(id).updateChildValues(values) { error, _ in
                 if let error { cont.resume(throwing: error); return }
