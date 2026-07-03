@@ -8,7 +8,6 @@ import Foundation
 enum FirebaseBootstrap {
     nonisolated static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
     private static var didConfigure = false
-    nonisolated(unsafe) private static var isConfigured = false
 
     static func configureIfNeeded() {
         guard !didConfigure else { return }
@@ -20,7 +19,6 @@ enum FirebaseBootstrap {
         AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
 #endif
         if FirebaseApp.app() != nil {
-            isConfigured = true
             postConfigure()
             return
         }
@@ -31,15 +29,12 @@ enum FirebaseBootstrap {
             return
         }
         FirebaseApp.configure(options: options)
-        isConfigured = true
         postConfigure()
     }
 
-    nonisolated static var isFirebaseEnabled: Bool { isConfigured }
-
     static func ensureSignedIn() async throws {
         configureIfNeeded()
-        guard isConfigured else { throw FirebaseOfflineError() }
+        guard FirebaseApp.app() != nil else { throw FirebaseOfflineError() }
         if Auth.auth().currentUser != nil { return }
         _ = try await Auth.auth().signInAnonymously()
     }
