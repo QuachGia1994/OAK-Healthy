@@ -25,6 +25,9 @@ public struct HistoryView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
+                backgroundGradient
+                    .ignoresSafeArea()
+                
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         InsightsTrendCard(
@@ -34,7 +37,7 @@ public struct HistoryView: View {
                             insights30: viewModel.insights30
                         )
                             .padding()
-                            .oakCardStyle(.glass)
+                            .oakCard()
 
                         VStack(alignment: .leading) {
                             Text("intake_frequency_last_7".localized)
@@ -69,7 +72,7 @@ public struct HistoryView: View {
                             }
                         }
                         .padding()
-                        .oakCardStyle(.glass)
+                        .oakCard()
                         
                         VStack(alignment: .leading) {
                             Text("log_details".localized)
@@ -111,7 +114,7 @@ public struct HistoryView: View {
                             }
                         }
                         .padding()
-                        .oakCardStyle(.glass)
+                        .oakCard()
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -130,7 +133,6 @@ public struct HistoryView: View {
                         isShowingSettingsSheet = true
                     } label: {
                         Image(systemName: "gearshape.fill")
-                            .accessibilityLabel("a11y_settings".localized)
                     }
                 }
             }
@@ -150,9 +152,15 @@ public struct HistoryView: View {
                 withAnimation(.snappy) { rebuildSections() }
             }
         }
-        .oakBackground()
     }
-
+    
+    private var backgroundGradient: LinearGradient {
+        let colors: [Color] = colorScheme == .dark
+            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
+            : [Color(.systemGroupedBackground), Color(.systemBackground)]
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+    
     @MainActor
     private func reload() async {
         guard let clientId = activeClientManager.currentClientId else {
@@ -427,6 +435,12 @@ private struct HistoryRow: View, Equatable {
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 5)
+    }
+}
+
+private extension View {
+    func oakCard() -> some View {
+        oakCardStyle(.glass, cornerRadius: 14, strokeOpacity: 0.0, shadowOpacity: 0.12, shadowRadius: 12, shadowY: 6)
     }
 }
 
