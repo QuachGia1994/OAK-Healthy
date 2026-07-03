@@ -32,35 +32,17 @@ public final class UpdateService {
     
     public init() {}
     
-    // ponytail: only trust update URLs from known hosts.
-    private static let allowedUpdateHosts = ["github.com", "githubusercontent.com", "oakhealthy.com"]
-
-    private static func isUpdateUrlAllowed(_ urlString: String) -> Bool {
-        guard let url = URL(string: urlString),
-              let host = url.host?.lowercased() else { return false }
-        return allowedUpdateHosts.contains { host.hasSuffix($0) }
-    }
-
-    // ponytail: explicit timeout to avoid hanging on slow networks.
-    private static let session: URLSession = {
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 20
-        return URLSession(configuration: config)
-    }()
-
     /// Kiểm tra phiên bản mới từ GitHub Gist/Remote JSON.
     public func checkForUpdates() async {
         guard let url = URL(string: "https://gist.githubusercontent.com/QuachGia1994/901e36f6bab91729d5dd0e2ccce7202f/raw/oak_update.json") else { return }
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-
+        
         do {
-            let (data, _) = try await Self.session.data(from: url)
+            let (data, _) = try await URLSession.shared.data(from: url)
             let config = try JSONDecoder().decode(UpdateConfig.self, from: data)
             guard isVersion(config.latestVersion, newerThan: currentVersion) else { return }
             if config.isForceUpdate == false, skippedUpdateVersion == config.latestVersion { return }
-            guard Self.isUpdateUrlAllowed(config.updateUrl) else { return }
-
+            
             updateInfo = AppUpdateInfo(
                 version: config.latestVersion,
                 updateUrl: config.updateUrl,

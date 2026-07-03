@@ -21,12 +21,13 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
             return "Phản hồi máy chủ không hợp lệ."
         case .missingAccessKey:
             return "Thiếu API Key (JSONBIN_API_KEY) từ xcconfig."
-        case .serverError(let statusCode, _):
+        case .serverError(let statusCode, let body):
             if statusCode == 522 {
                 return "Máy chủ phản hồi quá lâu (522). Vui lòng thử lại sau."
             }
-            // ponytail: don't surface server body to UI or UserDefaults
-            return "Lỗi máy chủ (\(statusCode))"
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = trimmed.isEmpty ? "Unknown server error" : String(trimmed.prefix(240))
+            return "Lỗi máy chủ (\(statusCode)): \(message)"
         case .networkError(let message):
             return "Lỗi mạng: \(message)"
         case .decodingError(let message):
@@ -46,7 +47,6 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
         case let .missingCompressedField(field): return "missing_field_\(field)"
         case .base64DecodeFailed: return "base64_decode_failed"
         case .inflateFailed: return "inflate_failed"
-        case .outputTooLarge: return "output_too_large"
         }
     }
     
@@ -71,15 +71,13 @@ public actor CloudSyncManager {
         self.session = Self.makeSession()
     }
 
-    private static let pinnedDelegate = PinnedSessionDelegate()
-
     private static func makeSession() -> URLSession {
         let config = URLSessionConfiguration.ephemeral
         config.waitsForConnectivity = false
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 20
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        return URLSession(configuration: config, delegate: pinnedDelegate, delegateQueue: nil)
+        return URLSession(configuration: config)
     }
     
     public func upsertBackup(
@@ -689,12 +687,11 @@ enum CloudSyncAutoSync {
 
     private static func markFailure(ctx: SyncContext, error: Error) {
         let nowMs = Double(Date().timeIntervalSince1970 * 1000)
-        // ponytail: store error code, not localized description (avoids leaking server details to UserDefaults)
-        let message = (error as NSError).code.description
+        let message = error.localizedDescription
         UserDefaults.standard.set(nowMs, forKey: ctx.lastAttemptKey)
         UserDefaults.standard.set(message, forKey: ctx.lastErrorKey)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastFailureKey)
-
+        
         let logTsKey = "cloudSyncLastFailureLogEpochMs_\(ctx.id)"
         let logMsgKey = "cloudSyncLastFailureLogMessage_\(ctx.id)"
         let lastLoggedMs = UserDefaults.standard.double(forKey: logTsKey)
@@ -704,9 +701,7 @@ enum CloudSyncAutoSync {
         }
         UserDefaults.standard.set(nowMs, forKey: logTsKey)
         UserDefaults.standard.set(message, forKey: logMsgKey)
-        #if DEBUG
-        print("☁️ Auto-Sync: Failed – \(error.localizedDescription)")
-        #endif
+        print("☁️ Auto-Sync: Failed – \(message)")
         DebugReporter.report("cloud_sync_failure", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: error))
     }
     
