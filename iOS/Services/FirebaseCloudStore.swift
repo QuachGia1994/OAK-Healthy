@@ -6,8 +6,9 @@ enum FirebaseCloudStore {
     private static let rootKey = "oakBins"
     nonisolated(unsafe) private static let validBinIdPattern = /^[A-Za-z0-9_-]{1,64}$/
 
-    private static func root() -> DatabaseReference {
-        Database.database(url: FirebaseBootstrap.databaseURL).reference().child(rootKey)
+    private static func root() -> DatabaseReference? {
+        guard FirebaseBootstrap.isFirebaseEnabled else { return nil }
+        return Database.database(url: FirebaseBootstrap.databaseURL).reference().child(rootKey)
     }
 
     static func isValidBinId(_ id: String) -> Bool {
@@ -17,7 +18,8 @@ enum FirebaseCloudStore {
     
     static func createBin(payload: String) async throws -> (id: String, rev: String) {
         try await FirebaseBootstrap.ensureSignedIn()
-        let id = root().childByAutoId().key ?? UUID().uuidString
+        guard let root else { throw FirebaseOfflineError() }
+        let id = root.childByAutoId().key ?? UUID().uuidString
         let rev = Int64(Date().timeIntervalSince1970 * 1000)
         try await update(id: id, values: ["payload": payload, "meta/rev": rev])
         return (id, "\(rev)")
@@ -26,7 +28,8 @@ enum FirebaseCloudStore {
     static func readMetaRev(id: String) async throws -> String? {
         try await FirebaseBootstrap.ensureSignedIn()
         guard isValidBinId(id) else { return nil }
-        root().child(id).keepSynced(true)
+        guard let root else { return nil }
+        root.child(id).keepSynced(true)
         let snap = try await get(path: [id, "meta", "rev"])
         let num = snap.value as? NSNumber
         return num?.stringValue
@@ -35,7 +38,8 @@ enum FirebaseCloudStore {
     static func readPayload(id: String) async throws -> String? {
         try await FirebaseBootstrap.ensureSignedIn()
         guard isValidBinId(id) else { return nil }
-        root().child(id).keepSynced(true)
+        guard let root else { return nil }
+        root.child(id).keepSynced(true)
         let snap = try await get(path: [id, "payload"])
         return snap.value as? String
     }
@@ -55,8 +59,9 @@ enum FirebaseCloudStore {
     
     static func delete(id: String) async throws {
         try await FirebaseBootstrap.ensureSignedIn()
+        guard let root else { throw FirebaseOfflineError() }
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
-            root().child(id).removeValue { error, _ in
+            root.child(id).removeValue { error, _ in
                 if let error { cont.resume(throwing: error); return }
                 cont.resume(returning: ())
             }
@@ -77,8 +82,9 @@ enum FirebaseCloudStore {
     }
     
     private static func getOnce(path: [String]) async throws -> DataSnapshot {
+        guard let root else { throw FirebaseOfflineError() }
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<DataSnapshot, any Error>) in
-            root().child(path.joined(separator: "/")).observeSingleEvent(
+            root.child(path.joined(separator: "/")).observeSingleEvent(
                 of: .value,
                 with: { snapshot in
                     cont.resume(returning: snapshot)
@@ -108,8 +114,9 @@ enum FirebaseCloudStore {
     }
     
     private static func update(id: String, values: [AnyHashable: Any]) async throws {
+        guard let root else { throw FirebaseOfflineError() }
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, any Error>) in
-            root().child(id).updateChildValues(values) { error, _ in
+            root.child(id).updateChildValues(values) { error, _ in
                 if let error { cont.resume(throwing: error); return }
                 cont.resume(returning: ())
             }
@@ -138,7 +145,7 @@ final class FirebaseRealtimeSyncListener {
 
     func start(manifestId: String) async {
         stop()
-        guard !manifestId.isEmpty else { return }
+        guard !manifestId.isEmpty, FirebaseBootstrap.isFirebaseEnabled else { return }
         try? await FirebaseBootstrap.ensureSignedIn()
         let stackKey = "cloudSyncStackBinId_\(manifestId)"
         let historyKey = "cloudSyncHistoryBinId_\(manifestId)"
@@ -156,16 +163,18 @@ final class FirebaseRealtimeSyncListener {
     }
 
     func stop() {
-        if let h = stackHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
-        if let h = historyHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
-        if let h = manifestHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+        guard FirebaseBootstrap.isFirebaseEnabled else { return }
+        let db = Database.database(url: FirebaseBootstrap.databaseURL)
+        if let h = stackHandle { db.reference().removeObserver(withHandle: h) }
+        if let h = historyHandle { db.reference().removeObserver(withHandle: h) }
+        if let h = manifestHandle { db.reference().removeObserver(withHandle: h) }
         stackHandle = nil
         historyHandle = nil
         manifestHandle = nil
     }
 
     private func observeRevChange(binId: String, manifestId: String) -> DatabaseHandle {
-        guard FirebaseCloudStore.isValidBinId(binId) else { return 0 }
+        guard FirebaseCloudStore.isValidBinId(binId), FirebaseBootstrap.isFirebaseEnabled else { return 0 }
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(binId).child("meta").child("rev")
         return ref.observe(.value) { [weak self] snapshot, _ in
             guard let self, let newRev = snapshot.value as? NSNumber else { return }
@@ -181,7 +190,7 @@ final class FirebaseRealtimeSyncListener {
     }
 
     private func observeManifest(manifestId: String) -> DatabaseHandle {
-        guard FirebaseCloudStore.isValidBinId(manifestId) else { return 0 }
+        guard FirebaseCloudStore.isValidBinId(manifestId), FirebaseBootstrap.isFirebaseEnabled else { return 0 }
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(manifestId).child("meta").child("rev")
         return ref.observe(.value) { [weak self] snapshot, _ in
             guard let self, let newRev = snapshot.value as? NSNumber else { return }
@@ -197,8 +206,10 @@ final class FirebaseRealtimeSyncListener {
     }
 
     deinit {
-        if let h = stackHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
-        if let h = historyHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
-        if let h = manifestHandle { Database.database(url: FirebaseBootstrap.databaseURL).reference().removeObserver(withHandle: h) }
+        guard FirebaseBootstrap.isFirebaseEnabled else { return }
+        let db = Database.database(url: FirebaseBootstrap.databaseURL)
+        if let h = stackHandle { db.reference().removeObserver(withHandle: h) }
+        if let h = historyHandle { db.reference().removeObserver(withHandle: h) }
+        if let h = manifestHandle { db.reference().removeObserver(withHandle: h) }
     }
 }
