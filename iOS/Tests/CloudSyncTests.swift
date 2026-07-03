@@ -14,7 +14,7 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
         do {
             _ = try CloudSyncPayloadCodec.decompressIfNeeded(data)
             XCTFail("Expected error")
-        } catch {
+        } catch let error as CloudSyncPayloadCodecError {
             switch error {
             case .missingCompressedField(let field):
                 XCTAssertEqual(field, "ct")

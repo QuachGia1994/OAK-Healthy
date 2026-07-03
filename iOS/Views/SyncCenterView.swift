@@ -872,7 +872,7 @@ public struct SyncCenterView: View {
         let decoded: CloudSyncManifest
         do {
             decoded = try CloudSyncManifestCodec.decode(manifestData)
-        } catch {
+        } catch let error as CloudSyncManifestCodecError {
             throw CloudSyncError.manifestCodec(error)
         }
         let stackId = decoded.stackBinId.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -995,7 +995,7 @@ public struct SyncCenterView: View {
         let manifest: Data
         do {
             manifest = try CloudSyncManifestCodec.encode(stackBinId: stackId, historyBinId: historyId)
-        } catch {
+        } catch let error as CloudSyncManifestCodecError {
             throw CloudSyncError.manifestCodec(error)
         }
         let manifestId = try await CloudSyncManager.shared.uploadBackup(jsonData: manifest)
