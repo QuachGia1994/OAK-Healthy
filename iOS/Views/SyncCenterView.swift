@@ -1003,6 +1003,7 @@ public struct SyncCenterView: View {
     
     @MainActor
     private func runSyncFlow(binId: String, client: ClientProfile, label: String) async {
+        appendLog(binId: binId, phase: "DIAG", message: FirebaseBootstrap.firebaseDiag)
         do {
             appendLog(binId: binId, phase: "SYNC", message: "\(label) START")
             try await syncTwoWay(binId: binId, client: client)
