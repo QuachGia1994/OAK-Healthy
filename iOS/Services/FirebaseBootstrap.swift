@@ -25,7 +25,8 @@ enum FirebaseBootstrap {
 
         guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
               let options = FirebaseOptions(contentsOfFile: path) else {
-            fatalError("[FirebaseBootstrap] GoogleService-Info.plist not found. Configure Firebase via plist.")
+            print("[FirebaseBootstrap] GoogleService-Info.plist not found — Firebase disabled.")
+            return
         }
         FirebaseApp.configure(options: options)
         postConfigure()
