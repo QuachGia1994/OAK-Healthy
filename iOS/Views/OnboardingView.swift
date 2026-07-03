@@ -384,7 +384,8 @@ public struct OnboardingView: View {
 private enum OnboardingFormatters {
     static let timestamp: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
         return formatter
     }()
 }

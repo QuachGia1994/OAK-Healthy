@@ -82,7 +82,8 @@ public struct AddSupplementView: View {
     private var basicSection: some View {
         Section {
             TextField("name_hint".localized, text: $viewModel.name)
-                .onChange(of: viewModel.name) {
+                .onChange(of: viewModel.name) { _, new in
+                    if new.count > 100 { viewModel.name = String(new.prefix(100)) }
                     Task { await viewModel.updateSuggestions() }
                 }
                 .listRowBackground(glassRowBackground)
@@ -282,7 +283,8 @@ public struct AddSupplementView: View {
     }
     
     private var weekdayLabels: [String] {
-        ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        let symbols = Calendar.current.shortWeekdaySymbols
+        return Array(symbols.dropFirst()) + [symbols.first!]
     }
     
     private var weeklySummaryText: String {

@@ -28,7 +28,7 @@ struct OAKBackgroundModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
+            ? [Color(.systemBackground).opacity(0.95), .black]
             : [Color(.systemGroupedBackground), Color(.systemBackground)]
         content
             .background(

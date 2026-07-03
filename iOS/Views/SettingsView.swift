@@ -264,39 +264,6 @@ public struct SettingsView: View {
     }
     
     @ViewBuilder
-    private var supplementListSection: some View {
-        Section {
-            NavigationLink {
-                MyStackListView(
-                    title: "my_list_title".localized,
-                    supplements: supplementsForActiveClient,
-                    cycleSummary: getCycleSummary
-                )
-            } label: {
-                HStack {
-                    Text("manage_stack".localized)
-                    Spacer()
-                    Text("\(supplementsForActiveClient.count)")
-                        .foregroundStyle(.secondary)
-                }
-            }
-        } header: {
-            Text("my_list_title".localized)
-        }
-        .listRowBackground(glassRowBackground)
-    }
-    
-    @ViewBuilder
-    private var userGuideSection: some View {
-        Section {
-            NavigationLink("user_guide_title".localized) {
-                UserGuideView()
-            }
-        }
-        .listRowBackground(glassRowBackground)
-    }
-    
-    @ViewBuilder
     private var aboutSection: some View {
         Section {
             Text("settings_about_body".localized)
@@ -562,26 +529,6 @@ private struct MyStackListView: View {
         }
         .scrollContentBackground(.hidden)
         .navigationTitle(title)
-    }
-}
-
-private struct GuideRow: View {
-    let number: String
-    let text: String
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(number)
-                .font(.caption)
-                .fontWeight(.bold)
-                .foregroundStyle(.white)
-                .frame(width: 20, height: 20)
-                .background(Color.blue)
-                .clipShape(Circle())
-            
-            Text(text)
-                .font(.subheadline)
-        }
     }
 }
 

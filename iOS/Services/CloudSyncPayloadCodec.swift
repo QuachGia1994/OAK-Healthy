@@ -40,6 +40,8 @@ enum CloudSyncPayloadCodec {
         return run(stream: &stream, data: data, bufferSize: bufferSize, flags: flags)
     }
     
+    private static let maxOutputBytes = 50 * 1024 * 1024
+
     private static func run(
         stream: inout compression_stream,
         data: Data,
@@ -59,6 +61,7 @@ enum CloudSyncPayloadCodec {
                 let status = compression_stream_process(&stream, flags)
                 let written = bufferSize - stream.dst_size
                 if written > 0 { dst.append(dstBuffer, count: written) }
+                if dst.count > maxOutputBytes { return nil }
                 if status == COMPRESSION_STATUS_END { return dst }
                 if status == COMPRESSION_STATUS_ERROR { return nil }
                 if status == COMPRESSION_STATUS_OK && written == 0 && stream.src_size == 0 { return nil }

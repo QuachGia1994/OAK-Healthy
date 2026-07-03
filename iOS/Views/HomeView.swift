@@ -544,9 +544,9 @@ private struct TodayStripButton: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
             .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 12)
                     .stroke(isSelected ? tint.opacity(0.55) : Color.clear, lineWidth: 1)
             )
         }
@@ -596,30 +596,6 @@ private struct StreakChip: View {
         .padding(.vertical, 6)
         .background(.ultraThinMaterial)
         .clipShape(Capsule())
-    }
-}
-
-private struct CountChip: View {
-    let title: String
-    let value: Int
-    let tint: Color
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(tint)
-                .frame(width: 8, height: 8)
-            Text("\(title) \(value)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -731,10 +707,12 @@ private struct ActiveSupplementRow: View {
         ) {
             Button("home_confirm_intake_action".localized) {
                 pulseIcon()
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 onAction(supplement, timeString, .taken, modelContext)
             }
             Button("notif_action_skip".localized) {
                 pulseIcon()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 onAction(supplement, timeString, .skipped, modelContext)
             }
             Button("cancel".localized, role: .cancel) {}
@@ -804,13 +782,13 @@ private struct ActiveSupplementRow: View {
     
     @MainActor
     private func pulseIcon() {
-        withAnimation(.spring(response: 0.22, dampingFraction: 0.55)) {
+        withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) {
             iconScale = 1.25
         }
         Task {
             try? await Task.sleep(for: .milliseconds(160))
             await MainActor.run {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.75)) {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) {
                     iconScale = 1
                 }
             }
@@ -848,7 +826,7 @@ private struct RestingSupplementRow: View {
             VStack(alignment: .leading) {
                 Text(info.supplement.name)
                     .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                 Text("resting_title".localized)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -861,7 +839,6 @@ private struct RestingSupplementRow: View {
                 .background(.secondary.opacity(0.2))
                 .clipShape(Capsule())
         }
-        .opacity(0.6)
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))

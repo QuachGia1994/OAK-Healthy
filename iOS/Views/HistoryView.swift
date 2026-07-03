@@ -116,7 +116,7 @@ public struct HistoryView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
-                    .padding(.bottom, 136)
+                    .padding(.bottom, 128)
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
@@ -257,11 +257,11 @@ private struct InsightsTrendCard: View {
         let lateCount = summary?.lateCount ?? 0
 
         VStack(alignment: .leading, spacing: 12) {
-            ZStack {
+                ZStack {
                 RoundedRectangle(cornerRadius: 18)
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.10, green: 0.55, blue: 1.0), Color(red: 0.05, green: 0.35, blue: 0.95)],
+                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -272,7 +272,7 @@ private struct InsightsTrendCard: View {
                         Text("insights_total_title".localized)
                             .font(.caption)
                             .fontWeight(.semibold)
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(.white)
                         Spacer()
                         Button {
                             guard summary != nil else { return }
@@ -289,7 +289,7 @@ private struct InsightsTrendCard: View {
                         .foregroundStyle(.white)
                         .minimumScaleFactor(0.6)
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: 12) {
                         InsightsChip(text: String.localizedStringWithFormat("insights_completion_chip_format".localized, completion))
                         InsightsChip(text: String.localizedStringWithFormat("insights_late_chip_format".localized, lateCount), tint: Color.red.opacity(0.35))
                     }
