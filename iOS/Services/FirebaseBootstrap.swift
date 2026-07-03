@@ -24,19 +24,36 @@ enum FirebaseBootstrap {
             return
         }
 
-        let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")
-        guard let path = plistPath,
-              let options = FirebaseOptions(contentsOfFile: path) else {
-            UserDefaults.standard.set("plist_not_found", forKey: "fbDiagState")
-            return
-        }
-        FirebaseApp.configure(options: options)
-        let appOK = FirebaseApp.app() != nil
-        UserDefaults.standard.set(appOK ? "configured" : "configure_failed", forKey: "fbDiagState")
-        if appOK {
+        if configureFromPlist() {
             didConfigure = true
+            UserDefaults.standard.set("configured", forKey: "fbDiagState")
             postConfigure()
+        } else if configureFromFallback() {
+            didConfigure = true
+            UserDefaults.standard.set("fallback", forKey: "fbDiagState")
+            postConfigure()
+        } else {
+            UserDefaults.standard.set("plist_not_found", forKey: "fbDiagState")
         }
+    }
+
+    private static func configureFromPlist() -> Bool {
+        guard let path = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist"),
+              let options = FirebaseOptions(contentsOfFile: path) else { return false }
+        FirebaseApp.configure(options: options)
+        return FirebaseApp.app() != nil
+    }
+
+    private static func configureFromFallback() -> Bool {
+        let options = FirebaseOptions(
+            googleAppID: "1:339994104835:ios:3662c12531ad716cac2a36",
+            gcmSenderID: "339994104835"
+        )
+        options.projectID = "oak-healthy"
+        options.databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
+        options.storageBucket = "oak-healthy.firebasestorage.app"
+        FirebaseApp.configure(options: options)
+        return FirebaseApp.app() != nil
     }
 
     static var firebaseDiag: String {
