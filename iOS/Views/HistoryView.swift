@@ -4,7 +4,6 @@ import SwiftData
 
 /// Màn hình lịch sử uống với biểu đồ (iOS).
 public struct HistoryView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     @State private var viewModel = HistoryViewModel()
@@ -25,8 +24,7 @@ public struct HistoryView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient
-                    .ignoresSafeArea()
+                Color.clear.oakBackground()
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
@@ -133,6 +131,7 @@ public struct HistoryView: View {
                         isShowingSettingsSheet = true
                     } label: {
                         Image(systemName: "gearshape.fill")
+                            .accessibilityLabel("settings_title".localized)
                     }
                 }
             }
@@ -153,14 +152,7 @@ public struct HistoryView: View {
             }
         }
     }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-    
+
     @MainActor
     private func reload() async {
         guard let clientId = activeClientManager.currentClientId else {

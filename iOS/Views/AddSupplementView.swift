@@ -3,7 +3,6 @@ import SwiftData
 
 /// Màn hình thêm mới thực phẩm bổ sung.
 public struct AddSupplementView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @State private var viewModel: AddSupplementViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -26,8 +25,7 @@ public struct AddSupplementView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient
-                    .ignoresSafeArea()
+                Color.clear.oakBackground()
                 
                 Form {
                     basicSection
@@ -80,14 +78,7 @@ public struct AddSupplementView: View {
             }
         }
     }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-    
+
     private var basicSection: some View {
         Section {
             TextField("name_hint".localized, text: $viewModel.name)

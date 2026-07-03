@@ -3,7 +3,6 @@ import SwiftData
 
 /// Màn hình chính Dashboard trên iOS.
 public struct HomeView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
@@ -36,8 +35,7 @@ public struct HomeView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient
-                    .ignoresSafeArea()
+                Color.clear.oakBackground()
                 
                 if clients.isEmpty {
                     VStack(spacing: 12) {
@@ -205,14 +203,16 @@ public struct HomeView: View {
                                 isShowingAddSheet = true
                             } label: {
                                 Image(systemName: "plus")
+                                    .accessibilityLabel("add_supplement".localized)
                             }
                         }
-                        
+
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
                                 isShowingSettingsSheet = true
                             } label: {
                                 Image(systemName: "gearshape.fill")
+                                    .accessibilityLabel("settings_title".localized)
                             }
                         }
                     }
@@ -305,13 +305,6 @@ public struct HomeView: View {
                 activeClientManager.setCurrentClientId(created.id)
             }
         }
-    }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
     
     private var activeClient: ClientProfile? {

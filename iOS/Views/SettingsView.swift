@@ -32,7 +32,7 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient.ignoresSafeArea()
+                Color.clear.oakBackground()
                 settingsList
             }
         }
@@ -347,13 +347,6 @@ public struct SettingsView: View {
             }
             Button("cancel".localized, role: .cancel) {}
         }
-    }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
     private var glassRowBackground: some View {

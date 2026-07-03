@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 
 public struct StackView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
@@ -27,8 +26,7 @@ public struct StackView: View {
     public var body: some View {
         NavigationStack {
             ZStack {
-                backgroundGradient
-                    .ignoresSafeArea()
+                Color.clear.oakBackground()
                 
                 List {
                     Section {
@@ -100,14 +98,16 @@ public struct StackView: View {
                             isShowingAddSheet = true
                         } label: {
                             Image(systemName: "plus")
+                                .accessibilityLabel("add_supplement".localized)
                         }
                     }
-                    
+
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             isShowingSettingsSheet = true
                         } label: {
                             Image(systemName: "gearshape.fill")
+                                .accessibilityLabel("settings_title".localized)
                         }
                     }
                 }
@@ -145,14 +145,7 @@ public struct StackView: View {
     private var glassRowBackground: some View {
         Color.clear.background(.ultraThinMaterial)
     }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-    
+
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
         return clients.first { $0.id == id }

@@ -3,7 +3,6 @@ import SwiftData
 import UIKit
 
 public struct SyncCenterView: View {
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     
@@ -49,7 +48,7 @@ public struct SyncCenterView: View {
     
     public var body: some View {
         ZStack {
-            backgroundGradient.ignoresSafeArea()
+            Color.clear.oakBackground()
             List {
                 onboardingSection
                 statusSection
@@ -668,14 +667,7 @@ public struct SyncCenterView: View {
         if !hosted.isEmpty { return hosted }
         return linkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    
-    private var backgroundGradient: LinearGradient {
-        let colors: [Color] = colorScheme == .dark
-            ? [Color(red: 0.08, green: 0.0, blue: 0.15), .black]
-            : [Color(.systemGroupedBackground), Color(.systemBackground)]
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
-    }
-    
+
     private var glassRowBackground: some View {
         Color.clear.background(.ultraThinMaterial)
     }

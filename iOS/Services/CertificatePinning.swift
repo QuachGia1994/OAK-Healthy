@@ -4,7 +4,7 @@ import CryptoKit
 
 // ponytail: cert pinning via URLSessionDelegate.
 // In DEBUG, logs real SPKI hashes on first connection so you can populate pinnedHashes.
-// In RELEASE, validates against the hardcoded pins. If no pins are set, skips validation (fail-open).
+// In RELEASE, validates against the hardcoded pins. If no pins are set, rejects connections (fail-closed).
 final class PinnedSessionDelegate: NSObject, URLSessionDelegate {
     // ponytail: capture real hashes by running a DEBUG build once, then paste them here.
     // Format: Base64(SHA-256(DER(SubjectPublicKeyInfo)))
@@ -25,8 +25,7 @@ final class PinnedSessionDelegate: NSObject, URLSessionDelegate {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
-        let host = challenge.protectionSpace.host
-        let serverHash = sha256SPKIHash(of: certificate)
+        let host = challenge.protectionSpace.host, serverHash = sha256SPKIHash(of: certificate)
         #if DEBUG
         NSLog("[CertPin] host=%@ spki_sha256=%@", host, serverHash)
         completionHandler(.useCredential, URLCredential(trust: serverTrust))
@@ -34,13 +33,14 @@ final class PinnedSessionDelegate: NSObject, URLSessionDelegate {
         #endif
         guard let pins = Self.pinnedHashes[host], !pins.isEmpty,
               Date() < Self.pinExpiration else {
-            completionHandler(.useCredential, URLCredential(trust: serverTrust))
+            completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
         let matched = pins.contains(serverHash)
+        #if DEBUG
         NSLog("[CertPin] Pin %@ for %@ — got: %@", matched ? "match" : "mismatch", host, serverHash)
-        completionHandler(matched ? .useCredential : .cancelAuthenticationChallenge,
-                          matched ? URLCredential(trust: serverTrust) : nil)
+        #endif
+        completionHandler(matched ? .useCredential : .cancelAuthenticationChallenge, matched ? URLCredential(trust: serverTrust) : nil)
     }
 
     private func sha256SPKIHash(of certificate: SecCertificate) -> String {

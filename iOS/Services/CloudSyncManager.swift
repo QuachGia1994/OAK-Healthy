@@ -701,7 +701,6 @@ enum CloudSyncAutoSync {
         }
         UserDefaults.standard.set(nowMs, forKey: logTsKey)
         UserDefaults.standard.set(message, forKey: logMsgKey)
-        print("☁️ Auto-Sync: Failed – \(message)")
         DebugReporter.report("cloud_sync_failure", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: error))
     }
     
