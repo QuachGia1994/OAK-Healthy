@@ -7,7 +7,6 @@ extension View {
 }
 
 enum OakGlassRow {
-    @ViewBuilder
     static var background: some View {
         Color.clear.background(.ultraThinMaterial)
     }
