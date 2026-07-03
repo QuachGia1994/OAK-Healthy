@@ -4,9 +4,15 @@ import SwiftData
 
 enum FirebaseCloudStore {
     private static let rootKey = "oakBins"
-    
+    private static let validBinIdPattern = /^[A-Za-z0-9_-]{1,64}$/
+
     private static func root() -> DatabaseReference {
         Database.database(url: FirebaseBootstrap.databaseURL).reference().child(rootKey)
+    }
+
+    static func isValidBinId(_ id: String) -> Bool {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed.range(of: validBinIdPattern) != nil
     }
     
     static func createBin(payload: String) async throws -> (id: String, rev: String) {
@@ -19,6 +25,7 @@ enum FirebaseCloudStore {
     
     static func readMetaRev(id: String) async throws -> String? {
         try await FirebaseBootstrap.ensureSignedIn()
+        guard isValidBinId(id) else { return nil }
         root().child(id).keepSynced(true)
         let snap = try await get(path: [id, "meta", "rev"])
         let num = snap.value as? NSNumber
@@ -27,6 +34,7 @@ enum FirebaseCloudStore {
     
     static func readPayload(id: String) async throws -> String? {
         try await FirebaseBootstrap.ensureSignedIn()
+        guard isValidBinId(id) else { return nil }
         root().child(id).keepSynced(true)
         let snap = try await get(path: [id, "payload"])
         return snap.value as? String
@@ -34,6 +42,7 @@ enum FirebaseCloudStore {
     
     static func write(id: String, payload: String, expectedRev: String?) async throws -> String {
         try await FirebaseBootstrap.ensureSignedIn()
+        guard isValidBinId(id) else { throw FirebaseConflictError() }
         let expected = (expectedRev ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !expected.isEmpty {
             let current = (try await readMetaRev(id: id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -156,6 +165,7 @@ final class FirebaseRealtimeSyncListener {
     }
 
     private func observeRevChange(binId: String, manifestId: String) -> DatabaseHandle {
+        guard FirebaseCloudStore.isValidBinId(binId) else { return 0 }
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(binId).child("meta").child("rev")
         return ref.observe(.value) { [weak self] snapshot, _ in
             guard let self, let newRev = snapshot.value as? NSNumber else { return }
@@ -171,6 +181,7 @@ final class FirebaseRealtimeSyncListener {
     }
 
     private func observeManifest(manifestId: String) -> DatabaseHandle {
+        guard FirebaseCloudStore.isValidBinId(manifestId) else { return 0 }
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(manifestId).child("meta").child("rev")
         return ref.observe(.value) { [weak self] snapshot, _ in
             guard let self, let newRev = snapshot.value as? NSNumber else { return }

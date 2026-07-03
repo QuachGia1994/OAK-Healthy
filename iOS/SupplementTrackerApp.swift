@@ -23,10 +23,12 @@ private enum PendingImportKeys {
 enum DebugReporter {
     private static let urlKey = "debugServerUrl"
     private static let runIdKey = "debugRunId"
-    
+    private static let allowedHosts: Set<String> = ["localhost", "127.0.0.1"]
+
     static func report(_ name: String, fields: [String: String] = [:]) {
         let rawUrl = (UserDefaults.standard.string(forKey: urlKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !rawUrl.isEmpty, let url = URL(string: rawUrl) else { return }
+        guard !rawUrl.isEmpty, let url = URL(string: rawUrl),
+              let host = url.host, allowedHosts.contains(host) else { return }
         let runId = (UserDefaults.standard.string(forKey: runIdKey) ?? "pre").trimmingCharacters(in: .whitespacesAndNewlines)
         
         var payload: [String: Any] = [
