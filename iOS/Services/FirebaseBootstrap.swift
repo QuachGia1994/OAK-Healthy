@@ -16,13 +16,11 @@ enum FirebaseBootstrap {
     static func configureIfNeeded() {
         guard !didConfigure else { return }
         if FirebaseApp.app() != nil { markDone("ok"); return }
-        AppCheck.setAppCheckProviderFactory(
 #if DEBUG
-            AppCheckDebugProviderFactory()
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
 #else
-            AppAttestProviderFactory()
+        AppCheck.setAppCheckProviderFactory(AppAttestProviderFactory())
 #endif
-        )
         if tryPlist(Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist")) { return }
         let tmp = (NSTemporaryDirectory() as NSString).appendingPathComponent("GoogleService-Info.plist")
         if (try? embeddedPlist.write(toFile: tmp, atomically: true, encoding: .utf8)) != nil { _ = tryPlist(tmp) }
