@@ -34,124 +34,7 @@ public struct HomeView: View {
     
     public var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                let bottomPadding = max(96, proxy.size.height * 0.10)
-                ZStack {
-                    Color.clear.oakBackground()
-                    
-                    if clients.isEmpty {
-                        emptyStateView
-                    } else {
-                        dashboardView(bottomPadding: bottomPadding)
-                    }
-                    .navigationTitle("dashboard_title".localized)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Menu {
-                                ForEach(clients) { client in
-                                    Button(client.name) {
-                                        activeClientManager.setCurrentClientId(client.id)
-                                    }
-                                }
-                                Button("add_client".localized) {
-                                    isShowingAddClientSheet = true
-                                }
-                            } label: {
-                                Text(clientTitle)
-                                    .font(.headline)
-                            }
-                        }
-                        
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                isShowingAddSheet = true
-                            } label: {
-                                Image(systemName: "plus")
-                                    .accessibilityLabel("add_supplement".localized)
-                            }
-                        }
-
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button {
-                                isShowingSettingsSheet = true
-                            } label: {
-                                Image(systemName: "gearshape.fill")
-                                    .accessibilityLabel("settings_title".localized)
-                            }
-                        }
-                    }
-                    .sheet(isPresented: $isShowingAddSheet) {
-                        AddSupplementView(modelContext: modelContext, activeClient: activeClient) { _ in
-                        }
-                    }
-                    .sheet(item: $editingSupplement) { supplement in
-                        AddSupplementView(modelContext: modelContext, editingSupplement: supplement, activeClient: activeClient) { _ in
-                        }
-                    }
-                    .sheet(isPresented: $isShowingSettingsSheet) {
-                        SettingsView(activeClientManager: activeClientManager)
-                    }
-                    .alert("update_available_title".localized, isPresented: $updateService.isUpdateAvailable) {
-                        if let url = URL(string: updateService.updateInfo?.updateUrl ?? "") {
-                            Link("update_now".localized, destination: url)
-                        }
-                        if updateService.updateInfo?.forceUpdate != true {
-                            Button("later".localized, role: .cancel) {
-                                updateService.skipUpdate(version: updateService.updateInfo?.version ?? "")
-                            }
-                        }
-                    } message: {
-                        let version = updateService.updateInfo?.version ?? ""
-                        let notes = updateService.updateInfo?.releaseNotes ?? ""
-                        if notes.isEmpty {
-                            Text("update_description".localized)
-                            Text(String.localizedStringWithFormat("update_available_message_format".localized, version))
-                        } else {
-                            Text(notes)
-                        }
-                    }
-                    .task {
-                        try? await Task.sleep(for: .seconds(1))
-                        await updateService.checkForUpdates()
-                    }
-                    .onChange(of: supplements) {
-                        pruneExpiredSupplementsIfNeeded()
-                        viewModel.processSupplements(supplementsForActiveClient)
-                        homeOverdueCount = viewModel.cachedTodayCounts.missed
-                        rebuildVisible(now: .now)
-                    }
-                    .task(id: activeClientManager.currentClientId) {
-                        pruneExpiredSupplementsIfNeeded()
-                        viewModel.processSupplements(supplementsForActiveClient)
-                        homeOverdueCount = viewModel.cachedTodayCounts.missed
-                        rebuildVisible(now: .now)
-                    }
-                    .onChange(of: doseFilter) {
-                        rebuildVisible(now: renderNow)
-                    }
-                    .onReceive(refreshTimer) { _ in
-                        let now = Date.now
-                        renderNow = now
-                        rebuildVisible(now: now)
-                    }
-                    .alert(
-                        "error_title".localized,
-                        isPresented: Binding(
-                            get: { viewModel.errorMessage != nil },
-                            set: { newValue in
-                                if !newValue { viewModel.errorMessage = nil }
-                            }
-                        )
-                    ) {
-                        Button("ok".localized) { viewModel.errorMessage = nil }
-                    } message: {
-                        Text(viewModel.errorMessage ?? "")
-                    }
-                }
-            }
+            homeContent
         }
         .task {
             guard activeClientManager.currentClientId == nil else { return }
@@ -170,6 +53,127 @@ public struct HomeView: View {
                     return
                 }
                 activeClientManager.setCurrentClientId(created.id)
+            }
+        }
+    }
+
+    private var homeContent: some View {
+        GeometryReader { proxy in
+            let bottomPadding = max(96, proxy.size.height * 0.10)
+            ZStack {
+                Color.clear.oakBackground()
+                
+                if clients.isEmpty {
+                    emptyStateView
+                } else {
+                    dashboardView(bottomPadding: bottomPadding)
+                }
+            }
+            .navigationTitle("dashboard_title".localized)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        ForEach(clients) { client in
+                            Button(client.name) {
+                                activeClientManager.setCurrentClientId(client.id)
+                            }
+                        }
+                        Button("add_client".localized) {
+                            isShowingAddClientSheet = true
+                        }
+                    } label: {
+                        Text(clientTitle)
+                            .font(.headline)
+                    }
+                }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isShowingAddSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .accessibilityLabel("add_supplement".localized)
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isShowingSettingsSheet = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .accessibilityLabel("settings_title".localized)
+                    }
+                }
+            }
+            .sheet(isPresented: $isShowingAddSheet) {
+                AddSupplementView(modelContext: modelContext, activeClient: activeClient) { _ in
+                }
+            }
+            .sheet(item: $editingSupplement) { supplement in
+                AddSupplementView(modelContext: modelContext, editingSupplement: supplement, activeClient: activeClient) { _ in
+                }
+            }
+            .sheet(isPresented: $isShowingSettingsSheet) {
+                SettingsView(activeClientManager: activeClientManager)
+            }
+            .alert("update_available_title".localized, isPresented: $updateService.isUpdateAvailable) {
+                if let url = URL(string: updateService.updateInfo?.updateUrl ?? "") {
+                    Link("update_now".localized, destination: url)
+                }
+                if updateService.updateInfo?.forceUpdate != true {
+                    Button("later".localized, role: .cancel) {
+                        updateService.skipUpdate(version: updateService.updateInfo?.version ?? "")
+                    }
+                }
+            } message: {
+                let version = updateService.updateInfo?.version ?? ""
+                let notes = updateService.updateInfo?.releaseNotes ?? ""
+                if notes.isEmpty {
+                    Text("update_description".localized)
+                    Text(String.localizedStringWithFormat("update_available_message_format".localized, version))
+                } else {
+                    Text(notes)
+                }
+            }
+            .task {
+                try? await Task.sleep(for: .seconds(1))
+                await updateService.checkForUpdates()
+            }
+            .onChange(of: supplements) {
+                pruneExpiredSupplementsIfNeeded()
+                viewModel.processSupplements(supplementsForActiveClient)
+                homeOverdueCount = viewModel.cachedTodayCounts.missed
+                rebuildVisible(now: .now)
+            }
+            .task(id: activeClientManager.currentClientId) {
+                pruneExpiredSupplementsIfNeeded()
+                viewModel.processSupplements(supplementsForActiveClient)
+                homeOverdueCount = viewModel.cachedTodayCounts.missed
+                rebuildVisible(now: .now)
+            }
+            .onChange(of: doseFilter) {
+                rebuildVisible(now: renderNow)
+            }
+            .onReceive(refreshTimer) { _ in
+                let now = Date.now
+                renderNow = now
+                rebuildVisible(now: now)
+            }
+            .alert(
+                "error_title".localized,
+                isPresented: Binding(
+                    get: { viewModel.errorMessage != nil },
+                    set: { newValue in
+                        if !newValue { viewModel.errorMessage = nil }
+                    }
+                )
+            ) {
+                Button("ok".localized) { viewModel.errorMessage = nil }
+            } message: {
+                Text(viewModel.errorMessage ?? "")
             }
         }
     }
