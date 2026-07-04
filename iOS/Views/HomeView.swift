@@ -535,32 +535,28 @@ private struct TodayStripButton: View {
     let onTap: () -> Void
     
     var body: some View {
-        Button {
-            onTap()
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text("\(count)")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .foregroundStyle(tint)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(.ultraThinMaterial)
-            .background(isSelected ? tint.opacity(0.16) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? tint.opacity(0.60) : Color.clear, lineWidth: 1)
-            )
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+            Text("\(count)")
+                .font(.title3)
+                .fontWeight(.bold)
+                .foregroundStyle(tint)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+        .background(isSelected ? tint.opacity(0.16) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? tint.opacity(0.60) : Color.clear, lineWidth: 1)
+        )
         .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture(perform: onTap)
         .accessibilityLabel("\(title), \(count)")
     }
 }
