@@ -34,29 +34,35 @@ public struct HomeView: View {
     
     public var body: some View {
         NavigationStack {
-            ZStack {
-                Color.clear.oakBackground()
-                
-                if clients.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("add_client_to_start".localized)
-                            .font(.headline)
-                        Text("settings_guide_1".localized)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Button("add_client".localized) {
-                            isShowingAddClientSheet = true
+            GeometryReader { proxy in
+                let bottomPadding = max(96, proxy.size.height * 0.10)
+                ZStack {
+                    Color.clear.oakBackground()
+                    
+                    if clients.isEmpty {
+                        VStack(spacing: 14) {
+                            Image(systemName: "person.crop.circle.badge.plus")
+                                .font(.system(size: 30, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text("add_client_to_start".localized)
+                                .font(.title3.weight(.semibold))
+                            Text("settings_guide_1".localized)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                            Button("add_client".localized) {
+                                isShowingAddClientSheet = true
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding(20)
-                    .oakCardStyle(.glass, cornerRadius: 16)
-                    .padding(.horizontal, 24)
-                } else {
-                    let now = renderNow
-                    let overdue = cachedOverdue
-                    List {
+                        .padding(20)
+                        .oakCardStyle(.glass, cornerRadius: 16)
+                        .padding(.horizontal, 24)
+                        .accessibilityElement(children: .combine)
+                    } else {
+                        let now = renderNow
+                        let overdue = cachedOverdue
+                        List {
                         Section {
                             TodayHeaderView(
                                 title: "today_intake_title".localized,
@@ -172,16 +178,16 @@ public struct HomeView: View {
                             }
                         }
                     }
-                    .scrollContentBackground(.hidden)
-                    .scrollIndicators(.hidden)
-                    .scrollDismissesKeyboard(.interactively)
-                    .safeAreaPadding(.bottom, 128)
-                    .listStyle(.plain)
-                    .navigationTitle("dashboard_title".localized)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
-                    .toolbar {
+                        .scrollContentBackground(.hidden)
+                        .scrollIndicators(.hidden)
+                        .scrollDismissesKeyboard(.interactively)
+                        .safeAreaPadding(.bottom, bottomPadding)
+                        .listStyle(.plain)
+                        .navigationTitle("dashboard_title".localized)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                        .toolbarBackground(.visible, for: .navigationBar)
+                        .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Menu {
                                 ForEach(clients) { client in
@@ -216,72 +222,73 @@ public struct HomeView: View {
                             }
                         }
                     }
-                    .sheet(isPresented: $isShowingAddSheet) {
-                        AddSupplementView(modelContext: modelContext, activeClient: activeClient) { _ in
-                        }
-                    }
-                    .sheet(item: $editingSupplement) { supplement in
-                        AddSupplementView(modelContext: modelContext, editingSupplement: supplement, activeClient: activeClient) { _ in
-                        }
-                    }
-                    .sheet(isPresented: $isShowingSettingsSheet) {
-                        SettingsView(activeClientManager: activeClientManager)
-                    }
-                    .alert("update_available_title".localized, isPresented: $updateService.isUpdateAvailable) {
-                        if let url = URL(string: updateService.updateInfo?.updateUrl ?? "") {
-                            Link("update_now".localized, destination: url)
-                        }
-                        if updateService.updateInfo?.forceUpdate != true {
-                            Button("later".localized, role: .cancel) {
-                                updateService.skipUpdate(version: updateService.updateInfo?.version ?? "")
+                        .sheet(isPresented: $isShowingAddSheet) {
+                            AddSupplementView(modelContext: modelContext, activeClient: activeClient) { _ in
                             }
                         }
-                    } message: {
-                        let version = updateService.updateInfo?.version ?? ""
-                        let notes = updateService.updateInfo?.releaseNotes ?? ""
-                        if notes.isEmpty {
-                            Text("update_description".localized)
-                            Text(String.localizedStringWithFormat("update_available_message_format".localized, version))
-                        } else {
-                            Text(notes)
-                        }
-                    }
-                    .task {
-                        try? await Task.sleep(for: .seconds(1))
-                        await updateService.checkForUpdates()
-                    }
-                    .onChange(of: supplements) {
-                        pruneExpiredSupplementsIfNeeded()
-                        viewModel.processSupplements(supplementsForActiveClient)
-                        homeOverdueCount = viewModel.cachedTodayCounts.missed
-                        rebuildVisible(now: .now)
-                    }
-                    .task(id: activeClientManager.currentClientId) {
-                        pruneExpiredSupplementsIfNeeded()
-                        viewModel.processSupplements(supplementsForActiveClient)
-                        homeOverdueCount = viewModel.cachedTodayCounts.missed
-                        rebuildVisible(now: .now)
-                    }
-                    .onChange(of: doseFilter) {
-                        rebuildVisible(now: renderNow)
-                    }
-                    .onReceive(refreshTimer) { _ in
-                        let now = Date.now
-                        renderNow = now
-                        rebuildVisible(now: now)
-                    }
-                    .alert(
-                        "error_title".localized,
-                        isPresented: Binding(
-                            get: { viewModel.errorMessage != nil },
-                            set: { newValue in
-                                if !newValue { viewModel.errorMessage = nil }
+                        .sheet(item: $editingSupplement) { supplement in
+                            AddSupplementView(modelContext: modelContext, editingSupplement: supplement, activeClient: activeClient) { _ in
                             }
-                        )
-                    ) {
-                        Button("ok".localized) { viewModel.errorMessage = nil }
-                    } message: {
-                        Text(viewModel.errorMessage ?? "")
+                        }
+                        .sheet(isPresented: $isShowingSettingsSheet) {
+                            SettingsView(activeClientManager: activeClientManager)
+                        }
+                        .alert("update_available_title".localized, isPresented: $updateService.isUpdateAvailable) {
+                            if let url = URL(string: updateService.updateInfo?.updateUrl ?? "") {
+                                Link("update_now".localized, destination: url)
+                            }
+                            if updateService.updateInfo?.forceUpdate != true {
+                                Button("later".localized, role: .cancel) {
+                                    updateService.skipUpdate(version: updateService.updateInfo?.version ?? "")
+                                }
+                            }
+                        } message: {
+                            let version = updateService.updateInfo?.version ?? ""
+                            let notes = updateService.updateInfo?.releaseNotes ?? ""
+                            if notes.isEmpty {
+                                Text("update_description".localized)
+                                Text(String.localizedStringWithFormat("update_available_message_format".localized, version))
+                            } else {
+                                Text(notes)
+                            }
+                        }
+                        .task {
+                            try? await Task.sleep(for: .seconds(1))
+                            await updateService.checkForUpdates()
+                        }
+                        .onChange(of: supplements) {
+                            pruneExpiredSupplementsIfNeeded()
+                            viewModel.processSupplements(supplementsForActiveClient)
+                            homeOverdueCount = viewModel.cachedTodayCounts.missed
+                            rebuildVisible(now: .now)
+                        }
+                        .task(id: activeClientManager.currentClientId) {
+                            pruneExpiredSupplementsIfNeeded()
+                            viewModel.processSupplements(supplementsForActiveClient)
+                            homeOverdueCount = viewModel.cachedTodayCounts.missed
+                            rebuildVisible(now: .now)
+                        }
+                        .onChange(of: doseFilter) {
+                            rebuildVisible(now: renderNow)
+                        }
+                        .onReceive(refreshTimer) { _ in
+                            let now = Date.now
+                            renderNow = now
+                            rebuildVisible(now: now)
+                        }
+                        .alert(
+                            "error_title".localized,
+                            isPresented: Binding(
+                                get: { viewModel.errorMessage != nil },
+                                set: { newValue in
+                                    if !newValue { viewModel.errorMessage = nil }
+                                }
+                            )
+                        ) {
+                            Button("ok".localized) { viewModel.errorMessage = nil }
+                        } message: {
+                            Text(viewModel.errorMessage ?? "")
+                        }
                     }
                 }
             }
@@ -520,6 +527,7 @@ private struct HomeDoseFilterBar: View {
 }
 
 private struct TodayStripButton: View {
+    @Environment(\.colorScheme) private var colorScheme
     let title: String
     let count: Int
     let tint: Color
@@ -527,6 +535,7 @@ private struct TodayStripButton: View {
     let onTap: () -> Void
     
     var body: some View {
+        let isDark = colorScheme == .dark
         Button {
             onTap()
         } label: {
@@ -543,11 +552,11 @@ private struct TodayStripButton: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
-            .background(.ultraThinMaterial)
+            .background(isSelected ? tint.opacity(isDark ? 0.24 : 0.16) : .ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(isSelected ? tint.opacity(0.55) : Color.clear, lineWidth: 1)
+                    .stroke(isSelected ? tint.opacity(0.60) : Color.clear, lineWidth: 1)
             )
         }
         .accessibilityLabel("\(title), \(count)")

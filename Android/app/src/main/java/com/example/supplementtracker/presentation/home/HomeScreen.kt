@@ -156,6 +156,7 @@ fun HomeScreen(
                                         text = currentClientName?.let { stringResource(R.string.student_prefix, it) } ?: stringResource(R.string.add_a_client),
                                         modifier = Modifier.weight(1f),
                                         maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
                                         color = primaryTextColor
                                     )
                                     Icon(Icons.Default.ArrowDropDown, contentDescription = stringResource(R.string.a11y_select_client), tint = primaryTextColor)
@@ -461,7 +462,6 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.home_status_due),
                 count = counts.due,
-                tint = OakColors.DueSoon,
                 selected = selected == HomeDoseFilter.DUE,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -471,7 +471,6 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.dose_status_missed),
                 count = counts.missed,
-                tint = OakColors.Missed,
                 selected = selected == HomeDoseFilter.OVERDUE,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -483,7 +482,6 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.notif_action_taken),
                 count = counts.taken,
-                tint = OakColors.Taken,
                 selected = selected == HomeDoseFilter.TAKEN,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -493,7 +491,6 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.notif_action_skip),
                 count = counts.skipped,
-                tint = OakColors.Skipped,
                 selected = selected == HomeDoseFilter.SKIPPED,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -508,16 +505,18 @@ private fun TodayStrip(
 private fun TodayStripButton(
     title: String,
     count: Int,
-    tint: Color,
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
-) {
+    ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val textColor = if (isDark) Color.White else OakColors.TextPrimary
-    val borderColor = if (selected) tint.copy(alpha = 0.55f) else Color.Transparent
+    val borderColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else Color.Transparent
+    val countColor = MaterialTheme.colorScheme.onSurface
+    val fillColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.18f else 0.12f) else Color.Transparent
     GlassCard(
         modifier = modifier
+            .background(fillColor, RoundedCornerShape(24.dp))
             .clickable(onClick = onClick)
             .border(1.dp, borderColor, RoundedCornerShape(24.dp))
     ) {
@@ -532,7 +531,7 @@ private fun TodayStripButton(
             Text(
                 text = count.toString(),
                 style = MaterialTheme.typography.headlineSmall,
-                color = tint,
+                color = countColor,
                 fontWeight = FontWeight.Bold
             )
         }

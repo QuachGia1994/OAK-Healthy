@@ -27,7 +27,7 @@ public struct HistoryView: View {
                 Color.clear.oakBackground()
                 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 20) {
                         InsightsTrendCard(
                             trend7: viewModel.trend7,
                             trend30: viewModel.trend30,
@@ -39,7 +39,7 @@ public struct HistoryView: View {
 
                         VStack(alignment: .leading) {
                             Text("intake_frequency_last_7".localized)
-                                .font(.headline)
+                                .font(.title3.weight(.semibold))
                             
                             Chart {
                                 ForEach(viewModel.weeklyData) { data in
@@ -74,7 +74,7 @@ public struct HistoryView: View {
                         
                         VStack(alignment: .leading) {
                             Text("log_details".localized)
-                                .font(.headline)
+                                .font(.title3.weight(.semibold))
                             
                             HistoryFilterBar(searchText: $searchText, filter: $filter)
                                 .padding(.top, 8)
@@ -85,6 +85,11 @@ public struct HistoryView: View {
                                         .font(.title2)
                                         .foregroundStyle(.secondary)
                                     Text("no_logs_yet".localized)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.center)
+                                    Text("history_search_placeholder".localized)
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                         .multilineTextAlignment(.center)
                                 }
@@ -116,7 +121,7 @@ public struct HistoryView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
-                    .padding(.bottom, 128)
+                    .padding(.bottom, 96)
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
@@ -269,10 +274,10 @@ private struct InsightsTrendCard: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("insights_total_title".localized)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.white)
+                    Text("insights_total_title".localized)
+                        .font(.subheadline.weight(.semibold))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
                         Spacer()
                         Button {
                             guard summary != nil else { return }
@@ -285,7 +290,7 @@ private struct InsightsTrendCard: View {
                     }
 
                     Text(formattedNumber(total))
-                        .font(.system(size: 52, weight: .bold, design: .rounded))
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .minimumScaleFactor(0.6)
 

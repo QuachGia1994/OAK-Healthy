@@ -215,7 +215,18 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(Icons.Default.Search, contentDescription = stringResource(R.string.a11y_search), tint = muted)
-                        Text(stringResource(R.string.no_logs_yet), color = muted, textAlign = TextAlign.Center)
+                        Text(
+                            stringResource(R.string.no_logs_yet),
+                            color = muted,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(
+                            stringResource(R.string.history_search_placeholder),
+                            color = muted,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
@@ -309,7 +320,7 @@ private fun InsightsTrendCard(
                 }
                 Text(
                     text = NumberFormat.getInstance().format(total),
-                    fontSize = 52.sp,
+                    fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     maxLines = 1,
@@ -338,6 +349,13 @@ private fun InsightsTrendCard(
                     onSelected = { window = it },
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (summary == null) {
+                    Text(
+                        text = stringResource(R.string.insights_no_data),
+                        color = Color.White.copy(alpha = 0.80f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }

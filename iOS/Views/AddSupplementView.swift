@@ -68,11 +68,16 @@ public struct AddSupplementView: View {
                 if viewModel.isSaving {
                     ZStack {
                         Color.black.opacity(0.2).ignoresSafeArea()
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .tint(.white)
-                            .padding(16)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        VStack(spacing: 10) {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(.white)
+                            Text("saving".localized)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(18)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
                     }
                 }
             }
@@ -107,7 +112,7 @@ public struct AddSupplementView: View {
                     HStack {
                         VStack(alignment: .leading) {
                             Text(suggestion.name)
-                                .font(.headline)
+                                .font(.subheadline.weight(.semibold))
                             if let advice = suggestion.advice, !advice.isEmpty {
                                 Text(advice.localized)
                                     .font(.caption)

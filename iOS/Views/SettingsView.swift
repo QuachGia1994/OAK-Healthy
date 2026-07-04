@@ -199,8 +199,15 @@ public struct SettingsView: View {
     private var clientManagementSection: some View {
         Section {
             if clients.isEmpty {
-                Text("add_client_to_start".localized)
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 8) {
+                    Image(systemName: "person.crop.circle.badge.plus")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                    Text("add_client_to_start".localized)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
             } else {
                 ForEach(clients) { client in
                     ClientRow(
