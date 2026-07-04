@@ -552,7 +552,16 @@ private struct TodayStripButton: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
-            .background(isSelected ? tint.opacity(isDark ? 0.24 : 0.16) : .ultraThinMaterial)
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.ultraThinMaterial)
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(tint.opacity(isDark ? 0.24 : 0.16))
+                    }
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
