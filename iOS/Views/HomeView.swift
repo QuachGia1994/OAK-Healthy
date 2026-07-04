@@ -559,6 +559,8 @@ private struct TodayStripButton: View {
                     .stroke(isSelected ? tint.opacity(0.60) : Color.clear, lineWidth: 1)
             )
         }
+        .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 12))
         .accessibilityLabel("\(title), \(count)")
     }
 }
