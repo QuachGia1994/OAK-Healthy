@@ -55,6 +55,8 @@ import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.ceil
 
+private val historyTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("H:mm")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -74,6 +76,7 @@ fun HistoryScreen(
     ) {
         Scaffold(
             containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -113,6 +116,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
     val containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val listState = rememberLazyListState()
+    val zoneId = remember { ZoneId.systemDefault() }
     var searchText by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(HistoryFilter.ALL) }
     val filteredSections = remember(state.sections, searchText, filter) {
@@ -260,7 +264,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     key = { it.id },
                     contentType = { "record" }
                 ) { record ->
-                    HistoryRecordItem(record)
+                    HistoryRecordItem(record, zoneId)
                 }
             }
         }
@@ -735,18 +739,15 @@ private fun chooseStep(maxCount: Int): Int {
 }
 
 @Composable
-private fun HistoryRecordItem(record: IntakeRecord) {
-    val zoneId = remember { ZoneId.systemDefault() }
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("H:mm") }
+private fun HistoryRecordItem(record: IntakeRecord, zoneId: ZoneId) {
     val displayTime = remember(record.date, record.intakeTime) {
         val dateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(record.date), zoneId)
-        val timeText = dateTime.format(timeFormatter)
+        val timeText = dateTime.format(historyTimeFormatter)
         val intake = record.intakeTime?.takeIf { it.isNotBlank() }
         if (timeText == "00:00" && intake != null) intake else timeText
     }
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f) }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val isSkipped = record.status == "Skipped"
 

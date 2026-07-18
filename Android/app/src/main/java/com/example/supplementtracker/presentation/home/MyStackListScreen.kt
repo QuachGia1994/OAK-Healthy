@@ -41,7 +41,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleStatus
+import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakColors
@@ -81,17 +81,13 @@ fun MyStackListScreen(
     val backgroundBrush = oakBackgroundBrush()
     var searchText by rememberSaveable { mutableStateOf("") }
     val calculateCycleUseCase = remember { CalculateCycleUseCase() }
-    val filteredSupplements by remember(supplements, searchText) {
-        derivedStateOf {
-            val query = searchText.trim().lowercase(Locale.ROOT)
-            if (query.isEmpty()) supplements else supplements.filter {
-                it.name.lowercase(Locale.ROOT).contains(query)
-            }
-        }
+    val stackItems = remember(supplements, currentDay) {
+        buildStackItems(supplements, currentDay, calculateCycleUseCase)
     }
-    val restingCount = supplements.count {
-        calculateCycleUseCase(it.startDate, it.cycleConfig, currentDay) == CycleStatus.OFF
+    val filteredItems = remember(stackItems, searchText) {
+        filterStackItems(stackItems, searchText)
     }
+    val restingCount = remember(stackItems) { stackItems.count { it.cycleStatus == CycleStatus.OFF } }
     val listState = rememberLazyListState()
 
     Box(Modifier.fillMaxSize().background(backgroundBrush)) {
@@ -160,26 +156,48 @@ fun MyStackListScreen(
                         modifier = Modifier.padding(top = 6.dp)
                     )
                 }
-                if (filteredSupplements.isEmpty()) {
+                if (filteredItems.isEmpty()) {
                     item(key = "empty", contentType = "empty") { StackEmptyState() }
                 } else {
-                    items(filteredSupplements, key = { it.id }, contentType = { "supplement" }) { supplement ->
-                        val isOffCycle = calculateCycleUseCase(
-                            supplement.startDate,
-                            supplement.cycleConfig,
-                            currentDay
-                        ) == CycleStatus.OFF
+                    items(filteredItems, key = { it.supplement.id }, contentType = { "supplement" }) { item ->
                         StackSupplementCard(
-                            title = supplement.intakeTime.trim().takeIf { it.isNotEmpty() }
-                                ?.let { "${supplement.name} ($it)" } ?: supplement.name,
-                            summary = getCycleSummary(supplement, calculateCycleUseCase, currentDay),
-                            isOffCycle = isOffCycle
+                            title = item.title,
+                            summary = getCycleSummary(item.supplement, item.cycleStatus),
+                            isOffCycle = item.cycleStatus == CycleStatus.OFF
                         )
                     }
                 }
             }
         }
     }
+}
+
+private data class StackSupplementItem(
+    val supplement: UserSupplement,
+    val title: String,
+    val cycleStatus: CycleStatus
+)
+
+private fun buildStackItems(
+    supplements: List<UserSupplement>,
+    currentDay: java.time.LocalDate,
+    calculateCycle: CalculateCycleUseCase
+): List<StackSupplementItem> = supplements.map { supplement ->
+    val intakeTime = supplement.intakeTime.trim()
+    StackSupplementItem(
+        supplement = supplement,
+        title = if (intakeTime.isEmpty()) supplement.name else "${supplement.name} ($intakeTime)",
+        cycleStatus = calculateCycle(supplement.startDate, supplement.cycleConfig, currentDay)
+    )
+}
+
+private fun filterStackItems(
+    items: List<StackSupplementItem>,
+    searchText: String
+): List<StackSupplementItem> {
+    val query = searchText.trim().lowercase(Locale.ROOT)
+    if (query.isEmpty()) return items
+    return items.filter { it.supplement.name.lowercase(Locale.ROOT).contains(query) }
 }
 
 @Composable

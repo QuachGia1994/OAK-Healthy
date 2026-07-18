@@ -4,6 +4,7 @@ struct ClientEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isNameFocused: Bool
     @State private var name: String
+    @State private var selectedDetent: PresentationDetent = .medium
 
     let title: String
     let confirmTitle: String
@@ -32,32 +33,43 @@ struct ClientEditorSheet: View {
             .toolbar { cancelToolbarItem }
             .safeAreaInset(edge: .bottom) { saveBar }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large], selection: $selectedDetent)
         .presentationDragIndicator(.visible)
-        .task { isNameFocused = true }
+        .task {
+            selectedDetent = .large
+            await Task.yield()
+            isNameFocused = true
+        }
     }
 
     private var editorContent: some View {
-        VStack(spacing: 18) {
-            profilePreview
-            VStack(alignment: .leading, spacing: 10) {
-                Text("client_editor_body".localized)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                TextField("client_name_hint".localized, text: $name)
-                    .focused($isNameFocused)
-                    .textInputAutocapitalization(.words)
-                    .submitLabel(.done)
-                    .onSubmit(save)
-                    .onChange(of: name) { _, value in limitName(value) }
-                    .padding(14)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        ScrollView {
+            VStack(spacing: 18) {
+                profilePreview
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("client_editor_body".localized)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    nameField
+                }
+                .padding(18)
+                .oakCardStyle(.glass, cornerRadius: 22)
             }
-            .padding(18)
-            .oakCardStyle(.glass, cornerRadius: 22)
+            .padding(20)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(20)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var nameField: some View {
+        TextField("client_name_hint".localized, text: $name)
+            .focused($isNameFocused)
+            .textInputAutocapitalization(.words)
+            .submitLabel(.done)
+            .onSubmit(save)
+            .onChange(of: name) { _, value in limitName(value) }
+            .padding(14)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private var profilePreview: some View {

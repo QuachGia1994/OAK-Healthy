@@ -137,6 +137,7 @@ fun HomeScreen(
     OakBackground {
         Scaffold(
             containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
             topBar = {
                 LargeTopAppBar(
                     colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = Color.Transparent),
@@ -262,10 +263,9 @@ private fun HomeContent(
 ) {
     val listState = rememberLazyListState()
     var filter by rememberSaveable { mutableStateOf(HomeDoseFilter.ALL) }
-    val missedItems = remember(state.activeSupplements) {
-        state.activeSupplements.values.flatten().filter { it.doseStatus == DoseStatus.MISSED }
-    }
-    val counts = todayCounts(state.activeSupplements.values.flatten())
+    val activeItems = remember(state.activeSupplements) { state.activeSupplements.values.flatten() }
+    val missedItems = remember(activeItems) { activeItems.filter { it.doseStatus == DoseStatus.MISSED } }
+    val counts = todayCounts(activeItems)
     val total = counts.due + counts.missed + counts.taken + counts.skipped
     val current = when (filter) {
         HomeDoseFilter.ALL -> total
@@ -309,14 +309,12 @@ private fun HomeContent(
                 key = { "overdue-${it.supplement.id}-${it.timeString}" },
                 contentType = { "supplement" }
             ) { item ->
-                Box(modifier = Modifier.animateItemPlacement()) {
-                    DismissibleSupplementCard(
-                        item = item,
-                        onToggleIntake = onToggleIntake,
-                        onDelete = onDelete,
-                        onEdit = onEdit
-                    )
-                }
+                DismissibleSupplementCard(
+                    item = item,
+                    onToggleIntake = onToggleIntake,
+                    onDelete = onDelete,
+                    onEdit = onEdit
+                )
             }
         }
 
@@ -331,14 +329,12 @@ private fun HomeContent(
                 key = { "overdue-${it.supplement.id}-${it.timeString}" },
                 contentType = { "supplement" }
             ) { item ->
-                Box(modifier = Modifier.animateItemPlacement()) {
-                    DismissibleSupplementCard(
-                        item = item,
-                        onToggleIntake = onToggleIntake,
-                        onDelete = onDelete,
-                        onEdit = onEdit
-                    )
-                }
+                DismissibleSupplementCard(
+                    item = item,
+                    onToggleIntake = onToggleIntake,
+                    onDelete = onDelete,
+                    onEdit = onEdit
+                )
             }
         } else {
             state.activeSupplements.forEach { (time, items) ->
@@ -364,14 +360,12 @@ private fun HomeContent(
                     key = { "${it.supplement.id}-${it.timeString}" },
                     contentType = { "supplement" }
                 ) { item ->
-                    Box(modifier = Modifier.animateItemPlacement()) {
-                        DismissibleSupplementCard(
-                            item = item,
-                            onToggleIntake = onToggleIntake,
-                            onDelete = onDelete,
-                            onEdit = onEdit
-                        )
-                    }
+                    DismissibleSupplementCard(
+                        item = item,
+                        onToggleIntake = onToggleIntake,
+                        onDelete = onDelete,
+                        onEdit = onEdit
+                    )
                 }
             }
         }
@@ -536,6 +530,7 @@ private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
         text = title,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.padding(vertical = 6.dp)
     )
 }
@@ -670,18 +665,6 @@ private fun DismissibleSupplementCard(
             }
         }
     )
-
-    LaunchedEffect(item.supplement.id, item.timeString) {
-        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
-            dismissState.snapTo(SwipeToDismissBoxValue.Settled)
-        }
-    }
-
-    LaunchedEffect(dismissState.currentValue) {
-        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
-            dismissState.snapTo(SwipeToDismissBoxValue.Settled)
-        }
-    }
 
     SwipeToDismissBox(
         state = dismissState,

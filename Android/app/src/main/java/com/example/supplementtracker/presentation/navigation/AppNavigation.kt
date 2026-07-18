@@ -149,7 +149,7 @@ fun AppNavigation(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val items = listOf(Screen.Home, Screen.MyStack, Screen.History)
+    val items = remember { listOf(Screen.Home, Screen.MyStack, Screen.History) }
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val overdueCount by remember(homeUiState) {
         derivedStateOf {
@@ -316,7 +316,7 @@ private fun OakBottomBar(
                     val selected = currentRoute == screen.route
                     NavigationBarItem(
                         selected = selected,
-                        onClick = { onTabSelected(screen.route) },
+                        onClick = { if (!selected) onTabSelected(screen.route) },
                         icon = {
                             BadgedBox(
                                 badge = {

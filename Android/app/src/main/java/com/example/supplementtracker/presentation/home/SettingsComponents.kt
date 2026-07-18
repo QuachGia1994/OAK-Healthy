@@ -32,14 +32,14 @@ import androidx.core.content.ContextCompat
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.model.UserSupplement
-import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.domain.model.ClientProfile
-import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+
+private val cycleSummaryDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
 @Composable
 internal fun SettingsSection(
@@ -226,11 +226,9 @@ internal fun AppThemeSegmentedControl(
 @Composable
 internal fun getCycleSummary(
     supplement: UserSupplement,
-    calculateCycleUseCase: CalculateCycleUseCase,
-    today: LocalDate
+    status: CycleStatus
 ): String {
     val config = supplement.cycleConfig
-    val status = calculateCycleUseCase(supplement.startDate, config, today)
     val statusText = if (status == CycleStatus.ON) {
         R.string.cycle_status_on
     } else {
@@ -247,7 +245,7 @@ internal fun getCycleSummary(
     }
     val durationText = config.durationMonths?.let { days ->
         val endDate = supplement.startDate.plusDays(days.toLong())
-        val dateText = endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+        val dateText = endDate.format(cycleSummaryDateFormatter)
         stringResource(R.string.cycle_until_format, dateText)
     } ?: stringResource(R.string.unlimited)
 
