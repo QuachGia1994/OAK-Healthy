@@ -120,7 +120,7 @@ jobs:
         env:
           MATCH_SSH_PRIVATE_KEY: ${{ secrets.MATCH_SSH_PRIVATE_KEY }}
         if: ${{ env.MATCH_SSH_PRIVATE_KEY != '' }}
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ env.MATCH_SSH_PRIVATE_KEY }}
 
