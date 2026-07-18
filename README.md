@@ -1,145 +1,92 @@
 # OAK Healthy
 
-OAK Healthy là app quản lý “stack” thực phẩm bổ sung theo chu kỳ On/Off (uống/nghỉ), hỗ trợ đa học viên (Coach Mode) và đồng bộ đa thiết bị qua Firebase Realtime Database. App hướng tới Trader, Vấn Động Viên và cả Bác Sĩ theo dòi bệnh nhân.
+[![Android Build](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/android-build.yml/badge.svg)](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/android-build.yml)
+[![iOS Build](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/ios-build.yml/badge.svg)](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/ios-build.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-0F6B4F.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-173F35.svg)](#build-và-test)
 
-## Tải app (artifacts mới nhất)
-
-- Android (APK): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/28308418554/artifacts/7930168260
-- iOS (IPA): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/28308418531/artifacts/7930173339
-- iOS (dSYMs): https://github.com/QuachGia1994/OAK-Healthy/actions/runs/28308418531/artifacts/7930173223
-
-Lưu ý: artifacts tải từ GitHub Actions có thể yêu cầu đăng nhập GitHub và hết hạn theo chính sách lưu trữ của GitHub.
-
-## Thay đổi gần đây
-
-- Sync:
-  - Realtime sync iOS ↔ Android qua Firebase Realtime Database listeners (không cần poll).
-  - Field-level merge: sửa field khác nhau trên 2 máy không bị đè nhau.
-  - Manifest cache invalidation khi re-host.
-- iOS:
-  - Native liquid glass TabView (iOS 26+).
-  - Xóa custom OAKBottomTabBar — dùng native tab bar.
-- Android:
-  - Liquid glass bottom bar (inner glow, sheen, multi-shadow).
-  - Swipe giữa 3 tab qua HorizontalPager.
-  - AGP 8.5.2 + Kotlin 2.0.21 + Compose BOM 2024.06.00.
-  - Room migrate từ kapt sang KSP.
-  - Split SettingsScreen.kt → SettingsComponents.kt + MyStackListScreen.kt.
-- Cả 2 nền tảng:
-  - Xóa ~250 dòng dead code.
-  - Onboarding crash fix (Android).
-  - Tab bar layout overlap fix (Android).
-  - Manifest cache invalidation trên cả 2 nền tảng.
-
-## Hướng dẫn sử dụng nhanh
-
-### Thiết lập ban đầu
-
-1) Mở app → cấp quyền thông báo (nếu muốn nhắc uống).
-2) (Tùy chọn) Bật chế độ giao diện theo “Hệ thống” trong Cài đặt.
-
-### Tạo stack và lịch uống
-
-1) Vào tab Stack → thêm thực phẩm bổ sung.
-2) Chọn lịch:
-   - Uống liên tỡc / Chu kỳ On‑Off / Uống cách N ngày / Theo thứ trong tuần.
-3) Quay lại Trang chủ để xem “Cần uống hôm nay”.
-
-### Tick “Đã uống / Bỏ qua”
-
-- Bạn có thể tick trực tiếp trên Trang chủ hoặc tick ngay trên thông báo (Taken/Skip) để thao tác nhanh.
-
-### Đồng bộ 2 thiết bị (Sync Center)
-
-Thiết bị A (máy đang có dữ liệu):
-1) Mở Sync Center → Xuất key (chạm vào key để copy).
-2) Tạo Link Code.
-
-Thiết bị B (máy mới):
-1) Mở Sync Center → Dán key (nửt Dán).
-2) Dán Link Code.
-3) Bảm Tải về / Đồng bộ.
-
-Gợi ý:
-- Auto-Sync dùng Firebase realtime listeners, đồng bộ từng thời khi app đang mở.
-- Auto-Sync tự tắt nếu thiếu key; chỉ cần dán key rồi bật lại.
-
-## Guide & Release Notes
-
-- Hướng dẫn up GitHub release: `docs/github-release-guide.md`
-- Release notes để dán lên GitHub: `docs/release-notes-v1.0.1.md`
+OAK Healthy là ứng dụng theo dõi lịch dùng thực phẩm bổ sung trên Android và iOS. Ứng dụng hỗ trợ nhiều hồ sơ, lịch uống linh hoạt, thông báo, lịch sử Taken/Skipped/Overdue và đồng bộ hai chiều qua Firebase Realtime Database.
 
 ## Tính năng chính
 
-- Dashboard theo mớc giờ: “Cần uống hôm nay”, tick “Đã uống/Bỏ qua” và lưu vào Lịch sử.
-- Lịch uống linh hoạt:
-  - Uống liên tỡc
-  - Chu kỳ On/Off theo ngày bắt đầu (x ngày uống / y ngày nghỉ)
-  - Uống cách N ngày (phù hợp lịch uống/tiêm cách ngày)
-  - Lập theo thứ trong tuần + cách N tuần (Weekly Recurrence)
-  - Tổng thời hạn tính theo ngày (để trống = vô thời hạn)
-- Tick ngay trên thông báo (Taken/Skip) để thao tác nhanh.
-- Đồng bộ đa thiết bị:
-  - Phát dữ liệu (tạo mã liên kết / Bin ID)
-  - Tải về (Tải + áp dụng dữ liệu trực tiếp)
-  - Tự đồng đồng bộ (Auto‑Sync) (bật/tật trong Cài đặt)
-- Bảo mật mã liên kết:
-  - Nửt “Con mất” để ẩn/hiện mã khi dùng nơi công công
-  - “Thu hồi mã” để xóa ṽnh viễn dữ liệu trên Cloud
-- Chẩn đoán thông báo:
-  - “Kiểm tra danh sách thông báo” để xem app đã gửi lệnh đặt lịch (phủ thuộc quyền hệ điều hành/chứng chẩ)
-- Nâng cấp giao diện/trải nghiệm:
-  - 3 tab: Trang chủ / Stack / Lịch sử
-  - Lọc nhanh Due/Quá hạn/Đã uống/Bỏ qua + badge Quá hạn
-  - Insights 7/30 ngày dạng chart + xem chi tiết bằng nửt mỷi tên
+- Giao diện 3 tab đồng nhất: Dashboard, Stack và History.
+- Lịch liên tục, chu kỳ On/Off, cách N ngày và lặp theo tuần.
+- Thao tác Taken/Skip từ ứng dụng hoặc thông báo.
+- Bộ lọc trạng thái 4 màu dễ nhận biết trên Android và iOS.
+- Auto-Sync hai chiều với merge theo thời gian cập nhật và retry khi xung đột.
+- Mã hóa cloud tùy chọn bằng AES-256-GCM, tương thích chéo Android/iOS.
+- Giao diện tiếng Anh và tiếng Việt, hỗ trợ Light/Dark/System theme.
 
-## Ghi chú triển khai (mới)
+## Đồng bộ hai chiều
 
-- Android: tải APK và cài trực tiếp (có thể cần bật “Cài đặt ứng dụng không rõ nguồn gốc”).
-- iOS: IPA yêu cầu cài qua TestFlight hoặc tự ký (AltStore/Sideloadly). Nếu bạn chỉ muốn xem demo UI/flow thì vẫn có thể tải IPA để tham khảo build.
-- Auto‑Sync:
-  - Android chạy theo WorkManager định kỳ (tối thiệu 15 phút theo giới hạn hệ điều hành) + có job one‑off để sync sớm khi bạn thao tác.
-  - iOS debounce các trigger sync và giảm polling khi idle để tiết kiệm pin.
+Thiết bị Host tạo một Link Code. Thiết bị Link nhập mã này để tải, merge và tiếp tục đồng bộ cùng bộ dữ liệu.
 
-## Rules
+1. Trên Host, chọn chế độ mã hóa trước khi tạo Link Code.
+2. Nếu mã hóa được bật, chuyển Sync Key sang thiết bị Link bằng kênh riêng tư.
+3. Trên thiết bị Link, import key trước, dán Link Code và bấm Tải về một lần.
+4. Bật Auto-Sync trên cả hai thiết bị.
 
-- Max 30 lines / function.
+Khi app được mở hoặc quay lại foreground, sync chạy ngay. Thay đổi cục bộ được gom trong khoảng debounce ngắn trước khi upload. Realtime khi app đang hoạt động dùng Firebase revision listeners; tốc độ chạy nền vẫn phụ thuộc mạng, giới hạn pin và cơ chế scheduling của từng hệ điều hành.
 
-- iOS:
-  - Sau khi “Tải về”, app sẽ tự áp dụng dữ liệu và tự lên lịch lại thông báo (nếu đã bật “Cho phép gửi thông báo”).
-  - Safe Mode là cơ chế tự phục hồi khi phát hiện crash loop; không còn nửt bật Safe Mode thủ công ở màn khởi động.
-  - Decode `CycleConfig`/`WeeklyRecurrenceConfig` được làm “tolerant” để tránh crash khi dữ liệu lệch schema.
-- Android:
-  - Cập nhật nội dung “Giới thiệu” (viết hoa Trader/Vấn Động Viên/Bác Sĩ).
-  - Tối ưu scroll jank: thêm `LazyListState` và key ổn định cho các danh sách (Home/History).
+Firebase writes dùng transaction nguyên tử và revision tăng đơn điệu để tránh hai thiết bị cùng vượt qua kiểm tra rồi ghi đè dữ liệu của nhau. Payload và revision cũng được đọc trong cùng một snapshot để không ghép nhầm nội dung mới với revision cũ.
+
+## Mã hóa và bảo mật
+
+- Payload mã hóa dùng AES-256-GCM với nonce ngẫu nhiên 12 byte và authentication tag 16 byte.
+- Android bọc Sync Key bằng khóa AES trong Android Keystore.
+- iOS lưu Sync Key trong Keychain với `WhenUnlockedThisDeviceOnly`.
+- Key ID và Link Code được giới hạn bằng mẫu `[A-Za-z0-9_-]{1,64}` trước mọi thao tác Firebase.
+- Sync Key được ẩn mặc định. Clipboard iOS tự hết hạn sau 2 phút; Android đánh dấu nội dung là dữ liệu nhạy cảm.
+- Link Code là capability khó đoán, không phải mật khẩu. Không đăng Link Code hoặc Sync Key trong ảnh chụp, issue, log hay chat công khai.
+- Chế độ mã hóa bị khóa trong thời gian Link Code đang hoạt động. Nếu key bị lộ hoặc cần đổi chế độ, hãy thu hồi Link Code, tạo key/link mới rồi liên kết lại thiết bị.
+- Ứng dụng dùng Firebase Anonymous Auth và App Check: Play Integrity trên Android, App Attest trên iOS. Production cần bật enforcement cho Realtime Database trong Firebase Console.
+- `GoogleService-Info.plist` và `google-services.json` chứa định danh Firebase client, không thay thế server secret. Không commit service-account key, signing key, `Secrets.xcconfig` hoặc `keystore.properties`.
+
+Firebase Rules trong [`firebase/database.rules.json`](firebase/database.rules.json) giới hạn payload 1 MB, yêu cầu node đầy đủ và chỉ chấp nhận revision tăng. Deploy rules bằng:
+
+```bash
+firebase deploy --only database --project oak-healthy
+```
 
 ## Cấu trúc dự án
 
-- `iOS/` — Swift 6.2+, SwiftUI, Strict Concurrency
-- `Android/` — Kotlin + Jetpack Compose (Material 3)
-- `backup_project.py` — Script backup dự án (zip), có chế độ git sync
+- `Android/`: Kotlin, Jetpack Compose, Room, WorkManager và Firebase.
+- `iOS/`: Swift, SwiftUI, SwiftData, CryptoKit và Firebase.
+- `firebase/`: Realtime Database Rules và script deploy.
+- `.github/workflows/`: build/test Android và iOS trên GitHub Actions.
+- `DESIGN.md`: quy tắc thiết kế dùng chung cho hai nền tảng.
+- `docs/`: review UI/UX và ghi chú dự án.
 
-## Backup & Git Sync
+## Build và test
 
-### Tạo backup
+### Android
 
-```bash
-python backup_project.py --root .
+Yêu cầu JDK 17 và Android SDK.
+
+```powershell
+cd Android
+./gradlew testDebugUnitTest assembleDebug lintDebug
 ```
 
-### Backup + tự git add/commit/push
+### iOS
 
-```bash
-python backup_project.py --root . --git-sync --git-remote origin --git-branch main
-```
+Yêu cầu macOS, Xcode và Swift Package Manager. Dự án dùng `project.yml`/XcodeGen và iOS deployment target 17.0. Trên máy Windows, dùng workflow iOS của GitHub Actions thay cho `xcodebuild` cục bộ.
 
-Tùy chện message:
+Các test sync bao gồm codec, manifest, Link Code validation, revision monotonic và fixture AES-GCM dùng chung cho Android/iOS.
 
-```bash
-python backup_project.py --root . --git-sync --git-message "chore(backup): update"
-```
+## Quyền riêng tư
 
-## Lưu ý bảo mật
+Dữ liệu sức khỏe được lưu cục bộ và chỉ upload khi người dùng chủ động Host/Link. Mã hóa cloud là tùy chọn nhưng được khuyến nghị. OAK Healthy không thay thế tư vấn, chẩn đoán hoặc điều trị y khoa.
 
-- Không commit file chừa secrets (ví dụ `iOS/Secrets.xcconfig` đã được loại khỏi backup theo mệnh đệnh).
-- Không đưạ API key vào README. Cấu hình key theo cơ chẾf build (CI/xcconfig/BuildConfig).
+## Tác giả và bản quyền
+
+Tác giả: **Quach Gia (Phong QK)**
+
+Mã nguồn được cấp phép theo [Apache License 2.0](LICENSE). Tên và logo OAK
+Healthy không được cấp quyền sử dụng như nhãn hiệu theo giấy phép này.
+
+Quy trình cộng đồng: [Contributing](CONTRIBUTING.md) ·
+[Governance](GOVERNANCE.md) · [Roadmap](ROADMAP.md) ·
+[Changelog](CHANGELOG.md) · [Security](SECURITY.md)
+
+Copyright © 2026 Quach Gia / OAK Healthy.

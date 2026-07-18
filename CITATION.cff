@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If OAK Healthy supports your work, please cite the project repository."
+title: "OAK Healthy"
+type: software
+authors:
+  - family-names: "Quach"
+    given-names: "Gia"
+    alias: "Phong QK"
+repository-code: "https://github.com/QuachGia1994/OAK-Healthy"
+license: Apache-2.0
