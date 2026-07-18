@@ -16,8 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
@@ -44,13 +42,9 @@ fun OakCard(
             val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
             val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.62f) }
             val stroke = remember(isDark, accent) { (accent ?: Color.White).copy(alpha = if (isDark) 0.24f else 0.28f) }
-            val highlight = remember(isDark, base) {
-                if (isDark) listOf(base.copy(alpha = 0.22f), base) else listOf(base.copy(alpha = 0.74f), base)
-            }
             Box(
                 modifier = modifier
-                    .shadow(elevation, shape, clip = false)
-                    .background(Brush.linearGradient(highlight), shape)
+                    .background(base, shape)
                     .border(1.dp, stroke, shape)
                     .clip(shape)
                     .padding(contentPadding)

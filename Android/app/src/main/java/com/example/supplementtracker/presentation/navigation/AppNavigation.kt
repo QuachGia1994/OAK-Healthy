@@ -306,7 +306,7 @@ private fun OakBottomBar(
             modifier = Modifier
                 .widthIn(max = 420.dp)
                 .fillMaxWidth()
-                .shadow(16.dp, containerShape, clip = false),
+                .shadow(4.dp, containerShape, clip = false),
             shape = containerShape,
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
             tonalElevation = 3.dp

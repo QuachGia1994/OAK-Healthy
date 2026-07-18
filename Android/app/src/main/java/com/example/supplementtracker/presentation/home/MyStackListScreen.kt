@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -299,7 +300,7 @@ private fun StackSupplementCard(title: String, summary: String, isOffCycle: Bool
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val accent = if (isOffCycle) OakColors.Neutral else if (isDark) OakColors.TakenDark else OakColors.Taken
     OakCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         accent = accent,
         shape = RoundedCornerShape(20.dp)
     ) {
@@ -327,7 +328,10 @@ private fun StackSupplementCard(title: String, summary: String, isOffCycle: Bool
 
 @Composable
 private fun StackEmptyState() {
-    OakCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+    OakCard(
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        shape = RoundedCornerShape(20.dp)
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

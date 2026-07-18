@@ -62,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import com.example.supplementtracker.R
 import com.example.supplementtracker.service.UpdateService
 import com.example.supplementtracker.presentation.designsystem.OakCard
@@ -496,6 +497,7 @@ private fun TodayStripButton(
     Card(
         onClick = onClick,
         modifier = modifier
+            .semantics(mergeDescendants = true) {}
             .heightIn(min = 76.dp),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
@@ -767,7 +769,7 @@ private fun ActiveSupplementCard(
     }
     GlassCard(modifier = modifier.fillMaxWidth(), accent = urgencyAccent) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
                 Text(
                     item.supplement.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -928,7 +930,7 @@ private fun RestingSupplementCard(
             )
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
                 Text(info.supplement.name, style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
                 Text(
                     stringResource(

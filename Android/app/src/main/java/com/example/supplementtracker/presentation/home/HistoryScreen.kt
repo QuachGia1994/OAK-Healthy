@@ -25,7 +25,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -42,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.presentation.designsystem.OakCard
@@ -297,7 +297,6 @@ private fun InsightsTrendCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(12.dp, RoundedCornerShape(24.dp), clip = false)
                 .background(
                     Brush.linearGradient(listOf(OakColors.InsightCardStart, OakColors.InsightCardEnd)),
                     RoundedCornerShape(24.dp)
@@ -757,7 +756,7 @@ private fun HistoryRecordItem(record: IntakeRecord, zoneId: ZoneId) {
         if (isDark) OakColors.TakenDark else OakColors.Taken
     }
     OakCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         accent = accent,
         shape = RoundedCornerShape(20.dp),
         contentPadding = PaddingValues(0.dp)

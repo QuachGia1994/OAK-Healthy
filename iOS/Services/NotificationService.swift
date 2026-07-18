@@ -101,16 +101,16 @@ public struct NotificationService: NotificationManaging {
     }
     
     @MainActor
-    public func registerNotificationActions() async {
+    public func registerNotificationActions() {
         let taken = UNNotificationAction(
             identifier: Action.taken.rawValue,
             title: "notif_action_taken".localized,
-            options: [.authenticationRequired]
+            options: []
         )
         let skipped = UNNotificationAction(
             identifier: Action.skipped.rawValue,
             title: "notif_action_skip".localized,
-            options: [.authenticationRequired]
+            options: []
         )
         let category = UNNotificationCategory(
             identifier: Category.dose.rawValue,

@@ -61,6 +61,10 @@ struct SupplementTrackerApp: App {
     
     init() {
         FirebaseBootstrap.configureIfNeeded()
+        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
+        Task { @MainActor in
+            NotificationService.shared.registerNotificationActions()
+        }
     }
     
     var body: some Scene {
@@ -149,25 +153,17 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
         if (info["oakTestNotification"] as? Bool) == true {
             UserDefaults.standard.set(Int(Date().timeIntervalSince1970 * 1000), forKey: "oakLastTestNotificationAckEpochMs")
         }
-        if response.actionIdentifier == NotificationService.Action.taken.rawValue || response.actionIdentifier == NotificationService.Action.skipped.rawValue {
-            let scheduledAtEpochMs = (info["scheduledAtEpochMs"] as? NSNumber)?.int64Value
-                ?? (info["scheduledAtEpochMs"] as? Int64)
-                ?? 0
-            NotificationCenter.default.post(
-                name: NSNotification.Name("OAKDoseAction"),
-                object: nil,
-                userInfo: [
-                    "actionIdentifier": response.actionIdentifier,
-                    "supplementID": info["supplementID"] as? String ?? "",
-                    "intakeTime": info["intakeTime"] as? String ?? "",
-                    "scheduledAtEpochMs": scheduledAtEpochMs,
-                    "requestIdentifier": response.notification.request.identifier
-                ]
-            )
+        if let action = NotificationDoseAction(response: response) {
+            action.savePending()
+            Task { @MainActor in
+                NotificationCenter.default.post(name: NSNotification.Name("OAKDoseAction"), object: action)
+            }
             completionHandler()
             return
         }
-        NotificationCenter.default.post(name: NSNotification.Name("OpenDashboard"), object: nil)
+        Task { @MainActor in
+            NotificationCenter.default.post(name: NSNotification.Name("OpenDashboard"), object: nil)
+        }
         completionHandler()
     }
     
@@ -280,7 +276,7 @@ private struct SafeBootView: View {
         
         let notificationService = NotificationService.shared
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
-        await notificationService.registerNotificationActions()
+        notificationService.registerNotificationActions()
         if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") {
             await notificationService.rebuildShadowFromPendingRequests()
         }
@@ -598,13 +594,16 @@ struct MainTabView: View {
             selectedTab = 0
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OAKDoseAction"))) { notification in
+            guard let payload = notification.object as? NotificationDoseAction else { return }
             selectedTab = 0
-            handleDoseAction(notification.userInfo)
+            handleDoseAction(payload)
         }
+        .task { await replayPendingDoseAction() }
         .onChange(of: scenePhase, initial: true) { _, newPhase in
             handleAutoSync(phase: newPhase)
             guard newPhase == .active else { return }
             Task { @MainActor in
+                await replayPendingDoseAction()
                 await refreshHomeBadgeCount()
             }
         }
@@ -674,71 +673,72 @@ struct MainTabView: View {
         }
     }
     
-    private func handleDoseAction(_ userInfo: [AnyHashable: Any]?) {
-        guard let payload = doseActionPayload(from: userInfo) else { return }
-        Task { @MainActor in await applyDoseAction(payload) }
+    private func handleDoseAction(_ payload: NotificationDoseAction) {
+        Task { @MainActor in
+            guard await applyDoseAction(payload) else { return }
+            payload.clearPending()
+            await refreshHomeBadgeCount()
+        }
     }
 
-    private struct DoseActionPayload: Sendable, Hashable {
-        let supplementId: UUID
+    @MainActor
+    private func replayPendingDoseAction() async {
+        guard let payload = NotificationDoseAction.pending() else { return }
+        selectedTab = 0
+        guard await applyDoseAction(payload) else { return }
+        payload.clearPending()
+    }
+
+    @MainActor
+    private func applyDoseAction(_ payload: NotificationDoseAction) async -> Bool {
+        guard let context = doseActionContext(payload) else { return false }
+        if !hasPersistedDose(context) {
+            guard persistDoseRecord(context) else { return false }
+        }
+        await finalizeDoseAction(
+            supplement: context.supplement,
+            scheduledAt: context.scheduledAt,
+            intakeTime: context.intakeTime,
+            requestIdentifier: payload.requestIdentifier
+        )
+        return true
+    }
+
+    private struct NotificationDoseContext {
+        let supplement: UserSupplement
+        let scheduledAt: Date
         let intakeTime: String
-        let actionIdentifier: String
-        let requestIdentifier: String
         let scheduledAtEpochMs: Int64
+        let recordId: UUID
+        let status: String
     }
 
-    private func doseActionPayload(from userInfo: [AnyHashable: Any]?) -> DoseActionPayload? {
-        let supplementId = (userInfo?["supplementID"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let intakeTime = (userInfo?["intakeTime"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let actionIdentifier = (userInfo?["actionIdentifier"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let requestIdentifier = (userInfo?["requestIdentifier"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let scheduledAtEpochMs = (userInfo?["scheduledAtEpochMs"] as? Int64)
-            ?? (userInfo?["scheduledAtEpochMs"] as? NSNumber)?.int64Value
-            ?? 0
-        guard let supplementUUID = UUID(uuidString: supplementId) else { return nil }
-        guard scheduledAtEpochMs > 0 else { return nil }
-        return DoseActionPayload(
-            supplementId: supplementUUID,
+    @MainActor
+    private func doseActionContext(_ payload: NotificationDoseAction) -> NotificationDoseContext? {
+        guard let supplement = fetchSupplement(id: payload.supplementId) else { return nil }
+        let scheduledAt = Date(timeIntervalSince1970: TimeInterval(payload.scheduledAtEpochMs) / 1000)
+        let intakeTime = TimeStrings.normalizeList(payload.intakeTime).first ?? payload.intakeTime
+        let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: payload.scheduledAtEpochMs)
+        let status = payload.actionIdentifier == NotificationService.Action.skipped.rawValue
+            ? IntakeStatus.skipped.rawValue
+            : IntakeStatus.taken.rawValue
+        return NotificationDoseContext(
+            supplement: supplement,
+            scheduledAt: scheduledAt,
             intakeTime: intakeTime,
-            actionIdentifier: actionIdentifier,
-            requestIdentifier: requestIdentifier,
-            scheduledAtEpochMs: scheduledAtEpochMs
+            scheduledAtEpochMs: payload.scheduledAtEpochMs,
+            recordId: DoseEventKey.stableUUID(from: key),
+            status: status
         )
     }
 
     @MainActor
-    private func applyDoseAction(_ payload: DoseActionPayload) async {
-        guard let supplement = fetchSupplement(id: payload.supplementId) else { return }
-        let scheduledAt = Date(timeIntervalSince1970: TimeInterval(payload.scheduledAtEpochMs) / 1000)
-        let normalizedTime = TimeStrings.normalizeList(payload.intakeTime).first ?? payload.intakeTime
-        let recordKey = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: payload.scheduledAtEpochMs)
-        let recordId = DoseEventKey.stableUUID(from: recordKey)
-        if fetchDoseRecord(id: recordId) != nil {
-            await finalizeDoseAction(
-                supplement: supplement,
-                scheduledAt: scheduledAt,
-                intakeTime: normalizedTime,
-                requestIdentifier: payload.requestIdentifier
-            )
-            return
-        }
-        if hasRecord(supplement: supplement, scheduledAt: scheduledAt, intakeTime: normalizedTime) { return }
-
-        let status = payload.actionIdentifier == NotificationService.Action.skipped.rawValue
-            ? IntakeStatus.skipped.rawValue
-            : IntakeStatus.taken.rawValue
-        guard persistDoseRecord(
-            supplement: supplement,
-            scheduledAt: scheduledAt,
-            intakeTime: normalizedTime,
-            scheduledAtEpochMs: payload.scheduledAtEpochMs,
-            status: status
-        ) else { return }
-        await finalizeDoseAction(
-            supplement: supplement,
-            scheduledAt: scheduledAt,
-            intakeTime: normalizedTime,
-            requestIdentifier: payload.requestIdentifier
+    private func hasPersistedDose(_ context: NotificationDoseContext) -> Bool {
+        if fetchDoseRecord(id: context.recordId) != nil { return true }
+        return hasRecord(
+            supplement: context.supplement,
+            scheduledAt: context.scheduledAt,
+            intakeTime: context.intakeTime
         )
     }
 
@@ -754,32 +754,50 @@ struct MainTabView: View {
     }
 
     @MainActor
-    private func persistDoseRecord(
-        supplement: UserSupplement,
-        scheduledAt: Date,
-        intakeTime: String,
-        scheduledAtEpochMs: Int64,
-        status: String
-    ) -> Bool {
+    private func persistDoseRecord(_ context: NotificationDoseContext) -> Bool {
         let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
-        let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
-        let recordId = DoseEventKey.stableUUID(from: key)
-        if fetchDoseRecord(id: recordId) != nil { return false }
         modelContext.insert(IntakeRecord(
-            id: recordId,
-            date: scheduledAt,
-            status: status,
-            intakeTime: intakeTime,
+            id: context.recordId,
+            date: context.scheduledAt,
+            status: context.status,
+            intakeTime: context.intakeTime,
             updatedAtEpochMs: nowEpochMs,
-            supplement: supplement
+            supplement: context.supplement
         ))
+        updateSupplementAfterDoseAction(
+            context.supplement,
+            status: context.status,
+            scheduledAt: context.scheduledAt,
+            updatedAtEpochMs: nowEpochMs
+        )
         do {
             try modelContext.save()
             return true
         } catch {
+            modelContext.rollback()
             DebugReporter.report("dose_action_save_failed", fields: ["error": error.localizedDescription])
             return false
         }
+    }
+
+    private func updateSupplementAfterDoseAction(
+        _ supplement: UserSupplement,
+        status: String,
+        scheduledAt: Date,
+        updatedAtEpochMs: Int64
+    ) {
+        guard status == IntakeStatus.taken.rawValue else { return }
+        supplement.lastTakenLocalDate = notificationDayString(scheduledAt)
+        supplement.updatedAtEpochMs = updatedAtEpochMs
+    }
+
+    private func notificationDayString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = .current
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
     
     @MainActor
