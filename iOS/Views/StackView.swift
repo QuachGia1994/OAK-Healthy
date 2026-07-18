@@ -308,7 +308,7 @@ private struct StackSupplementRow: View, Equatable {
         .accessibilityElement(children: .combine)
     }
 
-    static func == (lhs: StackSupplementRow, rhs: StackSupplementRow) -> Bool {
+    nonisolated static func == (lhs: StackSupplementRow, rhs: StackSupplementRow) -> Bool {
         lhs.name == rhs.name && lhs.cycleSummary == rhs.cycleSummary && lhs.isOffCycle == rhs.isOffCycle
     }
 }

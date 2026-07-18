@@ -436,7 +436,7 @@ private struct HistoryRow: View, Equatable {
         .accessibilityElement(children: .combine)
     }
 
-    static func == (lhs: HistoryRow, rhs: HistoryRow) -> Bool {
+    nonisolated static func == (lhs: HistoryRow, rhs: HistoryRow) -> Bool {
         lhs.row == rhs.row
     }
 }
