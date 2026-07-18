@@ -122,7 +122,7 @@ final class CloudSyncCryptoInteropTests: XCTestCase {
     }
 
     private func envelope(ciphertext: String) throws -> Data {
-        let json = """{"enc":{"v":1,"alg":"A256GCM","kid":"interop-key","nonce":"\(nonce)","ct":"\(ciphertext)"}}"""
+        let json = #"{"enc":{"v":1,"alg":"A256GCM","kid":"interop-key","nonce":"\#(nonce)","ct":"\#(ciphertext)"}}"#
         return try XCTUnwrap(json.data(using: .utf8))
     }
 }
