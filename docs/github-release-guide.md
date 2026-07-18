@@ -5,9 +5,12 @@ Muc tieu: chuan bi noi dung va link can thiet de dang GitHub release cho `OAK He
 ## Ban hien tai
 
 - Version app: `1.0.1`
-- Android APK artifact: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728551/artifacts/7668623507
-- iOS IPA artifact: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728615/artifacts/7668672556
-- iOS dSYMs artifact: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/27621728615/artifacts/7668671910
+- Android APK artifact: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29646728542/artifacts/8430268832
+- Android workflow: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29646728542
+- iOS IPA artifact: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29647622068/artifacts/8430535370
+- iOS dSYMs artifact: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29647622068/artifacts/8430535059
+- iOS workflow: https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29647622068
+- Artifact expiry: `2026-10-16` (UTC)
 
 ## Cach dang GitHub release
 
@@ -34,6 +37,7 @@ Muc tieu: chuan bi noi dung va link can thiet de dang GitHub release cho `OAK He
   - `workflow_dispatch`: chay tay va chon `ios_lane` / `android_track`.
 - Neu thieu secrets store release, workflow se skip job upload App Store / Play Console thay vi fail toan bo.
 - APK/IPA trong README la artifact build de test nhanh, khong phai file store release da ky.
+- Android artifact la APK Debug. iOS artifact la IPA unsigned va can ky lai hoac sideload bang quy trinh phu hop.
 
 ## Checklist truoc khi publish
 

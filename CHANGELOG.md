@@ -10,6 +10,7 @@ versioning where practical.
 
 - Cross-platform AES-GCM interoperability and revision validation tests.
 - In-app sync security guidance, unlink controls, and protected key display.
+- Durable iOS notification actions for Taken and Skipped dose events.
 - Public contribution, governance, security, and roadmap documentation.
 
 ### Changed
@@ -20,6 +21,10 @@ versioning where practical.
   active link.
 - Three-tab navigation, filters, app icon, and loading identity were redesigned
   consistently across Android and iOS.
+- Android card rendering and accessibility semantics were streamlined to reduce
+  scroll frame spikes on physical devices.
+- iOS simulator Debug builds use ad-hoc signing so Keychain-backed encryption
+  tests run under GitHub Actions without changing unsigned Release archives.
 
 ### Security
 
