@@ -42,13 +42,18 @@ public struct HomeView: View {
             activeClientManager.setCurrentClientId(first.id)
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
-            AddClientSheet { name in
+            ClientEditorSheet(
+                title: "add_client".localized,
+                initialName: "",
+                confirmTitle: "client_create_action".localized
+            ) { name in
                 guard !name.isEmpty else { return }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
                 do {
                     try modelContext.save()
                 } catch {
+                    modelContext.delete(created)
                     viewModel.errorMessage = error.localizedDescription
                     return
                 }
@@ -608,33 +613,6 @@ private struct StreakChip: View {
         .background(OAKPalette.skipped(for: colorScheme).opacity(0.10))
         .overlay(Capsule().stroke(OAKPalette.skipped(for: colorScheme).opacity(0.28), lineWidth: 1))
         .clipShape(Capsule())
-    }
-}
-
-private struct AddClientSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String = ""
-    let onSave: (String) -> Void
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("client_name_label".localized, text: $name)
-            }
-            .navigationTitle("add_client".localized)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("cancel".localized) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("save".localized) {
-                        onSave(name.trimmingCharacters(in: .whitespacesAndNewlines))
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
     }
 }
 

@@ -62,6 +62,7 @@ public struct SyncCenterView: View {
         }
         .navigationTitle("sync_center_title".localized)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .onAppear {
             if linkCodeInput.isEmpty { linkCodeInput = linkedBinId }
         }
@@ -1056,13 +1057,23 @@ public struct SyncCenterView: View {
         } catch {
             appendLog(binId: binId, phase: "SYNC", message: "\(label) ERROR: \(error.localizedDescription)")
             if label != "AUTO" {
-                showToast(
-                    String(format: "sync_center_toast_sync_failed_format".localized, error.localizedDescription),
-                    retryAction: { Task { await syncNow(label: "MANUAL") } }
-                )
+                showSyncFailure(error)
             }
             return false
         }
+    }
+
+    @MainActor
+    private func showSyncFailure(_ error: Error) {
+        let message = String(
+            format: "sync_center_toast_sync_failed_format".localized,
+            error.localizedDescription
+        )
+        guard !(error is FirebaseBootstrapError) else {
+            showToast(message)
+            return
+        }
+        showToast(message, retryAction: { Task { await syncNow(label: "MANUAL") } })
     }
     
     @MainActor

@@ -12,6 +12,7 @@ public struct StackView: View {
     @State private var searchText: String = ""
     @State private var errorMessage: String?
     @State private var isShowingError: Bool = false
+    @State private var selectedDestination: StackDestination?
     
     public let activeClientManager: ActiveClientManager
     public let notificationService: NotificationService
@@ -39,8 +40,8 @@ public struct StackView: View {
                         .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
 
                         HStack(spacing: 12) {
-                            NavigationLink {
-                                SyncCenterView(activeClientManager: activeClientManager)
+                            Button {
+                                selectedDestination = .syncCenter
                             } label: {
                                 StackQuickAction(
                                     title: "sync_center_title".localized,
@@ -49,8 +50,8 @@ public struct StackView: View {
                             }
                             .buttonStyle(.plain)
 
-                            NavigationLink {
-                                UserGuideView()
+                            Button {
+                                selectedDestination = .userGuide
                             } label: {
                                 StackQuickAction(
                                     title: "user_guide_title".localized,
@@ -140,6 +141,9 @@ public struct StackView: View {
                         }
                     }
                 }
+                .navigationDestination(item: $selectedDestination) { destination in
+                    destinationView(for: destination)
+                }
                 .sheet(isPresented: $isShowingAddSheet) {
                     AddSupplementView(modelContext: modelContext, activeClient: activeClient) { _ in
                     }
@@ -168,6 +172,16 @@ public struct StackView: View {
             guard activeClientManager.currentClientId == nil else { return }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
+        }
+    }
+
+    @ViewBuilder
+    private func destinationView(for destination: StackDestination) -> some View {
+        switch destination {
+        case .syncCenter:
+            SyncCenterView(activeClientManager: activeClientManager)
+        case .userGuide:
+            UserGuideView()
         }
     }
     
@@ -276,6 +290,13 @@ public struct StackView: View {
             CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: supplement.client?.id)
         }
     }
+}
+
+private enum StackDestination: Hashable, Identifiable {
+    case syncCenter
+    case userGuide
+
+    var id: Self { self }
 }
 
 private struct StackSupplementRow: View, Equatable {

@@ -124,6 +124,11 @@ class AddSupplementViewModel(
         _state.update { it.copy(intakeTime = normalized, error = null) }
     }
 
+    fun removeIntakeTime(time: String) {
+        val remaining = TimeStrings.normalizeList(_state.value.intakeTime).filterNot { it == time }
+        _state.update { it.copy(intakeTime = remaining.joinToString(", "), error = null) }
+    }
+
     fun onIntakeTimesChange(raw: String) {
         _state.update { it.copy(intakeTime = raw, error = null) }
     }

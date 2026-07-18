@@ -203,6 +203,12 @@ public final class AddSupplementViewModel {
         let merged = intakeTimes.isEmpty ? candidate : "\(intakeTimes), \(candidate)"
         intakeTimes = TimeStrings.normalizeString(merged)
     }
+
+    /// Removes one reminder time from the normalized schedule.
+    public func removeIntakeTime(_ time: String) {
+        let remaining = TimeStrings.normalizeList(intakeTimes).filter { $0 != time }
+        intakeTimes = remaining.joined(separator: ", ")
+    }
     
     private func makeWeeklyRecurrenceIfNeeded() -> WeeklyRecurrenceConfig? {
         guard isWeeklyRecurrenceEnabled else { return nil }

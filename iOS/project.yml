@@ -22,9 +22,10 @@ targets:
       - path: Models
       - path: Services
       - path: Views
-    resources:
       - path: GoogleService-Info.plist
+        buildPhase: resources
       - path: LaunchScreen.storyboard
+        buildPhase: resources
     settings:
       base:
         INFOPLIST_FILE: Info.plist

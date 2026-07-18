@@ -50,7 +50,11 @@ public struct SettingsView: View {
             await syncNotificationPermissionState()
         }
         .sheet(isPresented: $isShowingAddClientSheet) {
-            ClientEditorSheet(title: "add_client".localized, initialName: "") { name in
+            ClientEditorSheet(
+                title: "add_client".localized,
+                initialName: "",
+                confirmTitle: "client_create_action".localized
+            ) { name in
                 guard !name.isEmpty else { return }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
@@ -64,11 +68,16 @@ public struct SettingsView: View {
             }
         }
         .sheet(item: $editingClient) { client in
-            ClientEditorSheet(title: "edit_client".localized, initialName: client.name) { name in
+            ClientEditorSheet(
+                title: "edit_client".localized,
+                initialName: client.name
+            ) { name in
+                let previousName = client.name
                 client.name = name
                 do {
                     try modelContext.save()
                 } catch {
+                    client.name = previousName
                     showError(message: error.localizedDescription)
                 }
             }
@@ -557,40 +566,4 @@ private struct MyStackListView: View {
 
 #Preview {
     SettingsView(activeClientManager: ActiveClientManager())
-}
-
-private struct ClientEditorSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    let title: String
-    let onSave: (String) -> Void
-    
-    init(title: String, initialName: String, onSave: @escaping (String) -> Void) {
-        self.title = title
-        self._name = State(initialValue: initialName)
-        self.onSave = onSave
-    }
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("client_name_label".localized, text: $name)
-            }
-            .navigationTitle(title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("cancel".localized) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("save".localized) {
-                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        onSave(trimmed)
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-    }
 }

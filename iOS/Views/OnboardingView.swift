@@ -52,7 +52,11 @@ public struct OnboardingView: View {
             .navigationTitle("onboarding_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $isShowingAddClient) {
-                AddClientSheet { name in
+                ClientEditorSheet(
+                    title: "add_client".localized,
+                    initialName: "",
+                    confirmTitle: "client_create_action".localized
+                ) { name in
                     let created = ClientProfile(name: name)
                     modelContext.insert(created)
                     do {
@@ -462,35 +466,6 @@ private enum OnboardingStep: String, Sendable {
         switch self {
         case .done: return "onboarding_done".localized
         default: return "onboarding_next".localized
-        }
-    }
-}
-
-private struct AddClientSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String = ""
-    let onSave: (String) -> Void
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("client_name_label".localized, text: $name)
-            }
-            .navigationTitle("add_client".localized)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("cancel".localized) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("save".localized) {
-                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        onSave(trimmed)
-                        dismiss()
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
         }
     }
 }

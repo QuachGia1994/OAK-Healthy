@@ -434,4 +434,19 @@
     <string name="a11y_home">Home</string>
     <string name="a11y_history">History</string>
     <string name="a11y_stack">Stack</string>
+    <string name="client_name_hint">Client name</string>
+    <string name="client_editor_body">Use a short, recognizable name. Each client keeps a separate supplement stack and history.</string>
+    <string name="client_create_action">Create client</string>
+    <string name="add_supplement_intro">Build a clear schedule in three quick sections.</string>
+    <string name="supplement_details_title">Supplement</string>
+    <string name="supplement_details_body">Name it and add the daily dose.</string>
+    <string name="supplement_timing_title">Timing</string>
+    <string name="supplement_timing_body">Choose the start date and reminder times.</string>
+    <string name="supplement_rhythm_title">Rhythm</string>
+    <string name="supplement_rhythm_body">Set a continuous or cycle-based plan.</string>
+    <string name="schedule_mode_cycle">On / Off</string>
+    <string name="duration_months_label">Duration in months (optional)</string>
+    <string name="intake_times_empty">Add at least one reminder time.</string>
+    <string name="change_time">Change</string>
+    <string name="remove_time">Remove time</string>
 </resources>

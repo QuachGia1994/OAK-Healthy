@@ -67,6 +67,7 @@ import com.example.supplementtracker.service.UpdateService
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import java.util.UUID
@@ -95,7 +96,6 @@ fun HomeScreen(
     val currentClientName = clients.firstOrNull { it.id == currentClientId }?.name
     var isClientMenuExpanded by remember { mutableStateOf(false) }
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
-    var newClientName by remember { mutableStateOf("") }
     val dateHeaderFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd MMMM") }
 
     LaunchedEffect(Unit) {
@@ -236,32 +236,16 @@ fun HomeScreen(
     }
 
     if (isAddClientDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { isAddClientDialogVisible = false },
-            title = { Text(stringResource(R.string.add_a_client)) },
-            text = {
-                OutlinedTextField(
-                    value = newClientName,
-                    onValueChange = { newClientName = it },
-                    label = { Text(stringResource(R.string.client_name_label)) },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val trimmed = newClientName.trim()
-                        if (trimmed.isEmpty()) return@TextButton
-                        val profile = ClientProfile(id = UUID.randomUUID(), name = trimmed, avatarColorArgb = 0)
-                        viewModel.createClient(profile)
-                        activeClientManager.setCurrentClientId(profile.id)
-                        newClientName = ""
-                        isAddClientDialogVisible = false
-                    }
-                ) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { isAddClientDialogVisible = false }) { Text(stringResource(R.string.cancel)) }
+        ClientEditorDialog(
+            title = stringResource(R.string.add_a_client),
+            initialName = "",
+            confirmTitle = stringResource(R.string.client_create_action),
+            onDismiss = { isAddClientDialogVisible = false },
+            onConfirm = { name ->
+                val profile = ClientProfile(id = UUID.randomUUID(), name = name, avatarColorArgb = 0)
+                viewModel.createClient(profile)
+                activeClientManager.setCurrentClientId(profile.id)
+                isAddClientDialogVisible = false
             }
         )
     }

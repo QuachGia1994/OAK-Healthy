@@ -35,14 +35,12 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -79,6 +77,7 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import java.util.UUID
@@ -99,7 +98,6 @@ fun OnboardingScreen(
 
     var step by remember { mutableStateOf(OnboardingStep.CLIENT) }
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
-    var newClientName by remember { mutableStateOf("") }
 
     var isNotificationsEnabledByUser by remember {
         mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false))
@@ -234,34 +232,16 @@ fun OnboardingScreen(
     }
 
     if (isAddClientDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { isAddClientDialogVisible = false },
-            title = { Text(stringResource(R.string.add_a_client)) },
-            text = {
-                OutlinedTextField(
-                    value = newClientName,
-                    onValueChange = { newClientName = it },
-                    label = { Text(stringResource(R.string.client_name_label)) },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val trimmed = newClientName.trim()
-                    if (trimmed.isEmpty()) return@TextButton
-                    val profile = ClientProfile(id = UUID.randomUUID(), name = trimmed, avatarColorArgb = 0)
-                    homeViewModel.createClient(profile)
-                    activeClientManager.setCurrentClientId(profile.id)
-                    newClientName = ""
-                    isAddClientDialogVisible = false
-                }) {
-                    Text(stringResource(R.string.save))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { isAddClientDialogVisible = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
+        ClientEditorDialog(
+            title = stringResource(R.string.add_a_client),
+            initialName = "",
+            confirmTitle = stringResource(R.string.client_create_action),
+            onDismiss = { isAddClientDialogVisible = false },
+            onConfirm = { name ->
+                val profile = ClientProfile(id = UUID.randomUUID(), name = name, avatarColorArgb = 0)
+                homeViewModel.createClient(profile)
+                activeClientManager.setCurrentClientId(profile.id)
+                isAddClientDialogVisible = false
             }
         )
     }

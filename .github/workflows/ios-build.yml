@@ -293,6 +293,10 @@ jobs:
           set -o pipefail
           rm -rf iOS/build/OAKHealthy.xcarchive
           xcodebuild -project iOS/OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Release -destination generic/platform=iOS -archivePath iOS/build/OAKHealthy.xcarchive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO clean archive | tee iOS/xcodebuild-archive.log
+
+      - name: Verify Firebase configuration is packaged
+        run: |
+          test -f iOS/build/OAKHealthy.xcarchive/Products/Applications/OAKHealthy.app/GoogleService-Info.plist
       
       - name: Dump gym log (on failure)
         if: ${{ failure() }}

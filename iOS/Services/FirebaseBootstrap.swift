@@ -4,6 +4,14 @@
 import FirebaseCore
 import Foundation
 
+enum FirebaseBootstrapError: LocalizedError {
+    case missingClientConfiguration
+
+    var errorDescription: String? {
+        "sync_center_error_missing_firebase_config".localized
+    }
+}
+
 @MainActor
 enum FirebaseBootstrap {
     nonisolated static let databaseURL = "https://oak-healthy-default-rtdb.asia-southeast1.firebasedatabase.app"
@@ -41,7 +49,9 @@ enum FirebaseBootstrap {
 
     static func ensureSignedIn() async throws {
         configureIfNeeded()
-        guard FirebaseApp.app() != nil else { throw FirebaseOfflineError() }
+        guard FirebaseApp.app() != nil else {
+            throw FirebaseBootstrapError.missingClientConfiguration
+        }
         if Auth.auth().currentUser != nil { return }
         _ = try await Auth.auth().signInAnonymously()
     }

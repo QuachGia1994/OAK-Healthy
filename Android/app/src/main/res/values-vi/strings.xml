@@ -434,4 +434,19 @@
     <string name="a11y_home">Trang chủ</string>
     <string name="a11y_history">Lịch sử</string>
     <string name="a11y_stack">Danh sách</string>
+    <string name="client_name_hint">Tên học viên</string>
+    <string name="client_editor_body">Dùng tên ngắn, dễ nhận biết. Mỗi học viên có Stack và lịch sử riêng.</string>
+    <string name="client_create_action">Tạo học viên</string>
+    <string name="add_supplement_intro">Thiết lập lịch dùng rõ ràng trong ba phần ngắn.</string>
+    <string name="supplement_details_title">Chất bổ sung</string>
+    <string name="supplement_details_body">Nhập tên và liều dùng hàng ngày.</string>
+    <string name="supplement_timing_title">Thời gian</string>
+    <string name="supplement_timing_body">Chọn ngày bắt đầu và các giờ nhắc.</string>
+    <string name="supplement_rhythm_title">Nhịp dùng</string>
+    <string name="supplement_rhythm_body">Chọn dùng liên tục hoặc theo chu kỳ.</string>
+    <string name="schedule_mode_cycle">Uống / Nghỉ</string>
+    <string name="duration_months_label">Thời hạn theo tháng (không bắt buộc)</string>
+    <string name="intake_times_empty">Thêm ít nhất một giờ nhắc.</string>
+    <string name="change_time">Thay đổi</string>
+    <string name="remove_time">Xóa giờ</string>
 </resources>

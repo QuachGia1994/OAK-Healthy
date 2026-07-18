@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakLogoMark
+import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontStyle
@@ -110,7 +111,6 @@ fun SettingsScreen(
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
     var isEditClientDialogVisible by remember { mutableStateOf(false) }
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
-    var clientNameInput by remember { mutableStateOf("") }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
     var isNotificationEnabledByUser by remember { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
     var hasNotificationPermission by remember { mutableStateOf(hasNotificationPermission(context)) }
@@ -236,7 +236,6 @@ fun SettingsScreen(
                                                 text = { Text(stringResource(R.string.edit)) },
                                                 onClick = {
                                                     editingClient = client
-                                                    clientNameInput = client.name
                                                     isEditClientDialogVisible = true
                                                     isMenuExpanded = false
                                                 }
@@ -612,33 +611,16 @@ fun SettingsScreen(
     }
 
     if (isAddClientDialogVisible) {
-        AlertDialog(
-            onDismissRequest = { isAddClientDialogVisible = false },
-            title = { Text(stringResource(R.string.add_a_client)) },
-            text = {
-                OutlinedTextField(
-                    value = clientNameInput,
-                    onValueChange = { clientNameInput = it },
-                    label = { Text(stringResource(R.string.client_name_label)) },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val trimmed = clientNameInput.trim()
-                    if (trimmed.isEmpty()) return@TextButton
-                    val created = ClientProfile(id = UUID.randomUUID(), name = trimmed, avatarColorArgb = 0)
-                    homeViewModel.createClient(created)
-                    activeClientManager.setCurrentClientId(created.id)
-                    clientNameInput = ""
-                    isAddClientDialogVisible = false
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    clientNameInput = ""
-                    isAddClientDialogVisible = false
-                }) { Text(stringResource(R.string.cancel)) }
+        ClientEditorDialog(
+            title = stringResource(R.string.add_a_client),
+            initialName = "",
+            confirmTitle = stringResource(R.string.client_create_action),
+            onDismiss = { isAddClientDialogVisible = false },
+            onConfirm = { name ->
+                val created = ClientProfile(id = UUID.randomUUID(), name = name, avatarColorArgb = 0)
+                homeViewModel.createClient(created)
+                activeClientManager.setCurrentClientId(created.id)
+                isAddClientDialogVisible = false
             }
         )
     }
@@ -646,31 +628,14 @@ fun SettingsScreen(
     if (isEditClientDialogVisible) {
         val target = editingClient
         if (target != null) {
-            AlertDialog(
-                onDismissRequest = { isEditClientDialogVisible = false },
-                title = { Text(stringResource(R.string.edit)) },
-                text = {
-                    OutlinedTextField(
-                        value = clientNameInput,
-                        onValueChange = { clientNameInput = it },
-                        label = { Text(stringResource(R.string.client_name_label)) },
-                        singleLine = true
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        val trimmed = clientNameInput.trim()
-                        if (trimmed.isEmpty()) return@TextButton
-                        homeViewModel.updateClient(target.copy(name = trimmed))
-                        clientNameInput = ""
-                        isEditClientDialogVisible = false
-                    }) { Text(stringResource(R.string.save)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        clientNameInput = ""
-                        isEditClientDialogVisible = false
-                    }) { Text(stringResource(R.string.cancel)) }
+            ClientEditorDialog(
+                title = stringResource(R.string.edit),
+                initialName = target.name,
+                confirmTitle = stringResource(R.string.save),
+                onDismiss = { isEditClientDialogVisible = false },
+                onConfirm = { name ->
+                    homeViewModel.updateClient(target.copy(name = name))
+                    isEditClientDialogVisible = false
                 }
             )
         }
