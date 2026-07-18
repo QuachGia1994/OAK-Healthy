@@ -2,6 +2,7 @@ package com.example.supplementtracker.service
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
@@ -9,6 +10,7 @@ import androidx.security.crypto.MasterKey
 // Fallback to plain prefs only if KeyStore is corrupted (rooted device edge case).
 object OakPrefs {
     private const val PREFS_NAME = "oak_settings"
+    private const val RECOVERY_PREFS_NAME = "oak_settings_recovery"
     @Volatile private var cached: SharedPreferences? = null
 
     fun get(context: Context): SharedPreferences {
@@ -26,8 +28,9 @@ object OakPrefs {
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
-            } catch (_: Exception) {
-                context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            } catch (error: Exception) {
+                Log.e("OakPrefs", "Encrypted preferences unavailable; using app-sandboxed recovery storage", error)
+                context.applicationContext.getSharedPreferences(RECOVERY_PREFS_NAME, Context.MODE_PRIVATE)
             }
             cached = instance
             instance

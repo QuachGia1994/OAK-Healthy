@@ -12,10 +12,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -109,8 +109,8 @@ fun HistoryScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HistoryContent(state: HistoryUiState.Success) {
-    val shape = RoundedCornerShape(28.dp)
-    val containerColor = MaterialTheme.colorScheme.surfaceVariant
+    val shape = RoundedCornerShape(20.dp)
+    val containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val listState = rememberLazyListState()
     var searchText by rememberSaveable { mutableStateOf("") }
@@ -133,7 +133,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 112.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item(
@@ -158,12 +158,12 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                 fontWeight = FontWeight.Bold,
                 color = primaryTextColor
             )
-            OakCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                variant = OakCardVariant.Surface,
-                shape = shape,
+                OakCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    variant = OakCardVariant.Glass,
+                    shape = shape,
                 contentPadding = PaddingValues(0.dp),
                 elevation = 2.dp
             ) {
@@ -205,7 +205,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                 val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = base),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
@@ -239,7 +239,7 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                 ) {
                     Surface(
                         color = containerColor,
-                        shape = RoundedCornerShape(28.dp),
+                        shape = RoundedCornerShape(12.dp),
                         tonalElevation = 0.dp,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -293,9 +293,10 @@ private fun InsightsTrendCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .shadow(12.dp, RoundedCornerShape(24.dp), clip = false)
                 .background(
                     Brush.linearGradient(listOf(OakColors.InsightCardStart, OakColors.InsightCardEnd)),
-                    RoundedCornerShape(28.dp)
+                    RoundedCornerShape(24.dp)
                 )
                 .padding(16.dp)
         ) {
@@ -312,7 +313,7 @@ private fun InsightsTrendCard(
                         enabled = summary != null
                     ) {
                         Icon(
-                            imageVector = Icons.Default.KeyboardArrowRight,
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = stringResource(R.string.a11y_more_options),
                             tint = Color.White.copy(alpha = if (summary != null) 0.75f else 0.35f)
                         )
@@ -339,7 +340,7 @@ private fun InsightsTrendCard(
                 TrendLineChart(
                     points = trend,
                     takenColor = Color.White,
-                    skippedColor = OakColors.SkippedRecord,
+                    skippedColor = OakColors.SkippedDark,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(110.dp)
@@ -580,23 +581,45 @@ private fun HistoryFilterBar(
                 .background(base, shape)
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            FilterChip(
+            HistoryFilterChip(
+                label = stringResource(R.string.history_filter_all),
                 selected = filter == HistoryFilter.ALL,
-                onClick = { onFilterChange(HistoryFilter.ALL) },
-                label = { Text(stringResource(R.string.history_filter_all), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                tint = MaterialTheme.colorScheme.primary,
+                onClick = { onFilterChange(HistoryFilter.ALL) }
             )
-            FilterChip(
+            HistoryFilterChip(
+                label = stringResource(R.string.notif_action_taken),
                 selected = filter == HistoryFilter.TAKEN,
-                onClick = { onFilterChange(HistoryFilter.TAKEN) },
-                label = { Text(stringResource(R.string.notif_action_taken), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                tint = if (isDark) OakColors.TakenDark else OakColors.Taken,
+                onClick = { onFilterChange(HistoryFilter.TAKEN) }
             )
-            FilterChip(
+            HistoryFilterChip(
+                label = stringResource(R.string.notif_action_skip),
                 selected = filter == HistoryFilter.SKIPPED,
-                onClick = { onFilterChange(HistoryFilter.SKIPPED) },
-                label = { Text(stringResource(R.string.notif_action_skip), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                tint = if (isDark) OakColors.SkippedDark else OakColors.Skipped,
+                onClick = { onFilterChange(HistoryFilter.SKIPPED) }
             )
         }
     }
+}
+
+@Composable
+private fun HistoryFilterChip(label: String, selected: Boolean, tint: Color, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = tint.copy(alpha = 0.16f),
+            selectedLabelColor = tint
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outlineVariant,
+            selectedBorderColor = tint.copy(alpha = 0.55f)
+        )
+    )
 }
 
 @Composable
@@ -611,8 +634,8 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val gridColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f) }
-val axisTextColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.75f) else OakColors.TextSecondary }
-        val barColor = remember(isDark) { if (isDark) OakColors.ChartBarDark else OakColors.ChartBar }
+    val axisTextColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.75f) else OakColors.TextSecondary }
+    val barColor = remember(isDark) { if (isDark) OakColors.ChartBarDark else OakColors.ChartBar }
     val axisWidth = 40.dp
     val chartHeight = 180.dp
 
@@ -727,13 +750,24 @@ private fun HistoryRecordItem(record: IntakeRecord) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val isSkipped = record.status == "Skipped"
 
-    Card(
+    val accent = if (isSkipped) {
+        if (isDark) OakColors.SkippedDark else OakColors.Skipped
+    } else {
+        if (isDark) OakColors.TakenDark else OakColors.Taken
+    }
+    OakCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = base),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        accent = accent,
+        shape = RoundedCornerShape(20.dp),
+        contentPadding = PaddingValues(0.dp)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(width = 4.dp, height = 38.dp)
+                    .background(accent, RoundedCornerShape(2.dp))
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = displayTime,
                 style = MaterialTheme.typography.bodySmall,
@@ -750,7 +784,7 @@ private fun HistoryRecordItem(record: IntakeRecord) {
             Icon(
                 imageVector = if (isSkipped) Icons.Default.Cancel else Icons.Default.CheckCircle,
                 contentDescription = stringResource(if (isSkipped) R.string.dose_status_skipped else R.string.home_confirm_intake_action),
-                tint = if (isSkipped) OakColors.Skipped else OakColors.Taken
+                tint = accent
             )
         }
     }

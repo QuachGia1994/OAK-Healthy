@@ -13,7 +13,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -29,6 +28,8 @@ import com.example.supplementtracker.presentation.add_supplement.AddSupplementVi
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.OakDarkColorScheme
+import com.example.supplementtracker.presentation.designsystem.OakLightColorScheme
 import com.example.supplementtracker.presentation.navigation.AppNavigation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.service.OakPrefs
@@ -180,7 +181,7 @@ class MainActivity : ComponentActivity() {
                 var initError by remember { mutableStateOf<String?>(null) }
 
                 LaunchedEffect(Unit) {
-                    val minSplashMs = 3_300L
+                    val minSplashMs = 1_350L
                     val splashStartedAt = SystemClock.elapsedRealtime()
                     try {
                         val (repository, activeClientManager) = withContext(Dispatchers.IO) {
@@ -223,7 +224,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                MaterialTheme(colorScheme = if (isDarkTheme) darkColorScheme() else lightColorScheme()) {
+                MaterialTheme(colorScheme = if (isDarkTheme) OakDarkColorScheme else OakLightColorScheme) {
                     OakBackground {
                         val ready = deps
                         if (initError != null) {

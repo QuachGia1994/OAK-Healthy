@@ -1,5 +1,5 @@
 <resources>
-    <color name="ic_launcher_background">#1A1A1D</color>
+    <color name="ic_launcher_background">#08383B</color>
     <color name="oak_green">#4CAF50</color>
-    <color name="oak_splash_background">#FFFFFF</color>
+    <color name="oak_splash_background">#082F34</color>
 </resources>

@@ -2,11 +2,22 @@ import CryptoKit
 import Foundation
 import Security
 
-public enum CloudSyncCryptoError: Error, Sendable {
+public enum CloudSyncCryptoError: Error, Sendable, LocalizedError {
     case invalidKeyFormat
     case missingKey(keyId: String)
     case cryptoFailed(message: String)
     case invalidPayload
+    case unencryptedPayloadRejected
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidKeyFormat: return "The encryption key format is invalid."
+        case .missingKey(let keyId): return "Missing cloud sync key: \(keyId)"
+        case .cryptoFailed(let message): return "Cloud encryption failed: \(message)"
+        case .invalidPayload: return "The encrypted cloud payload is invalid."
+        case .unencryptedPayloadRejected: return "Unencrypted cloud data was rejected because encryption is enabled."
+        }
+    }
 }
 
 public enum CloudSyncKeyManager {
@@ -14,6 +25,11 @@ public enum CloudSyncKeyManager {
     private static let enabledKey = "cloudSyncEncryptionEnabled"
     private static let currentKeyIdKey = "cloudSyncEncCurrentKeyId"
     private static let previousKeyIdKey = "cloudSyncEncPreviousKeyId"
+    nonisolated(unsafe) private static let validKeyIdPattern = /^[A-Za-z0-9_-]{1,64}$/
+
+    static func isValidKeyId(_ keyId: String) -> Bool {
+        keyId.firstMatch(of: validKeyIdPattern) != nil
+    }
     
     public static func isEncryptionEnabled() -> Bool {
         UserDefaults.standard.bool(forKey: enabledKey)
@@ -34,8 +50,8 @@ public enum CloudSyncKeyManager {
     
     public static func exportCurrentKey() throws(CloudSyncCryptoError) -> String? {
         let keyId = (UserDefaults.standard.string(forKey: currentKeyIdKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyId.isEmpty else { return nil }
-        guard let keyData = readKeyData(keyId: keyId) else { return nil }
+        guard isValidKeyId(keyId) else { return nil }
+        guard let keyData = try readKeyData(keyId: keyId) else { return nil }
         let b64 = keyData.base64EncodedString()
         return "\(keyId):\(b64)"
     }
@@ -46,7 +62,7 @@ public enum CloudSyncKeyManager {
         guard parts.count == 2 else { throw .invalidKeyFormat }
         let keyId = parts[0].trimmingCharacters(in: .whitespacesAndNewlines)
         let b64 = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyId.isEmpty, let data = Data(base64Encoded: b64), data.count == 32 else { throw .invalidKeyFormat }
+        guard isValidKeyId(keyId), let data = Data(base64Encoded: b64), data.count == 32 else { throw .invalidKeyFormat }
         let current = (UserDefaults.standard.string(forKey: currentKeyIdKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !current.isEmpty, current != keyId { UserDefaults.standard.set(current, forKey: previousKeyIdKey) }
         try writeKeyData(data, keyId: keyId)
@@ -54,7 +70,7 @@ public enum CloudSyncKeyManager {
         return keyId
     }
     
-    public static func rotateKey() throws(CloudSyncCryptoError) -> String {
+    private static func rotateKey() throws(CloudSyncCryptoError) -> String {
         let old = (UserDefaults.standard.string(forKey: currentKeyIdKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let keyId = UUID().uuidString
         var bytes = [UInt8](repeating: 0, count: 32)
@@ -69,15 +85,16 @@ public enum CloudSyncKeyManager {
     
     public static func ensureKeyExists() throws(CloudSyncCryptoError) -> String {
         let keyId = (UserDefaults.standard.string(forKey: currentKeyIdKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !keyId.isEmpty, readKeyData(keyId: keyId) != nil { return keyId }
+        if isValidKeyId(keyId), try readKeyData(keyId: keyId) != nil { return keyId }
         return try rotateKey()
     }
     
-    public static func keyData(for keyId: String) -> Data? {
-        readKeyData(keyId: keyId)
+    public static func keyData(for keyId: String) throws(CloudSyncCryptoError) -> Data? {
+        guard isValidKeyId(keyId) else { return nil }
+        return try readKeyData(keyId: keyId)
     }
     
-    private static func readKeyData(keyId: String) -> Data? {
+    private static func readKeyData(keyId: String) throws(CloudSyncCryptoError) -> Data? {
         let account = "cloudSyncEncKey_\(keyId)"
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -88,8 +105,10 @@ public enum CloudSyncKeyManager {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess else { return nil }
-        return item as? Data
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw .cryptoFailed(message: "Keychain read failed: \(status)") }
+        guard let data = item as? Data else { throw .cryptoFailed(message: "Keychain returned invalid data") }
+        return data
     }
     
     private static func writeKeyData(_ data: Data, keyId: String) throws(CloudSyncCryptoError) {
@@ -114,15 +133,6 @@ public enum CloudSyncKeyManager {
         guard updateStatus == errSecSuccess else { throw .cryptoFailed(message: "Keychain update failed: \(updateStatus)") }
     }
     
-    private static func deleteKeyData(keyId: String) {
-        let account = "cloudSyncEncKey_\(keyId)"
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
-        SecItemDelete(query as CFDictionary)
-    }
 }
 
 public enum CloudSyncCrypto {
@@ -141,7 +151,7 @@ public enum CloudSyncCrypto {
     public static func encryptIfEnabled(_ plaintext: Data) throws(CloudSyncCryptoError) -> Data {
         guard CloudSyncKeyManager.isEncryptionEnabled() else { return plaintext }
         let keyId = try CloudSyncKeyManager.ensureKeyExists()
-        guard let keyData = CloudSyncKeyManager.keyData(for: keyId) else { throw .missingKey(keyId: keyId) }
+        guard let keyData = try CloudSyncKeyManager.keyData(for: keyId) else { throw .missingKey(keyId: keyId) }
         let nonce = AES.GCM.Nonce()
         let nonceData = nonce.withUnsafeBytes { Data($0) }
         let ctData = try seal(plaintext: plaintext, keyData: keyData, nonce: nonce)
@@ -149,8 +159,22 @@ public enum CloudSyncCrypto {
     }
     
     public static func decryptIfNeeded(_ payload: Data) throws(CloudSyncCryptoError) -> Data {
-        guard let parsed = try parseEncryptedPayloadIfPresent(payload) else { return payload }
-        return try openEncryptedPayload(kid: parsed.kid, nonceData: parsed.nonceData, ctData: parsed.ctData)
+        let parsed = try parseEncryptedPayloadIfPresent(payload)
+        let localUsesEncryption = CloudSyncKeyManager.isEncryptionEnabled()
+        try validateEncryptionMode(localUsesEncryption: localUsesEncryption, cloudUsesEncryption: parsed != nil)
+        guard let parsed else { return payload }
+        let plaintext = try openEncryptedPayload(kid: parsed.kid, nonceData: parsed.nonceData, ctData: parsed.ctData)
+        if !localUsesEncryption {
+            try CloudSyncKeyManager.setEncryptionEnabled(true)
+        }
+        return plaintext
+    }
+
+    static func validateEncryptionMode(
+        localUsesEncryption: Bool,
+        cloudUsesEncryption: Bool
+    ) throws(CloudSyncCryptoError) {
+        if localUsesEncryption && !cloudUsesEncryption { throw .unencryptedPayloadRejected }
     }
     
     private static func seal(
@@ -195,10 +219,12 @@ public enum CloudSyncCrypto {
     private static func parseEncryptedPayloadIfPresent(
         _ payload: Data
     ) throws(CloudSyncCryptoError) -> (kid: String, nonceData: Data, ctData: Data)? {
-        guard let decoded = try? JSONDecoder().decode(EncryptedPayload.self, from: payload) else { return nil }
+        guard let object = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any] else { return nil }
+        guard object["enc"] != nil else { return nil }
+        guard let decoded = try? JSONDecoder().decode(EncryptedPayload.self, from: payload) else { throw .invalidPayload }
         guard decoded.enc.v == 1, decoded.enc.alg == "A256GCM" else { throw .invalidPayload }
         let kid = decoded.enc.kid.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !kid.isEmpty else { throw .invalidPayload }
+        guard CloudSyncKeyManager.isValidKeyId(kid) else { throw .invalidPayload }
         guard let nonceData = Data(base64Encoded: decoded.enc.nonce) else { throw .invalidPayload }
         guard let ctData = Data(base64Encoded: decoded.enc.ct) else { throw .invalidPayload }
         guard nonceData.count == 12, ctData.count >= 16 else { throw .invalidPayload }
@@ -210,7 +236,20 @@ public enum CloudSyncCrypto {
         nonceData: Data,
         ctData: Data
     ) throws(CloudSyncCryptoError) -> Data {
-        guard let keyData = CloudSyncKeyManager.keyData(for: kid) else { throw .missingKey(keyId: kid) }
+        guard let keyData = try CloudSyncKeyManager.keyData(for: kid) else { throw .missingKey(keyId: kid) }
+        do {
+            return try openAESGCM(keyData: keyData, nonceData: nonceData, ctData: ctData)
+        } catch let firstError as CloudSyncCryptoError {
+            guard ctData.count >= 28, ctData.starts(with: nonceData) else { throw firstError }
+            return try openAESGCM(keyData: keyData, nonceData: nonceData, ctData: Data(ctData.dropFirst(12)))
+        }
+    }
+
+    private static func openAESGCM(
+        keyData: Data,
+        nonceData: Data,
+        ctData: Data
+    ) throws(CloudSyncCryptoError) -> Data {
         let key = SymmetricKey(data: keyData)
         let nonce: AES.GCM.Nonce
         do {
@@ -218,7 +257,7 @@ public enum CloudSyncCrypto {
         } catch {
             throw .cryptoFailed(message: String(describing: error))
         }
-        let tag = ctData.suffix(16)
+        let tag = Data(ctData.suffix(16))
         let ciphertext = ctData.dropLast(16)
         let box: AES.GCM.SealedBox
         do {

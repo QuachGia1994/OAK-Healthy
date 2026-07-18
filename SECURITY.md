@@ -1,54 +1,49 @@
-# Security Notes
+# Security Policy
 
-## Firebase Realtime Database Rules
+## Supported versions
 
-The app uses anonymous Firebase authentication. Security rules must enforce per-user data isolation. Deploy the following rules to Firebase Console:
+Security fixes are applied to the latest commit on `main`. Until the first
+stable release, older commits and locally modified builds are not supported.
 
-```json
-{
-  "rules": {
-    "oakBins": {
-      "$binId": {
-        ".read": "auth != null",
-        ".write": "auth != null"
-      }
-    }
-  }
-}
-```
+## Reporting a vulnerability
 
-**Note:** With anonymous auth, all users share the same `auth.uid` namespace. For production, consider implementing a mapping document that binds each binId to a specific anonymous user, or migrate to email/password authentication.
+Please use [GitHub private vulnerability reporting](https://github.com/QuachGia1994/OAK-Healthy/security/advisories/new).
+Do not open a public issue for suspected vulnerabilities and do not include
+Link Codes, Sync Keys, Firebase credentials, health data, or screenshots that
+contain private information.
 
-## Certificate Pinning (iOS)
+The maintainer will acknowledge a complete report within seven days, assess
+severity, and coordinate a fix before public disclosure. Include affected
+platforms, reproduction steps, impact, and a minimal proof of concept when it
+is safe to do so.
 
-Run a DEBUG build once to capture real SPKI hashes from the console output:
+## Security model
 
-```
-[CertPin] host=firebasedatabase.app spki_sha256=<hash>
-[CertPin] host=gist.githubusercontent.com spki_sha256=<hash>
-```
+- Health records are local by default and are uploaded only after the user
+  creates or joins a sync link.
+- Optional cloud encryption uses AES-256-GCM. The Sync Key must be transferred
+  separately from the Link Code.
+- Android wraps the Sync Key with Android Keystore. iOS stores it in Keychain
+  with `WhenUnlockedThisDeviceOnly` accessibility.
+- Firebase writes use transactions with monotonic revisions. Database rules
+  validate the payload shape, size, and revision increase.
+- Firebase Anonymous Authentication limits access to authenticated app clients.
+  App Check enforcement must also be enabled in the production Firebase
+  console to reject untrusted clients.
+- A Link Code is an unguessable capability, not a password. Anyone who obtains
+  it may attempt to read, replace, or delete its cloud record; AES-GCM protects
+  confidentiality but cannot prevent denial of service.
+- Local application databases rely on the operating-system sandbox and device
+  file protection. OAK Healthy does not currently claim SQLCipher protection.
 
-Paste the captured hashes into `iOS/Services/CertificatePinning.swift` in the `pinnedHashes` dictionary.
+## Deployment checklist
 
-## Room Database Encryption (Android)
+1. Enable Firebase App Check enforcement for Realtime Database.
+2. Deploy [`firebase/database.rules.json`](firebase/database.rules.json).
+3. Keep signing keys, service-account credentials, `Secrets.xcconfig`, and
+   `keystore.properties` outside the repository.
+4. Review dependency alerts and GitHub Actions results before every release.
 
-SQLCipher dependency is added (`net.zetetic:android-database-sqlcipher:4.5.6`). The helper is at `EncryptedDatabaseHelper.kt`.
-
-**To enable encryption on existing installs:**
-
-1. The passphrase is stored in EncryptedSharedPreferences backed by AndroidKeyStore
-2. Existing unencrypted databases need a migration:
-   - Export all data from unencrypted Room DB
-   - Create new encrypted DB with `SupportFactory(passphrase)`
-   - Import data into encrypted DB
-   - Delete old unencrypted DB file
-3. New installs get encryption from the start
-
-**Current status:** Helper is ready but not wired into `SupplementDatabase.getInstance()`. This change requires careful testing with existing user data.
-
-## Key Rotation
-
-- Firebase API keys were previously committed to git. Rotate them in Firebase Console after the first release with the new gitignored config.
-- EncryptedSharedPreferences master key is generated per-device via AndroidKeyStore — no rotation needed.
-- iOS Keychain keys use `kSecAttrAccessibleAfterFirstUnlock` — rotation not needed for this protection level.
-- Room DB encryption key: stored in EncryptedSharedPreferences, derived from AndroidKeyStore master key.
+Firebase client configuration files contain public client identifiers. They do
+not grant server-admin access, but their associated services must still be
+restricted in Firebase and Google Cloud consoles.

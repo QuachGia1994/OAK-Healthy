@@ -15,19 +15,19 @@
     <string name="settings_title">Settings</string>
     <string name="app_information_title">App Information</string>
     <string name="settings_guide_title">User Guide</string>
-    <string name="settings_guide_content">1. Stack &amp; Schedule: Add supplements and choose a schedule (continuous, On/Off, every N days, weekly). Home shows what’s due today.\n2. Sync Center: Device A (Host) creates a Link Code. Device B (Link) pastes the code and taps Download.\n3. Encryption &amp; keys: Enable Cloud Encryption (recommended). Tap the exported key to copy; use Paste to import on the other device. After rotating the key, re-import it. Use the eye icon to hide codes in public. Revoke deletes cloud data permanently.\n4. Notifications: Allow notifications so reminders work. You can tap Taken/Skip directly on the notification.\n5. Auto‑Sync: Enable Auto‑Sync to keep devices aligned. If Link Code is set but the key is missing, Auto‑Sync may turn off to avoid endless retry; import the key then enable it again.\n6. Troubleshooting: Use Notification diagnostics to verify schedules. Ensure system Do Not Disturb isn’t blocking alerts.\n7. Status &amp; filters: Green = Taken, orange = Skipped, red = Overdue. Use filters to focus on Due/Overdue quickly.</string>
+    <string name="settings_guide_content">1. Stack &amp; Schedule: Add supplements and choose a schedule. Home shows what is due today.\n2. Sync Center: Device A chooses encryption before Host creates a Link Code. Device B imports the key when required, pastes the code, then taps Download once.\n3. Encryption &amp; keys: Keep the key private. It is hidden by default and cannot be recovered. To change encryption or replace an exposed key, revoke the old code and host again.\n4. Notifications: Allow notifications so reminders work. You can tap Taken/Skip directly on the notification.\n5. Auto-Sync: Opening or returning to the app syncs immediately; local edits upload after a short debounce. Network and OS background limits still apply.\n6. Troubleshooting: If sync reports a missing key, import the Host key and enable Auto-Sync again. Use Notification diagnostics for reminder issues.\n7. Status &amp; filters: Green = Taken, orange = Skipped, red = Overdue. Use filters to focus on Due/Overdue quickly.</string>
     <string name="user_guide_1_title">Section 1: Stack &amp; Schedule</string>
     <string name="user_guide_1_body">Add supplements and choose a schedule (continuous, On/Off, every N days, weekly). Home shows what’s due today.</string>
     <string name="user_guide_2_title">Section 2: Sync Center</string>
-    <string name="user_guide_2_body">Device A (Host) creates a Link Code. Device B (Link) uses Paste and taps Download to pull + merge.</string>
+    <string name="user_guide_2_body">Device A chooses encryption before Host creates a Link Code. Device B imports the key when required, pastes the code, then taps Download once.</string>
     <string name="user_guide_3_title">Section 3: Encryption &amp; Keys</string>
-    <string name="user_guide_3_body">Enable Cloud Encryption (recommended). Tap the exported key to copy; use Paste to import. After rotating the key, re-import it. Hide codes with the eye icon. Revoke deletes cloud data permanently.</string>
+    <string name="user_guide_3_body">Keep the sync key private; it is hidden by default and cannot be recovered. Encryption is locked while a Link Code is active. To change mode or replace an exposed key, revoke the old code and host again.</string>
     <string name="user_guide_4_title">Section 4: Notifications</string>
     <string name="user_guide_4_body">Allow notifications so reminders work reliably. You can tap Taken/Skip directly on the notification for fast logging.</string>
     <string name="user_guide_5_title">Section 5: Auto‑Sync</string>
-    <string name="user_guide_5_body">Enable Auto‑Sync to keep devices aligned. If Link Code is set but the key is missing, Auto‑Sync may turn off to avoid endless retry; import the key then enable it again.</string>
+    <string name="user_guide_5_body">Opening or returning to the app syncs immediately. Local edits upload after a short debounce; network and OS background limits still apply. If a key is missing, import it and enable Auto-Sync again.</string>
     <string name="user_guide_6_title">Section 6: Troubleshooting</string>
-    <string name="user_guide_6_body">Use Notification diagnostics to verify scheduled reminders. Ensure system Do Not Disturb isn’t blocking alerts.</string>
+    <string name="user_guide_6_body">For sync errors, verify Internet, Link Code, and encryption key first. Use Notification diagnostics for reminders and ensure Do Not Disturb is not blocking alerts.</string>
     <string name="user_guide_7_title">Section 7: Status &amp; Filters</string>
     <string name="user_guide_7_body">Green = Taken, orange = Skipped, red = Overdue. Use filters to focus on Due/Overdue quickly.</string>
     
@@ -35,9 +35,9 @@
     <string name="settings_intro_content">OAK Healthy - A professional supplement cycle assistant for Traders, Athletes, and Doctors monitoring patients. Helps optimize performance and discipline.</string>
     
     <string name="settings_copyright_title">Copyright &amp; Author</string>
-    <string name="settings_app_version">App: OAK Healthy v1.0</string>
-    <string name="settings_author">Author: Mr. Phong (Personal Trader)</string>
-    <string name="settings_copyright">© 2026 OAK Healthy. All rights reserved.</string>
+    <string name="settings_app_version">App: OAK Healthy v1.0.1</string>
+    <string name="settings_author">Author: Quach Gia (Phong QK)</string>
+    <string name="settings_copyright">© 2026 Quach Gia / OAK Healthy. All rights reserved.</string>
     <string name="settings_dedication">With all dedication and research in the fitness &amp; trading journey.</string>
     <string name="settings_section_multidevice_sync">Multi-device sync</string>
     <string name="settings_section_about_and_copyright">About &amp; Copyright</string>
@@ -165,6 +165,7 @@
     <string name="suggested">Suggested: %1$s</string>
     <string name="my_list_title">My List</string>
     <string name="manage_stack">Manage Stack</string>
+    <string name="no_supplements_yet">No supplements yet.</string>
 
     <string name="history_title">History</string>
     <string name="history_today">Today</string>
@@ -221,8 +222,6 @@
 
     <string name="sync_center_revoke_title">Revoke link code?</string>
     <string name="sync_center_revoke_message">Other devices will no longer be able to sync with the current code.</string>
-    <string name="sync_center_rotate_title">Rotate key?</string>
-    <string name="sync_center_rotate_message">Other devices must import the new key to decrypt future uploads.</string>
     <string name="sync_center_disable_encryption_title">Disable encryption?</string>
     <string name="sync_center_disable_encryption_message">Data will be uploaded as plaintext JSON. Make sure you understand the security risks.</string>
     <string name="sync_center_rehost_title">Re-host data?</string>
@@ -245,11 +244,13 @@
 
     <string name="sync_center_device_b_title">Device B (Link)</string>
     <string name="sync_center_device_b_desc">Enter the code from device A, then tap Download.</string>
-    <string name="sync_center_step_link_1">Enter the link code from device A.</string>
-    <string name="sync_center_step_link_2">Tap Download to pull + merge data.</string>
-    <string name="sync_center_step_link_3">If encryption is enabled, import the key to decrypt cloud data.</string>
+    <string name="sync_center_step_link_1">If Host uses encryption, import its sync key first.</string>
+    <string name="sync_center_step_link_2">Enter the link code and tap Download once.</string>
+    <string name="sync_center_step_link_3">Enable Auto-Sync to receive foreground changes immediately.</string>
     <string name="sync_center_link_code_input_label">Link code</string>
+    <string name="sync_center_invalid_link_code">Invalid Link Code.</string>
     <string name="sync_center_action_download">Download</string>
+    <string name="sync_center_action_unlink">Unlink this device</string>
     <string name="sync_center_auto_sync_label">Auto-Sync</string>
 
     <string name="sync_center_status_title">Sync status</string>
@@ -265,6 +266,8 @@
     <string name="sync_center_status_hint_missing_key">Hint: missing sync key. Copy the key from Host and import it in Encryption.</string>
 
     <string name="sync_center_encryption_title">Cloud encryption</string>
+    <string name="sync_center_encryption_locked_hint">Encryption follows the active Link Code. Revoke or unlink it before changing this setting.</string>
+    <string name="sync_center_encryption_off_hint">Cloud data is plaintext. Enable encryption before hosting.</string>
     <string name="sync_center_export_key_label">Sync key (copy to other device)</string>
     <string name="sync_center_import_key_input_label">Enter key (keyId:base64)</string>
     <string name="sync_center_logs_title">Sync logs (recent)</string>
@@ -276,7 +279,6 @@
     <string name="sync_center_import_key_note_keyid_format">KeyId: %1$s</string>
 
     <string name="sync_center_action_revoke">Revoke</string>
-    <string name="sync_center_action_rotate">Rotate</string>
     <string name="sync_center_action_disable">Disable</string>
     <string name="sync_center_action_keep_encryption">Keep encryption</string>
     <string name="sync_center_action_create_new_code">Create new code</string>
@@ -324,8 +326,6 @@
     <string name="cloud_encryption_enabled">Cloud encryption enabled</string>
     <string name="cloud_encryption_disabled">Cloud encryption disabled</string>
     <string name="cloud_encryption_failed">Failed to configure cloud encryption</string>
-    <string name="cloud_rotate_success">Key rotated. Please copy the new key to other devices.</string>
-    <string name="cloud_rotate_failed">Key rotation failed</string>
     <string name="cloud_import_key_success_format">Imported key: %1$s</string>
     <string name="cloud_import_key_failed">Import key failed</string>
     <string name="cloud_revoke_missing_code">No code to revoke.</string>

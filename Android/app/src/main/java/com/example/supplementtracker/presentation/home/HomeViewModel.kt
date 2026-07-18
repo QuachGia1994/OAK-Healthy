@@ -61,6 +61,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Mutex
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
@@ -119,17 +120,24 @@ class HomeViewModel(
     val hostedBinId: StateFlow<String?> = _hostedBinId
     private val _cloudSyncUiStatus = MutableStateFlow<CloudSyncUiStatus?>(null)
     val cloudSyncUiStatus: StateFlow<CloudSyncUiStatus?> = _cloudSyncUiStatus
-    private var autoSyncJob: Job? = null
     private var pendingAutoSyncJob: Job? = null
+    private val syncMutex = Mutex()
     private var realtimeListener: com.example.supplementtracker.service.FirebaseRealtimeSyncListener? = null
 
     fun startAutoSync() {
         CloudAutoSyncWork.setEnabled(context, true)
         startRealtimeListener()
+        activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it, delayMillis = 0L) }
     }
 
     fun stopAutoSync() {
         CloudAutoSyncWork.setEnabled(context, false)
+        pendingAutoSyncJob?.cancel()
+        pendingAutoSyncJob = null
+        pauseAutoSync()
+    }
+
+    fun pauseAutoSync() {
         stopRealtimeListener()
     }
 
@@ -137,14 +145,14 @@ class HomeViewModel(
         stopRealtimeListener()
         val binId = activeAutoSyncBinId() ?: return
         val listener = com.example.supplementtracker.service.FirebaseRealtimeSyncListener(context) {
-            if (!_cloudSyncLoading.value) syncTwoWay(binId)
+            syncTwoWay(binId)
         }
         realtimeListener = listener
         listener.start(binId)
     }
 
     private fun stopRealtimeListener() {
-        realtimeListener?.stop()
+        realtimeListener?.close()
         realtimeListener = null
     }
     private val adviceByName: Map<String, String?> =
@@ -929,14 +937,12 @@ class HomeViewModel(
         return CloudSyncCrypto.exportCurrentKey(context)
     }
     
-    fun rotateCloudEncryptionKey() {
-        runCatching { CloudSyncCrypto.rotateKey(context) }
-            .onSuccess { _dataTransferMessage.value = context.getString(R.string.cloud_rotate_success) }
-            .onFailure { _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_rotate_failed) }
-    }
-    
     fun importCloudEncryptionKey(exported: String) {
-        runCatching { CloudSyncCrypto.importKey(context, exported) }
+        runCatching {
+            val keyId = CloudSyncCrypto.importKey(context, exported)
+            CloudSyncCrypto.setEnabled(context, true).getOrThrow()
+            keyId
+        }
             .onSuccess { _dataTransferMessage.value = context.getString(R.string.cloud_import_key_success_format, it) }
             .onFailure { _dataTransferMessage.value = it.message ?: context.getString(R.string.cloud_import_key_failed) }
     }
@@ -989,15 +995,13 @@ class HomeViewModel(
         return id.takeIf { it.isNotEmpty() }
     }
     
-    private fun requestAutoSyncDebounced(binId: String) {
+    private fun requestAutoSyncDebounced(binId: String, delayMillis: Long = 350L) {
         val id = binId.trim()
         if (id.isEmpty()) return
         pendingAutoSyncJob?.cancel()
         pendingAutoSyncJob = viewModelScope.launch {
-            delay(1_500L)
+            delay(delayMillis)
             if (activeAutoSyncBinId() != id) return@launch
-            if (_cloudSyncLoading.value) return@launch
-            CloudAutoSyncWork.enqueueNow(context)
             syncTwoWay(id)
         }
     }
@@ -1087,6 +1091,15 @@ class HomeViewModel(
     }
     
     private suspend fun syncTwoWay(binId: String) {
+        syncMutex.lock()
+        try {
+            performSyncTwoWay(binId)
+        } finally {
+            syncMutex.unlock()
+        }
+    }
+
+    private suspend fun performSyncTwoWay(binId: String) {
         val clientId = activeClientManager.currentClientId.value ?: return
         val prefs = OakPrefs.get(context)
         val manifestId = binId.trim()

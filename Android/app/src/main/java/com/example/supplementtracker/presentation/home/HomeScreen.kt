@@ -1,6 +1,7 @@
 package com.example.supplementtracker.presentation.home
 
 import com.example.supplementtracker.presentation.designsystem.OakColors
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -280,62 +281,32 @@ private fun HomeContent(
     val missedItems = remember(state.activeSupplements) {
         state.activeSupplements.values.flatten().filter { it.doseStatus == DoseStatus.MISSED }
     }
+    val counts = todayCounts(state.activeSupplements.values.flatten())
+    val total = counts.due + counts.missed + counts.taken + counts.skipped
+    val current = when (filter) {
+        HomeDoseFilter.ALL -> total
+        HomeDoseFilter.DUE -> counts.due
+        HomeDoseFilter.OVERDUE -> counts.missed
+        HomeDoseFilter.TAKEN -> counts.taken
+        HomeDoseFilter.SKIPPED -> counts.skipped
+    }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Section: Active Today
         item(
-            key = "today_title",
-            contentType = "title"
-        ) { SectionHeader(stringResource(R.string.today_intake_title)) }
-
-        item(
-            key = "today_summary",
-            contentType = "summary"
+            key = "today_dashboard",
+            contentType = "dashboard"
         ) {
-            val nowEpochMs = System.currentTimeMillis()
-            var due = 0
-            var taken = 0
-            var skipped = 0
-            var missed = 0
-            state.activeSupplements.values.forEach { items ->
-                items.forEach { item ->
-                    when (item.doseStatus) {
-                        DoseStatus.PLANNED -> {
-                            if (item.scheduledAtEpochMs in 1..nowEpochMs) due += 1
-                        }
-                        DoseStatus.TAKEN -> taken += 1
-                        DoseStatus.SKIPPED -> skipped += 1
-                        DoseStatus.MISSED -> missed += 1
-                    }
-                }
-            }
-            val counts = TodayCounts(due = due, taken = taken, skipped = skipped, missed = missed)
-            val total = counts.due + counts.missed + counts.taken + counts.skipped
-            val current = when (filter) {
-                HomeDoseFilter.ALL -> total
-                HomeDoseFilter.DUE -> counts.due
-                HomeDoseFilter.OVERDUE -> counts.missed
-                HomeDoseFilter.TAKEN -> counts.taken
-                HomeDoseFilter.SKIPPED -> counts.skipped
-            }
-            val other = (total - current).coerceAtLeast(0)
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    StreakPill(days = state.streakDays)
-                }
-                TodayStrip(counts = counts, selected = filter, onSelected = { filter = it })
-                if (filter != HomeDoseFilter.ALL && other > 0) {
-                    Text(
-                        text = stringResource(R.string.home_filter_hint_format, other),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            HomeDashboardHeader(
+                counts = counts,
+                streakDays = state.streakDays,
+                selected = filter,
+                hiddenCount = (total - current).coerceAtLeast(0),
+                onSelected = { filter = it }
+            )
         }
         
         if (state.activeSupplements.isEmpty()) {
@@ -422,7 +393,7 @@ private fun HomeContent(
         }
 
         // Section: Resting
-        if (state.restingSupplements.isNotEmpty()) {
+        if (state.restingSupplements.isNotEmpty() && filter == HomeDoseFilter.ALL) {
             item(
                 key = "resting_title",
                 contentType = "title"
@@ -452,17 +423,42 @@ private enum class HomeDoseFilter {
 }
 
 @Composable
+private fun HomeDashboardHeader(
+    counts: TodayCounts,
+    streakDays: Int,
+    selected: HomeDoseFilter,
+    hiddenCount: Int,
+    onSelected: (HomeDoseFilter) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            SectionHeader(stringResource(R.string.today_intake_title), Modifier.weight(1f))
+            StreakPill(days = streakDays)
+        }
+        TodayStrip(counts = counts, selected = selected, onSelected = onSelected)
+        if (selected != HomeDoseFilter.ALL && hiddenCount > 0) {
+            Text(
+                text = stringResource(R.string.home_filter_hint_format, hiddenCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun TodayStrip(
     counts: TodayCounts,
     selected: HomeDoseFilter,
     onSelected: (HomeDoseFilter) -> Unit
 ) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             TodayStripButton(
                 title = stringResource(R.string.home_status_due),
                 count = counts.due,
-                tint = OakColors.DueSoon,
+                tint = if (isDark) OakColors.DueSoonDark else OakColors.DueSoon,
                 selected = selected == HomeDoseFilter.DUE,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -472,7 +468,7 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.dose_status_missed),
                 count = counts.missed,
-                tint = OakColors.Missed,
+                tint = if (isDark) OakColors.MissedDark else OakColors.Missed,
                 selected = selected == HomeDoseFilter.OVERDUE,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -484,7 +480,7 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.notif_action_taken),
                 count = counts.taken,
-                tint = OakColors.Taken,
+                tint = if (isDark) OakColors.TakenDark else OakColors.Taken,
                 selected = selected == HomeDoseFilter.TAKEN,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -494,7 +490,7 @@ private fun TodayStrip(
             TodayStripButton(
                 title = stringResource(R.string.notif_action_skip),
                 count = counts.skipped,
-                tint = OakColors.Skipped,
+                tint = if (isDark) OakColors.SkippedDark else OakColors.Skipped,
                 selected = selected == HomeDoseFilter.SKIPPED,
                 modifier = Modifier.weight(1f),
                 onClick = {
@@ -513,28 +509,37 @@ private fun TodayStripButton(
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
-    ) {
+ ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val textColor = if (isDark) Color.White else OakColors.TextPrimary
-    val borderColor = if (selected) tint.copy(alpha = 0.55f) else Color.Transparent
-    val countColor = tint
-    GlassCard(
+    val containerColor = if (selected) tint.copy(alpha = if (isDark) 0.24f else 0.14f) else {
+        if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.68f)
+    }
+    Card(
+        onClick = onClick,
         modifier = modifier
-            .clickable(onClick = onClick)
-            .border(1.dp, borderColor, RoundedCornerShape(24.dp))
+            .heightIn(min = 76.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        border = BorderStroke(1.dp, if (selected) tint.copy(alpha = 0.72f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 3.dp else 1.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelLarge,
-                color = textColor,
+                style = MaterialTheme.typography.labelMedium,
+                color = textColor.copy(alpha = 0.76f),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
             )
             Text(
                 text = count.toString(),
                 style = MaterialTheme.typography.headlineSmall,
-                color = countColor,
+                color = tint,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -542,12 +547,12 @@ private fun TodayStripButton(
 }
 
 @Composable
-private fun SectionHeader(title: String) {
+private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleLarge,
+        style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(vertical = 8.dp)
+        modifier = modifier.padding(vertical = 6.dp)
     )
 }
 
@@ -573,50 +578,17 @@ private data class TodayCounts(
     val missed: Int
 )
 
-@Composable
-private fun TodaySummaryCard(counts: TodayCounts, streakDays: Int) {
-    val dueTint = MaterialTheme.colorScheme.onSurfaceVariant
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            StreakPill(days = streakDays)
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CountPill(
-                title = stringResource(R.string.notif_action_taken),
-                value = counts.taken,
-                tint = OakColors.Taken,
-                modifier = Modifier.weight(1f)
-            )
-            CountPill(
-                title = stringResource(R.string.home_status_due),
-                value = counts.due,
-                tint = dueTint,
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CountPill(
-                title = stringResource(R.string.notif_action_skip),
-                value = counts.skipped,
-                tint = OakColors.Skipped,
-                modifier = Modifier.weight(1f)
-            )
-            CountPill(
-                title = stringResource(R.string.home_status_missed),
-                value = counts.missed,
-                tint = OakColors.Missed,
-                modifier = Modifier.weight(1f)
-            )
+private fun todayCounts(items: List<SupplementUiItem>, nowEpochMs: Long = System.currentTimeMillis()): TodayCounts {
+    var counts = TodayCounts(due = 0, taken = 0, skipped = 0, missed = 0)
+    items.forEach { item ->
+        counts = when (item.doseStatus) {
+            DoseStatus.PLANNED -> if (item.scheduledAtEpochMs in 1..nowEpochMs) counts.copy(due = counts.due + 1) else counts
+            DoseStatus.TAKEN -> counts.copy(taken = counts.taken + 1)
+            DoseStatus.SKIPPED -> counts.copy(skipped = counts.skipped + 1)
+            DoseStatus.MISSED -> counts.copy(missed = counts.missed + 1)
         }
     }
+    return counts
 }
 
 @Composable
@@ -683,7 +655,7 @@ private fun GlassCard(
         modifier = modifier,
         variant = OakCardVariant.Glass,
         accent = accent,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(20.dp),
         contentPadding = contentPadding,
         content = content
     )
@@ -817,12 +789,13 @@ private fun ActiveSupplementCard(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     var showConfirmDialog by remember(item.supplement.id) { mutableStateOf(false) }
     val urgencyAccent = when {
-        item.isMissedSoon -> OakColors.Missed
-        item.isDueSoon -> OakColors.DueSoon
+        item.isMissedSoon -> if (isDark) OakColors.MissedDark else OakColors.Missed
+        item.isDueSoon -> if (isDark) OakColors.DueSoonDark else OakColors.DueSoon
         else -> null
     }
     GlassCard(modifier = modifier.fillMaxWidth(), accent = urgencyAccent) {
@@ -842,9 +815,9 @@ private fun ActiveSupplementCard(
                 }
             }
             val targetTint = when (item.doseStatus) {
-                DoseStatus.TAKEN -> OakColors.Taken
-                DoseStatus.SKIPPED -> OakColors.Skipped
-                DoseStatus.MISSED -> OakColors.Missed
+                DoseStatus.TAKEN -> if (isDark) OakColors.TakenDark else OakColors.Taken
+                DoseStatus.SKIPPED -> if (isDark) OakColors.SkippedDark else OakColors.Skipped
+                DoseStatus.MISSED -> if (isDark) OakColors.MissedDark else OakColors.Missed
                 DoseStatus.PLANNED -> secondaryTextColor
             }
             val tint by androidx.compose.animation.animateColorAsState(targetValue = targetTint, label = "doseTint")
@@ -892,14 +865,14 @@ private fun ActiveSupplementCard(
             Text(
                 text = stringResource(R.string.dose_status_missed),
                 style = MaterialTheme.typography.bodySmall,
-                color = OakColors.Missed
+                color = if (isDark) OakColors.MissedDark else OakColors.Missed
             )
         } else if (item.doseStatus == DoseStatus.SKIPPED) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = stringResource(R.string.dose_status_skipped),
                 style = MaterialTheme.typography.bodySmall,
-                color = OakColors.Skipped
+                color = if (isDark) OakColors.SkippedDark else OakColors.Skipped
             )
         } else {
             AnimatedVisibility(
@@ -912,7 +885,11 @@ private fun ActiveSupplementCard(
                 } else {
                     stringResource(R.string.home_due_soon)
                 }
-                val color = if (item.isMissedSoon) OakColors.Missed else OakColors.DueSoon
+                val color = if (item.isMissedSoon) {
+                    if (isDark) OakColors.MissedDark else OakColors.Missed
+                } else {
+                    if (isDark) OakColors.DueSoonDark else OakColors.DueSoon
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 CountPill(title = text, value = null, tint = color, modifier = Modifier.fillMaxWidth())
             }
@@ -922,7 +899,7 @@ private fun ActiveSupplementCard(
             Text(
                 text = item.advice,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
+                color = if (isDark) {
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
                 } else {
                     MaterialTheme.colorScheme.primary
@@ -1030,10 +1007,13 @@ private fun RestingSupplementCard(
 
 @Composable
 private fun EmptyStateMessage(message: String) {
-    Text(
-        text = message,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.fillMaxWidth().padding(16.dp)
-    )
+    OakCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
 }

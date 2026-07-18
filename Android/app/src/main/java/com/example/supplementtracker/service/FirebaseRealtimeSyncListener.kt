@@ -2,6 +2,7 @@ package com.example.supplementtracker.service
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import kotlinx.coroutines.CoroutineScope
@@ -20,19 +21,19 @@ class FirebaseRealtimeSyncListener(
 
     fun start(manifestId: String) {
         stop()
-        if (manifestId.isEmpty()) return
+        if (!FirebaseRevision.isValidBinId(manifestId)) return
         val prefs = OakPrefs.get(context)
         val stackBinId = prefs.getString("cloudSyncStackBinId_$manifestId", "").orEmpty().trim()
         val historyBinId = prefs.getString("cloudSyncHistoryBinId_$manifestId", "").orEmpty().trim()
         val root = FirebaseDatabase.getInstance(DB_URL).reference.child(ROOT)
 
-        if (stackBinId.isNotEmpty()) {
+        if (FirebaseRevision.isValidBinId(stackBinId)) {
             addRevListener(root.child(stackBinId).child("meta").child("rev"), stackBinId, prefs)
         }
-        if (historyBinId.isNotEmpty()) {
+        if (FirebaseRevision.isValidBinId(historyBinId)) {
             addRevListener(root.child(historyBinId).child("meta").child("rev"), historyBinId, prefs)
         }
-        if (stackBinId.isEmpty() || historyBinId.isEmpty()) {
+        if (!FirebaseRevision.isValidBinId(stackBinId) || !FirebaseRevision.isValidBinId(historyBinId)) {
             addRevListener(root.child(manifestId).child("meta").child("rev"), manifestId, prefs)
         }
     }
@@ -61,7 +62,9 @@ class FirebaseRealtimeSyncListener(
                 prefs.edit().putString(key, newRev).apply()
                 scope.launch { onSyncNeeded() }
             }
-            override fun onCancelled(error: com.google.firebase.database.DatabaseError) {}
+            override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                Log.w("OakRealtimeSync", "Revision listener cancelled", error.toException())
+            }
         }
         ref.addValueEventListener(listener)
         listeners.add(ref to listener)

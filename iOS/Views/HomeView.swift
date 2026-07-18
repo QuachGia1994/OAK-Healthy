@@ -222,28 +222,25 @@ public struct HomeView: View {
         let now = renderNow
         let overdue = cachedOverdue
         return VStack(spacing: 0) {
+            TodayHeaderView(
+                title: "today_intake_title".localized,
+                streakDays: viewModel.cachedStreakDays
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+
             HomeDoseFilterBar(filter: $doseFilter, counts: viewModel.cachedTodayCounts)
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 8)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
 
             List {
-                Section {
-                    TodayHeaderView(
-                        title: "today_intake_title".localized,
-                        streakDays: viewModel.cachedStreakDays
-                    )
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 8, trailing: 16))
-
-                    if viewModel.activeSupplements.isEmpty {
-                        Text("no_intake_today".localized)
-                            .foregroundStyle(.secondary)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                    }
+                if viewModel.activeSupplements.isEmpty {
+                    Text("no_intake_today".localized)
+                        .foregroundStyle(.secondary)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                 }
                 
                 if doseFilter == .overdue {
@@ -481,61 +478,18 @@ private enum HomeDoseFilter: String, CaseIterable, Identifiable {
 private struct HomeDoseFilterBar: View {
     @Binding var filter: HomeDoseFilter
     let counts: HomeViewModel.TodayCounts
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if horizontalSizeClass == .compact {
-                Menu {
-                    Button("filter_all".localized) { filter = .all }
-                    Button("dose_status_due".localized) { filter = .due }
-                    Button("dose_status_missed".localized) { filter = .overdue }
-                    Button("notif_action_taken".localized) { filter = .taken }
-                    Button("dose_status_skipped".localized) { filter = .skipped }
-                } label: {
-                    HStack {
-                        Text(filter.title)
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                }
-                .buttonStyle(.plain)
-            } else {
-                Picker("", selection: $filter) {
-                    Text("filter_all".localized).tag(HomeDoseFilter.all)
-                    Text("dose_status_due".localized).tag(HomeDoseFilter.due)
-                    Text("dose_status_missed".localized).tag(HomeDoseFilter.overdue)
-                    Text("notif_action_taken".localized).tag(HomeDoseFilter.taken)
-                    Text("dose_status_skipped".localized).tag(HomeDoseFilter.skipped)
-                }
-                .pickerStyle(.segmented)
+            HStack(spacing: 8) {
+                filterButton(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
+                filterButton(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
+                filterButton(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
+                filterButton(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
             }
 
-            if horizontalSizeClass != .compact {
-                HStack(spacing: 12) {
-                    HomeFilterCountPill(title: "dose_status_due".localized, count: counts.due, tint: .blue)
-                    HomeFilterCountPill(title: "dose_status_missed".localized, count: counts.missed, tint: .red)
-                    HomeFilterCountPill(title: "notif_action_taken".localized, count: counts.taken, tint: .green)
-                    HomeFilterCountPill(title: "dose_status_skipped".localized, count: counts.skipped, tint: .orange)
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
-
-            let total = counts.due + counts.missed + counts.taken + counts.skipped
-            let current = switch filter {
-            case .all: total
-            case .due: counts.due
-            case .overdue: counts.missed
-            case .taken: counts.taken
-            case .skipped: counts.skipped
-            }
-            let other = max(0, total - current)
+            let other = max(0, totalCount - selectedCount)
             if filter != .all, other > 0 {
                 Text(String.localizedStringWithFormat("home_filter_hint_format".localized, other))
                     .font(.caption)
@@ -543,22 +497,70 @@ private struct HomeDoseFilterBar: View {
             }
         }
     }
+
+    private var totalCount: Int {
+        counts.due + counts.missed + counts.taken + counts.skipped
+    }
+
+    private var selectedCount: Int {
+        switch filter {
+        case .all: totalCount
+        case .due: counts.due
+        case .overdue: counts.missed
+        case .taken: counts.taken
+        case .skipped: counts.skipped
+        }
+    }
+
+    private func filterButton(_ item: HomeDoseFilter, count: Int, tint: Color) -> some View {
+        HomeFilterButton(
+            title: item.title,
+            count: count,
+            tint: tint,
+            isSelected: filter == item,
+            onTap: { filter = filter == item ? .all : item }
+        )
+    }
 }
 
-private struct HomeFilterCountPill: View {
+private struct HomeFilterButton: View {
     let title: String
     let count: Int
     let tint: Color
+    let isSelected: Bool
+    let onTap: () -> Void
     
     var body: some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(tint)
-                .frame(width: 6, height: 6)
-            Text("\(title): \(count)")
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                Text(count, format: .number)
+                    .font(.title3.bold())
+                    .foregroundStyle(tint)
+                    .monospacedDigit()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                isSelected ? tint.opacity(0.14) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .oakCardStyle(.glass, cornerRadius: 14, strokeOpacity: isSelected ? 0 : 0.14, shadowOpacity: 0.05, shadowRadius: 7, shadowY: 3)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(isSelected ? tint.opacity(0.72) : .clear, lineWidth: 1.25)
+                .allowsHitTesting(false)
+        )
+        .accessibilityLabel("\(title), \(count)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 private struct OverdueItem: Identifiable, Hashable {
@@ -578,10 +580,11 @@ private struct TodayHeaderView: View {
     let streakDays: Int
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .center) {
             Text(title)
                 .font(.title3)
                 .fontWeight(.bold)
+            Spacer()
             StreakChip(streakDays: streakDays)
         }
     }
@@ -589,19 +592,21 @@ private struct TodayHeaderView: View {
 
 private struct StreakChip: View {
     let streakDays: Int
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "flame.fill")
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(OAKPalette.skipped(for: colorScheme))
             Text(String.localizedStringWithFormat("home_streak_format".localized, streakDays))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
+        .background(OAKPalette.skipped(for: colorScheme).opacity(0.10))
+        .overlay(Capsule().stroke(OAKPalette.skipped(for: colorScheme).opacity(0.28), lineWidth: 1))
         .clipShape(Capsule())
     }
 }
@@ -636,6 +641,7 @@ private struct AddClientSheet: View {
 /// Thành phần hiển thị chất đang hoạt động.
 private struct ActiveSupplementRow: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     let supplement: UserSupplement
     let timeString: String
     let status: HomeViewModel.DoseStatus
@@ -645,7 +651,10 @@ private struct ActiveSupplementRow: View {
     @State private var iconScale: CGFloat = 1
     
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
+            Capsule()
+                .fill(statusAccent)
+                .frame(width: 4, height: 48)
             VStack(alignment: .leading, spacing: 4) {
                 Text(supplement.name)
                     .font(.headline)
@@ -669,9 +678,9 @@ private struct ActiveSupplementRow: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 } else if urgency == .dueSoon {
-                    UrgencyChip(title: "home_due_soon".localized, tint: .blue)
+                    UrgencyChip(title: "home_due_soon".localized, tint: OAKPalette.due(for: colorScheme))
                 } else if urgency == .missedSoon {
-                    UrgencyChip(title: "home_almost_missed".localized, tint: .red)
+                    UrgencyChip(title: "home_almost_missed".localized, tint: OAKPalette.missed(for: colorScheme))
                 }
                 
                 if let instruction = supplement.instruction, !instruction.isEmpty {
@@ -695,17 +704,19 @@ private struct ActiveSupplementRow: View {
                     .font(.title2)
                     .scaleEffect(iconScale)
                     .animation(.snappy, value: status)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel(symbolAccessibilityLabel(for: status))
         }
         .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0.08, shadowRadius: 9, shadowY: 4)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(borderColor, lineWidth: borderWidth)
+                .allowsHitTesting(false)
         )
-        .shadow(color: shadowColor, radius: 10, x: 0, y: 6)
         .animation(.snappy, value: urgency)
         .confirmationDialog(
             "home_confirm_intake_title".localized,
@@ -714,12 +725,10 @@ private struct ActiveSupplementRow: View {
         ) {
             Button("home_confirm_intake_action".localized) {
                 pulseIcon()
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 onAction(supplement, timeString, .taken, modelContext)
             }
             Button("notif_action_skip".localized) {
                 pulseIcon()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 onAction(supplement, timeString, .skipped, modelContext)
             }
             Button("cancel".localized, role: .cancel) {}
@@ -746,11 +755,20 @@ private struct ActiveSupplementRow: View {
         case .planned:
             .gray
         case .taken:
-            .green
+            OAKPalette.taken(for: colorScheme)
         case .skipped:
-            .orange
+            OAKPalette.skipped(for: colorScheme)
         case .missed:
-            .red
+            OAKPalette.missed(for: colorScheme)
+        }
+    }
+
+    private var statusAccent: Color {
+        switch status {
+        case .taken: OAKPalette.taken(for: colorScheme)
+        case .skipped: OAKPalette.skipped(for: colorScheme)
+        case .missed: OAKPalette.missed(for: colorScheme)
+        case .planned: urgency == .dueSoon ? OAKPalette.due(for: colorScheme) : Color.secondary.opacity(0.24)
         }
     }
 
@@ -770,21 +788,13 @@ private struct ActiveSupplementRow: View {
     private var borderColor: Color {
         switch urgency {
         case .none: .clear
-        case .dueSoon: .blue.opacity(0.35)
-        case .missedSoon: .red.opacity(0.35)
+        case .dueSoon: OAKPalette.due(for: colorScheme).opacity(0.42)
+        case .missedSoon: OAKPalette.missed(for: colorScheme).opacity(0.42)
         }
     }
     
     private var borderWidth: CGFloat {
         urgency == .none ? 0 : 1
-    }
-    
-    private var shadowColor: Color {
-        switch urgency {
-        case .none: .black.opacity(0.12)
-        case .dueSoon: .blue.opacity(0.16)
-        case .missedSoon: .red.opacity(0.16)
-        }
     }
     
     @MainActor
@@ -793,7 +803,11 @@ private struct ActiveSupplementRow: View {
             iconScale = 1.25
         }
         Task {
-            try? await Task.sleep(for: .milliseconds(160))
+            do {
+                try await Task.sleep(for: .milliseconds(160))
+            } catch {
+                return
+            }
             await MainActor.run {
                 withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) {
                     iconScale = 1
@@ -847,9 +861,7 @@ private struct RestingSupplementRow: View {
                 .clipShape(Capsule())
         }
         .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.10), radius: 8, x: 0, y: 4)
+        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.12, shadowOpacity: 0.05, shadowRadius: 8, shadowY: 3)
     }
 }
 

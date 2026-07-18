@@ -15,19 +15,19 @@
     <string name="settings_title">Cài đặt</string>
     <string name="app_information_title">Thông tin ứng dụng</string>
     <string name="settings_guide_title">Hướng dẫn sử dụng</string>
-    <string name="settings_guide_content">1. Stack &amp; Lịch uống: Thêm chất và chọn lịch (liên tục, On/Off, cách N ngày, theo thứ). Trang chủ sẽ hiển thị những mục cần uống hôm nay.\n2. Sync Center: Thiết bị A (Host) tạo Link Code. Thiết bị B (Link) dán mã và bấm Tải về.\n3. Mã hoá &amp; key: Bật Mã hoá cloud (khuyến nghị). Chạm vào key để copy; dùng nút Dán để import. Sau khi Rotate key, cần import lại key mới. Dùng Con mắt để ẩn mã. Thu hồi sẽ xoá vĩnh viễn dữ liệu cloud.\n4. Thông báo: Cho phép thông báo để nhắc uống hoạt động ổn định. Có thể bấm Taken/Skip trực tiếp trên thông báo để lưu nhanh.\n5. Auto‑Sync: Bật Tự động đồng bộ để 2 máy luôn đồng nhất. Nếu đã có Link Code nhưng thiếu key, Auto‑Sync có thể tự tắt để tránh retry vô hạn; import key rồi bật lại.\n6. Khắc phục: Dùng Chẩn đoán thông báo để kiểm tra app đã đặt lịch nhắc chưa. Đảm bảo Không làm phiền/Focus không chặn thông báo.\n7. Trạng thái &amp; lọc: Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung nhanh vào Due/Quá hạn.</string>
+    <string name="settings_guide_content">1. Stack &amp; Lịch uống: Thêm chất, chọn lịch và xem các mục cần uống hôm nay.\n2. Sync Center: Thiết bị A chọn chế độ mã hoá trước khi Host. Thiết bị B import key nếu cần, dán Link Code rồi bấm Tải về một lần.\n3. Mã hoá &amp; key: Giữ key bí mật; key được ẩn mặc định và không thể khôi phục. Muốn đổi chế độ hoặc thay key đã lộ, hãy thu hồi mã cũ rồi Host lại.\n4. Thông báo: Cho phép thông báo để nhắc uống hoạt động ổn định. Có thể bấm Taken/Skip trực tiếp trên thông báo.\n5. Auto-Sync: Mở hoặc quay lại app sẽ sync ngay; chỉnh sửa cục bộ được upload sau một khoảng debounce ngắn. Mạng và giới hạn chạy nền của hệ điều hành vẫn áp dụng.\n6. Khắc phục: Nếu báo thiếu key, import key từ Host rồi bật lại Auto-Sync. Dùng Chẩn đoán thông báo cho lỗi nhắc lịch.\n7. Trạng thái &amp; lọc: Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung vào Due/Quá hạn.</string>
     <string name="user_guide_1_title">Mục 1: Stack &amp; Lịch uống</string>
     <string name="user_guide_1_body">Thêm chất và chọn lịch (liên tục, On/Off, cách N ngày, theo thứ). Trang chủ hiển thị những mục cần uống hôm nay.</string>
     <string name="user_guide_2_title">Mục 2: Sync Center</string>
-    <string name="user_guide_2_body">Thiết bị A (Host) tạo Link Code. Thiết bị B (Link) dùng nút Dán và bấm Tải về để pull + merge.</string>
+    <string name="user_guide_2_body">Thiết bị A chọn chế độ mã hoá trước khi Host tạo Link Code. Thiết bị B import key nếu cần, dán mã rồi bấm Tải về một lần.</string>
     <string name="user_guide_3_title">Mục 3: Mã hoá &amp; Key</string>
-    <string name="user_guide_3_body">Bật Mã hoá cloud (khuyến nghị). Chạm key để copy; dùng Dán để import. Sau khi Rotate key, cần import lại key mới. Dùng Con mắt để ẩn mã. Thu hồi sẽ xoá vĩnh viễn dữ liệu cloud.</string>
+    <string name="user_guide_3_body">Giữ sync key bí mật; key được ẩn mặc định và không thể khôi phục. Chế độ mã hoá bị khoá khi Link Code đang hoạt động. Muốn đổi chế độ hoặc thay key đã lộ, hãy thu hồi mã cũ rồi Host lại.</string>
     <string name="user_guide_4_title">Mục 4: Thông báo</string>
     <string name="user_guide_4_body">Cho phép thông báo để nhắc uống ổn định. Bạn có thể bấm Taken/Skip trực tiếp trên thông báo để lưu nhanh.</string>
     <string name="user_guide_5_title">Mục 5: Auto‑Sync</string>
-    <string name="user_guide_5_body">Bật Tự động đồng bộ để 2 máy luôn đồng nhất. Nếu đã có Link Code nhưng thiếu key, Auto‑Sync có thể tự tắt; import key rồi bật lại.</string>
+    <string name="user_guide_5_body">Mở hoặc quay lại app sẽ sync ngay. Chỉnh sửa cục bộ được upload sau một khoảng debounce ngắn; mạng và giới hạn chạy nền của hệ điều hành vẫn áp dụng. Nếu thiếu key, hãy import rồi bật lại Auto-Sync.</string>
     <string name="user_guide_6_title">Mục 6: Khắc phục</string>
-    <string name="user_guide_6_body">Dùng Chẩn đoán thông báo để kiểm tra lịch nhắc. Đảm bảo Không làm phiền/Focus không chặn thông báo.</string>
+    <string name="user_guide_6_body">Khi sync lỗi, kiểm tra Internet, Link Code và key mã hoá trước. Với lỗi nhắc lịch, dùng Chẩn đoán thông báo và kiểm tra Focus/Không làm phiền.</string>
     <string name="user_guide_7_title">Mục 7: Trạng thái &amp; Lọc</string>
     <string name="user_guide_7_body">Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung nhanh vào Due/Quá hạn.</string>
 
@@ -35,9 +35,9 @@
     <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader, Vận Động Viên và cả Bác Sĩ theo dõi bệnh nhân. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>
 
     <string name="settings_copyright_title">Bản quyền &amp; Tác giả</string>
-    <string name="settings_app_version">Tên app: OAK Healthy v1.0</string>
-    <string name="settings_author">Tác giả: Mr. Phong (Personal Trader)</string>
-    <string name="settings_copyright">© 2026 OAK Healthy. All rights reserved.</string>
+    <string name="settings_app_version">Tên app: OAK Healthy v1.0.1</string>
+    <string name="settings_author">Tác giả: Quach Gia (Phong QK)</string>
+    <string name="settings_copyright">© 2026 Quach Gia / OAK Healthy. Mọi quyền được bảo lưu.</string>
     <string name="settings_dedication">Bằng cả tâm huyết và nghiên cứu trong hành trình gym &amp; trading.</string>
     <string name="settings_section_multidevice_sync">Đồng bộ đa thiết bị</string>
     <string name="settings_section_about_and_copyright">Giới thiệu &amp; Bản quyền</string>
@@ -147,6 +147,7 @@
     <string name="suggested">Gợi ý: %1$s</string>
     <string name="my_list_title">Danh sách của tôi</string>
     <string name="manage_stack">Quản lý Stack</string>
+    <string name="no_supplements_yet">Chưa có thực phẩm bổ sung.</string>
 
     <string name="history_title">Lịch sử</string>
     <string name="history_today">Hôm nay</string>
@@ -230,8 +231,6 @@
 
     <string name="sync_center_revoke_title">Thu hồi mã liên kết?</string>
     <string name="sync_center_revoke_message">Thiết bị khác sẽ không còn sync được với mã hiện tại.</string>
-    <string name="sync_center_rotate_title">Rotate key?</string>
-    <string name="sync_center_rotate_message">Thiết bị khác cần import key mới để đọc dữ liệu upload sau khi rotate.</string>
     <string name="sync_center_disable_encryption_title">Tắt mã hoá?</string>
     <string name="sync_center_disable_encryption_message">Dữ liệu sẽ upload dạng plaintext JSON. Hãy chắc chắn bạn hiểu rủi ro bảo mật.</string>
     <string name="sync_center_rehost_title">Phát dữ liệu lại?</string>
@@ -254,11 +253,13 @@
 
     <string name="sync_center_device_b_title">Thiết bị B (Link)</string>
     <string name="sync_center_device_b_desc">Nhập mã từ thiết bị A rồi bấm Tải về.</string>
-    <string name="sync_center_step_link_1">Nhập mã liên kết từ thiết bị A.</string>
-    <string name="sync_center_step_link_2">Bấm Tải về để pull + merge dữ liệu.</string>
-    <string name="sync_center_step_link_3">Nếu đang bật mã hoá, import key tương ứng để đọc dữ liệu cloud.</string>
+    <string name="sync_center_step_link_1">Nếu Host dùng mã hoá, hãy import sync key trước.</string>
+    <string name="sync_center_step_link_2">Nhập mã liên kết rồi bấm Tải về một lần.</string>
+    <string name="sync_center_step_link_3">Bật Tự động đồng bộ để nhận thay đổi ngay khi app hoạt động.</string>
     <string name="sync_center_link_code_input_label">Mã liên kết</string>
+    <string name="sync_center_invalid_link_code">Link Code không hợp lệ.</string>
     <string name="sync_center_action_download">Tải về</string>
+    <string name="sync_center_action_unlink">Bỏ liên kết thiết bị này</string>
     <string name="sync_center_auto_sync_label">Tự động đồng bộ</string>
 
     <string name="sync_center_status_title">Trạng thái sync</string>
@@ -274,6 +275,8 @@
     <string name="sync_center_status_hint_missing_key">Gợi ý: có thể thiếu sync key. Hãy Copy key từ thiết bị Host và Import key tại mục Mã hoá.</string>
 
     <string name="sync_center_encryption_title">Mã hoá dữ liệu cloud</string>
+    <string name="sync_center_encryption_locked_hint">Mã hoá đi theo Link Code đang hoạt động. Hãy thu hồi hoặc bỏ liên kết trước khi đổi cài đặt này.</string>
+    <string name="sync_center_encryption_off_hint">Dữ liệu cloud đang ở dạng plaintext. Hãy bật mã hoá trước khi Host.</string>
     <string name="sync_center_export_key_label">Sync key (copy sang thiết bị khác)</string>
     <string name="sync_center_import_key_input_label">Nhập key (keyId:base64)</string>
     <string name="sync_center_logs_title">Sync log (gần đây)</string>
@@ -285,7 +288,6 @@
     <string name="sync_center_import_key_note_keyid_format">KeyId: %1$s</string>
 
     <string name="sync_center_action_revoke">Thu hồi</string>
-    <string name="sync_center_action_rotate">Rotate</string>
     <string name="sync_center_action_disable">Tắt</string>
     <string name="sync_center_action_keep_encryption">Giữ mã hoá</string>
     <string name="sync_center_action_create_new_code">Tạo mã mới</string>
@@ -333,8 +335,6 @@
     <string name="cloud_encryption_enabled">Đã bật mã hoá cloud sync</string>
     <string name="cloud_encryption_disabled">Đã tắt mã hoá cloud sync</string>
     <string name="cloud_encryption_failed">Cấu hình mã hoá thất bại</string>
-    <string name="cloud_rotate_success">Đã rotate key (hãy copy key mới sang thiết bị khác)</string>
-    <string name="cloud_rotate_failed">Rotate key thất bại</string>
     <string name="cloud_import_key_success_format">Đã import key: %1$s</string>
     <string name="cloud_import_key_failed">Import key thất bại</string>
     <string name="cloud_revoke_missing_code">Không có mã để thu hồi.</string>
@@ -407,4 +407,31 @@
     <string name="add_supplement_error_invalid_cycle_days">Vui lòng nhập số ngày Uống/Nghỉ hợp lệ.</string>
     <string name="add_supplement_error_invalid_interval_days">Vui lòng nhập khoảng cách hợp lệ (>= 2 ngày).</string>
     <string name="add_supplement_error_save_failed_format">Lưu thất bại: %1$s</string>
+    <string name="home_confirm_intake_action">Đã uống</string>
+
+    <!-- Nhãn hỗ trợ tiếp cận -->
+    <string name="a11y_navigate_back">Quay lại</string>
+    <string name="a11y_settings">Cài đặt</string>
+    <string name="a11y_add">Thêm</string>
+    <string name="a11y_add_supplement">Thêm thực phẩm bổ sung</string>
+    <string name="a11y_select_client">Chọn người dùng</string>
+    <string name="a11y_edit">Chỉnh sửa</string>
+    <string name="a11y_delete">Xóa</string>
+    <string name="a11y_search">Tìm kiếm</string>
+    <string name="a11y_copy">Sao chép</string>
+    <string name="a11y_close">Đóng</string>
+    <string name="a11y_show">Hiện</string>
+    <string name="a11y_hide">Ẩn</string>
+    <string name="a11y_more_options">Thêm tùy chọn</string>
+    <string name="a11y_schedule">Lịch uống</string>
+    <string name="a11y_notifications">Thông báo</string>
+    <string name="a11y_power">Cài đặt pin</string>
+    <string name="a11y_oak_logo">Logo OAK Healthy</string>
+    <string name="a11y_confirm">Xác nhận</string>
+    <string name="a11y_dose_taken">Đánh dấu đã uống</string>
+    <string name="a11y_dose_skipped">Đánh dấu đã bỏ qua</string>
+    <string name="a11y_dose_status_format">Trạng thái: %1$s</string>
+    <string name="a11y_home">Trang chủ</string>
+    <string name="a11y_history">Lịch sử</string>
+    <string name="a11y_stack">Danh sách</string>
 </resources>

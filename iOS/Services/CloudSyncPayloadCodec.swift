@@ -40,7 +40,8 @@ enum CloudSyncPayloadCodec {
         return run(stream: &stream, data: data, bufferSize: bufferSize, flags: flags)
     }
     
-    private static let maxOutputBytes = 50 * 1024 * 1024
+    // ponytail: match Android's 10 MB ceiling so the same payload is accepted on both platforms.
+    private static let maxOutputBytes = 10 * 1024 * 1024
 
     private static func run(
         stream: inout compression_stream,

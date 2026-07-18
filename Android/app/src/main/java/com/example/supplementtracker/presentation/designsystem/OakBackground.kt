@@ -17,9 +17,9 @@ fun oakBackgroundBrush(): Brush {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     return remember(isDark) {
         if (isDark) {
-            Brush.linearGradient(listOf(Color(0xFF120025), Color.Black))
+            Brush.linearGradient(listOf(Color(0xFF071A1B), Color(0xFF06100F)))
         } else {
-            Brush.linearGradient(listOf(Color(0xFFEAF7FF), Color(0xFFF1F8E9)))
+            Brush.linearGradient(listOf(Color(0xFFF4FAF7), Color(0xFFEAF4F5)))
         }
     }
 }
@@ -37,4 +37,3 @@ fun OakBackground(
         content = content
     )
 }
-

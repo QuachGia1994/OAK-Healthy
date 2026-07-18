@@ -34,10 +34,8 @@ public struct HistoryView: View {
                             insights7: viewModel.insights7,
                             insights30: viewModel.insights30
                         )
-                            .padding()
-                            .oakCard()
 
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 14) {
                             Text("intake_frequency_last_7".localized)
                                 .font(.title3.weight(.semibold))
                             
@@ -69,10 +67,10 @@ public struct HistoryView: View {
                                 }
                             }
                         }
-                        .padding()
-                        .oakCard()
+                        .padding(18)
+                        .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.07, shadowRadius: 10, shadowY: 4)
                         
-                        VStack(alignment: .leading) {
+                        VStack(alignment: .leading, spacing: 14) {
                             Text("log_details".localized)
                                 .font(.title3.weight(.semibold))
                             
@@ -94,7 +92,8 @@ public struct HistoryView: View {
                                         .multilineTextAlignment(.center)
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 18)
+                                .padding(.vertical, 24)
+                                .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.04, shadowRadius: 7, shadowY: 3)
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 12) {
                                     ForEach(sections) { section in
@@ -104,8 +103,8 @@ public struct HistoryView: View {
                                                 .frame(maxWidth: .infinity, alignment: .leading)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 8)
-                                                .background(.secondary.opacity(0.12))
-                                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                                .background(OAKPalette.accent.opacity(0.10))
+                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                             
                                             ForEach(section.rows) { row in
                                                 HistoryRow(row: row)
@@ -116,8 +115,6 @@ public struct HistoryView: View {
                                 }
                             }
                         }
-                        .padding()
-                        .oakCard()
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -253,6 +250,7 @@ private struct InsightsTrendCard: View {
 
     @State private var window: InsightsWindow = .days30
     @State private var isDetailsPresented: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         let summary = window == .days7 ? insights7 : insights30
@@ -266,7 +264,7 @@ private struct InsightsTrendCard: View {
                 RoundedRectangle(cornerRadius: 18)
                     .fill(
                         LinearGradient(
-                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
+                            colors: [OAKPalette.heroStart, OAKPalette.heroEnd],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -315,7 +313,7 @@ private struct InsightsTrendCard: View {
                                 y: .value("dose_status_skipped".localized, point.skippedCount)
                             )
                             .interpolationMethod(.catmullRom)
-                            .foregroundStyle(Color.red.opacity(0.85))
+                            .foregroundStyle(OAKPalette.skipped(for: colorScheme))
                             .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                         }
                     }
@@ -336,6 +334,7 @@ private struct InsightsTrendCard: View {
                 .padding(16)
             }
             .frame(maxWidth: .infinity)
+            .shadow(color: OAKPalette.heroEnd.opacity(0.22), radius: 16, x: 0, y: 9)
         }
         .sheet(isPresented: $isDetailsPresented) {
             InsightsDetailsView(summary: summary)
@@ -411,33 +410,34 @@ private struct InsightsDetailsView: View {
 /// Dòng hiển thị chi tiết nhật ký.
 private struct HistoryRow: View, Equatable {
     let row: HistoryRowModel
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         let isSkipped = row.status == IntakeStatus.skipped.rawValue
-        HStack {
+        HStack(spacing: 12) {
+            Capsule()
+                .fill(isSkipped ? OAKPalette.skipped(for: colorScheme) : OAKPalette.taken(for: colorScheme))
+                .frame(width: 4, height: 38)
             Text(row.timeText)
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .leading)
+                .frame(width: 50, alignment: .leading)
             
             Text(row.supplementName)
                 .font(.callout)
                 .fontWeight(.medium)
             Spacer()
             Image(systemName: isSkipped ? "xmark.seal.fill" : "checkmark.seal.fill")
-                .foregroundStyle(isSkipped ? .orange : .green)
+                .foregroundStyle(isSkipped ? OAKPalette.skipped(for: colorScheme) : OAKPalette.taken(for: colorScheme))
         }
-        .padding()
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 5)
+        .padding(14)
+        .oakCardStyle(.glass, cornerRadius: 17, strokeOpacity: 0.12, shadowOpacity: 0.05, shadowRadius: 8, shadowY: 3)
+        .accessibilityElement(children: .combine)
     }
-}
 
-private extension View {
-    func oakCard() -> some View {
-        oakCardStyle(.glass, cornerRadius: 14, strokeOpacity: 0.0, shadowOpacity: 0.12, shadowRadius: 12, shadowY: 6)
+    static func == (lhs: HistoryRow, rhs: HistoryRow) -> Bool {
+        lhs.row == rhs.row
     }
 }
 
@@ -461,12 +461,15 @@ private struct HistoryFilterBar: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TextField("history_search_placeholder".localized, text: $searchText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .padding(12)
-                .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("history_search_placeholder".localized, text: $searchText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            .padding(12)
+            .oakCardStyle(.glass, cornerRadius: 14, strokeOpacity: 0.12, shadowOpacity: 0.03, shadowRadius: 5, shadowY: 2)
             
             Picker("", selection: $filter) {
                 ForEach(HistoryFilter.allCases, id: \.self) { item in
@@ -474,6 +477,7 @@ private struct HistoryFilterBar: View {
                 }
             }
             .pickerStyle(.segmented)
+            .tint(OAKPalette.accent)
         }
     }
 }

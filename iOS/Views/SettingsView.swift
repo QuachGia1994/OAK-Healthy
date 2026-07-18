@@ -36,7 +36,7 @@ public struct SettingsView: View {
                 settingsList
             }
         }
-        .id("\(appTheme)-\(colorScheme == .dark ? "dark" : "light")")
+        .preferredColorScheme(preferredColorScheme)
         .onChange(of: scenePhase) { _, newValue in
             guard newValue == .active else { return }
             Task { @MainActor in await syncNotificationPermissionState() }
@@ -256,7 +256,7 @@ public struct SettingsView: View {
     @ViewBuilder
     private var themeSelectionSection: some View {
         Section {
-            Picker(selection: $appTheme) {
+            Picker(selection: themeSelection) {
                 Text("appearance_light".localized).tag("light")
                 Text("appearance_dark".localized).tag("dark")
                 Text("appearance_system".localized).tag("system")
@@ -325,6 +325,22 @@ public struct SettingsView: View {
 
     private var glassRowBackground: some View {
         Color.clear.background(.ultraThinMaterial)
+    }
+
+    private var preferredColorScheme: ColorScheme? {
+        switch appTheme {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
+    private var themeSelection: Binding<String> {
+        Binding(get: { appTheme }) { selection in
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { appTheme = selection }
+        }
     }
     
     private func deleteClient(_ client: ClientProfile) {

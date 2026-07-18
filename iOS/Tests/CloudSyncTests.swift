@@ -64,3 +64,65 @@ final class CloudSyncManifestCodecTests: XCTestCase {
         XCTAssertEqual(decoded.historyBinId, "history")
     }
 }
+
+final class FirebaseRevisionTests: XCTestCase {
+    func testLinkCodeValidationRejectsFirebasePathInjection() {
+        XCTAssertTrue(FirebaseCloudStore.isValidBinId("-Oabc_123"))
+        XCTAssertFalse(FirebaseCloudStore.isValidBinId("oakBins/other"))
+        XCTAssertFalse(FirebaseCloudStore.isValidBinId("bin.with.dot"))
+        XCTAssertFalse(FirebaseCloudStore.isValidBinId(" -Oabc_123 "))
+        XCTAssertFalse(FirebaseCloudStore.isValidBinId(String(repeating: "x", count: 65)))
+    }
+
+    func testRevisionAlwaysIncreasesWhenClockDoesNot() {
+        XCTAssertEqual(FirebaseCloudStore.nextRevision(current: 100, now: 99), 101)
+        XCTAssertEqual(FirebaseCloudStore.nextRevision(current: 100, now: 150), 150)
+    }
+
+    func testExpectedRevisionMustMatchCurrentValue() {
+        XCTAssertTrue(FirebaseCloudStore.matchesExpected(current: 7, expected: ""))
+        XCTAssertTrue(FirebaseCloudStore.matchesExpected(current: 7, expected: "7"))
+        XCTAssertFalse(FirebaseCloudStore.matchesExpected(current: 8, expected: "7"))
+        XCTAssertFalse(FirebaseCloudStore.matchesExpected(current: nil, expected: "7"))
+    }
+}
+
+final class CloudSyncCryptoInteropTests: XCTestCase {
+    private let exportedKey = "interop-key:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    private let nonce = "AAECAwQFBgcICQoL"
+    private let ciphertext = "PCC5eq7H+DnkL+Puw4YIQPXnpUmVBOFtPs/RqbLwTBZTYsL5"
+
+    func testDecryptsCrossPlatformAESGCMFixture() throws {
+        _ = try CloudSyncKeyManager.importKey(exported: exportedKey)
+        let output = try CloudSyncCrypto.decryptIfNeeded(envelope(ciphertext: ciphertext))
+        XCTAssertEqual(String(data: output, encoding: .utf8), "{\"oak\":\"interop-v1\"}")
+    }
+
+    func testDecryptsLegacyNoncePrefixedCiphertext() throws {
+        _ = try CloudSyncKeyManager.importKey(exported: exportedKey)
+        let legacy = "AAECAwQFBgcICQoLPCC5eq7H+DnkL+Puw4YIQPXnpUmVBOFtPs/RqbLwTBZTYsL5"
+        let output = try CloudSyncCrypto.decryptIfNeeded(envelope(ciphertext: legacy))
+        XCTAssertEqual(String(data: output, encoding: .utf8), "{\"oak\":\"interop-v1\"}")
+    }
+
+    func testRejectsInvalidKeyIdentifiers() {
+        XCTAssertTrue(CloudSyncKeyManager.isValidKeyId("interop-key"))
+        XCTAssertFalse(CloudSyncKeyManager.isValidKeyId("../key"))
+        XCTAssertFalse(CloudSyncKeyManager.isValidKeyId(" interop-key "))
+        XCTAssertFalse(CloudSyncKeyManager.isValidKeyId(String(repeating: "x", count: 65)))
+    }
+
+    func testRejectsPlaintextDowngradeWhenEncryptionIsEnabled() {
+        XCTAssertThrowsError(
+            try CloudSyncCrypto.validateEncryptionMode(
+                localUsesEncryption: true,
+                cloudUsesEncryption: false
+            )
+        )
+    }
+
+    private func envelope(ciphertext: String) throws -> Data {
+        let json = """{"enc":{"v":1,"alg":"A256GCM","kid":"interop-key","nonce":"\(nonce)","ct":"\(ciphertext)"}}"""
+        return try XCTUnwrap(json.data(using: .utf8))
+    }
+}

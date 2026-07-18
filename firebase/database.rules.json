@@ -4,10 +4,11 @@
       "$binId": {
         ".read": "auth != null",
         ".write": "auth != null",
+        ".validate": "newData.hasChildren(['meta', 'payload'])",
         "meta": {
           ".validate": "newData.hasChildren(['rev'])",
           "rev": {
-            ".validate": "newData.isNumber()"
+            ".validate": "newData.isNumber() && (!data.exists() || newData.val() > data.val())"
           }
         },
         "payload": {

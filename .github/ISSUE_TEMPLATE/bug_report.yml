@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible Android or iOS defect.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping OAK Healthy improve. Remove all health data,
+        Link Codes, Sync Keys, and credentials before submitting.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - iOS
+        - Android and iOS
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version and OS version
+      placeholder: OAK Healthy 1.0.1, Android 16 or iOS 18.5
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      options:
+        - Every time
+        - Often
+        - Sometimes
+        - Once
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Do not include private data or sync secrets.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed health records, Link Codes, Sync Keys, and credentials.
+          required: true
+        - label: I searched for an existing issue describing this problem.
+          required: true

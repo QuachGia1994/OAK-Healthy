@@ -209,14 +209,18 @@ private struct SafeBootView: View {
     
     var body: some View {
         ZStack {
-            (colorScheme == .dark ? Color.black : Color.white)
+            LinearGradient(
+                colors: colorScheme == .dark
+                    ? [Color(red: 0.03, green: 0.12, blue: 0.14), Color(red: 0.05, green: 0.27, blue: 0.26)]
+                    : [Color(red: 0.94, green: 0.99, blue: 0.97), Color(red: 0.86, green: 0.95, blue: 0.92)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
             .ignoresSafeArea()
             
-            VStack(spacing: 16) {
-                OAKLogoView()
-                    .frame(width: 84, height: 118)
-                LetterStormLogoView(word: "OAK HEALTHY", duration: 2.8)
-                    .frame(height: 220)
+            VStack(spacing: 18) {
+                OAKLoadingLogoView()
+                    .frame(height: 260)
                 if let message = errorMessage {
                     Text(message)
                         .font(.footnote)
@@ -251,10 +255,7 @@ private struct SafeBootView: View {
     
     @MainActor
     private func bootstrap() async {
-        let logoDurationSeconds = 2.8
-        let logoWordVisibleSeconds = 1.0
-        let logoFreezeAtFraction = 0.76
-        let minSplashSeconds = max(1.8, (logoDurationSeconds * logoFreezeAtFraction) + logoWordVisibleSeconds)
+        let minSplashSeconds = 1.35
         let splashStartedAt = Date()
         attemptCrashRecoveryIfNeeded()
         DebugReporter.report("bootstrap_start")
@@ -590,6 +591,9 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
+        .tint(OAKPalette.accent)
+        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
@@ -597,7 +601,7 @@ struct MainTabView: View {
             selectedTab = 0
             handleDoseAction(notification.userInfo)
         }
-        .onChange(of: scenePhase, initial: false) { _, newPhase in
+        .onChange(of: scenePhase, initial: true) { _, newPhase in
             handleAutoSync(phase: newPhase)
             guard newPhase == .active else { return }
             Task { @MainActor in

@@ -1,0 +1,7 @@
+* @QuachGia1994
+
+# Security and sync changes always require the primary maintainer.
+/Android/app/src/main/java/com/example/supplementtracker/service/ @QuachGia1994
+/iOS/Services/ @QuachGia1994
+/firebase/ @QuachGia1994
+/.github/workflows/ @QuachGia1994

@@ -1,28 +1,68 @@
 package com.example.supplementtracker.presentation.home
 
-import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.OakColors
+import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import java.util.Locale
 
@@ -38,101 +78,234 @@ fun MyStackListScreen(
 ) {
     val supplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
     val currentDay by homeViewModel.currentDay.collectAsStateWithLifecycle()
-    val primaryTextColor = MaterialTheme.colorScheme.onSurface
-    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
     val backgroundBrush = oakBackgroundBrush()
     var searchText by rememberSaveable { mutableStateOf("") }
+    val calculateCycleUseCase = remember { CalculateCycleUseCase() }
     val filteredSupplements by remember(supplements, searchText) {
         derivedStateOf {
-            val q = searchText.trim().lowercase(Locale.ROOT)
-            if (q.isEmpty()) return@derivedStateOf supplements
-            supplements.filter { it.name.lowercase(Locale.ROOT).contains(q) }
+            val query = searchText.trim().lowercase(Locale.ROOT)
+            if (query.isEmpty()) supplements else supplements.filter {
+                it.name.lowercase(Locale.ROOT).contains(query)
+            }
         }
     }
+    val restingCount = supplements.count {
+        calculateCycleUseCase(it.startDate, it.cycleConfig, currentDay) == CycleStatus.OFF
+    }
     val listState = rememberLazyListState()
-    val calculateCycleUseCase = remember { CalculateCycleUseCase() }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-    ) {
+    Box(Modifier.fillMaxSize().background(backgroundBrush)) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                    title = { Text(stringResource(R.string.my_list_title), color = primaryTextColor) },
+                    title = { Text(stringResource(R.string.my_list_title)) },
                     actions = {
                         IconButton(onClick = onOpenSettings) {
-                            Icon(imageVector = Icons.Default.Settings, contentDescription = stringResource(R.string.a11y_settings), tint = primaryTextColor)
+                            Icon(Icons.Default.Settings, stringResource(R.string.a11y_settings))
                         }
                     }
                 )
             },
             floatingActionButton = {
                 FloatingActionButton(onClick = onNavigateToAdd) {
-                    Icon(imageVector = Icons.Default.Add, contentDescription = stringResource(R.string.a11y_add_supplement))
+                    Icon(Icons.Default.Add, stringResource(R.string.a11y_add_supplement))
                 }
             }
         ) { padding ->
             LazyColumn(
                 state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 112.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item(key = "overview", contentType = "overview") {
+                    StackOverviewCard(
+                        totalCount = supplements.size,
+                        activeCount = (supplements.size - restingCount).coerceAtLeast(0),
+                        restingCount = restingCount
+                    )
+                }
                 item(key = "quick_actions", contentType = "quick_actions") {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        InfoCardNavigationRow(
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        StackQuickAction(
                             title = stringResource(R.string.sync_center_title),
-                            subtitle = "",
+                            icon = Icons.Default.Sync,
+                            modifier = Modifier.weight(1f),
                             onClick = onNavigateToSyncCenter
                         )
-                        InfoCardNavigationRow(
+                        StackQuickAction(
                             title = stringResource(R.string.settings_guide_title),
-                            subtitle = "",
+                            icon = Icons.AutoMirrored.Filled.HelpOutline,
+                            modifier = Modifier.weight(1f),
                             onClick = onNavigateToUserGuide
                         )
                     }
                 }
                 item(key = "search", contentType = "search") {
-                    OutlinedTextField(
-                        value = searchText,
-                        onValueChange = { searchText = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.history_search_placeholder), color = secondaryTextColor) },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = primaryTextColor,
-                            unfocusedTextColor = primaryTextColor,
-                            focusedPlaceholderColor = secondaryTextColor,
-                            unfocusedPlaceholderColor = secondaryTextColor
-                        )
+                    StackSearchField(searchText = searchText, onSearchTextChange = { searchText = it })
+                }
+                item(key = "list_title", contentType = "title") {
+                    Text(
+                        text = stringResource(R.string.manage_stack),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 6.dp)
                     )
                 }
-                items(
-                    items = filteredSupplements,
-                    key = { it.id },
-                    contentType = { "supplement" }
-                ) { supplement ->
-                    val time = supplement.intakeTime.trim()
-                    val title = if (time.isEmpty()) supplement.name else "${supplement.name} ($time)"
-                    val isOffCycle = calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, currentDay) == CycleStatus.OFF
-                    InfoCard(
-                        title = title,
-                        content = getCycleSummary(
-                            supplement = supplement,
-                            calculateCycleUseCase = calculateCycleUseCase,
-                            today = currentDay
-                        ),
-                        isOffCycle = isOffCycle
-                    )
+                if (filteredSupplements.isEmpty()) {
+                    item(key = "empty", contentType = "empty") { StackEmptyState() }
+                } else {
+                    items(filteredSupplements, key = { it.id }, contentType = { "supplement" }) { supplement ->
+                        val isOffCycle = calculateCycleUseCase(
+                            supplement.startDate,
+                            supplement.cycleConfig,
+                            currentDay
+                        ) == CycleStatus.OFF
+                        StackSupplementCard(
+                            title = supplement.intakeTime.trim().takeIf { it.isNotEmpty() }
+                                ?.let { "${supplement.name} ($it)" } ?: supplement.name,
+                            summary = getCycleSummary(supplement, calculateCycleUseCase, currentDay),
+                            isOffCycle = isOffCycle
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StackOverviewCard(totalCount: Int, activeCount: Int, restingCount: Int) {
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Brush.linearGradient(listOf(OakColors.InsightCardStart, OakColors.InsightCardEnd)), shape)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.my_list_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.White.copy(alpha = 0.86f)
+        )
+        Text(
+            text = totalCount.toString(),
+            style = MaterialTheme.typography.displaySmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StackMetric(stringResource(R.string.cycle_status_on), activeCount)
+            StackMetric(stringResource(R.string.cycle_status_off), restingCount)
+        }
+    }
+}
+
+@Composable
+private fun StackMetric(title: String, value: Int) {
+    Surface(color = Color.White.copy(alpha = 0.14f), shape = RoundedCornerShape(99.dp)) {
+        Text(
+            text = "$value  $title",
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White,
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun StackQuickAction(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+            Text(title, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun StackSearchField(searchText: String, onSearchTextChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = searchText,
+        onValueChange = onSearchTextChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
+        leadingIcon = { Icon(Icons.Default.Search, stringResource(R.string.a11y_search)) },
+        singleLine = true,
+        shape = RoundedCornerShape(18.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.68f),
+            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+        )
+    )
+}
+
+@Composable
+private fun StackSupplementCard(title: String, summary: String, isOffCycle: Boolean) {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val accent = if (isOffCycle) OakColors.Neutral else if (isDark) OakColors.TakenDark else OakColors.Taken
+    OakCard(
+        modifier = Modifier.fillMaxWidth(),
+        accent = accent,
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(width = 4.dp, height = 46.dp).background(accent, RoundedCornerShape(2.dp)))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Icon(
+                if (isOffCycle) Icons.Default.Schedule else Icons.Default.CheckCircle,
+                contentDescription = stringResource(if (isOffCycle) R.string.cycle_status_off else R.string.cycle_status_on),
+                tint = accent
+            )
+        }
+    }
+}
+
+@Composable
+private fun StackEmptyState() {
+    OakCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Text(
+                text = stringResource(R.string.no_supplements_yet),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

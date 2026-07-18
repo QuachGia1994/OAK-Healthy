@@ -13,13 +13,13 @@ public struct SyncCenterView: View {
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     
     @State private var selectedTab: SyncCenterTab = .host
+    @State private var linkCodeInput: String = ""
     @State private var isInputCodeVisible: Bool = false
     @State private var isCloudSyncLoading: Bool = false
     @State private var isBinIdVisible: Bool = false
     @State private var isRevokingBinId: Bool = false
     @State private var isShowingRevokeConfirm: Bool = false
     @State private var isShowingRehostConfirm: Bool = false
-    @State private var isShowingRotateKeyConfirm: Bool = false
     @State private var isShowingDisableEncryptionConfirm: Bool = false
     @State private var isShowingImportKeyConfirm: Bool = false
     @State private var isShowingClearLogConfirm: Bool = false
@@ -35,6 +35,8 @@ public struct SyncCenterView: View {
     @State private var isCloudEncryptionEnabled: Bool = CloudSyncKeyManager.isEncryptionEnabled()
     @State private var exportedCloudSyncKey: String = ""
     @State private var importCloudSyncKeyInput: String = ""
+    @State private var isExportedKeyVisible: Bool = false
+    @State private var isImportKeyVisible: Bool = false
     
     @State private var cachedSupplements: [UserSupplement] = []
     @State private var cachedRecords: [IntakeRecord] = []
@@ -60,6 +62,9 @@ public struct SyncCenterView: View {
         }
         .navigationTitle("sync_center_title".localized)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if linkCodeInput.isEmpty { linkCodeInput = linkedBinId }
+        }
         .task {
             DebugReporter.report("sync_center_task_boot", fields: [
                 "currentClientId": activeClientManager.currentClientId?.uuidString ?? "",
@@ -392,7 +397,7 @@ public struct SyncCenterView: View {
                     .fontWeight(.bold)
                     .textSelection(.enabled)
                     .onTapGesture {
-                        copyToClipboard(binId)
+                        copyToClipboard(binId, sensitive: true)
                         showToast("sync_center_toast_code_copied".localized)
                     }
                     .accessibilityLabel("sync_center_your_link_code".localized)
@@ -437,9 +442,9 @@ public struct SyncCenterView: View {
     private var linkTab: some View {
         HStack(spacing: 8) {
             if isInputCodeVisible {
-                TextField("sync_center_link_code_placeholder".localized, text: $linkedBinId)
+                TextField("sync_center_link_code_placeholder".localized, text: $linkCodeInput)
             } else {
-                SecureField("sync_center_link_code_placeholder".localized, text: $linkedBinId)
+                SecureField("sync_center_link_code_placeholder".localized, text: $linkCodeInput)
             }
             Button(action: { isInputCodeVisible.toggle() }) {
                 Image(systemName: isInputCodeVisible ? "eye.slash" : "eye")
@@ -448,7 +453,7 @@ public struct SyncCenterView: View {
             .buttonStyle(.borderless)
             Button("sync_center_action_paste".localized) {
                 let pasted = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if !pasted.isEmpty { linkedBinId = pasted }
+                if !pasted.isEmpty { linkCodeInput = pasted }
             }
             .font(.caption)
             .buttonStyle(.borderless)
@@ -460,7 +465,18 @@ public struct SyncCenterView: View {
         Button("sync_center_download_action".localized) {
             Task { await receiveData() }
         }
-        .disabled(isCloudSyncLoading)
+        .disabled(isCloudSyncLoading || linkCodeInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        if !linkedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Button("sync_center_unlink_action".localized, role: .destructive) {
+                linkedBinId = ""
+                linkCodeInput = ""
+                if hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    isAutoSyncEnabled = false
+                }
+            }
+            .disabled(isCloudSyncLoading)
+        }
     }
     
     @ViewBuilder
@@ -481,6 +497,7 @@ public struct SyncCenterView: View {
                     }
                 )
             )
+            .disabled(hasActiveCloudLink)
             .confirmationDialog(
                 "sync_center_disable_encryption_confirm".localized,
                 isPresented: $isShowingDisableEncryptionConfirm,
@@ -492,37 +509,41 @@ public struct SyncCenterView: View {
                 }
                 Button("sync_center_keep_encryption_action".localized, role: .cancel) {}
             }
-            
-            if isCloudEncryptionEnabled {
+
+            if hasActiveCloudLink {
+                Text("sync_center_encryption_locked_hint".localized)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if isCloudEncryptionEnabled || hasActiveCloudLink {
                 if !exportedCloudSyncKey.isEmpty {
                     Text("sync_center_export_key_label".localized)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(exportedCloudSyncKey)
-                        .font(.caption)
-                        .textSelection(.enabled)
-                        .foregroundStyle(.secondary)
-                        .onTapGesture {
-                            copyToClipboard(exportedCloudSyncKey)
-                            showToast("sync_center_toast_code_copied".localized)
+                    HStack {
+                        Text(isExportedKeyVisible ? exportedCloudSyncKey : String(repeating: "•", count: 32))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                        Spacer()
+                        Button {
+                            isExportedKeyVisible.toggle()
+                        } label: {
+                            Image(systemName: isExportedKeyVisible ? "eye.slash" : "eye")
                         }
+                        .buttonStyle(.borderless)
+                    }
                 }
                 
                 HStack(spacing: 12) {
-                    Button("sync_center_rotate_key_action".localized) { isShowingRotateKeyConfirm = true }
-                    .disabled(isCloudSyncLoading)
-                    .confirmationDialog(
-                        "sync_center_rotate_key_confirm".localized,
-                        isPresented: $isShowingRotateKeyConfirm,
-                        titleVisibility: .visible
-                    ) {
-                        Button("sync_center_rotate_key_action".localized, role: .destructive) {
-                            Task { await rotateCloudSyncKey() }
-                        }
-                        Button("cancel".localized, role: .cancel) {}
+                    Button("sync_center_action_copy_key".localized) {
+                        copyToClipboard(exportedCloudSyncKey, sensitive: true)
+                        showToast("sync_center_toast_key_copied".localized)
                     }
+                    .disabled(exportedCloudSyncKey.isEmpty)
                     .buttonStyle(.borderless)
-                    
+
                     Button("sync_center_refresh_key_action".localized) {
                         Task { await refreshExportedCloudKey() }
                     }
@@ -530,10 +551,22 @@ public struct SyncCenterView: View {
                 }
                 
                 HStack(spacing: 8) {
-                    TextField("sync_center_import_key_placeholder".localized, text: $importCloudSyncKeyInput)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .textFieldStyle(.roundedBorder)
+                    Group {
+                        if isImportKeyVisible {
+                            TextField("sync_center_import_key_placeholder".localized, text: $importCloudSyncKeyInput)
+                        } else {
+                            SecureField("sync_center_import_key_placeholder".localized, text: $importCloudSyncKeyInput)
+                        }
+                    }
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textFieldStyle(.roundedBorder)
+                    Button {
+                        isImportKeyVisible.toggle()
+                    } label: {
+                        Image(systemName: isImportKeyVisible ? "eye.slash" : "eye")
+                    }
+                    .buttonStyle(.borderless)
                     Button("sync_center_action_paste".localized) {
                         let pasted = (UIPasteboard.general.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                         if !pasted.isEmpty { importCloudSyncKeyInput = pasted }
@@ -672,6 +705,8 @@ public struct SyncCenterView: View {
         return linkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var hasActiveCloudLink: Bool { !activeBinId.isEmpty }
+
     private var glassRowBackground: some View {
         Color.clear.background(.ultraThinMaterial)
     }
@@ -745,9 +780,9 @@ public struct SyncCenterView: View {
             showToast("sync_center_toast_missing_client".localized)
             return
         }
-        let binId = linkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !binId.isEmpty else {
-            showToast("sync_center_toast_missing_link_code".localized)
+        let binId = linkCodeInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard FirebaseCloudStore.isValidBinId(binId) else {
+            showToast("sync_center_toast_invalid_link_code".localized)
             return
         }
         await withLoading {
@@ -756,7 +791,9 @@ public struct SyncCenterView: View {
                 showToast("sync_center_toast_missing_client".localized)
                 return
             }
-            await runSyncFlow(binId: binId, client: client, label: "LINK")
+            if await runSyncFlow(binId: binId, client: client, label: "LINK") {
+                linkedBinId = binId
+            }
         }
     }
     
@@ -1002,7 +1039,8 @@ public struct SyncCenterView: View {
     }
     
     @MainActor
-    private func runSyncFlow(binId: String, client: ClientProfile, label: String) async {
+    @discardableResult
+    private func runSyncFlow(binId: String, client: ClientProfile, label: String) async -> Bool {
         appendLog(binId: binId, phase: "DIAG", message: FirebaseBootstrap.firebaseDiag)
         do {
             appendLog(binId: binId, phase: "SYNC", message: "\(label) START")
@@ -1014,6 +1052,7 @@ public struct SyncCenterView: View {
             if label != "AUTO" {
                 showToast("sync_center_toast_sync_success".localized)
             }
+            return true
         } catch {
             appendLog(binId: binId, phase: "SYNC", message: "\(label) ERROR: \(error.localizedDescription)")
             if label != "AUTO" {
@@ -1022,6 +1061,7 @@ public struct SyncCenterView: View {
                     retryAction: { Task { await syncNow(label: "MANUAL") } }
                 )
             }
+            return false
         }
     }
     
@@ -1116,22 +1156,13 @@ public struct SyncCenterView: View {
     }
     
     @MainActor
-    private func rotateCloudSyncKey() async {
-        do {
-            _ = try CloudSyncKeyManager.rotateKey()
-            await refreshExportedCloudKey()
-            showToast("sync_center_toast_rotate_done".localized)
-        } catch {
-            showToast(String(format: "sync_center_toast_rotate_failed_format".localized, error.localizedDescription))
-        }
-    }
-    
-    @MainActor
     private func importCloudSyncKey() async {
         do {
             let input = importCloudSyncKeyInput
             importCloudSyncKeyInput = ""
             _ = try CloudSyncKeyManager.importKey(exported: input)
+            try CloudSyncKeyManager.setEncryptionEnabled(true)
+            isCloudEncryptionEnabled = true
             await refreshExportedCloudKey()
             showToast("sync_center_toast_import_key_done".localized)
         } catch {
@@ -1214,10 +1245,17 @@ public struct SyncCenterView: View {
     }
 
     @MainActor
-    private func copyToClipboard(_ text: String) {
+    private func copyToClipboard(_ text: String, sensitive: Bool = false) {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return }
-        UIPasteboard.general.string = value
+        guard sensitive else {
+            UIPasteboard.general.string = value
+            return
+        }
+        UIPasteboard.general.setItems(
+            [["public.utf8-plain-text": value]],
+            options: [.localOnly: true, .expirationDate: Date().addingTimeInterval(120)]
+        )
     }
     
     @MainActor

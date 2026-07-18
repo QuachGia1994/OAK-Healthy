@@ -18,7 +18,7 @@ class CloudSyncManager {
     
     suspend fun upsertBackup(binId: String, jsonString: String): Result<Unit> {
         val id = binId.trim()
-        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        if (!FirebaseRevision.isValidBinId(id)) return Result.failure(InvalidBinIdError())
         return withContext(Dispatchers.IO) {
             try {
                 FirebaseCloudStore.write(id, jsonString, expectedRev = null)
@@ -32,7 +32,7 @@ class CloudSyncManager {
     suspend fun upsertBackup(binId: String, jsonString: String, ifMatchEtag: String?): Result<String?> {
         val id = binId.trim()
         val tag = ifMatchEtag.orEmpty().trim()
-        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        if (!FirebaseRevision.isValidBinId(id)) return Result.failure(InvalidBinIdError())
         return withContext(Dispatchers.IO) {
             try {
                 val newTag = FirebaseCloudStore.write(id, jsonString, expectedRev = tag.takeIf { it.isNotEmpty() })
@@ -45,7 +45,7 @@ class CloudSyncManager {
 
     suspend fun downloadBackup(binId: String): Result<String> {
         val id = binId.trim()
-        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        if (!FirebaseRevision.isValidBinId(id)) return Result.failure(InvalidBinIdError())
         return withContext(Dispatchers.IO) {
             try {
                 Result.success(FirebaseCloudStore.readAlways(id).json.orEmpty())
@@ -58,7 +58,7 @@ class CloudSyncManager {
     suspend fun downloadBackupIfChanged(binId: String, etag: String?): Result<CloudDownload> {
         val id = binId.trim()
         val tag = etag.orEmpty().trim()
-        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        if (!FirebaseRevision.isValidBinId(id)) return Result.failure(InvalidBinIdError())
         return withContext(Dispatchers.IO) {
             try {
                 Result.success(FirebaseCloudStore.readIfChanged(id, knownRev = tag.takeIf { it.isNotEmpty() }))
@@ -70,7 +70,7 @@ class CloudSyncManager {
     
     suspend fun downloadBackupAlways(binId: String): Result<CloudDownload> {
         val id = binId.trim()
-        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        if (!FirebaseRevision.isValidBinId(id)) return Result.failure(InvalidBinIdError())
         return withContext(Dispatchers.IO) {
             try {
                 Result.success(FirebaseCloudStore.readAlways(id))
@@ -82,7 +82,7 @@ class CloudSyncManager {
     
     suspend fun deleteBackup(binId: String): Result<Unit> {
         val id = binId.trim()
-        if (id.isEmpty()) return Result.failure(IllegalArgumentException("Invalid binId"))
+        if (!FirebaseRevision.isValidBinId(id)) return Result.failure(InvalidBinIdError())
         return withContext(Dispatchers.IO) {
             try {
                 FirebaseCloudStore.delete(id)

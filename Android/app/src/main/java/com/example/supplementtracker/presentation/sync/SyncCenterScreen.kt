@@ -4,7 +4,9 @@ import com.example.supplementtracker.presentation.designsystem.OakColors
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.PersistableBundle
 import com.example.supplementtracker.service.OakPrefs
+import com.example.supplementtracker.service.FirebaseRevision
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -93,14 +95,16 @@ fun SyncCenterScreen(
     val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    var linkedBinId by remember { mutableStateOf(prefs.getString("cloudSyncLinkedBinId", "").orEmpty()) }
+    var activeLinkedBinId by remember { mutableStateOf(prefs.getString("cloudSyncLinkedBinId", "").orEmpty()) }
+    var linkedBinInput by remember { mutableStateOf(activeLinkedBinId) }
     var isAutoSyncEnabled by remember { mutableStateOf(prefs.getBoolean("isAutoSyncEnabled", false)) }
     var isEncryptionEnabled by remember { mutableStateOf(prefs.getBoolean("cloudSyncEncryptionEnabled", false)) }
     var encryptionKeyInput by remember { mutableStateOf("") }
+    var isExportedKeyVisible by remember { mutableStateOf(false) }
+    var isImportKeyVisible by remember { mutableStateOf(false) }
     var isBinIdVisible by remember { mutableStateOf(false) }
     var isLinkedBinIdVisible by remember { mutableStateOf(false) }
     var isRevokeConfirmVisible by remember { mutableStateOf(false) }
-    var isRotateConfirmVisible by remember { mutableStateOf(false) }
     var isDisableEncryptionConfirmVisible by remember { mutableStateOf(false) }
     var isRehostConfirmVisible by remember { mutableStateOf(false) }
     var isImportKeyConfirmVisible by remember { mutableStateOf(false) }
@@ -113,17 +117,22 @@ fun SyncCenterScreen(
     var isStatusBinIdVisible by remember { mutableStateOf(false) }
     var isManifestPartsVisible by remember { mutableStateOf(false) }
 
-    val activeBinId = remember(hostedBinId, linkedBinId) {
+    val activeBinId = remember(hostedBinId, activeLinkedBinId) {
         val hosted = (hostedBinId ?: "").trim()
-        val linked = linkedBinId.trim()
+        val linked = activeLinkedBinId.trim()
         if (hosted.isNotEmpty()) hosted else linked
     }
+    val hasActiveCloudLink = activeBinId.isNotEmpty()
     
     DisposableEffect(Unit) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
                 "isAutoSyncEnabled" -> isAutoSyncEnabled = prefs.getBoolean("isAutoSyncEnabled", false)
                 "cloudSyncEncryptionEnabled" -> isEncryptionEnabled = prefs.getBoolean("cloudSyncEncryptionEnabled", false)
+                "cloudSyncLinkedBinId" -> {
+                    activeLinkedBinId = prefs.getString("cloudSyncLinkedBinId", "").orEmpty()
+                    if (activeLinkedBinId.isEmpty()) linkedBinInput = ""
+                }
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -143,10 +152,6 @@ fun SyncCenterScreen(
         isStatusBinIdVisible = false
         isManifestPartsVisible = false
         if (activeBinId.isNotEmpty()) homeViewModel.refreshCloudSyncUi(activeBinId)
-    }
-
-    LaunchedEffect(linkedBinId) {
-        prefs.edit().putString("cloudSyncLinkedBinId", linkedBinId.trim()).apply()
     }
 
     val exportedKey = homeViewModel.exportCloudEncryptionKey().orEmpty()
@@ -197,24 +202,6 @@ fun SyncCenterScreen(
                 }
             )
         }
-        if (isRotateConfirmVisible) {
-            AlertDialog(
-                onDismissRequest = { isRotateConfirmVisible = false },
-                title = { Text(stringResource(R.string.sync_center_rotate_title)) },
-                text = { Text(stringResource(R.string.sync_center_rotate_message)) },
-                confirmButton = {
-                    OutlinedButton(
-                        onClick = {
-                            isRotateConfirmVisible = false
-                            homeViewModel.rotateCloudEncryptionKey()
-                        }
-                    ) { Text(stringResource(R.string.sync_center_action_rotate)) }
-                },
-                dismissButton = {
-                    OutlinedButton(onClick = { isRotateConfirmVisible = false }) { Text(stringResource(R.string.sync_center_action_cancel)) }
-                }
-            )
-        }
         if (isDisableEncryptionConfirmVisible) {
             AlertDialog(
                 onDismissRequest = { isDisableEncryptionConfirmVisible = false },
@@ -225,7 +212,6 @@ fun SyncCenterScreen(
                         onClick = {
                             isDisableEncryptionConfirmVisible = false
                             isEncryptionEnabled = false
-                            prefs.edit().putBoolean("cloudSyncEncryptionEnabled", false).apply()
                             homeViewModel.enableCloudEncryption(false)
                         }
                     ) { Text(stringResource(R.string.sync_center_action_disable)) }
@@ -424,8 +410,7 @@ fun SyncCenterScreen(
                                         style = MaterialTheme.typography.titleMedium,
                                         color = primaryTextColor,
                                         modifier = Modifier.clickable(enabled = hosted.isNotEmpty()) {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("binId", hosted))
+                                            copySensitiveText(context, "binId", hosted)
                                             Toast.makeText(context, context.getString(R.string.sync_center_toast_code_copied), Toast.LENGTH_SHORT).show()
                                         }
                                     )
@@ -435,8 +420,7 @@ fun SyncCenterScreen(
                                         ) { Text(if (isBinIdVisible) stringResource(R.string.sync_center_action_hide) else stringResource(R.string.sync_center_action_show)) }
                                         OutlinedButton(
                                             onClick = {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                clipboard.setPrimaryClip(ClipData.newPlainText("binId", hosted))
+                                                copySensitiveText(context, "binId", hosted)
                                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_code_copied), Toast.LENGTH_SHORT).show()
                                             }
                                         ) { Text(stringResource(R.string.sync_center_action_copy)) }
@@ -458,8 +442,8 @@ fun SyncCenterScreen(
                                 StepRow(number = 2, text = stringResource(R.string.sync_center_step_link_2))
                                 StepRow(number = 3, text = stringResource(R.string.sync_center_step_link_3))
                                 OutlinedTextField(
-                                    value = linkedBinId,
-                                    onValueChange = { linkedBinId = it },
+                                    value = linkedBinInput,
+                                    onValueChange = { linkedBinInput = it },
                                     label = { Text(stringResource(R.string.sync_center_link_code_input_label), color = secondaryTextColor) },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
@@ -495,12 +479,32 @@ fun SyncCenterScreen(
                                             ?.toString()
                                             .orEmpty()
                                             .trim()
-                                        if (pasted.isNotEmpty()) linkedBinId = pasted
+                                        if (pasted.isNotEmpty()) linkedBinInput = pasted
                                     }) { Text(stringResource(R.string.sync_center_action_paste)) }
                                     OutlinedButton(
-                                        onClick = { homeViewModel.receiveData(linkedBinId) },
-                                        enabled = linkedBinId.trim().isNotEmpty() && !cloudSyncLoading
+                                        onClick = {
+                                            val linkCode = linkedBinInput.trim()
+                                            if (!FirebaseRevision.isValidBinId(linkCode)) {
+                                                Toast.makeText(context, context.getString(R.string.sync_center_invalid_link_code), Toast.LENGTH_SHORT).show()
+                                                return@OutlinedButton
+                                            }
+                                            activeLinkedBinId = linkCode
+                                            prefs.edit().putString("cloudSyncLinkedBinId", linkCode).apply()
+                                            homeViewModel.receiveData(linkCode)
+                                        },
+                                        enabled = linkedBinInput.trim().isNotEmpty() && !cloudSyncLoading
                                     ) { Text(stringResource(R.string.sync_center_action_download)) }
+                                }
+                                if (activeLinkedBinId.isNotBlank()) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            activeLinkedBinId = ""
+                                            linkedBinInput = ""
+                                            prefs.edit().remove("cloudSyncLinkedBinId").apply()
+                                            if (hostedBinId.isNullOrBlank()) isAutoSyncEnabled = false
+                                        },
+                                        enabled = !cloudSyncLoading
+                                    ) { Text(stringResource(R.string.sync_center_action_unlink)) }
                                 }
                             }
 
@@ -683,50 +687,59 @@ fun SyncCenterScreen(
                                 Spacer(modifier = Modifier.weight(1f))
                                 Switch(
                                     checked = isEncryptionEnabled,
+                                    enabled = !hasActiveCloudLink,
                                     onCheckedChange = {
                                         if (!it) {
                                             isDisableEncryptionConfirmVisible = true
                                             return@Switch
                                         }
                                         isEncryptionEnabled = true
-                                        prefs.edit().putBoolean("cloudSyncEncryptionEnabled", true).apply()
                                         homeViewModel.enableCloudEncryption(true)
                                     }
                                 )
                             }
 
-                            if (isEncryptionEnabled) {
-                                OutlinedTextField(
-                                    value = exportedKey,
-                                    onValueChange = { _: String -> },
-                                    readOnly = true,
-                                    label = { Text(stringResource(R.string.sync_center_export_key_label), color = secondaryTextColor) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(enabled = exportedKey.isNotEmpty()) {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncKey", exportedKey))
-                                            Toast.makeText(context, context.getString(R.string.sync_center_toast_key_copied), Toast.LENGTH_SHORT).show()
-                                        },
-                                    maxLines = 2,
-                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = primaryTextColor),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = primaryTextColor,
-                                        unfocusedTextColor = primaryTextColor,
-                                        focusedLabelColor = secondaryTextColor,
-                                        unfocusedLabelColor = secondaryTextColor
-                                    )
+                            if (hasActiveCloudLink) {
+                                Text(
+                                    stringResource(R.string.sync_center_encryption_locked_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            }
+
+                            if (isEncryptionEnabled || hasActiveCloudLink) {
+                                if (exportedKey.isNotEmpty()) {
+                                    OutlinedTextField(
+                                        value = exportedKey,
+                                        onValueChange = { _: String -> },
+                                        readOnly = true,
+                                        label = { Text(stringResource(R.string.sync_center_export_key_label), color = secondaryTextColor) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        maxLines = 2,
+                                        visualTransformation = if (isExportedKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                        trailingIcon = {
+                                            IconButton(onClick = { isExportedKeyVisible = !isExportedKeyVisible }) {
+                                                Icon(
+                                                    imageVector = if (isExportedKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                    contentDescription = stringResource(if (isExportedKeyVisible) R.string.a11y_hide else R.string.a11y_show)
+                                                )
+                                            }
+                                        },
+                                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = primaryTextColor),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = primaryTextColor,
+                                            unfocusedTextColor = primaryTextColor,
+                                            focusedLabelColor = secondaryTextColor,
+                                            unfocusedLabelColor = secondaryTextColor
+                                        )
+                                    )
                                     OutlinedButton(
                                         onClick = {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncKey", exportedKey))
+                                            copySensitiveText(context, "cloudSyncKey", exportedKey)
                                             Toast.makeText(context, context.getString(R.string.sync_center_toast_key_copied), Toast.LENGTH_SHORT).show()
                                         },
                                         enabled = exportedKey.isNotEmpty()
                                     ) { Text(stringResource(R.string.sync_center_action_copy_key)) }
-                                    OutlinedButton(onClick = { isRotateConfirmVisible = true }) { Text(stringResource(R.string.sync_center_action_rotate)) }
                                 }
                                 OutlinedTextField(
                                     value = encryptionKeyInput,
@@ -734,6 +747,15 @@ fun SyncCenterScreen(
                                     label = { Text(stringResource(R.string.sync_center_import_key_input_label), color = secondaryTextColor) },
                                     modifier = Modifier.fillMaxWidth(),
                                     maxLines = 2,
+                                    visualTransformation = if (isImportKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                    trailingIcon = {
+                                        IconButton(onClick = { isImportKeyVisible = !isImportKeyVisible }) {
+                                            Icon(
+                                                imageVector = if (isImportKeyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                                contentDescription = stringResource(if (isImportKeyVisible) R.string.a11y_hide else R.string.a11y_show)
+                                            )
+                                        }
+                                    },
                                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = primaryTextColor),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedTextColor = primaryTextColor,
@@ -758,6 +780,12 @@ fun SyncCenterScreen(
                                         enabled = encryptionKeyInput.trim().isNotEmpty()
                                     ) { Text(stringResource(R.string.sync_center_action_import_key)) }
                                 }
+                            } else {
+                                Text(
+                                    stringResource(R.string.sync_center_encryption_off_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
+                                )
                             }
                         }
                     }
@@ -877,6 +905,15 @@ private data class CloudSyncLogUiItem(
     val phase: String,
     val msg: String
 )
+
+private fun copySensitiveText(context: Context, label: String, value: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText(label, value)
+    clip.description.extras = PersistableBundle().apply {
+        putBoolean("android.content.extra.IS_SENSITIVE", true)
+    }
+    clipboard.setPrimaryClip(clip)
+}
 
 private fun formatLogPretty(raw: String, formatter: DateTimeFormatter): String {
     val array = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }

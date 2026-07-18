@@ -86,7 +86,7 @@ public actor CloudSyncManager {
         ifMatchEtag: String? = nil
     ) async throws(CloudSyncError) {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
+        guard FirebaseCloudStore.isValidBinId(id) else { throw CloudSyncError.invalidBinId }
         let payload = try encodePayloadForCloud(jsonData)
         do {
             let newRev = try await FirebaseCloudStore.write(id: id, payload: payload, expectedRev: ifMatchEtag)
@@ -115,11 +115,12 @@ public actor CloudSyncManager {
         binId: String
     ) async throws(CloudSyncError) -> Data {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
+        guard FirebaseCloudStore.isValidBinId(id) else { throw CloudSyncError.invalidBinId }
         do {
-            let payload = (try await FirebaseCloudStore.readPayload(id: id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let node = try await FirebaseCloudStore.readNode(id: id)
+            let payload = (node.payload ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if payload.isEmpty { throw CloudSyncError.invalidResponse }
-            if let rev = try await FirebaseCloudStore.readMetaRev(id: id) { saveEtag(rev, binId: id) }
+            if let rev = node.rev { saveEtag(rev, binId: id) }
             return try decodePayloadFromCloud(payload)
         } catch let error as CloudSyncError {
             throw error
@@ -132,14 +133,14 @@ public actor CloudSyncManager {
         binId: String
     ) async throws(CloudSyncError) -> Data? {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
+        guard FirebaseCloudStore.isValidBinId(id) else { throw CloudSyncError.invalidBinId }
         do {
             let known = storedEtag(binId: id)
-            let rev = try await FirebaseCloudStore.readMetaRev(id: id)
-            if let rev, rev == known { return nil }
-            let payload = (try await FirebaseCloudStore.readPayload(id: id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let node = try await FirebaseCloudStore.readNode(id: id)
+            if let rev = node.rev, rev == known { return nil }
+            let payload = (node.payload ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if payload.isEmpty { throw CloudSyncError.invalidResponse }
-            if let rev { saveEtag(rev, binId: id) }
+            if let rev = node.rev { saveEtag(rev, binId: id) }
             return try decodePayloadFromCloud(payload)
         } catch let error as CloudSyncError {
             throw error
@@ -152,7 +153,7 @@ public actor CloudSyncManager {
         binId: String
     ) async throws(CloudSyncError) {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { throw CloudSyncError.invalidBinId }
+        guard FirebaseCloudStore.isValidBinId(id) else { throw CloudSyncError.invalidBinId }
         do {
             try await FirebaseCloudStore.delete(id: id)
         } catch {
@@ -344,6 +345,8 @@ enum CloudSyncAutoSync {
     private static var realtimeTask: Task<Void, Never>?
     private static var pendingSyncTask: Task<Void, Never>?
     private static var realtimeListener: FirebaseRealtimeSyncListener?
+    private static var isSyncing = false
+    private static var syncAgainAfterCurrent = false
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
     private static let lastFailureKey = "cloudSyncLastFailureEpoch"
 
@@ -373,6 +376,7 @@ enum CloudSyncAutoSync {
         realtimeTask = nil
         pendingSyncTask?.cancel()
         pendingSyncTask = nil
+        syncAgainAfterCurrent = false
         realtimeListener?.stop()
         realtimeListener = nil
     }
@@ -383,7 +387,7 @@ enum CloudSyncAutoSync {
         guard UIApplication.shared.applicationState == .active else { return }
         pendingSyncTask = Task { @MainActor in
             do {
-                try await Task.sleep(for: .seconds(4))
+                try await Task.sleep(for: .milliseconds(350))
             } catch {
                 return
             }
@@ -407,6 +411,19 @@ enum CloudSyncAutoSync {
     }
     
     static func syncIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
+        guard !isSyncing else {
+            syncAgainAfterCurrent = true
+            return
+        }
+        isSyncing = true
+        defer { isSyncing = false }
+        repeat {
+            syncAgainAfterCurrent = false
+            await performSyncIfEnabled(modelContext: modelContext, clientId: clientId)
+        } while syncAgainAfterCurrent && !Task.isCancelled
+    }
+
+    private static func performSyncIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
         guard let ctx = makeSyncContext(modelContext: modelContext, clientId: clientId) else { return }
         do {
             markAttempt(ctx: ctx)

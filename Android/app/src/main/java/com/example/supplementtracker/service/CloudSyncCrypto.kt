@@ -28,6 +28,9 @@ object CloudSyncCrypto {
     private const val keyPrefix = "cloudSyncEncKey_"
     private const val wrappedPrefix = "w1:"
     private const val keystoreAlias = "cloudSyncEncMasterKeyV1"
+    private val keyIdPattern = Regex("^[A-Za-z0-9_-]{1,64}$")
+
+    internal fun isValidKeyId(keyId: String): Boolean = keyIdPattern.matches(keyId)
 
     fun isEnabled(context: Context): Boolean {
         val prefs = OakPrefs.get(context)
@@ -48,14 +51,14 @@ object CloudSyncCrypto {
     fun ensureKeyExists(context: Context): String {
         val prefs = OakPrefs.get(context)
         val current = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()
-        if (current.isNotEmpty() && resolveKey(context, current) != null) return current
+        if (isValidKeyId(current) && resolveKey(context, current) != null) return current
         return rotateKey(context)
     }
 
     fun exportCurrentKey(context: Context): String? {
         val prefs = OakPrefs.get(context)
         val keyId = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()
-        if (keyId.isEmpty()) return null
+        if (!isValidKeyId(keyId)) return null
         val raw = resolveKey(context, keyId) ?: return null
         val encoded = Base64.getEncoder().encodeToString(raw)
         return "$keyId:$encoded"
@@ -67,7 +70,7 @@ object CloudSyncCrypto {
         if (parts.size != 2) throw CloudSyncCryptoError.InvalidPayload("Expected format keyId:base64")
         val keyId = parts[0].trim()
         val b64 = parts[1].trim()
-        if (keyId.isEmpty() || b64.isEmpty()) throw CloudSyncCryptoError.InvalidPayload("Empty keyId or key data")
+        if (!isValidKeyId(keyId) || b64.isEmpty()) throw CloudSyncCryptoError.InvalidPayload("Invalid keyId or empty key data")
         val decoded = runCatching { Base64.getDecoder().decode(b64) }.getOrNull()
             ?: throw CloudSyncCryptoError.InvalidPayload("Invalid base64")
         if (decoded.size != 32) throw CloudSyncCryptoError.InvalidPayload("Expected 32 bytes key")
@@ -82,7 +85,7 @@ object CloudSyncCrypto {
         return keyId
     }
 
-    fun rotateKey(context: Context): String {
+    private fun rotateKey(context: Context): String {
         val prefs = OakPrefs.get(context)
         val old = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()
         val keyId = UUID.randomUUID().toString()
@@ -112,13 +115,42 @@ object CloudSyncCrypto {
     }
 
     fun unwrapDownloadedIfNeeded(context: Context, payloadJson: String): String {
-        val obj = runCatching { JSONObject(payloadJson) }.getOrNull() ?: return payloadJson
-        val enc = obj.optJSONObject("enc") ?: return payloadJson
+        val objectValue = runCatching { JSONObject(payloadJson) }.getOrNull()
+        val cloudUsesEncryption = objectValue?.has("enc") == true
+        val localUsesEncryption = isEnabled(context)
+        validateEncryptionMode(localUsesEncryption, cloudUsesEncryption)
+        val plaintext = unwrapDownloadedWithKeyResolver(payloadJson) { keyId -> resolveKey(context, keyId) }
+        if (cloudUsesEncryption && !localUsesEncryption) {
+            OakPrefs.get(context).edit().putBoolean(enabledKey, true).apply()
+        }
+        return plaintext
+    }
+
+    internal fun validateEncryptionMode(localUsesEncryption: Boolean, cloudUsesEncryption: Boolean) {
+        if (localUsesEncryption && !cloudUsesEncryption) {
+            throw CloudSyncCryptoError.InvalidPayload("Rejected plaintext downgrade")
+        }
+    }
+
+    internal fun unwrapDownloadedWithKeyResolver(
+        payloadJson: String,
+        keyResolver: (String) -> ByteArray?
+    ): String {
+        val envelope = parseEnvelope(payloadJson) ?: return payloadJson
+        val key = keyResolver(envelope.keyId) ?: throw CloudSyncCryptoError.MissingKey(envelope.keyId)
+        val plaintext = decryptWithLegacyFallback(key, envelope.nonce, envelope.ciphertext)
+        return plaintext.toString(Charsets.UTF_8)
+    }
+
+    private fun parseEnvelope(payloadJson: String): CloudSyncEnvelope? {
+        val obj = runCatching { JSONObject(payloadJson) }.getOrNull() ?: return null
+        if (!obj.has("enc")) return null
+        val enc = obj.optJSONObject("enc") ?: throw CloudSyncCryptoError.InvalidPayload("Invalid enc envelope")
         val version = enc.optInt("v", -1)
         val alg = enc.optString("alg").trim()
         if (version != 1 || alg != "A256GCM") throw CloudSyncCryptoError.InvalidPayload("Unsupported enc header")
         val kid = enc.optString("kid").trim()
-        if (kid.isEmpty()) throw CloudSyncCryptoError.InvalidPayload("Missing kid")
+        if (!isValidKeyId(kid)) throw CloudSyncCryptoError.InvalidPayload("Invalid kid")
         val nonceB64 = enc.optString("nonce").trim()
         val ctB64 = enc.optString("ct").trim()
         if (nonceB64.isEmpty() || ctB64.isEmpty()) throw CloudSyncCryptoError.InvalidPayload("Missing nonce/ct")
@@ -128,20 +160,20 @@ object CloudSyncCrypto {
         val ciphertextRaw = runCatching { Base64.getDecoder().decode(ctB64) }.getOrNull()
             ?: throw CloudSyncCryptoError.InvalidPayload("Invalid ct base64")
         if (ciphertextRaw.size < 16) throw CloudSyncCryptoError.InvalidPayload("Missing GCM tag")
-        val key = resolveKey(context, kid) ?: throw CloudSyncCryptoError.MissingKey(kid)
-        val plaintext = runCatching { decryptAesGcm(key, nonce, ciphertextRaw) }.getOrElse {
-            val hasCombinedPrefix = nonce.size == 12 &&
-                ciphertextRaw.size >= 28 &&
-                ciphertextRaw.copyOfRange(0, 12).contentEquals(nonce)
-            if (!hasCombinedPrefix) throw it
-            val stripped = ciphertextRaw.copyOfRange(12, ciphertextRaw.size)
-            if (stripped.size < 16) throw CloudSyncCryptoError.InvalidPayload("Missing GCM tag")
-            decryptAesGcm(key, nonce, stripped)
+        return CloudSyncEnvelope(kid, nonce, ciphertextRaw)
+    }
+
+    private fun decryptWithLegacyFallback(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray): ByteArray {
+        return runCatching { decryptAesGcm(key, nonce, ciphertext) }.getOrElse { error ->
+            val hasNoncePrefix = ciphertext.size >= 28 &&
+                ciphertext.copyOfRange(0, 12).contentEquals(nonce)
+            if (!hasNoncePrefix) throw error
+            decryptAesGcm(key, nonce, ciphertext.copyOfRange(12, ciphertext.size))
         }
-        return plaintext.toString(Charsets.UTF_8)
     }
 
     private fun resolveKey(context: Context, keyId: String): ByteArray? {
+        if (!isValidKeyId(keyId)) return null
         val prefs = OakPrefs.get(context)
         val direct = readKeyEntry(prefs, keyId)
         if (direct != null) return direct
@@ -151,12 +183,13 @@ object CloudSyncCrypto {
     }
 
     private fun readKeyEntry(prefs: android.content.SharedPreferences, keyId: String): ByteArray? {
+        if (!isValidKeyId(keyId)) return null
         val stored = prefs.getString(keyPrefix + keyId, null)?.trim().orEmpty()
         if (stored.isEmpty()) return null
         if (stored.startsWith(wrappedPrefix)) return unwrapKeyFromStorage(stored)
         val decoded = runCatching { Base64.getDecoder().decode(stored) }.getOrNull() ?: return null
         if (decoded.size != 32) return null
-        val migrated = runCatching { wrapKeyForStorage(decoded) }.getOrNull() ?: return decoded
+        val migrated = wrapKeyForStorage(decoded)
         prefs.edit().putString(keyPrefix + keyId, migrated).apply()
         return decoded
     }
@@ -254,3 +287,9 @@ object CloudSyncCrypto {
         }.getOrElse { throw CloudSyncCryptoError.CryptoFailed(it.message ?: "Decrypt failed") }
     }
 }
+
+internal data class CloudSyncEnvelope(
+    val keyId: String,
+    val nonce: ByteArray,
+    val ciphertext: ByteArray
+)

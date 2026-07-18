@@ -30,19 +30,46 @@ public struct StackView: View {
                 
                 List {
                     Section {
-                        NavigationLink("sync_center_title".localized) {
-                            SyncCenterView(activeClientManager: activeClientManager)
+                        StackOverviewCard(
+                            totalCount: supplementsForActiveClient.count,
+                            restingCount: restingCount
+                        )
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
+
+                        HStack(spacing: 12) {
+                            NavigationLink {
+                                SyncCenterView(activeClientManager: activeClientManager)
+                            } label: {
+                                StackQuickAction(
+                                    title: "sync_center_title".localized,
+                                    systemImage: "arrow.triangle.2.circlepath"
+                                )
+                            }
+                            .buttonStyle(.plain)
+
+                            NavigationLink {
+                                UserGuideView()
+                            } label: {
+                                StackQuickAction(
+                                    title: "user_guide_title".localized,
+                                    systemImage: "book.closed.fill"
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
-                        NavigationLink("user_guide_title".localized) {
-                            UserGuideView()
-                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
                     }
-                    .listRowBackground(glassRowBackground)
                     
                     Section {
                         if supplementsForActiveClient.isEmpty {
-                            Text("no_supplements_yet".localized)
-                                .foregroundStyle(.secondary)
+                            StackEmptyState()
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                         } else {
                             ForEach(supplementsForActiveClient) { supplement in
                                 let rowInfo = cycleRowInfo(for: supplement)
@@ -51,6 +78,9 @@ public struct StackView: View {
                                     cycleSummary: rowInfo.summary,
                                     isOffCycle: rowInfo.isOffCycle
                                 )
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button {
                                         editingSupplement = supplement
@@ -68,7 +98,6 @@ public struct StackView: View {
                     } header: {
                         Text("my_list_title".localized)
                     }
-                    .listRowBackground(glassRowBackground)
                 }
                 .scrollContentBackground(.hidden)
                 .scrollIndicators(.hidden)
@@ -142,10 +171,6 @@ public struct StackView: View {
         }
     }
     
-    private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
-    }
-
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
         return clients.first { $0.id == id }
@@ -163,6 +188,12 @@ public struct StackView: View {
     
     private var clientTitle: String {
         activeClient?.name ?? "dashboard_title".localized
+    }
+
+    private var restingCount: Int {
+        supplementsForActiveClient.reduce(into: 0) { count, supplement in
+            if cycleRowInfo(for: supplement).isOffCycle { count += 1 }
+        }
     }
 
     private func pruneExpiredSupplementsIfNeeded(today: Date = .now) {
@@ -251,15 +282,120 @@ private struct StackSupplementRow: View, Equatable {
     let name: String
     let cycleSummary: String
     let isOffCycle: Bool
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        VStack(alignment: .leading) {
-            Text(name)
-                .font(.headline)
-                .opacity(isOffCycle ? 0.6 : 1)
-            Text(cycleSummary)
-                .font(.caption)
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isOffCycle ? Color.secondary.opacity(0.35) : OAKPalette.taken(for: colorScheme))
+                .frame(width: 4, height: 44)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(name)
+                    .font(.headline)
+                    .foregroundStyle(isOffCycle ? Color.secondary : Color.primary)
+                Text(cycleSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: isOffCycle ? "moon.zzz.fill" : "bolt.heart.fill")
+                .foregroundStyle(isOffCycle ? Color.secondary : OAKPalette.taken(for: colorScheme))
+                .accessibilityHidden(true)
+        }
+        .padding(16)
+        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0.06, shadowRadius: 8, shadowY: 3)
+        .accessibilityElement(children: .combine)
+    }
+
+    static func == (lhs: StackSupplementRow, rhs: StackSupplementRow) -> Bool {
+        lhs.name == rhs.name && lhs.cycleSummary == rhs.cycleSummary && lhs.isOffCycle == rhs.isOffCycle
+    }
+}
+
+private struct StackOverviewCard: View {
+    let totalCount: Int
+    let restingCount: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Label("my_list_title".localized, systemImage: "square.stack.3d.up.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.86))
+            Text(totalCount, format: .number)
+                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+            HStack(spacing: 10) {
+                StackMetric(title: "cycle_status_on".localized, value: max(0, totalCount - restingCount))
+                StackMetric(title: "cycle_status_off".localized, value: restingCount)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [OAKPalette.heroStart, OAKPalette.heroEnd],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+        )
+        .shadow(color: OAKPalette.heroEnd.opacity(0.22), radius: 16, x: 0, y: 9)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct StackMetric: View {
+    let title: String
+    let value: Int
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Text(value, format: .number).fontWeight(.bold).monospacedDigit()
+            Text(title).lineLimit(1).minimumScaleFactor(0.75)
+        }
+        .font(.caption)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .background(.white.opacity(0.14), in: Capsule())
+    }
+}
+
+private struct StackQuickAction: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(OAKPalette.accent)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0.05, shadowRadius: 7, shadowY: 3)
+    }
+}
+
+private struct StackEmptyState: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "leaf.circle.fill")
+                .font(.system(size: 34))
+                .foregroundStyle(OAKPalette.accent)
+            Text("no_supplements_yet".localized)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 28)
+        .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.04, shadowRadius: 7, shadowY: 3)
     }
 }
