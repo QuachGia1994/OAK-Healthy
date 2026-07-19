@@ -79,6 +79,12 @@ final class FirebaseRevisionTests: XCTestCase {
         XCTAssertEqual(FirebaseCloudStore.nextRevision(current: 100, now: 150), 150)
     }
 
+    func testRevisionParsesFirebaseNumberAndStringValues() {
+        XCTAssertEqual(FirebaseCloudStore.revision(from: Int64(42)), 42)
+        XCTAssertEqual(FirebaseCloudStore.revision(from: " 42 "), 42)
+        XCTAssertNil(FirebaseCloudStore.revision(from: "not-a-revision"))
+    }
+
     func testExpectedRevisionMustMatchCurrentValue() {
         XCTAssertTrue(FirebaseCloudStore.matchesExpected(current: 7, expected: ""))
         XCTAssertTrue(FirebaseCloudStore.matchesExpected(current: 7, expected: "7"))

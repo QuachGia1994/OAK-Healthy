@@ -4,22 +4,22 @@ import SwiftData
 
 /// Dữ liệu điểm trên biểu đồ.
 public struct ChartData: Identifiable, Sendable {
-    public let id = UUID()
     public let date: Date
     public let count: Int
+    public var id: Date { date }
 }
 
 public struct InsightsTrendPoint: Identifiable, Sendable {
-    public let id = UUID()
     public let date: Date
     public let takenCount: Int
     public let skippedCount: Int
+    public var id: Date { date }
 }
 
 public struct InsightsItem: Identifiable, Sendable {
-    public let id = UUID()
     public let title: String
     public let count: Int
+    public var id: String { title }
 }
 
 public struct InsightsSummary: Sendable {
@@ -140,7 +140,10 @@ public final class HistoryViewModel {
     private func topItemsFromCounts(_ counts: [String: Int]) -> [InsightsItem] {
         counts
             .map { InsightsItem(title: $0.key, count: $0.value) }
-            .sorted { $0.count > $1.count }
+            .sorted {
+                guard $0.count != $1.count else { return $0.title < $1.title }
+                return $0.count > $1.count
+            }
             .prefix(3)
             .map { $0 }
     }

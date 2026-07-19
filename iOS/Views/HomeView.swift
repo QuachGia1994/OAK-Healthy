@@ -689,7 +689,7 @@ private struct ActiveSupplementRow: View {
             .accessibilityLabel(symbolAccessibilityLabel(for: status))
         }
         .padding()
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0.08, shadowRadius: 9, shadowY: 4)
+        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(borderColor, lineWidth: borderWidth)
@@ -839,7 +839,7 @@ private struct RestingSupplementRow: View {
                 .clipShape(Capsule())
         }
         .padding()
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.12, shadowOpacity: 0.05, shadowRadius: 8, shadowY: 3)
+        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.12, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
     }
 }
 

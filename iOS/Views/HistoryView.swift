@@ -150,7 +150,10 @@ public struct HistoryView: View {
                 scheduleSearchRebuild()
             }
             .onChange(of: filter) {
-                withAnimation(.snappy) { rebuildSections() }
+                rebuildSections()
+            }
+            .onDisappear {
+                rebuildTask?.cancel()
             }
         }
     }
@@ -342,10 +345,7 @@ private struct InsightsTrendCard: View {
     }
 
     private func formattedNumber(_ value: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = ","
-        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+        value.formatted(.number)
     }
 }
 
@@ -432,7 +432,7 @@ private struct HistoryRow: View, Equatable {
                 .foregroundStyle(isSkipped ? OAKPalette.skipped(for: colorScheme) : OAKPalette.taken(for: colorScheme))
         }
         .padding(14)
-        .oakCardStyle(.glass, cornerRadius: 17, strokeOpacity: 0.12, shadowOpacity: 0.05, shadowRadius: 8, shadowY: 3)
+        .oakCardStyle(.glass, cornerRadius: 17, strokeOpacity: 0.12, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
         .accessibilityElement(children: .combine)
     }
 

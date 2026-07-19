@@ -10,6 +10,8 @@ public struct StackView: View {
     @State private var editingSupplement: UserSupplement?
     @State private var isShowingSettingsSheet: Bool = false
     @State private var searchText: String = ""
+    @State private var visibleSupplements: [UserSupplement] = []
+    @State private var hasLoadedVisibleSupplements: Bool = false
     @State private var errorMessage: String?
     @State private var isShowingError: Bool = false
     @State private var selectedDestination: StackDestination?
@@ -32,7 +34,7 @@ public struct StackView: View {
                 List {
                     Section {
                         StackOverviewCard(
-                            totalCount: supplementsForActiveClient.count,
+                            totalCount: displayedSupplements.count,
                             restingCount: restingCount
                         )
                         .listRowBackground(Color.clear)
@@ -66,19 +68,20 @@ public struct StackView: View {
                     }
                     
                     Section {
-                        if supplementsForActiveClient.isEmpty {
+                        if displayedSupplements.isEmpty {
                             StackEmptyState()
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
                         } else {
-                            ForEach(supplementsForActiveClient) { supplement in
+                            ForEach(displayedSupplements) { supplement in
                                 let rowInfo = cycleRowInfo(for: supplement)
                                 StackSupplementRow(
                                     name: displayName(for: supplement),
                                     cycleSummary: rowInfo.summary,
                                     isOffCycle: rowInfo.isOffCycle
                                 )
+                                .equatable()
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -162,9 +165,14 @@ public struct StackView: View {
                 }
                 .onChange(of: supplements) {
                     pruneExpiredSupplementsIfNeeded()
+                    refreshVisibleSupplements()
+                }
+                .onChange(of: searchText) {
+                    refreshVisibleSupplements()
                 }
                 .task(id: activeClientManager.currentClientId) {
                     pruneExpiredSupplementsIfNeeded()
+                    refreshVisibleSupplements()
                 }
             }
         }
@@ -190,7 +198,17 @@ public struct StackView: View {
         return clients.first { $0.id == id }
     }
     
-    private var supplementsForActiveClient: [UserSupplement] {
+    private var displayedSupplements: [UserSupplement] {
+        guard hasLoadedVisibleSupplements else { return makeVisibleSupplements() }
+        return visibleSupplements
+    }
+
+    private func refreshVisibleSupplements() {
+        visibleSupplements = makeVisibleSupplements()
+        hasLoadedVisibleSupplements = true
+    }
+
+    private func makeVisibleSupplements() -> [UserSupplement] {
         guard let id = activeClientManager.currentClientId else { return [] }
         let base = supplements
             .filter { $0.deletedAtEpochMs == nil && $0.client?.id == id && !isExpired($0) }
@@ -205,7 +223,7 @@ public struct StackView: View {
     }
 
     private var restingCount: Int {
-        supplementsForActiveClient.reduce(into: 0) { count, supplement in
+        displayedSupplements.reduce(into: 0) { count, supplement in
             if cycleRowInfo(for: supplement).isOffCycle { count += 1 }
         }
     }
@@ -265,11 +283,7 @@ public struct StackView: View {
         guard let endDate = calendar.date(byAdding: .day, value: days, to: supplement.startDate) else {
             return "unlimited".localized
         }
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        let dateText = formatter.string(from: endDate)
+        let dateText = endDate.formatted(date: .numeric, time: .omitted)
         return String(format: "cycle_until_format".localized, dateText)
     }
     
@@ -325,7 +339,7 @@ private struct StackSupplementRow: View, Equatable {
                 .accessibilityHidden(true)
         }
         .padding(16)
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0.06, shadowRadius: 8, shadowY: 3)
+        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
         .accessibilityElement(children: .combine)
     }
 

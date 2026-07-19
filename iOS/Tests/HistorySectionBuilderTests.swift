@@ -2,6 +2,20 @@ import XCTest
 @testable import OAKHealthy
 
 final class HistorySectionBuilderTests: XCTestCase {
+    func testChartAndInsightIdentitiesRemainStableAcrossRebuilds() {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+
+        XCTAssertEqual(ChartData(date: date, count: 1).id, ChartData(date: date, count: 2).id)
+        XCTAssertEqual(
+            InsightsTrendPoint(date: date, takenCount: 1, skippedCount: 0).id,
+            InsightsTrendPoint(date: date, takenCount: 2, skippedCount: 1).id
+        )
+        XCTAssertEqual(
+            InsightsItem(title: "Vitamin D", count: 1).id,
+            InsightsItem(title: "Vitamin D", count: 2).id
+        )
+    }
+
     func testMakeSections_groupsByDayAndPreservesOrder() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -23,4 +37,3 @@ final class HistorySectionBuilderTests: XCTestCase {
         XCTAssertEqual(sections[1].rows.map(\.id), [recordA2.id, recordA1.id])
     }
 }
-

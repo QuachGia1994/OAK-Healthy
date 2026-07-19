@@ -196,10 +196,10 @@ final class FirebaseRealtimeSyncListener {
         guard FirebaseCloudStore.isValidBinId(binId) else { return nil }
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(binId).child("meta").child("rev")
         let handle = ref.observe(.value) { [weak self] snapshot, _ in
-            guard let self, let newRev = snapshot.value as? NSNumber else { return }
+            guard let self, let newRev = FirebaseCloudStore.revision(from: snapshot.value) else { return }
             let key = "cloudSyncLastSeenRev_\(binId)"
             let oldRev = UserDefaults.standard.string(forKey: key)
-            let newRevStr = newRev.stringValue
+            let newRevStr = newRev.description
             if oldRev == newRevStr { return }
             UserDefaults.standard.set(newRevStr, forKey: key)
             Task { @MainActor in

@@ -349,6 +349,7 @@ enum CloudSyncAutoSync {
     private static var syncAgainAfterCurrent = false
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
     private static let lastFailureKey = "cloudSyncLastFailureEpoch"
+    private static let immediateConsistencyWindow: Duration = .milliseconds(180)
 
     static func startRealtimeSync(
         modelContext: ModelContext,
@@ -617,7 +618,7 @@ enum CloudSyncAutoSync {
         let onlyOnePartChanged = (first.0 != nil) != (first.1 != nil)
         guard onlyOnePartChanged else { return first }
         do {
-            try await Task.sleep(for: .milliseconds(700))
+            try await Task.sleep(for: immediateConsistencyWindow)
         } catch {
             return first
         }
