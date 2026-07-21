@@ -3,6 +3,7 @@ package com.example.supplementtracker.service
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class FirebaseRevisionTest {
@@ -19,6 +20,13 @@ class FirebaseRevisionTest {
     fun revisionAlwaysIncreasesWhenClockDoesNot() {
         assertEquals(101L, FirebaseRevision.next(current = 100L, now = 99L))
         assertEquals(150L, FirebaseRevision.next(current = 100L, now = 150L))
+    }
+
+    @Test
+    fun revisionParsesFirebaseNumberAndStringValues() {
+        assertEquals(42L, FirebaseRevision.fromValue(42))
+        assertEquals(42L, FirebaseRevision.fromValue(" 42 "))
+        assertNull(FirebaseRevision.fromValue("not-a-revision"))
     }
 
     @Test

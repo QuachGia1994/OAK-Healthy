@@ -151,7 +151,10 @@ fun SyncCenterScreen(
     LaunchedEffect(activeBinId) {
         isStatusBinIdVisible = false
         isManifestPartsVisible = false
-        if (activeBinId.isNotEmpty()) homeViewModel.refreshCloudSyncUi(activeBinId)
+        if (activeBinId.isNotEmpty()) {
+            homeViewModel.refreshCloudSyncUi(activeBinId)
+            if (isAutoSyncEnabled) homeViewModel.startAutoSync()
+        }
     }
 
     val exportedKey = homeViewModel.exportCloudEncryptionKey().orEmpty()

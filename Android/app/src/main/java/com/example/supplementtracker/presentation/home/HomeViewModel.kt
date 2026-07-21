@@ -908,10 +908,10 @@ class HomeViewModel(
             if (oldManifestId.isNotEmpty() && oldManifestId != newManifestId) {
                 editor.remove("cloudSyncStackBinId_$oldManifestId")
                     .remove("cloudSyncHistoryBinId_$oldManifestId")
-                    .remove("cloudSyncEtag_$oldManifestId")
-                    .remove("cloudSyncEtagStack_$oldManifestId")
-                    .remove("cloudSyncEtagHistory_$oldManifestId")
-                    .remove("cloudSyncLastSeenRev_$oldManifestId")
+                    .remove("cloudSyncEtagV2_$oldManifestId")
+                    .remove("cloudSyncEtagStackV2_$oldManifestId")
+                    .remove("cloudSyncEtagHistoryV2_$oldManifestId")
+                    .remove("cloudSyncLastSeenRevV2_$oldManifestId")
                     .remove("cloudSyncLastSyncEpochMs_$oldManifestId")
             }
             editor.apply()
@@ -971,9 +971,9 @@ class HomeViewModel(
                     .remove("cloudSyncHostedBinId")
                     .remove("cloudSyncStackBinId_$manifestId")
                     .remove("cloudSyncHistoryBinId_$manifestId")
-                    .remove("cloudSyncEtag_$manifestId")
-                    .remove("cloudSyncEtagStack_$manifestId")
-                    .remove("cloudSyncEtagHistory_$manifestId")
+                    .remove("cloudSyncEtagV2_$manifestId")
+                    .remove("cloudSyncEtagStackV2_$manifestId")
+                    .remove("cloudSyncEtagHistoryV2_$manifestId")
                     .apply()
                 _dataTransferMessage.value = context.getString(R.string.cloud_revoke_success)
                 return@launch
@@ -1090,10 +1090,20 @@ class HomeViewModel(
         rescheduleNotificationsNow()
     }
     
-    private suspend fun syncTwoWay(binId: String) {
+    private suspend fun syncTwoWay(binId: String): Boolean {
         syncMutex.lock()
         try {
+            val id = binId.trim()
+            val prefs = OakPrefs.get(context)
+            val attemptKey = "cloudSyncLastAttemptEpochMs_$id"
+            val phaseKey = "cloudSyncPhase_$id"
+            val lastErrorKey = "cloudSyncLastError_$id"
+            val previousAttempt = prefs.getLong(attemptKey, 0L)
             performSyncTwoWay(binId)
+            val currentAttempt = prefs.getLong(attemptKey, 0L)
+            val phase = prefs.getString(phaseKey, "").orEmpty()
+            val error = prefs.getString(lastErrorKey, null).orEmpty().trim()
+            return currentAttempt != previousAttempt && phase == CloudSyncPhase.DONE.name && error.isEmpty()
         } finally {
             syncMutex.unlock()
         }
@@ -1106,9 +1116,9 @@ class HomeViewModel(
         if (manifestId.isEmpty()) return
 
         _cloudSyncLoading.value = true
-        val etagManifestKey = "cloudSyncEtag_$manifestId"
-        val etagStackKey = "cloudSyncEtagStack_$manifestId"
-        val etagHistoryKey = "cloudSyncEtagHistory_$manifestId"
+        val etagManifestKey = "cloudSyncEtagV2_$manifestId"
+        val etagStackKey = "cloudSyncEtagStackV2_$manifestId"
+        val etagHistoryKey = "cloudSyncEtagHistoryV2_$manifestId"
         val stackIdKey = "cloudSyncStackBinId_$manifestId"
         val historyIdKey = "cloudSyncHistoryBinId_$manifestId"
         val lastSyncKey = "cloudSyncLastSyncEpochMs_$manifestId"
@@ -1178,7 +1188,6 @@ class HomeViewModel(
             }
         }
         val manifestEtag = manifestDownload.etag.orEmpty().trim().ifEmpty { previousManifestEtag }
-        if (manifestEtag.isNotEmpty()) prefs.edit().putString(etagManifestKey, manifestEtag).apply()
         if (!manifestDownload.json.isNullOrBlank()) {
             val manifestJson = manifestDownload.json.orEmpty()
             val prepared = runCatching { decryptAndPrepare(manifestJson) }.getOrElse { t ->
@@ -1216,8 +1225,22 @@ class HomeViewModel(
                     )
                     return
                 }
-                mergeRemoteIntoLocal(legacyPlain, clientId)
+                if (!mergeRemoteIntoLocal(legacyPlain, clientId)) {
+                    abortCloudSync(
+                        prefs = prefs,
+                        manifestId = manifestId,
+                        lastErrorKey = lastErrorKey,
+                        phaseKey = phaseKey,
+                        stageMsKey = mergeMsKey,
+                        stageStartedAt = mergeStartedAt,
+                        startedAt = startedAt,
+                        errorMessage = "Legacy payload merge failed",
+                        logMessage = "Legacy payload merge failed"
+                    )
+                    return
+                }
                 prefs.edit().putLong(mergeMsKey, SystemClock.elapsedRealtime() - mergeStartedAt).apply()
+                if (manifestEtag.isNotEmpty()) prefs.edit().putString(etagManifestKey, manifestEtag).apply()
                 val remoteChanged = manifestJson.isNotBlank()
                 if (!remoteChanged && !localStackChanged && !localHistoryChanged) {
                     finishCloudSyncNoChanges(
@@ -1293,6 +1316,7 @@ class HomeViewModel(
             stackId = decoded.stackBinId
             historyId = decoded.historyBinId
             prefs.edit().putString(stackIdKey, stackId).putString(historyIdKey, historyId).apply()
+            if (manifestEtag.isNotEmpty()) prefs.edit().putString(etagManifestKey, manifestEtag).apply()
         }
         if (stackId.isEmpty() || historyId.isEmpty()) {
             abortCloudSync(
@@ -1351,8 +1375,6 @@ class HomeViewModel(
         prefs.edit().putLong(pullMsKey, pullMs).apply()
         val stackEtag = stackDownload.etag.orEmpty().trim().ifEmpty { prevStackEtag }
         val historyEtag = historyDownload.etag.orEmpty().trim().ifEmpty { prevHistoryEtag }
-        if (stackEtag.isNotEmpty()) prefs.edit().putString(etagStackKey, stackEtag).apply()
-        if (historyEtag.isNotEmpty()) prefs.edit().putString(etagHistoryKey, historyEtag).apply()
 
         val bytesDown = (manifestDownload.json?.toByteArray(Charsets.UTF_8)?.size ?: 0) +
             (stackDownload.json?.toByteArray(Charsets.UTF_8)?.size ?: 0) +
@@ -1377,7 +1399,20 @@ class HomeViewModel(
                 )
                 return
             }
-            mergeRemoteIntoLocal(prepared, clientId)
+            if (!mergeRemoteIntoLocal(prepared, clientId)) {
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = mergeMsKey,
+                    stageStartedAt = mergeStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = "Stack payload merge failed",
+                    logMessage = "Stack payload merge failed"
+                )
+                return
+            }
         }
         if (!historyDownload.json.isNullOrBlank()) {
             val prepared = runCatching { decryptAndPrepare(historyDownload.json.orEmpty()) }.getOrElse { t ->
@@ -1394,10 +1429,29 @@ class HomeViewModel(
                 )
                 return
             }
-            mergeRemoteIntoLocal(prepared, clientId)
+            if (!mergeRemoteIntoLocal(prepared, clientId)) {
+                abortCloudSync(
+                    prefs = prefs,
+                    manifestId = manifestId,
+                    lastErrorKey = lastErrorKey,
+                    phaseKey = phaseKey,
+                    stageMsKey = mergeMsKey,
+                    stageStartedAt = mergeStartedAt,
+                    startedAt = startedAt,
+                    errorMessage = "History payload merge failed",
+                    logMessage = "History payload merge failed"
+                )
+                return
+            }
         }
         val mergeMs = SystemClock.elapsedRealtime() - mergeStartedAt
         prefs.edit().putLong(mergeMsKey, mergeMs).apply()
+        if (!stackDownload.json.isNullOrBlank() && stackEtag.isNotEmpty()) {
+            prefs.edit().putString(etagStackKey, stackEtag).apply()
+        }
+        if (!historyDownload.json.isNullOrBlank() && historyEtag.isNotEmpty()) {
+            prefs.edit().putString(etagHistoryKey, historyEtag).apply()
+        }
 
         val remoteChanged = !stackDownload.json.isNullOrBlank() || !historyDownload.json.isNullOrBlank()
         if (!remoteChanged && !localStackChanged && !localHistoryChanged) {
@@ -1441,7 +1495,7 @@ class HomeViewModel(
                     val prepared = decryptAndPrepare(latest.json.orEmpty())
                     mergeMutex.lock()
                     try {
-                        mergeRemoteIntoLocal(prepared, clientId)
+                        check(mergeRemoteIntoLocal(prepared, clientId)) { "$label payload merge failed" }
                     } finally {
                         mergeMutex.unlock()
                     }
@@ -1535,8 +1589,8 @@ class HomeViewModel(
         syncTwoWay(binId)
     }
     
-    private suspend fun mergeRemoteIntoLocal(json: String, clientId: java.util.UUID) {
-        val decoded = OAKBackupJson.decodeCompat(json).getOrElse { return }
+    private suspend fun mergeRemoteIntoLocal(json: String, clientId: java.util.UUID): Boolean {
+        val decoded = OAKBackupJson.decodeCompat(json).getOrElse { return false }
         val clientIdString = clientId.toString()
         val localSupplements = repository.getAllSupplementsForSync(clientIdString).associateBy { it.id.toString().lowercase(Locale.ROOT) }
         val localRecordList = repository.getAllRecordsForSync(clientIdString)
@@ -1647,6 +1701,7 @@ class HomeViewModel(
                 keepId = inserted.id
             )
         }
+        return true
     }
     
     private fun makeLocalFromRemote(remote: OAKBackupSupplementDTO, clientId: java.util.UUID): UserSupplement {

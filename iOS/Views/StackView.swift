@@ -331,7 +331,7 @@ private struct StackSupplementRow: View, Equatable {
                     .foregroundStyle(isOffCycle ? Color.secondary : Color.primary)
                 Text(cycleSummary)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
@@ -428,7 +428,7 @@ private struct StackEmptyState: View {
                 .foregroundStyle(OAKPalette.accent)
             Text("no_supplements_yet".localized)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)

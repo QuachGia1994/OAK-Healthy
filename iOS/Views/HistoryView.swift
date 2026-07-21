@@ -81,14 +81,14 @@ public struct HistoryView: View {
                                 VStack(spacing: 10) {
                                     Image(systemName: "clock")
                                         .font(.title2)
-                                        .foregroundStyle(.secondary)
+                                        .oakSecondaryText()
                                     Text("no_logs_yet".localized)
                                         .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.secondary)
+                                        .oakSecondaryText()
                                         .multilineTextAlignment(.center)
                                     Text("history_search_placeholder".localized)
                                         .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        .oakSecondaryText()
                                         .multilineTextAlignment(.center)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -379,7 +379,7 @@ private struct InsightsDetailsView: View {
                     insightsSection(title: "insights_details_top_skipped_title".localized, items: summary.topSkipped)
                 } else {
                     Text("insights_no_data".localized)
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                 }
             }
             .navigationTitle("insights_details_title".localized)
@@ -397,7 +397,7 @@ private struct InsightsDetailsView: View {
         Section(title) {
             if items.isEmpty {
                 Text("insights_no_data".localized)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             } else {
                 ForEach(items) { item in
                     Text(String.localizedStringWithFormat("insights_item_bullet_format".localized, item.title, item.count))
@@ -421,7 +421,7 @@ private struct HistoryRow: View, Equatable {
             Text(row.timeText)
                 .font(.caption)
                 .monospacedDigit()
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
                 .frame(width: 50, alignment: .leading)
             
             Text(row.supplementName)
@@ -463,7 +463,7 @@ private struct HistoryFilterBar: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
                 TextField("history_search_placeholder".localized, text: $searchText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()

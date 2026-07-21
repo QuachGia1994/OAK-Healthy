@@ -89,6 +89,10 @@ public struct SyncCenterView: View {
             let trimmed = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             guard isAutoSyncEnabled else { return }
+            CloudSyncAutoSync.startRealtimeSync(
+                modelContext: modelContext,
+                activeClientManager: activeClientManager
+            )
             await syncNow(label: "AUTO")
         }
         .task(id: isCloudEncryptionEnabled) {
@@ -140,7 +144,7 @@ public struct SyncCenterView: View {
                 }
             }
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .oakSecondaryText()
         } header: {
             Text("sync_center_onboarding_header".localized)
         }
@@ -190,11 +194,11 @@ public struct SyncCenterView: View {
                             )
                         )
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .oakSecondaryText()
                     } else {
                         Text("sync_center_no_sync_yet".localized)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .oakSecondaryText()
                     }
                     
                     if lastAttemptEpochMs > 0 {
@@ -206,12 +210,12 @@ public struct SyncCenterView: View {
                             )
                         )
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .oakSecondaryText()
                     }
                     
                     Text(String(format: "sync_center_phase_format".localized, syncPhase.text))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                     
                     HStack(spacing: 10) {
                         SyncStepChip(label: "sync_center_chip_pull".localized, done: syncPhase != .idle)
@@ -230,7 +234,7 @@ public struct SyncCenterView: View {
                     if retryCount > 0 {
                         Text(String(format: "sync_center_conflict_retry_format".localized, retryCount))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .oakSecondaryText()
                     }
                     
                     if bytesDown > 0 || bytesUp > 0 {
@@ -242,7 +246,7 @@ public struct SyncCenterView: View {
                             )
                         )
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .oakSecondaryText()
                     }
                     
                     if !stackId.isEmpty || !historyId.isEmpty {
@@ -256,7 +260,7 @@ public struct SyncCenterView: View {
                                         )
                                     )
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .oakSecondaryText()
                                 }
                                 if !historyId.isEmpty {
                                     Text(
@@ -266,7 +270,7 @@ public struct SyncCenterView: View {
                                         )
                                     )
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .oakSecondaryText()
                                 }
                             }
                             Spacer()
@@ -290,7 +294,7 @@ public struct SyncCenterView: View {
                             )
                         )
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .oakSecondaryText()
                             .lineLimit(2)
                     }
                     
@@ -319,7 +323,7 @@ public struct SyncCenterView: View {
                         if hint {
                             Text("sync_center_hint_missing_key".localized)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .oakSecondaryText()
                                 .lineLimit(3)
                         }
                     }
@@ -332,7 +336,7 @@ public struct SyncCenterView: View {
             } else {
                 Text("sync_center_no_link_code".localized)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
         } header: {
             Text("sync_center_status_header".localized)
@@ -391,7 +395,7 @@ public struct SyncCenterView: View {
             let binId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
             HStack(alignment: .center, spacing: 8) {
                 Text("sync_center_your_link_code".localized)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
                 
                 Text(isBinIdVisible ? binId : String(repeating: "•", count: 24))
                     .font(.title3)
@@ -435,7 +439,7 @@ public struct SyncCenterView: View {
         } else {
             Text("sync_center_host_hint".localized)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         }
     }
     
@@ -514,18 +518,18 @@ public struct SyncCenterView: View {
             if hasActiveCloudLink {
                 Text("sync_center_encryption_locked_hint".localized)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
 
             if isCloudEncryptionEnabled || hasActiveCloudLink {
                 if !exportedCloudSyncKey.isEmpty {
                     Text("sync_center_export_key_label".localized)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                     HStack {
                         Text(isExportedKeyVisible ? exportedCloudSyncKey : String(repeating: "•", count: 32))
                             .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
+                            .oakSecondaryText()
                             .lineLimit(2)
                         Spacer()
                         Button {
@@ -594,7 +598,7 @@ public struct SyncCenterView: View {
             } else {
                 Text("sync_center_encryption_off_hint".localized)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
         } header: {
             Text("sync_center_security_header".localized)
@@ -608,7 +612,7 @@ public struct SyncCenterView: View {
             if activeBinId.isEmpty {
                 Text("sync_center_logs_hint".localized)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             } else {
                 TextField("sync_center_logs_search_placeholder".localized, text: $logQuery)
                     .textFieldStyle(.roundedBorder)
@@ -651,13 +655,13 @@ public struct SyncCenterView: View {
                 if filteredLogEntries.isEmpty {
                     Text("sync_center_no_logs".localized)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                 } else {
                     ForEach(filteredLogEntries) { entry in
                         VStack(alignment: .leading, spacing: 4) {
                             Text(entry.title)
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .oakSecondaryText()
                             Text(entry.message)
                                 .font(.caption)
                         }
@@ -836,21 +840,23 @@ public struct SyncCenterView: View {
                 try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
                 return
             }
-            async let stackDataTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.stackBinId)
-            async let historyDataTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.historyBinId)
+            async let stackDataTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.stackBinId)
+            async let historyDataTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.historyBinId)
             let (stackData, historyData) = try await (stackDataTask, historyDataTask)
             UserDefaults.standard.set(Int(pullStartedAt.distance(to: Date()) * 1000), forKey: keys.pullMs)
-            UserDefaults.standard.set((stackData?.count ?? 0) + (historyData?.count ?? 0), forKey: keys.bytesDown)
+            UserDefaults.standard.set((stackData.data?.count ?? 0) + (historyData.data?.count ?? 0), forKey: keys.bytesDown)
             
-            if stackData != nil || historyData != nil {
+            if stackData.data != nil || historyData.data != nil {
                 syncPhase = .merging
                 appendLog(binId: manifestId, phase: "MERGE", message: "START")
                 let mergeStartedAt = Date()
-                if let stackData { try SupplementExportCodec.mergeBackup(data: stackData, client: client, context: modelContext) }
-                if let historyData { try SupplementExportCodec.mergeBackup(data: historyData, client: client, context: modelContext) }
+                if let stackData = stackData.data { try SupplementExportCodec.mergeBackup(data: stackData, client: client, context: modelContext) }
+                if let historyData = historyData.data { try SupplementExportCodec.mergeBackup(data: historyData, client: client, context: modelContext) }
                 UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
                 appendLog(binId: manifestId, phase: "MERGE", message: "DONE")
             }
+            await commitRevisionIfDownloaded(stackData, binId: parts.stackBinId)
+            await commitRevisionIfDownloaded(historyData, binId: parts.historyBinId)
             
             if !localStackChanged && !localHistoryChanged {
                 finalizeSuccess(keys: keys, startedAt: startedAt)
@@ -893,6 +899,11 @@ public struct SyncCenterView: View {
         }
     }
 
+    private func commitRevisionIfDownloaded(_ download: CloudSyncDownload, binId: String) async {
+        guard download.data != nil else { return }
+        await CloudSyncManager.shared.commitRevision(download.revision, binId: binId)
+    }
+
     @MainActor
     private func resolveManifestParts(manifestId: String) async throws -> CloudSyncManifest {
         let stackKey = "cloudSyncStackBinId_\(manifestId)"
@@ -902,7 +913,8 @@ public struct SyncCenterView: View {
         if !storedStack.isEmpty, !storedHistory.isEmpty {
             return CloudSyncManifest(v: 1, stackBinId: storedStack, historyBinId: storedHistory)
         }
-        let manifestData = try await CloudSyncManager.shared.downloadBackup(binId: manifestId)
+        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: manifestId)
+        guard let manifestData = downloaded.data else { throw CloudSyncError.invalidResponse }
         let decoded: CloudSyncManifest
         do {
             decoded = try CloudSyncManifestCodec.decode(manifestData)
@@ -914,6 +926,7 @@ public struct SyncCenterView: View {
         guard !stackId.isEmpty, !historyId.isEmpty else { throw CloudSyncError.invalidResponse }
         UserDefaults.standard.set(stackId, forKey: stackKey)
         UserDefaults.standard.set(historyId, forKey: historyKey)
+        await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: manifestId)
         return decoded
     }
 
@@ -927,14 +940,15 @@ public struct SyncCenterView: View {
     ) async throws {
         let localChanged = hasLocalChangesSince(clientId: client.id, lastSyncEpochMs: lastSyncEpochMs)
         let pullStartedAt = Date()
-        let downloaded = try await CloudSyncManager.shared.downloadBackupIfChanged(binId: binId)
+        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
         UserDefaults.standard.set(Int(pullStartedAt.distance(to: Date()) * 1000), forKey: keys.pullMs)
-        UserDefaults.standard.set(downloaded?.count ?? 0, forKey: keys.bytesDown)
-        if let downloaded {
+        UserDefaults.standard.set(downloaded.data?.count ?? 0, forKey: keys.bytesDown)
+        if let data = downloaded.data {
             syncPhase = .merging
             let mergeStartedAt = Date()
-            try SupplementExportCodec.mergeBackup(data: downloaded, client: client, context: modelContext)
+            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
             UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
+            await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: binId)
         }
         guard localChanged else {
             finalizeSuccess(keys: keys, startedAt: startedAt)
@@ -1013,10 +1027,10 @@ public struct SyncCenterView: View {
         try await CloudSyncManager.shared.deleteBackup(binId: oldBinId)
         UserDefaults.standard.removeObject(forKey: "cloudSyncStackBinId_\(oldBinId)")
         UserDefaults.standard.removeObject(forKey: "cloudSyncHistoryBinId_\(oldBinId)")
-        UserDefaults.standard.removeObject(forKey: "cloudSyncEtag_\(oldBinId)")
-        UserDefaults.standard.removeObject(forKey: "cloudSyncEtagStack_\(oldBinId)")
-        UserDefaults.standard.removeObject(forKey: "cloudSyncEtagHistory_\(oldBinId)")
-        UserDefaults.standard.removeObject(forKey: "cloudSyncLastSeenRev_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncEtagV2_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncEtagStackV2_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncEtagHistoryV2_\(oldBinId)")
+        UserDefaults.standard.removeObject(forKey: "cloudSyncLastSeenRevV2_\(oldBinId)")
         hostedBinId = ""
     }
     
@@ -1114,17 +1128,19 @@ public struct SyncCenterView: View {
         keys: SyncKeys
     ) async throws {
         do {
-            let etagKey = "cloudSyncEtag_\(binId)"
+            let etagKey = "cloudSyncEtagV2_\(binId)"
             let etag = UserDefaults.standard.string(forKey: etagKey)
             try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: etag)
         } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 409 || statusCode == 412 {
             syncPhase = .retryingConflict
             UserDefaults.standard.set(1, forKey: keys.retryCount)
             appendLog(binId: binId, phase: "CONFLICT", message: "RETRY START")
-            let latest = try await CloudSyncManager.shared.downloadBackup(binId: binId)
-            try SupplementExportCodec.mergeBackup(data: latest, client: client, context: modelContext)
+            let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
+            guard let data = latest.data else { throw CloudSyncError.invalidResponse }
+            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            await CloudSyncManager.shared.commitRevision(latest.revision, binId: binId)
             let payload = try retryPayload()
-            let etagKey = "cloudSyncEtag_\(binId)"
+            let etagKey = "cloudSyncEtagV2_\(binId)"
             let retryEtag = UserDefaults.standard.string(forKey: etagKey)
             try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: retryEtag)
         }
@@ -1318,7 +1334,7 @@ private struct SyncKeys {
         pushMs = "cloudSyncPushMs_\(binId)"
         totalMs = "cloudSyncTotalMs_\(binId)"
         lastError = "cloudSyncLastError_\(binId)"
-        etag = "cloudSyncEtag_\(binId)"
+        etag = "cloudSyncEtagV2_\(binId)"
     }
 }
 
@@ -1407,7 +1423,7 @@ private struct SyncStepChip: View {
                 .font(.caption)
             Text(label)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

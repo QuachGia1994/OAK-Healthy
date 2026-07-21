@@ -116,7 +116,7 @@ public struct SettingsView: View {
                 Text("onboarding_permission_status".localized)
                 Spacer()
                 Text(notificationPermissionText)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
             
             Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
@@ -211,10 +211,10 @@ public struct SettingsView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "person.crop.circle.badge.plus")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                     Text("add_client_to_start".localized)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                         .multilineTextAlignment(.center)
                 }
             } else {
@@ -248,7 +248,7 @@ public struct SettingsView: View {
                 Text("dedication_text".localized)
                     .font(.subheadline)
                     .italic()
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
                     .multilineTextAlignment(.center)
                     .padding(.bottom, 12)
             }
@@ -284,7 +284,7 @@ public struct SettingsView: View {
         Section {
             Text("settings_about_body".localized)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         } header: {
             Text("about_title".localized)
         }
@@ -297,13 +297,13 @@ public struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("settings_app_name_label".localized)
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
                 Text("settings_author_label".localized)
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
                 Text("settings_copyright_body".localized)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .oakTertiaryText()
                     .padding(.top, 4)
             }
         } header: {
@@ -533,7 +533,7 @@ private struct SupplementRow: View, Equatable {
                 .font(.headline)
             Text(cycleSummary)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         }
     }
 }
@@ -547,7 +547,7 @@ private struct MyStackListView: View {
         List {
             if supplements.isEmpty {
                 Text("no_supplements_yet".localized)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             } else {
                 ForEach(supplements) { supplement in
                     let time = supplement.intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)

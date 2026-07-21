@@ -76,7 +76,7 @@ public struct AddSupplementView: View {
                     .font(.title3.weight(.bold))
                 Text("add_supplement_intro".localized)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
             Spacer(minLength: 0)
         }
@@ -125,7 +125,7 @@ public struct AddSupplementView: View {
                     Text(suggestion.name).font(.subheadline.weight(.semibold))
                     Text(suggestionCaption(suggestion))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                         .lineLimit(1)
                 }
                 Image(systemName: "plus.circle.fill")
@@ -182,7 +182,7 @@ public struct AddSupplementView: View {
                 Text(time).monospacedDigit()
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
             .font(.subheadline.weight(.semibold))
             .padding(.horizontal, 12)
@@ -246,7 +246,7 @@ public struct AddSupplementView: View {
             numberField("repeat_every".localized, text: $viewModel.intervalWeeks)
             Text(weeklySummaryText)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         }
     }
 
@@ -402,7 +402,7 @@ private struct SupplementFormSection<Content: View>: View {
                     .background(OAKPalette.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.headline)
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary)
+                    Text(subtitle).font(.caption).oakSecondaryText()
                 }
             }
             content

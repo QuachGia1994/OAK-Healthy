@@ -23,6 +23,32 @@ enum OAKCardVariant: Sendable {
     case glass
 }
 
+private struct OAKSecondaryTextModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content.foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.78) : Color.secondary)
+    }
+}
+
+private struct OAKTertiaryTextModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content.foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.64) : Color.secondary.opacity(0.78))
+    }
+}
+
+extension View {
+    func oakSecondaryText() -> some View {
+        modifier(OAKSecondaryTextModifier())
+    }
+
+    func oakTertiaryText() -> some View {
+        modifier(OAKTertiaryTextModifier())
+    }
+}
+
 extension View {
     func oakCardStyle(
         _ variant: OAKCardVariant = .glass,

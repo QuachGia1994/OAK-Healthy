@@ -150,6 +150,10 @@ final class FirebaseRealtimeSyncListener {
     private var historyObservation: Observation?
     private var manifestObservation: Observation?
     private var generation = 0
+    private var activeManifestId: String?
+    private var boundBinIds = Set<String>()
+    private var pendingRevisions: [String: String] = [:]
+    private var syncTask: Task<Void, Never>?
     private let modelContext: ModelContext
     private let activeClientManager: ActiveClientManager
 
@@ -169,23 +173,17 @@ final class FirebaseRealtimeSyncListener {
             return
         }
         guard startGeneration == generation else { return }
-        let stackKey = "cloudSyncStackBinId_\(manifestId)"
-        let historyKey = "cloudSyncHistoryBinId_\(manifestId)"
-        let stackBinId = (UserDefaults.standard.string(forKey: stackKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let historyBinId = (UserDefaults.standard.string(forKey: historyKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !stackBinId.isEmpty {
-            stackObservation = observeRevChange(binId: stackBinId)
-        }
-        if !historyBinId.isEmpty {
-            historyObservation = observeRevChange(binId: historyBinId)
-        }
-        if stackBinId.isEmpty || historyBinId.isEmpty {
-            manifestObservation = observeRevChange(binId: manifestId)
-        }
+        activeManifestId = manifestId
+        bindListeners(manifestId: manifestId)
     }
 
     func stop() {
         generation += 1
+        syncTask?.cancel()
+        syncTask = nil
+        pendingRevisions.removeAll()
+        activeManifestId = nil
+        boundBinIds.removeAll()
         removeObservations()
         stackObservation = nil
         historyObservation = nil
@@ -195,18 +193,127 @@ final class FirebaseRealtimeSyncListener {
     private func observeRevChange(binId: String) -> Observation? {
         guard FirebaseCloudStore.isValidBinId(binId) else { return nil }
         let ref = Database.database(url: FirebaseBootstrap.databaseURL).reference().child("oakBins").child(binId).child("meta").child("rev")
-        let handle = ref.observe(.value) { [weak self] snapshot, _ in
-            guard let self, let newRev = FirebaseCloudStore.revision(from: snapshot.value) else { return }
-            let key = "cloudSyncLastSeenRev_\(binId)"
-            let oldRev = UserDefaults.standard.string(forKey: key)
-            let newRevStr = newRev.description
-            if oldRev == newRevStr { return }
-            UserDefaults.standard.set(newRevStr, forKey: key)
+        let handle = ref.observe(.value) { [weak self] snapshot, error in
+            guard let self else { return }
+            if error != nil {
+                Task { @MainActor in self.scheduleListenerRestart() }
+                return
+            }
+            guard let newRev = FirebaseCloudStore.revision(from: snapshot.value) else { return }
             Task { @MainActor in
-                await CloudSyncAutoSync.syncIfEnabled(modelContext: self.modelContext, clientId: self.activeClientManager.currentClientId)
+                self.queueRevision(binId: binId, revision: newRev.description)
             }
         }
         return (ref, handle)
+    }
+
+    private func queueRevision(binId: String, revision: String) {
+        let key = "cloudSyncLastSeenRevV2_\(binId)"
+        let oldRevision = UserDefaults.standard.string(forKey: key)
+        guard oldRevision != revision || pendingRevisions[binId] != revision else { return }
+        pendingRevisions[binId] = revision
+        guard syncTask == nil else { return }
+        let startGeneration = generation
+        syncTask = Task { @MainActor in
+            await processPendingRevisions(startGeneration: startGeneration)
+        }
+    }
+
+    private func processPendingRevisions(startGeneration: Int) async {
+        var failureAttempt = 0
+        while !Task.isCancelled, generation == startGeneration, !pendingRevisions.isEmpty {
+            let targets = pendingRevisions
+            let success = await CloudSyncAutoSync.syncIfEnabled(
+                modelContext: modelContext,
+                clientId: activeClientManager.currentClientId
+            )
+            guard success else {
+                failureAttempt = min(failureAttempt + 1, 4)
+                await waitBeforeRetry(attempt: failureAttempt)
+                continue
+            }
+            failureAttempt = 0
+            markProcessed(targets)
+            refreshBindingsIfNeeded()
+        }
+        syncTask = nil
+    }
+
+    private func markProcessed(_ targets: [String: String]) {
+        for (binId, revision) in targets where pendingRevisions[binId] == revision {
+            UserDefaults.standard.set(revision, forKey: "cloudSyncLastSeenRevV2_\(binId)")
+            pendingRevisions.removeValue(forKey: binId)
+        }
+    }
+
+    private func waitBeforeRetry(attempt: Int) async {
+        let delay: Duration
+        switch attempt {
+        case 1: delay = .seconds(1)
+        case 2: delay = .seconds(3)
+        case 3: delay = .seconds(10)
+        default: delay = .seconds(30)
+        }
+        do {
+            try await Task.sleep(for: delay)
+        } catch {
+            return
+        }
+    }
+
+    private func bindListeners(manifestId: String) {
+        let stackKey = "cloudSyncStackBinId_\(manifestId)"
+        let historyKey = "cloudSyncHistoryBinId_\(manifestId)"
+        let stackBinId = trimmedBinId(forKey: stackKey)
+        let historyBinId = trimmedBinId(forKey: historyKey)
+        if FirebaseCloudStore.isValidBinId(stackBinId) {
+            stackObservation = observeRevChange(binId: stackBinId)
+            boundBinIds.insert(stackBinId)
+        }
+        if FirebaseCloudStore.isValidBinId(historyBinId) {
+            historyObservation = observeRevChange(binId: historyBinId)
+            boundBinIds.insert(historyBinId)
+        }
+        if !FirebaseCloudStore.isValidBinId(stackBinId) || !FirebaseCloudStore.isValidBinId(historyBinId) {
+            manifestObservation = observeRevChange(binId: manifestId)
+            boundBinIds.insert(manifestId)
+        }
+    }
+
+    private func refreshBindingsIfNeeded(force: Bool = false) {
+        guard let manifestId = activeManifestId else { return }
+        let stackBinId = trimmedBinId(forKey: "cloudSyncStackBinId_\(manifestId)")
+        let historyBinId = trimmedBinId(forKey: "cloudSyncHistoryBinId_\(manifestId)")
+        var desired = Set<String>()
+        if FirebaseCloudStore.isValidBinId(stackBinId) { desired.insert(stackBinId) }
+        if FirebaseCloudStore.isValidBinId(historyBinId) { desired.insert(historyBinId) }
+        if !FirebaseCloudStore.isValidBinId(stackBinId) || !FirebaseCloudStore.isValidBinId(historyBinId) {
+            desired.insert(manifestId)
+        }
+        guard force || desired != boundBinIds else { return }
+        removeObservations()
+        stackObservation = nil
+        historyObservation = nil
+        manifestObservation = nil
+        boundBinIds.removeAll()
+        bindListeners(manifestId: manifestId)
+    }
+
+    private func scheduleListenerRestart() {
+        let expectedGeneration = generation
+        Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(1))
+            } catch {
+                return
+            }
+            guard self.generation == expectedGeneration else { return }
+            self.refreshBindingsIfNeeded(force: true)
+        }
+    }
+
+    private func trimmedBinId(forKey key: String) -> String {
+        (UserDefaults.standard.string(forKey: key) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func removeObservations() {

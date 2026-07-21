@@ -73,11 +73,13 @@ val OakDarkColorScheme = darkColorScheme(
     onPrimary = Color(0xFF003739),
     primaryContainer = Color(0xFF15585B),
     onPrimaryContainer = Color(0xFFB9EFEC),
-    secondary = Color(0xFFB4CCC2),
+    secondary = Color(0xFFC7D9D1),
+    onSecondary = Color(0xFF10201B),
     background = Color(0xFF071413),
     surface = Color(0xFF0C1C1A),
     surfaceVariant = Color(0xFF1B2C29),
-    onSurface = Color(0xFFE4F0EC),
-    onSurfaceVariant = Color(0xFFB8C8C2),
-    outlineVariant = Color(0xFF3D514C)
+    onSurface = Color(0xFFF5FBF8),
+    onSurfaceVariant = Color(0xFFD2E0DA),
+    outline = Color(0xFF78968D),
+    outlineVariant = Color(0xFF4B625B)
 )

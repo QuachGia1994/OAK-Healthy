@@ -58,6 +58,11 @@ public enum CloudSyncError: Error, Sendable, LocalizedError {
     }
 }
 
+struct CloudSyncDownload: Sendable {
+    let data: Data?
+    let revision: String?
+}
+
 public actor CloudSyncManager {
     public static let baseURL: URL = {
         URL(string: "https://api.jsonbin.io/v3/b") ?? URL(fileURLWithPath: "/")
@@ -114,14 +119,23 @@ public actor CloudSyncManager {
     public func downloadBackup(
         binId: String
     ) async throws(CloudSyncError) -> Data {
+        let downloaded = try await downloadBackupWithRevision(binId: binId)
+        guard let data = downloaded.data else { throw CloudSyncError.invalidResponse }
+        commitRevision(downloaded.revision, binId: binId)
+        return data
+    }
+
+    func downloadBackupWithRevision(
+        binId: String
+    ) async throws(CloudSyncError) -> CloudSyncDownload {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard FirebaseCloudStore.isValidBinId(id) else { throw CloudSyncError.invalidBinId }
         do {
             let node = try await FirebaseCloudStore.readNode(id: id)
             let payload = (node.payload ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if payload.isEmpty { throw CloudSyncError.invalidResponse }
-            if let rev = node.rev { saveEtag(rev, binId: id) }
-            return try decodePayloadFromCloud(payload)
+            let data = try decodePayloadFromCloud(payload)
+            return CloudSyncDownload(data: data, revision: node.rev)
         } catch let error as CloudSyncError {
             throw error
         } catch {
@@ -132,21 +146,39 @@ public actor CloudSyncManager {
     public func downloadBackupIfChanged(
         binId: String
     ) async throws(CloudSyncError) -> Data? {
+        let downloaded = try await downloadBackupIfChangedWithRevision(binId: binId)
+        guard let data = downloaded.data else { return nil }
+        commitRevision(downloaded.revision, binId: binId)
+        return data
+    }
+
+    func downloadBackupIfChangedWithRevision(
+        binId: String
+    ) async throws(CloudSyncError) -> CloudSyncDownload {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard FirebaseCloudStore.isValidBinId(id) else { throw CloudSyncError.invalidBinId }
         do {
             let known = storedEtag(binId: id)
             let node = try await FirebaseCloudStore.readNode(id: id)
-            if let rev = node.rev, rev == known { return nil }
+            if let rev = node.rev, rev == known {
+                return CloudSyncDownload(data: nil, revision: rev)
+            }
             let payload = (node.payload ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if payload.isEmpty { throw CloudSyncError.invalidResponse }
-            if let rev = node.rev { saveEtag(rev, binId: id) }
-            return try decodePayloadFromCloud(payload)
+            let data = try decodePayloadFromCloud(payload)
+            return CloudSyncDownload(data: data, revision: node.rev)
         } catch let error as CloudSyncError {
             throw error
         } catch {
             throw CloudSyncError.networkError(message: error.localizedDescription)
         }
+    }
+
+    func commitRevision(_ revision: String?, binId: String) {
+        guard let revision else { return }
+        let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !id.isEmpty else { return }
+        saveEtag(revision, binId: id)
     }
     
     public func deleteBackup(
@@ -327,7 +359,7 @@ public actor CloudSyncManager {
     }
     
     private func storedEtag(binId: String) -> String? {
-        let key = "cloudSyncEtag_\(binId)"
+        let key = "cloudSyncEtagV2_\(binId)"
         let raw = UserDefaults.standard.string(forKey: key) ?? ""
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -336,7 +368,7 @@ public actor CloudSyncManager {
     private func saveEtag(_ etag: String, binId: String) {
         let trimmed = etag.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        UserDefaults.standard.set(trimmed, forKey: "cloudSyncEtag_\(binId)")
+        UserDefaults.standard.set(trimmed, forKey: "cloudSyncEtagV2_\(binId)")
     }
 }
 
@@ -411,36 +443,45 @@ enum CloudSyncAutoSync {
         }
     }
     
-    static func syncIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
+    static func syncIfEnabled(modelContext: ModelContext, clientId: UUID?) async -> Bool {
         guard !isSyncing else {
             syncAgainAfterCurrent = true
-            return
+            return false
         }
         isSyncing = true
         defer { isSyncing = false }
+        var didSucceed = true
         repeat {
             syncAgainAfterCurrent = false
-            await performSyncIfEnabled(modelContext: modelContext, clientId: clientId)
+            didSucceed = await performSyncIfEnabled(modelContext: modelContext, clientId: clientId) && didSucceed
         } while syncAgainAfterCurrent && !Task.isCancelled
+        return didSucceed
     }
 
-    private static func performSyncIfEnabled(modelContext: ModelContext, clientId: UUID?) async {
-        guard let ctx = makeSyncContext(modelContext: modelContext, clientId: clientId) else { return }
+    private static func performSyncIfEnabled(modelContext: ModelContext, clientId: UUID?) async -> Bool {
+        guard let ctx = makeSyncContext(modelContext: modelContext, clientId: clientId) else { return false }
         do {
             markAttempt(ctx: ctx)
-            guard let client = fetchClient(modelContext: modelContext, clientId: ctx.clientId) else { return }
+            guard let client = fetchClient(modelContext: modelContext, clientId: ctx.clientId) else { return false }
             let parts = try await resolveManifestParts(manifestId: ctx.id)
-            let (stackData, historyData) = try await downloadPartsForImmediateConsistency(parts: parts)
-            try mergeRemotePartIfNeeded(stackData, client: client, modelContext: modelContext)
-            try mergeRemotePartIfNeeded(historyData, client: client, modelContext: modelContext)
-            let remoteChanged = stackData != nil || historyData != nil
-            if shouldExitEarly(remoteChanged: remoteChanged, localChanged: ctx.localStackChanged || ctx.localHistoryChanged) { return }
+            let (stackDownload, historyDownload) = try await downloadPartsForImmediateConsistency(parts: parts)
+            try mergeRemotePartIfNeeded(stackDownload.data, client: client, modelContext: modelContext)
+            try mergeRemotePartIfNeeded(historyDownload.data, client: client, modelContext: modelContext)
+            await commitRevisionIfDownloaded(stackDownload, binId: parts.stackBinId)
+            await commitRevisionIfDownloaded(historyDownload, binId: parts.historyBinId)
+            let remoteChanged = stackDownload.data != nil || historyDownload.data != nil
+            if shouldExitEarly(remoteChanged: remoteChanged, localChanged: ctx.localStackChanged || ctx.localHistoryChanged) {
+                markSuccess(ctx: ctx)
+                return true
+            }
             if ctx.localStackChanged || ctx.localHistoryChanged {
                 try await uploadPartsIfNeeded(ctx: ctx, modelContext: modelContext, client: client, parts: parts)
             }
             markSuccess(ctx: ctx)
+            return true
         } catch {
             markFailure(ctx: ctx, error: error)
+            return false
         }
     }
 
@@ -546,8 +587,8 @@ enum CloudSyncAutoSync {
         stackPayload: Data,
         historyPayload: Data
     ) async -> (Result<Void, Error>, Result<Void, Error>) {
-        let stackEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(parts.stackBinId)")
-        let historyEtag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(parts.historyBinId)")
+        let stackEtag = UserDefaults.standard.string(forKey: "cloudSyncEtagV2_\(parts.stackBinId)")
+        let historyEtag = UserDefaults.standard.string(forKey: "cloudSyncEtagV2_\(parts.historyBinId)")
         let stackManager = CloudSyncManager()
         let historyManager = CloudSyncManager()
         async let stackResult = attemptUpsert(manager: stackManager, binId: parts.stackBinId, payload: stackPayload, etag: stackEtag)
@@ -602,20 +643,22 @@ enum CloudSyncAutoSync {
         client: ClientProfile,
         retryPayload: () throws -> Data
     ) async throws {
-        let latest = try await CloudSyncManager.shared.downloadBackup(binId: partId)
-        try mergeRemotePartIfNeeded(latest, client: client, modelContext: modelContext)
+        let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: partId)
+        guard let data = latest.data else { throw CloudSyncError.invalidResponse }
+        try mergeRemotePartIfNeeded(data, client: client, modelContext: modelContext)
+        await CloudSyncManager.shared.commitRevision(latest.revision, binId: partId)
         try await upsertPart(binId: partId, payload: retryPayload())
     }
     
-    private static func downloadPartsIfChanged(parts: CloudSyncManifest) async throws -> (Data?, Data?) {
-        async let stackTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.stackBinId)
-        async let historyTask = CloudSyncManager.shared.downloadBackupIfChanged(binId: parts.historyBinId)
+    private static func downloadPartsIfChanged(parts: CloudSyncManifest) async throws -> (CloudSyncDownload, CloudSyncDownload) {
+        async let stackTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.stackBinId)
+        async let historyTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.historyBinId)
         return try await (stackTask, historyTask)
     }
 
-    private static func downloadPartsForImmediateConsistency(parts: CloudSyncManifest) async throws -> (Data?, Data?) {
+    private static func downloadPartsForImmediateConsistency(parts: CloudSyncManifest) async throws -> (CloudSyncDownload, CloudSyncDownload) {
         let first = try await downloadPartsIfChanged(parts: parts)
-        let onlyOnePartChanged = (first.0 != nil) != (first.1 != nil)
+        let onlyOnePartChanged = (first.0.data != nil) != (first.1.data != nil)
         guard onlyOnePartChanged else { return first }
         do {
             try await Task.sleep(for: immediateConsistencyWindow)
@@ -623,7 +666,14 @@ enum CloudSyncAutoSync {
             return first
         }
         let second = try await downloadPartsIfChanged(parts: parts)
-        return (first.0 ?? second.0, first.1 ?? second.1)
+        let stack = first.0.data == nil ? second.0 : first.0
+        let history = first.1.data == nil ? second.1 : first.1
+        return (stack, history)
+    }
+
+    private static func commitRevisionIfDownloaded(_ download: CloudSyncDownload, binId: String) async {
+        guard download.data != nil else { return }
+        await CloudSyncManager.shared.commitRevision(download.revision, binId: binId)
     }
     
     private static func resolveManifestParts(manifestId: String) async throws -> CloudSyncManifest {
@@ -632,7 +682,8 @@ enum CloudSyncAutoSync {
         let stack = (UserDefaults.standard.string(forKey: stackKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let history = (UserDefaults.standard.string(forKey: historyKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !stack.isEmpty, !history.isEmpty { return CloudSyncManifest(v: 1, stackBinId: stack, historyBinId: history) }
-        let data = try await CloudSyncManager.shared.downloadBackup(binId: manifestId)
+        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: manifestId)
+        guard let data = downloaded.data else { throw CloudSyncError.invalidResponse }
         let decoded: CloudSyncManifest
         do {
             decoded = try CloudSyncManifestCodec.decode(data)
@@ -641,6 +692,7 @@ enum CloudSyncAutoSync {
         }
         UserDefaults.standard.set(decoded.stackBinId, forKey: stackKey)
         UserDefaults.standard.set(decoded.historyBinId, forKey: historyKey)
+        await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: manifestId)
         return decoded
     }
     
@@ -654,14 +706,16 @@ enum CloudSyncAutoSync {
         do {
             try await upsertPart(binId: binId, payload: payload())
         } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 412 || statusCode == 409 {
-            let latest = try await CloudSyncManager.shared.downloadBackup(binId: binId)
-            try SupplementExportCodec.mergeBackup(data: latest, client: client, context: modelContext)
+            let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
+            guard let data = latest.data else { throw CloudSyncError.invalidResponse }
+            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            await CloudSyncManager.shared.commitRevision(latest.revision, binId: binId)
             try await upsertPart(binId: binId, payload: retryPayload())
         }
     }
     
     private static func upsertPart(binId: String, payload: Data) async throws {
-        let etag = UserDefaults.standard.string(forKey: "cloudSyncEtag_\(binId)")
+        let etag = UserDefaults.standard.string(forKey: "cloudSyncEtagV2_\(binId)")
         try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: etag)
     }
     

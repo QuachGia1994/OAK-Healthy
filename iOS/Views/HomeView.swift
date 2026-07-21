@@ -205,12 +205,12 @@ public struct HomeView: View {
         VStack(spacing: 14) {
             Image(systemName: "person.crop.circle.badge.plus")
                 .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
             Text("add_client_to_start".localized)
                 .font(.title3.weight(.semibold))
             Text("settings_guide_1".localized)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
                 .multilineTextAlignment(.center)
             Button("add_client".localized) {
                 isShowingAddClientSheet = true
@@ -242,7 +242,7 @@ public struct HomeView: View {
             List {
                 if viewModel.activeSupplements.isEmpty {
                     Text("no_intake_today".localized)
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
@@ -252,7 +252,7 @@ public struct HomeView: View {
                     Section {
                         if overdue.isEmpty {
                             Text("home_no_overdue".localized)
-                                .foregroundStyle(.secondary)
+                                .oakSecondaryText()
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -287,7 +287,7 @@ public struct HomeView: View {
                                 Text(section.time)
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
-                                    .foregroundStyle(.secondary)
+                                    .oakSecondaryText()
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
                                     .background(.ultraThinMaterial)
@@ -498,7 +498,7 @@ private struct HomeDoseFilterBar: View {
             if filter != .all, other > 0 {
                 Text(String.localizedStringWithFormat("home_filter_hint_format".localized, other))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
         }
     }
@@ -540,7 +540,7 @@ private struct HomeFilterButton: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
                 Text(count, format: .number)
@@ -606,7 +606,7 @@ private struct StreakChip: View {
                 .foregroundStyle(OAKPalette.skipped(for: colorScheme))
             Text(String.localizedStringWithFormat("home_streak_format".localized, streakDays))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -645,7 +645,7 @@ private struct ActiveSupplementRow: View {
                     Text(String.localizedStringWithFormat("dose_format".localized, supplement.dailyDose))
                         .font(.caption)
                 }
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
                 
                 if status == .missed {
                     Text("dose_status_missed".localized)
@@ -665,7 +665,7 @@ private struct ActiveSupplementRow: View {
                     Text(instruction.localized)
                         .font(.caption)
                         .italic()
-                        .foregroundStyle(.secondary)
+                        .oakSecondaryText()
                         .padding(.top, 2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -806,7 +806,7 @@ private struct UrgencyChip: View {
                 .frame(width: 8, height: 8)
             Text(title)
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .oakSecondaryText()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -825,10 +825,10 @@ private struct RestingSupplementRow: View {
             VStack(alignment: .leading) {
                 Text(info.supplement.name)
                     .font(.headline)
-                    .foregroundStyle(.tertiary)
+                    .oakTertiaryText()
                 Text("resting_title".localized)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .oakSecondaryText()
             }
             Spacer()
             Text(String.localizedStringWithFormat("days_remaining_format".localized, info.daysRemaining))
