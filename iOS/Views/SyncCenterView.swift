@@ -1188,19 +1188,27 @@ public struct SyncCenterView: View {
             cachedRecords = []
             return
         }
+        let container = modelContext.container
         let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: .now) ?? .now
         do {
-            let supplementsAll = try modelContext.fetch(
-                FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
-            )
-            cachedSupplements = supplementsAll.filter { $0.client?.id == clientId }
-            
-            var recordsDescriptor = FetchDescriptor<IntakeRecord>(
-                sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
-            )
-            recordsDescriptor.fetchLimit = 5_000
-            let recordsAll = try modelContext.fetch(recordsDescriptor)
-            cachedRecords = recordsAll.filter { $0.supplement?.client?.id == clientId && $0.date >= cutoff }
+            let (suppIds, recordIds) = try await Task.detached {
+                let ctx = ModelContext(container)
+                let supplementsAll = try ctx.fetch(
+                    FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
+                )
+                let suppIds = supplementsAll.filter { $0.client?.id == clientId }.map { $0.persistentModelID }
+
+                var recordsDescriptor = FetchDescriptor<IntakeRecord>(
+                    sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
+                )
+                recordsDescriptor.fetchLimit = 5_000
+                let recordsAll = try ctx.fetch(recordsDescriptor)
+                let recordIds = recordsAll.filter { $0.supplement?.client?.id == clientId && $0.date >= cutoff }.map { $0.persistentModelID }
+                return (suppIds, recordIds)
+            }.value
+
+            cachedSupplements = suppIds.compactMap { modelContext.model(for: $0) as? UserSupplement }
+            cachedRecords = recordIds.compactMap { modelContext.model(for: $0) as? IntakeRecord }
         } catch {
             cachedSupplements = []
             cachedRecords = []

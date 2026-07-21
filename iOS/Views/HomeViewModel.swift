@@ -222,13 +222,7 @@ public final class HomeViewModel {
             supplement.lastTakenLocalDate = localDayString(from: ctx.scheduledAt)
             supplement.updatedAtEpochMs = ctx.nowEpochMs
         }
-        do {
-            try context.save()
-            return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
+        return true
     }
 
     private func applyMarkToCaches(ctx: MarkDoseContext, action: DoseAction) {
@@ -372,6 +366,8 @@ public final class HomeViewModel {
             errorMessage = error.localizedDescription
             return
         }
+
+        removeSupplementFromCaches(supplement.id)
         
         Task {
             await notificationService.cancelReminders(for: supplement)
@@ -379,6 +375,18 @@ public final class HomeViewModel {
         }
     }
     
+    private func removeSupplementFromCaches(_ supplementId: UUID) {
+        for time in activeSupplementTimes {
+            activeSupplements[time]?.removeAll { $0.id == supplementId }
+        }
+        activeSupplements = activeSupplements.filter { !$0.value.isEmpty }
+        activeSupplementTimes = activeSupplements.keys.sorted()
+        restingSupplements.removeAll { $0.supplement.id == supplementId }
+        supplementsCache.removeAll { $0.id == supplementId }
+        cachedTodayCounts = todayCounts(now: .now)
+        cachedStreakDays = streakDays(supplements: supplementsCache, now: .now)
+    }
+
     /// Phân loại danh sách thực phẩm bổ sung.
     /// - Parameter supplements: Danh sách từ SwiftData.
     public func processSupplements(_ supplements: [UserSupplement]) {

@@ -299,6 +299,7 @@ public struct StackView: View {
             return
         }
         
+        refreshVisibleSupplements()
         Task {
             await notificationService.cancelReminders(for: supplement)
             CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: supplement.client?.id)
