@@ -63,6 +63,14 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
 
         XCTAssertThrowsError(try ZlibBase64Codec.decodeArray(base64: truncated))
     }
+
+    func testHistoryZlibRejectsInvalidChecksum() throws {
+        var compressed = try XCTUnwrap(Data(base64Encoded: androidHistoryZlib))
+        let lastIndex = compressed.index(before: compressed.endIndex)
+        compressed[lastIndex] ^= 0x01
+
+        XCTAssertThrowsError(try ZlibBase64Codec.decodeArray(base64: compressed.base64EncodedString()))
+    }
 }
 
 final class CloudSyncTelemetryTests: XCTestCase {

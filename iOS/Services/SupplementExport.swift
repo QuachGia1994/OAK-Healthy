@@ -1,4 +1,3 @@
-import Compression
 import Foundation
 import SwiftData
 import SwiftUI
@@ -127,58 +126,7 @@ enum ZlibBase64Codec {
     }
     
     private static func decompress(data: Data) -> Data? {
-        process(data: data, operation: COMPRESSION_STREAM_DECODE)
-    }
-
-    private static let maxOutputBytes = 10 * 1024 * 1024
-    
-    private static func process(data: Data, operation: compression_stream_operation) -> Data? {
-        let bufferSize = 64 * 1024
-        return withScratchPointers { scratchDst, scratchSrc in
-            var stream = compression_stream(
-                dst_ptr: scratchDst,
-                dst_size: 0,
-                src_ptr: UnsafePointer(scratchSrc),
-                src_size: 0,
-                state: nil
-            )
-            guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
-            defer { compression_stream_destroy(&stream) }
-            return runStream(&stream, data: data, bufferSize: bufferSize)
-        }
-    }
-
-    private static func withScratchPointers(_ work: (UnsafeMutablePointer<UInt8>, UnsafeMutablePointer<UInt8>) -> Data?) -> Data? {
-        let scratchDst = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
-        let scratchSrc = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
-        defer {
-            scratchDst.deallocate()
-            scratchSrc.deallocate()
-        }
-        return work(scratchDst, scratchSrc)
-    }
-
-    private static func runStream(_ stream: inout compression_stream, data: Data, bufferSize: Int) -> Data? {
-        data.withUnsafeBytes { (srcPtr: UnsafeRawBufferPointer) -> Data? in
-            guard let srcBase = srcPtr.bindMemory(to: UInt8.self).baseAddress else { return nil }
-            let dstBuffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
-            defer { dstBuffer.deallocate() }
-            stream.src_ptr = srcBase
-            stream.src_size = data.count
-            var dst = Data()
-            while true {
-                stream.dst_ptr = dstBuffer
-                stream.dst_size = bufferSize
-                let flags = Int32(COMPRESSION_STREAM_FINALIZE.rawValue)
-                let status = compression_stream_process(&stream, flags)
-                let written = bufferSize - stream.dst_size
-                if written > 0 { dst.append(dstBuffer, count: written) }
-                if dst.count > maxOutputBytes { return nil }
-                if status == COMPRESSION_STATUS_END { return dst }
-                if status == COMPRESSION_STATUS_ERROR { return nil }
-                if status == COMPRESSION_STATUS_OK && written == 0 && stream.src_size == 0 { return nil }
-            }
-        }
+        ZlibDataDecoder.decompress(data)
     }
 }
 
