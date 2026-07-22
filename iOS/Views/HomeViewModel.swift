@@ -354,6 +354,47 @@ public final class HomeViewModel {
         let raw: String
         let times: [String]
     }
+
+    /// Removes one scheduled dose while preserving the supplement and its other dose times.
+    public func deleteDoseTime(
+        _ supplement: UserSupplement,
+        timeString: String,
+        context: ModelContext,
+        notificationService: NotificationService
+    ) {
+        let remainingTimes = TimeStrings.removingTime(timeString, from: supplement.intakeTime)
+        guard !remainingTimes.isEmpty else {
+            deleteSupplement(supplement, context: context, notificationService: notificationService)
+            return
+        }
+        let previousIntakeTime = supplement.intakeTime
+        let previousUpdatedAt = supplement.updatedAtEpochMs
+        supplement.intakeTime = remainingTimes.joined(separator: ", ")
+        supplement.updatedAtEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
+        do {
+            try context.save()
+        } catch {
+            supplement.intakeTime = previousIntakeTime
+            supplement.updatedAtEpochMs = previousUpdatedAt
+            errorMessage = error.localizedDescription
+            return
+        }
+        processSupplements(supplementsCache)
+        Task { await rescheduleAndSync(supplement, context: context, notificationService: notificationService) }
+    }
+
+    private func rescheduleAndSync(
+        _ supplement: UserSupplement,
+        context: ModelContext,
+        notificationService: NotificationService
+    ) async {
+        do {
+            try await notificationService.scheduleReminders(for: supplement)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
+    }
     
     /// Xóa thực phẩm bổ sung.
     public func deleteSupplement(_ supplement: UserSupplement, context: ModelContext, notificationService: NotificationService) {

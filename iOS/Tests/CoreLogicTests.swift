@@ -32,5 +32,14 @@ final class TimeStringsTests: XCTestCase {
         XCTAssertNil(TimeStrings.parseLenientTime("24:00"))
         XCTAssertNil(TimeStrings.parseLenientTime("23:60"))
     }
-}
 
+    func testRemovingTimeKeepsOtherDoseTimes() {
+        let result = TimeStrings.removingTime("7:00", from: "07:00, 14:30")
+        XCTAssertEqual(["14:30"], result)
+    }
+
+    func testRemovingTimeReturnsEmptyForLastDoseTime() {
+        let result = TimeStrings.removingTime("07:00", from: "7:00")
+        XCTAssertEqual([], result)
+    }
+}

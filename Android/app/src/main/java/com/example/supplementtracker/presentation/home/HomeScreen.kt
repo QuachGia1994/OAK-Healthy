@@ -214,7 +214,8 @@ fun HomeScreen(
                         state = state,
                         currentDay = currentDay,
                         onToggleIntake = viewModel::toggleIntake,
-                        onDelete = viewModel::deleteItem,
+                        onDeleteDose = viewModel::deleteDoseTime,
+                        onDeleteSupplement = viewModel::deleteItem,
                         onEdit = onNavigateToEdit
                     )
                     is HomeUiState.NoClient -> {
@@ -259,7 +260,8 @@ private fun HomeContent(
     state: HomeUiState.Success,
     currentDay: LocalDate,
     onToggleIntake: (String, String, DoseAction) -> Unit,
-    onDelete: (UserSupplement) -> Unit,
+    onDeleteDose: (UserSupplement, String) -> Unit,
+    onDeleteSupplement: (UserSupplement) -> Unit,
     onEdit: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -313,7 +315,7 @@ private fun HomeContent(
                 DismissibleSupplementCard(
                     item = item,
                     onToggleIntake = onToggleIntake,
-                    onDelete = onDelete,
+                    onDelete = onDeleteDose,
                     onEdit = onEdit
                 )
             }
@@ -333,7 +335,7 @@ private fun HomeContent(
                 DismissibleSupplementCard(
                     item = item,
                     onToggleIntake = onToggleIntake,
-                    onDelete = onDelete,
+                    onDelete = onDeleteDose,
                     onEdit = onEdit
                 )
             }
@@ -364,7 +366,7 @@ private fun HomeContent(
                     DismissibleSupplementCard(
                         item = item,
                         onToggleIntake = onToggleIntake,
-                        onDelete = onDelete,
+                        onDelete = onDeleteDose,
                         onEdit = onEdit
                     )
                 }
@@ -385,7 +387,7 @@ private fun HomeContent(
                 RestingSupplementCard(
                     info = info,
                     currentDay = currentDay,
-                    onDelete = onDelete,
+                    onDelete = onDeleteSupplement,
                     onEdit = onEdit
                 )
             }
@@ -647,7 +649,7 @@ private fun GlassCard(
 private fun DismissibleSupplementCard(
     item: SupplementUiItem,
     onToggleIntake: (String, String, DoseAction) -> Unit,
-    onDelete: (UserSupplement) -> Unit,
+    onDelete: (UserSupplement, String) -> Unit,
     onEdit: (String) -> Unit
 ) {
     var isMenuOpen by remember { mutableStateOf(false) }
@@ -732,12 +734,12 @@ private fun DismissibleSupplementCard(
         AlertDialog(
             onDismissRequest = { isDeleteConfirmVisible = false },
             title = { Text(stringResource(R.string.delete)) },
-            text = { Text(stringResource(R.string.delete_confirm_message)) },
+            text = { Text(stringResource(R.string.delete_dose_time_confirm_message, item.timeString)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         isDeleteConfirmVisible = false
-                        onDelete(item.supplement)
+                        onDelete(item.supplement, item.timeString)
                     }
                 ) { Text(stringResource(R.string.delete)) }
             },

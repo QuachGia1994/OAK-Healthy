@@ -17,6 +17,13 @@ public struct TimeStrings: Sendable {
         normalizeList(raw).joined(separator: ", ")
     }
     
+    /// Returns normalized dose times after removing the requested time.
+    public static func removingTime(_ time: String, from raw: String) -> [String] {
+        guard let minutes = parseLenientTime(time) else { return normalizeList(raw) }
+        let target = formatTime(minutes)
+        return normalizeList(raw).filter { $0 != target }
+    }
+
     public static func parseLenientTime(_ token: String) -> Int? {
         let parts = token.split(separator: ":").map { String($0) }
         guard parts.count == 2 else { return nil }
@@ -32,4 +39,3 @@ public struct TimeStrings: Sendable {
         return String(format: "%02d:%02d", hour, minute)
     }
 }
-

@@ -140,6 +140,7 @@
     <string name="edit">Edit</string>
     <string name="delete">Delete</string>
     <string name="delete_confirm_message">This will delete the item. Continue?</string>
+    <string name="delete_dose_time_confirm_message">Remove the %1$s dose time? The supplement stays if another time remains.</string>
     <string name="name_hint">Name (e.g., Vitamin D3)</string>
     <string name="daily_dose_hint">Daily dose</string>
     <string name="schedule_cycle_title">Schedule &amp; Cycle</string>

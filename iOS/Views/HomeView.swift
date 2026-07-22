@@ -18,6 +18,7 @@ public struct HomeView: View {
     @State private var cachedOverdue: [OverdueItem] = []
     @State private var cachedTimeSections: [TimeSection] = []
     @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
+    @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     
     public let activeClientManager: ActiveClientManager
     public let notificationService: NotificationService
@@ -153,7 +154,7 @@ public struct HomeView: View {
                 homeOverdueCount = viewModel.cachedTodayCounts.missed
                 rebuildVisible(now: .now)
             }
-            .task(id: activeClientManager.currentClientId) {
+            .task(id: ReloadKey(clientId: activeClientManager.currentClientId, syncEpochMs: lastSyncEpochMs)) {
                 pruneExpiredSupplementsIfNeeded()
                 viewModel.processSupplements(supplementsForActiveClient)
                 homeOverdueCount = viewModel.cachedTodayCounts.missed
@@ -399,7 +400,12 @@ public struct HomeView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
-                viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
+                viewModel.deleteDoseTime(
+                    supplement,
+                    timeString: timeString,
+                    context: modelContext,
+                    notificationService: notificationService
+                )
             } label: {
                 Label("delete".localized, systemImage: "trash")
             }
@@ -412,7 +418,12 @@ public struct HomeView: View {
             }
             
             Button(role: .destructive) {
-                viewModel.deleteSupplement(supplement, context: modelContext, notificationService: notificationService)
+                viewModel.deleteDoseTime(
+                    supplement,
+                    timeString: timeString,
+                    context: modelContext,
+                    notificationService: notificationService
+                )
             } label: {
                 Label("delete".localized, systemImage: "trash")
             }
@@ -457,6 +468,11 @@ public struct HomeView: View {
             }
         }
         cachedTimeSections = sections
+    }
+
+    private struct ReloadKey: Hashable {
+        let clientId: UUID?
+        let syncEpochMs: Double
     }
 }
 

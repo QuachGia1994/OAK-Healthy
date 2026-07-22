@@ -15,5 +15,16 @@ class TimeStringsTest {
         assertEquals(null, TimeStrings.parseLenient("24:00"))
         assertEquals(null, TimeStrings.parseLenient("23:60"))
     }
-}
 
+    @Test
+    fun removingTime_keepsOtherDoseTimes() {
+        val result = TimeStrings.removingTime("7:00", from = "07:00, 14:30")
+        assertEquals(listOf("14:30"), result)
+    }
+
+    @Test
+    fun removingTime_returnsEmptyForLastDoseTime() {
+        val result = TimeStrings.removingTime("07:00", from = "7:00")
+        assertEquals(emptyList<String>(), result)
+    }
+}

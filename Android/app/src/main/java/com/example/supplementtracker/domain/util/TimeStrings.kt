@@ -29,5 +29,9 @@ object TimeStrings {
         val normalized = normalizeList(raw)
         return normalized.joinToString(", ")
     }
-}
 
+    fun removingTime(time: String, from: String): List<String> {
+        val target = parseLenient(time)?.format(outputFormatter) ?: return normalizeList(from)
+        return normalizeList(from).filterNot { it == target }
+    }
+}
