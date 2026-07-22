@@ -96,19 +96,29 @@ struct OAKBackupData: Codable, Sendable {
         var mergedHistory: [OAKBackupHistory] = []
         if let historyLogs = try container.decodeIfPresent([OAKBackupHistory].self, forKey: .history) { mergedHistory.append(contentsOf: historyLogs) }
         else if let legacyHistory = try legacyContainer.decodeIfPresent([OAKBackupHistory].self, forKey: .history) { mergedHistory.append(contentsOf: legacyHistory) }
-        if let historyZlibBase64, let inflated = ZlibBase64Codec.decodeArray(base64: historyZlibBase64) {
-            mergedHistory.append(contentsOf: inflated)
+        if let historyZlibBase64, !historyZlibBase64.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            mergedHistory.append(contentsOf: try ZlibBase64Codec.decodeArray(base64: historyZlibBase64))
         }
         self.history = ZlibBase64Codec.dedupeByIdKeepingNewest(items: mergedHistory)
     }
 }
 
+enum ZlibBase64CodecError: Error, Sendable {
+    case invalidBase64
+    case inflateFailed
+    case invalidJSON
+}
+
 enum ZlibBase64Codec {
-    static func decodeArray(base64: String) -> [OAKBackupHistory]? {
+    static func decodeArray(base64: String) throws(ZlibBase64CodecError) -> [OAKBackupHistory] {
         let trimmed = base64.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let raw = Data(base64Encoded: trimmed) else { return nil }
-        guard let inflated = decompress(data: raw) else { return nil }
-        return try? JSONDecoder().decode([OAKBackupHistory].self, from: inflated)
+        guard !trimmed.isEmpty, let raw = Data(base64Encoded: trimmed) else { throw .invalidBase64 }
+        guard let inflated = decompress(data: raw) else { throw .inflateFailed }
+        do {
+            return try JSONDecoder().decode([OAKBackupHistory].self, from: inflated)
+        } catch {
+            throw .invalidJSON
+        }
     }
     
     static func dedupeByIdKeepingNewest(items: [OAKBackupHistory]) -> [OAKBackupHistory] {
@@ -119,6 +129,8 @@ enum ZlibBase64Codec {
     private static func decompress(data: Data) -> Data? {
         process(data: data, operation: COMPRESSION_STREAM_DECODE)
     }
+
+    private static let maxOutputBytes = 10 * 1024 * 1024
     
     private static func process(data: Data, operation: compression_stream_operation) -> Data? {
         let bufferSize = 64 * 1024
@@ -157,11 +169,14 @@ enum ZlibBase64Codec {
             while true {
                 stream.dst_ptr = dstBuffer
                 stream.dst_size = bufferSize
-                let status = compression_stream_process(&stream, 0)
+                let flags = Int32(COMPRESSION_STREAM_FINALIZE.rawValue)
+                let status = compression_stream_process(&stream, flags)
                 let written = bufferSize - stream.dst_size
                 if written > 0 { dst.append(dstBuffer, count: written) }
+                if dst.count > maxOutputBytes { return nil }
                 if status == COMPRESSION_STATUS_END { return dst }
                 if status == COMPRESSION_STATUS_ERROR { return nil }
+                if status == COMPRESSION_STATUS_OK && written == 0 && stream.src_size == 0 { return nil }
             }
         }
     }

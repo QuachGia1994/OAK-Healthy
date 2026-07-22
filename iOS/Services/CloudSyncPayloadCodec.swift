@@ -36,7 +36,7 @@ enum CloudSyncPayloadCodec {
         )
         guard compression_stream_init(&stream, operation, COMPRESSION_ZLIB) != COMPRESSION_STATUS_ERROR else { return nil }
         defer { compression_stream_destroy(&stream) }
-        let flags = operation == COMPRESSION_STREAM_ENCODE ? Int32(COMPRESSION_STREAM_FINALIZE.rawValue) : 0
+        let flags = Int32(COMPRESSION_STREAM_FINALIZE.rawValue)
         return run(stream: &stream, data: data, bufferSize: bufferSize, flags: flags)
     }
     

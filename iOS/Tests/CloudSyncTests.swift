@@ -2,6 +2,8 @@ import XCTest
 @testable import OAKHealthy
 
 final class CloudSyncPayloadCodecTests: XCTestCase {
+    private let androidHistoryZlib = "eJyLrlbKTFGyUipKTc4vStE1VNJRKi4tKMhJzU3NK/EEyRhAgS4WAgpAulISS1JdC/KTM3yLlawMzZFkdZSKSxJLSouVrJRCErNT85R0lEoLQMpTHEuw6DA0MKiNBQArJikc"
+
     func testDecompressIfNeeded_returnsInputForJSONArray() throws {
         let data = try JSONSerialization.data(withJSONObject: [1, 2, 3], options: [])
         let out = try CloudSyncPayloadCodec.decompressIfNeeded(data)
@@ -24,6 +26,16 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
         }
     }
 
+    func testDecompressIfNeeded_decodesZlibWrapper() throws {
+        let compressed = "eJyrVspPzFayUsrMK0ktyi9QqgUAM7YF9w=="
+        let wrapper: [String: Any] = ["z": ["v": 1, "alg": "ZLIB", "ct": compressed]]
+        let data = try JSONSerialization.data(withJSONObject: wrapper, options: [])
+
+        let output = try CloudSyncPayloadCodec.decompressIfNeeded(data)
+
+        XCTAssertEqual(String(data: output, encoding: .utf8), #"{"oak":"interop"}"#)
+    }
+
     func testBackupDecodeRunsOutsideMainActor() async throws {
         let json = #"{"version":"2.0","supplements":[],"historyLogs":[]}"#
         let data = try XCTUnwrap(json.data(using: .utf8))
@@ -35,6 +47,21 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
         XCTAssertEqual(backup.version, "2.0")
         XCTAssertTrue(backup.stack.isEmpty)
         XCTAssertTrue(backup.history.isEmpty)
+    }
+
+    func testHistoryZlibDecodesAndroidFixture() throws {
+        let history = try ZlibBase64Codec.decodeArray(base64: androidHistoryZlib)
+
+        XCTAssertEqual(history.count, 1)
+        XCTAssertEqual(history.first?.id, "record-1")
+        XCTAssertEqual(history.first?.status, "Taken")
+    }
+
+    func testHistoryZlibRejectsTruncatedStream() throws {
+        let compressed = try XCTUnwrap(Data(base64Encoded: androidHistoryZlib))
+        let truncated = Data(compressed.dropLast(2)).base64EncodedString()
+
+        XCTAssertThrowsError(try ZlibBase64Codec.decodeArray(base64: truncated))
     }
 }
 
