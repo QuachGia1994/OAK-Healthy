@@ -277,9 +277,6 @@ private struct SafeBootView: View {
         let notificationService = NotificationService.shared
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
         notificationService.registerNotificationActions()
-        if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") {
-            await notificationService.rebuildShadowFromPendingRequests()
-        }
         let elapsed = Date().timeIntervalSince(splashStartedAt)
         if elapsed < minSplashSeconds {
             let remainingNs = UInt64((minSplashSeconds - elapsed) * 1_000_000_000)
@@ -292,6 +289,10 @@ private struct SafeBootView: View {
                 notificationService: notificationService
             )
         )
+        Task { @MainActor in
+            guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
+            await notificationService.rebuildShadowFromPendingRequests()
+        }
         DebugReporter.report("bootstrap_ready")
     }
     
@@ -353,7 +354,7 @@ private struct SafeBootView: View {
     @MainActor
     private func attemptCrashRecoveryIfNeeded() {
         let lastStage = UserDefaults.standard.string(forKey: BootKeys.stage) ?? ""
-        guard lastStage == BootKeys.bootStarted || lastStage == BootKeys.containerReady else { return }
+        guard lastStage == BootKeys.bootStarted || lastStage == BootKeys.containerReady || lastStage == BootKeys.uiReady else { return }
         let lastEpoch = UserDefaults.standard.double(forKey: BootKeys.timestampEpoch)
         guard lastEpoch > 0 else { return }
         let elapsed = Date().timeIntervalSince1970 - lastEpoch

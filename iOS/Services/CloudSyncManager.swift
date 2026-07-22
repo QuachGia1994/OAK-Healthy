@@ -383,6 +383,7 @@ enum CloudSyncAutoSync {
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
     private static let lastFailureKey = "cloudSyncLastFailureEpoch"
     private static let immediateConsistencyWindow: Duration = .milliseconds(180)
+    private static let realtimeStartupGrace: Duration = .seconds(2)
 
     static func startRealtimeSync(
         modelContext: ModelContext,
@@ -401,13 +402,14 @@ enum CloudSyncAutoSync {
             return
         }
         realtimeManifestId = requestedManifestId
-        realtimeTask = Task { @MainActor in
-            await realtimeLoop(modelContext: modelContext, activeClientManager: activeClientManager)
-        }
         let listener = FirebaseRealtimeSyncListener(modelContext: modelContext, activeClientManager: activeClientManager)
         realtimeListener = listener
-        if let requestedManifestId, !requestedManifestId.isEmpty {
-            Task { await listener.start(manifestId: requestedManifestId) }
+        realtimeTask = Task { @MainActor in
+            await realtimeLoop(
+                modelContext: modelContext,
+                activeClientManager: activeClientManager,
+                listener: listener
+            )
         }
     }
 
@@ -439,8 +441,18 @@ enum CloudSyncAutoSync {
     
     private static func realtimeLoop(
         modelContext: ModelContext,
-        activeClientManager: ActiveClientManager
+        activeClientManager: ActiveClientManager,
+        listener: FirebaseRealtimeSyncListener
     ) async {
+        do {
+            try await Task.sleep(for: realtimeStartupGrace)
+        } catch {
+            return
+        }
+        guard !Task.isCancelled else { return }
+        if let binId = activeBinId(), !binId.isEmpty {
+            await listener.start(manifestId: binId)
+        }
         while !Task.isCancelled {
             await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
             do {
