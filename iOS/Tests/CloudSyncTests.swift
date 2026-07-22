@@ -26,6 +26,17 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
 }
 
 final class CloudSyncTelemetryTests: XCTestCase {
+    func testPollIntervalBacksOffAfterUserActivityIsStale() async {
+        let interval = await MainActor.run {
+            CloudSyncAutoSync.pollInterval(
+                nowEpoch: 1_000,
+                lastFailureEpoch: 0,
+                lastActivityEpoch: 975
+            )
+        }
+        XCTAssertEqual(interval, .seconds(30))
+    }
+
     func testTelemetryFields_includesServerErrorFields() async {
         let clientId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
         let fields = await MainActor.run {

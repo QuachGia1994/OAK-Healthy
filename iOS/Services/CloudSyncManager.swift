@@ -377,6 +377,7 @@ enum CloudSyncAutoSync {
     private static var realtimeTask: Task<Void, Never>?
     private static var pendingSyncTask: Task<Void, Never>?
     private static var realtimeListener: FirebaseRealtimeSyncListener?
+    private static var realtimeManifestId: String?
     private static var isSyncing = false
     private static var syncAgainAfterCurrent = false
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
@@ -387,20 +388,26 @@ enum CloudSyncAutoSync {
         modelContext: ModelContext,
         activeClientManager: ActiveClientManager
     ) {
+        let requestedManifestId = activeBinId()
+        guard realtimeTask == nil || realtimeManifestId != requestedManifestId else { return }
         markActivity()
         guard realtimeTask == nil else {
-            if let binId = activeBinId(), !binId.isEmpty {
-                Task { await realtimeListener?.start(manifestId: binId) }
+            realtimeManifestId = requestedManifestId
+            if let requestedManifestId, !requestedManifestId.isEmpty {
+                Task { await realtimeListener?.start(manifestId: requestedManifestId) }
+            } else {
+                realtimeListener?.stop()
             }
             return
         }
+        realtimeManifestId = requestedManifestId
         realtimeTask = Task { @MainActor in
             await realtimeLoop(modelContext: modelContext, activeClientManager: activeClientManager)
         }
         let listener = FirebaseRealtimeSyncListener(modelContext: modelContext, activeClientManager: activeClientManager)
         realtimeListener = listener
-        if let binId = activeBinId(), !binId.isEmpty {
-            Task { await listener.start(manifestId: binId) }
+        if let requestedManifestId, !requestedManifestId.isEmpty {
+            Task { await listener.start(manifestId: requestedManifestId) }
         }
     }
 
@@ -412,6 +419,7 @@ enum CloudSyncAutoSync {
         syncAgainAfterCurrent = false
         realtimeListener?.stop()
         realtimeListener = nil
+        realtimeManifestId = nil
     }
     
     static func requestSyncSoon(modelContext: ModelContext, clientId: UUID?) {
@@ -753,7 +761,6 @@ enum CloudSyncAutoSync {
         let now = Double(Date().timeIntervalSince1970 * 1000)
         UserDefaults.standard.set(now, forKey: ctx.lastSyncKey)
         UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
-        markActivity()
         DebugReporter.report("cloud_sync_success", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: nil))
     }
 
@@ -825,10 +832,13 @@ enum CloudSyncAutoSync {
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastActivityKey)
     }
     
-    private static func pollInterval() -> Duration {
-        let now = Date().timeIntervalSince1970
-        
-        let lastFailure = UserDefaults.standard.double(forKey: lastFailureKey)
+    static func pollInterval(
+        nowEpoch: TimeInterval = Date().timeIntervalSince1970,
+        lastFailureEpoch: TimeInterval? = nil,
+        lastActivityEpoch: TimeInterval? = nil
+    ) -> Duration {
+        let now = nowEpoch
+        let lastFailure = lastFailureEpoch ?? UserDefaults.standard.double(forKey: lastFailureKey)
         if lastFailure > 0 {
             let elapsed = now - lastFailure
             if elapsed < 30 { return .seconds(15) }
@@ -836,7 +846,7 @@ enum CloudSyncAutoSync {
             return .seconds(120)
         }
         
-        let lastActivity = UserDefaults.standard.double(forKey: lastActivityKey)
+        let lastActivity = lastActivityEpoch ?? UserDefaults.standard.double(forKey: lastActivityKey)
         let activityElapsed = lastActivity > 0 ? (now - lastActivity) : 10_000
         
         if activityElapsed < 20 { return .seconds(5) }
