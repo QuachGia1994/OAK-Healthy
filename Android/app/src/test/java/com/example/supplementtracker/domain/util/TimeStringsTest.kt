@@ -23,7 +23,7 @@ class TimeStringsTest {
     }
 
     @Test
-    fun removingTime_returnsEmptyForLastDoseTime() {
+    fun removingLastTime_leavesEmptySchedule() {
         val result = TimeStrings.removingTime("07:00", from = "7:00")
         assertEquals(emptyList<String>(), result)
     }

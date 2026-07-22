@@ -355,7 +355,7 @@ public final class HomeViewModel {
         let times: [String]
     }
 
-    /// Removes one scheduled dose while preserving the supplement and its other dose times.
+    /// Removes one scheduled dose while always preserving the supplement.
     public func deleteDoseTime(
         _ supplement: UserSupplement,
         timeString: String,
@@ -363,10 +363,6 @@ public final class HomeViewModel {
         notificationService: NotificationService
     ) {
         let remainingTimes = TimeStrings.removingTime(timeString, from: supplement.intakeTime)
-        guard !remainingTimes.isEmpty else {
-            deleteSupplement(supplement, context: context, notificationService: notificationService)
-            return
-        }
         let previousIntakeTime = supplement.intakeTime
         let previousUpdatedAt = supplement.updatedAtEpochMs
         supplement.intakeTime = remainingTimes.joined(separator: ", ")

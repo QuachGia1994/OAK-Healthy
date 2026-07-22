@@ -652,16 +652,12 @@ class HomeViewModel(
     fun deleteDoseTime(supplement: UserSupplement, timeString: String) {
         viewModelScope.launch {
             val remainingTimes = TimeStrings.removingTime(timeString, from = supplement.intakeTime)
-            if (remainingTimes.isEmpty()) {
-                repository.deleteSupplement(supplement)
-            } else {
-                repository.updateSupplement(
-                    supplement.copy(
-                        intakeTime = remainingTimes.joinToString(", "),
-                        updatedAtEpochMs = System.currentTimeMillis()
-                    )
+            repository.updateSupplement(
+                supplement.copy(
+                    intakeTime = remainingTimes.joinToString(", "),
+                    updatedAtEpochMs = System.currentTimeMillis()
                 )
-            }
+            )
             rescheduleNotificationsNow()
             activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it) }
         }

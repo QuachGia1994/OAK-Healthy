@@ -122,7 +122,7 @@
     <string name="edit">Chỉnh sửa</string>
     <string name="delete">Xóa</string>
     <string name="delete_confirm_message">Hành động này sẽ xóa mục này. Bạn có chắc không?</string>
-    <string name="delete_dose_time_confirm_message">Xóa mốc %1$s? Chất này vẫn được giữ nếu còn mốc giờ khác.</string>
+    <string name="delete_dose_time_confirm_message">Xóa mốc %1$s? Chất này vẫn được giữ trong Stack.</string>
     <string name="name_hint">Tên chất (VD: Vitamin D3)</string>
     <string name="daily_dose_hint">Liều lượng hàng ngày</string>
     <string name="schedule_cycle_title">Lịch trình &amp; Chu kỳ</string>

@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import OAKHealthy
 
 final class DoseEventKeyTests: XCTestCase {
@@ -38,8 +39,49 @@ final class TimeStringsTests: XCTestCase {
         XCTAssertEqual(["14:30"], result)
     }
 
-    func testRemovingTimeReturnsEmptyForLastDoseTime() {
+    func testRemovingLastTimeLeavesEmptySchedule() {
         let result = TimeStrings.removingTime("07:00", from: "7:00")
         XCTAssertEqual([], result)
+    }
+}
+
+@MainActor
+final class HomeDoseTimeDeletionTests: XCTestCase {
+    func testDeletingLastDoseTimeKeepsSupplement() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let supplement = UserSupplement(
+            name: "Caffeine",
+            startDate: .now,
+            cycleConfig: .continuous,
+            dailyDose: "200 mg",
+            intakeTime: "07:00"
+        )
+        context.insert(supplement)
+        try context.save()
+
+        let viewModel = HomeViewModel()
+        viewModel.processSupplements([supplement])
+        viewModel.deleteDoseTime(
+            supplement,
+            timeString: "07:00",
+            context: context,
+            notificationService: NotificationService()
+        )
+
+        let stored = try context.fetch(FetchDescriptor<UserSupplement>())
+        XCTAssertEqual("", supplement.intakeTime)
+        XCTAssertNil(supplement.deletedAtEpochMs)
+        XCTAssertEqual(1, stored.count)
+    }
+
+    private func makeContainer() throws -> ModelContainer {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        return try ModelContainer(
+            for: ClientProfile.self,
+            UserSupplement.self,
+            IntakeRecord.self,
+            configurations: configuration
+        )
     }
 }
