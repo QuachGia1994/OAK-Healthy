@@ -210,13 +210,31 @@ final class FirebaseRealtimeSyncListener {
     private func queueRevision(binId: String, revision: String) {
         let key = "cloudSyncLastSeenRevV2_\(binId)"
         let oldRevision = UserDefaults.standard.string(forKey: key)
-        guard oldRevision != revision || pendingRevisions[binId] != revision else { return }
+        let appliedRevision = UserDefaults.standard.string(forKey: "cloudSyncEtagV2_\(binId)")
+        guard Self.shouldQueueRevision(
+            lastProcessed: oldRevision,
+            applied: appliedRevision,
+            pending: pendingRevisions[binId],
+            incoming: revision
+        ) else {
+            if appliedRevision == revision { UserDefaults.standard.set(revision, forKey: key) }
+            return
+        }
         pendingRevisions[binId] = revision
         guard syncTask == nil else { return }
         let startGeneration = generation
         syncTask = Task { @MainActor in
             await processPendingRevisions(startGeneration: startGeneration)
         }
+    }
+
+    static func shouldQueueRevision(
+        lastProcessed: String?,
+        applied: String?,
+        pending: String?,
+        incoming: String
+    ) -> Bool {
+        incoming != lastProcessed && incoming != applied && incoming != pending
     }
 
     private func processPendingRevisions(startGeneration: Int) async {

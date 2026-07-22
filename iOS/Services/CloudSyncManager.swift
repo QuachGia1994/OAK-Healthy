@@ -383,7 +383,7 @@ enum CloudSyncAutoSync {
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
     private static let lastFailureKey = "cloudSyncLastFailureEpoch"
     private static let immediateConsistencyWindow: Duration = .milliseconds(180)
-    private static let realtimeStartupGrace: Duration = .seconds(2)
+    private static let realtimeStartupGrace: Duration = .milliseconds(250)
 
     static func startRealtimeSync(
         modelContext: ModelContext,
@@ -450,16 +450,18 @@ enum CloudSyncAutoSync {
             return
         }
         guard !Task.isCancelled else { return }
+        await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
+        guard !Task.isCancelled else { return }
         if let binId = activeBinId(), !binId.isEmpty {
             await listener.start(manifestId: binId)
         }
         while !Task.isCancelled {
-            await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
             do {
                 try await Task.sleep(for: pollInterval())
             } catch {
                 return
             }
+            await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
         }
     }
     
@@ -485,8 +487,9 @@ enum CloudSyncAutoSync {
             guard let client = fetchClient(modelContext: modelContext, clientId: ctx.clientId) else { return false }
             let parts = try await resolveManifestParts(manifestId: ctx.id)
             let (stackDownload, historyDownload) = try await downloadPartsForImmediateConsistency(parts: parts)
-            try mergeRemotePartIfNeeded(stackDownload.data, client: client, modelContext: modelContext)
-            try mergeRemotePartIfNeeded(historyDownload.data, client: client, modelContext: modelContext)
+            let decodedParts = try await decodeRemoteParts(stackData: stackDownload.data, historyData: historyDownload.data)
+            try await mergeRemotePartIfNeeded(decodedParts.stack, client: client, modelContext: modelContext)
+            try await mergeRemotePartIfNeeded(decodedParts.history, client: client, modelContext: modelContext)
             await commitRevisionIfDownloaded(stackDownload, binId: parts.stackBinId)
             await commitRevisionIfDownloaded(historyDownload, binId: parts.historyBinId)
             let remoteChanged = stackDownload.data != nil || historyDownload.data != nil
@@ -548,9 +551,36 @@ enum CloudSyncAutoSync {
         (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
     }
 
-    private static func mergeRemotePartIfNeeded(_ data: Data?, client: ClientProfile, modelContext: ModelContext) throws {
-        guard let data else { return }
-        try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+    private static func decodeRemoteParts(
+        stackData: Data?,
+        historyData: Data?
+    ) async throws -> (stack: OAKBackupData?, history: OAKBackupData?) {
+        async let stack = decodeRemotePart(stackData)
+        async let history = decodeRemotePart(historyData)
+        return try await (stack, history)
+    }
+
+    private static func decodeRemotePart(_ data: Data?) async throws -> OAKBackupData? {
+        guard let data else { return nil }
+        return try await SupplementExportCodec.decodeBackupOffMain(data: data)
+    }
+
+    private static func mergeRemotePartIfNeeded(
+        _ backup: OAKBackupData?,
+        client: ClientProfile,
+        modelContext: ModelContext
+    ) async throws {
+        guard let backup else { return }
+        try await SupplementExportCodec.mergeBackupDataCooperatively(backup, client: client, context: modelContext)
+    }
+
+    private static func mergeRemoteDataIfNeeded(
+        _ data: Data?,
+        client: ClientProfile,
+        modelContext: ModelContext
+    ) async throws {
+        let backup = try await decodeRemotePart(data)
+        try await mergeRemotePartIfNeeded(backup, client: client, modelContext: modelContext)
     }
 
     private static func shouldExitEarly(remoteChanged: Bool, localChanged: Bool) -> Bool {
@@ -665,7 +695,7 @@ enum CloudSyncAutoSync {
     ) async throws {
         let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: partId)
         guard let data = latest.data else { throw CloudSyncError.invalidResponse }
-        try mergeRemotePartIfNeeded(data, client: client, modelContext: modelContext)
+        try await mergeRemoteDataIfNeeded(data, client: client, modelContext: modelContext)
         await CloudSyncManager.shared.commitRevision(latest.revision, binId: partId)
         try await upsertPart(binId: partId, payload: retryPayload())
     }
@@ -728,7 +758,7 @@ enum CloudSyncAutoSync {
         } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 412 || statusCode == 409 {
             let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
             guard let data = latest.data else { throw CloudSyncError.invalidResponse }
-            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            try await mergeRemoteDataIfNeeded(data, client: client, modelContext: modelContext)
             await CloudSyncManager.shared.commitRevision(latest.revision, binId: binId)
             try await upsertPart(binId: binId, payload: retryPayload())
         }

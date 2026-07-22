@@ -432,7 +432,7 @@ struct SupplementExportCodec {
         return best
     }
     
-    static func decodeBackupCompat(data: Data) throws -> OAKBackupData {
+    nonisolated static func decodeBackupCompat(data: Data) throws -> OAKBackupData {
         if let decoded = tryDecodeBackupData(data: data) { return decoded }
         if let stack = tryDecodeBackupStack(data: data) {
             return OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
@@ -440,15 +440,30 @@ struct SupplementExportCodec {
         return convertLegacyToBackup(try decode(data: data))
     }
 
-    private static func tryDecodeBackupData(data: Data) -> OAKBackupData? {
+    nonisolated static func decodeBackupOffMain(data: Data) async throws -> OAKBackupData {
+        try await Task.detached(priority: .userInitiated) {
+            try decodeBackupCompat(data: data)
+        }.value
+    }
+
+    static func mergeBackupCooperatively(
+        data: Data,
+        client: ClientProfile,
+        context: ModelContext
+    ) async throws {
+        let backup = try await decodeBackupOffMain(data: data)
+        try await mergeBackupDataCooperatively(backup, client: client, context: context)
+    }
+
+    nonisolated private static func tryDecodeBackupData(data: Data) -> OAKBackupData? {
         try? JSONDecoder().decode(OAKBackupData.self, from: data)
     }
 
-    private static func tryDecodeBackupStack(data: Data) -> [OAKBackupSupplement]? {
+    nonisolated private static func tryDecodeBackupStack(data: Data) -> [OAKBackupSupplement]? {
         try? JSONDecoder().decode([OAKBackupSupplement].self, from: data)
     }
 
-    private static func convertLegacyToBackup(_ legacy: SupplementExportFile) -> OAKBackupData {
+    nonisolated private static func convertLegacyToBackup(_ legacy: SupplementExportFile) -> OAKBackupData {
         OAKBackupData(
             version: "2.0",
             meta: nil,
@@ -458,7 +473,7 @@ struct SupplementExportCodec {
         )
     }
 
-    private static func legacyBackupSupplement(from dto: SupplementExportSupplement) -> OAKBackupSupplement {
+    nonisolated private static func legacyBackupSupplement(from dto: SupplementExportSupplement) -> OAKBackupSupplement {
         let key = OAKBackupSupplement.stableFieldKey(
             name: dto.name,
             dailyDose: dto.dailyDose,
@@ -560,22 +575,71 @@ struct SupplementExportCodec {
 
         var supplementIdMap: [UUID: UUID] = [:]
         var supplementsForClient = supplementsForClient(clientId: client.id, allSupplements: allSupplements)
-        try mergeSupplementsSafely(backup: backup, client: client, context: context, supplementOwners: supplementOwners, takenSupplementIds: &takenSupplementIds, supplementIdMap: &supplementIdMap, supplementsForClient: &supplementsForClient)
-        try context.save()
+        let supplementChanges = try mergeSupplementsSafely(
+            backup: backup,
+            client: client,
+            context: context,
+            supplementOwners: supplementOwners,
+            takenSupplementIds: &takenSupplementIds,
+            supplementIdMap: &supplementIdMap,
+            supplementsForClient: &supplementsForClient
+        )
+        try saveChanges(supplementChanges, context: context)
+        guard !backup.history.isEmpty else { return }
 
         let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
         let recordOwners = recordOwnersById(allRecords)
         var recordsForClient = recordsForClient(clientId: client.id, allRecords: allRecords)
-        let recordsForClientByDoseKey = try dedupeByDoseKey(recordsForClient: &recordsForClient, context: context)
+        let dedupe = dedupeByDoseKey(recordsForClient: &recordsForClient, context: context)
+        try saveChanges(dedupe.removedCount, context: context)
 
         var state = makeMergeState(
             supplementIdMap: supplementIdMap,
             supplementsForClient: supplementsForClient,
             recordOwners: recordOwners,
             recordsForClient: recordsForClient,
-            recordsForClientByDoseKey: recordsForClientByDoseKey
+            recordsForClientByDoseKey: dedupe.recordsByDoseKey
         )
         try mergeHistorySafely(backup: backup, clientId: client.id, context: context, state: &state)
+    }
+
+    static func mergeBackupDataCooperatively(
+        _ backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext
+    ) async throws {
+        let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
+        let supplementOwners = supplementOwnersById(allSupplements)
+        var takenSupplementIds = Set(supplementOwners.keys)
+        var supplementIdMap: [UUID: UUID] = [:]
+        var supplements = supplementsForClient(clientId: client.id, allSupplements: allSupplements)
+        let supplementChanges = try mergeSupplementsSafely(
+            backup: backup,
+            client: client,
+            context: context,
+            supplementOwners: supplementOwners,
+            takenSupplementIds: &takenSupplementIds,
+            supplementIdMap: &supplementIdMap,
+            supplementsForClient: &supplements
+        )
+        try saveChanges(supplementChanges, context: context)
+        guard !backup.history.isEmpty else { return }
+        await Task.yield()
+
+        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let recordOwners = recordOwnersById(allRecords)
+        var records = recordsForClient(clientId: client.id, allRecords: allRecords)
+        let dedupe = dedupeByDoseKey(recordsForClient: &records, context: context)
+        try saveChanges(dedupe.removedCount, context: context)
+        var state = makeMergeState(
+            supplementIdMap: supplementIdMap,
+            supplementsForClient: supplements,
+            recordOwners: recordOwners,
+            recordsForClient: records,
+            recordsForClientByDoseKey: dedupe.recordsByDoseKey
+        )
+        await Task.yield()
+        try await mergeHistoryCooperatively(backup: backup, clientId: client.id, context: context, state: &state)
     }
 
     private struct MergeBackupState {
@@ -626,19 +690,25 @@ struct SupplementExportCodec {
         takenSupplementIds: inout Set<UUID>,
         supplementIdMap: inout [UUID: UUID],
         supplementsForClient: inout [UUID: UserSupplement]
-    ) throws {
+    ) throws -> Int {
+        var changeCount = 0
         for dto in backup.stack {
             let resolvedId = resolvedImportId(rawUUIDString: dto.id, clientId: client.id, ownersById: supplementOwners, taken: &takenSupplementIds)
             if let original = UUID(uuidString: dto.id) { supplementIdMap[original] = resolvedId }
             if let target = supplementsForClient[resolvedId] {
-                if shouldUpdate(local: target, remote: dto) { try apply(dto: dto, to: target, client: client) }
+                if shouldUpdate(local: target, remote: dto) {
+                    try apply(dto: dto, to: target, client: client)
+                    changeCount += 1
+                }
                 supplementsForClient[resolvedId] = target
                 continue
             }
             let created = try makeSupplement(dto: dto, id: resolvedId, client: client)
             context.insert(created)
             supplementsForClient[resolvedId] = created
+            changeCount += 1
         }
+        return changeCount
     }
 
     private static func shouldUpdate(local: UserSupplement, remote: OAKBackupSupplement) -> Bool {
@@ -653,25 +723,27 @@ struct SupplementExportCodec {
     private static func dedupeByDoseKey(
         recordsForClient: inout [UUID: IntakeRecord],
         context: ModelContext
-    ) throws -> [String: IntakeRecord] {
+    ) -> (recordsByDoseKey: [String: IntakeRecord], removedCount: Int) {
         var byDoseKey: [String: IntakeRecord] = [:]
-        for record in recordsForClient.values {
+        var removedCount = 0
+        for record in Array(recordsForClient.values) {
             guard let key = recordDoseKey(record) else { continue }
             if let existing = byDoseKey[key] {
                 if record.updatedAtEpochMs > existing.updatedAtEpochMs {
                     context.delete(existing)
                     recordsForClient.removeValue(forKey: existing.id)
                     byDoseKey[key] = record
+                    removedCount += 1
                     continue
                 }
                 context.delete(record)
                 recordsForClient.removeValue(forKey: record.id)
+                removedCount += 1
                 continue
             }
             byDoseKey[key] = record
         }
-        try context.save()
-        return byDoseKey
+        return (byDoseKey, removedCount)
     }
 
     private static func recordDoseKey(_ record: IntakeRecord) -> String? {
@@ -689,40 +761,71 @@ struct SupplementExportCodec {
         let history = Array(backup.history.suffix(5_000))
         var index = 0
         while index < history.count {
-            let end = min(index + 500, history.count)
+            let end = min(index + 100, history.count)
+            var changeCount = 0
             for dto in history[index..<end] {
-                mergeHistoryItem(dto: dto, clientId: clientId, context: context, state: &state)
+                if mergeHistoryItem(dto: dto, clientId: clientId, context: context, state: &state) {
+                    changeCount += 1
+                }
             }
-            try context.save()
+            try saveChanges(changeCount, context: context)
             index = end
         }
     }
 
-    private static func mergeHistoryItem(dto: OAKBackupHistory, clientId: UUID, context: ModelContext, state: inout MergeBackupState) {
+    private static func mergeHistoryCooperatively(
+        backup: OAKBackupData,
+        clientId: UUID,
+        context: ModelContext,
+        state: inout MergeBackupState
+    ) async throws {
+        let history = Array(backup.history.suffix(5_000))
+        var index = 0
+        while index < history.count {
+            let end = min(index + 100, history.count)
+            var changeCount = 0
+            for dto in history[index..<end] {
+                if mergeHistoryItem(dto: dto, clientId: clientId, context: context, state: &state) {
+                    changeCount += 1
+                }
+            }
+            try saveChanges(changeCount, context: context)
+            index = end
+            await Task.yield()
+        }
+    }
+
+    private static func saveChanges(_ changeCount: Int, context: ModelContext) throws {
+        guard changeCount > 0 else { return }
+        try context.save()
+    }
+
+    private static func mergeHistoryItem(dto: OAKBackupHistory, clientId: UUID, context: ModelContext, state: inout MergeBackupState) -> Bool {
         let originalSupplementId = UUID(uuidString: dto.supplementId)
         let resolvedSupplementId = originalSupplementId.flatMap { state.supplementIdMap[$0] ?? $0 }
-        guard let resolvedSupplementId, let supplement = state.supplementsForClient[resolvedSupplementId] else { return }
+        guard let resolvedSupplementId, let supplement = state.supplementsForClient[resolvedSupplementId] else { return false }
 
         let (remoteUpdatedAt, date, intakeTime, doseKey) = recordPayload(dto: dto, supplementId: resolvedSupplementId)
         if let found = state.recordsForClientByDoseKey[doseKey] {
-            guard remoteUpdatedAt > found.updatedAtEpochMs else { return }
+            guard remoteUpdatedAt > found.updatedAtEpochMs else { return false }
             apply(dto: dto, to: found, remoteUpdatedAt: remoteUpdatedAt, date: date, intakeTime: intakeTime)
-            return
+            return true
         }
 
         let stableRecordId = DoseEventKey.stableUUID(from: doseKey)
         let resolvedRecordId = resolvedImportId(rawUUIDString: stableRecordId.uuidString, clientId: clientId, ownersById: state.recordOwners, taken: &state.takenRecordIds)
         if let found = state.recordsForClient[resolvedRecordId] {
-            guard remoteUpdatedAt > found.updatedAtEpochMs else { return }
+            guard remoteUpdatedAt > found.updatedAtEpochMs else { return false }
             apply(dto: dto, to: found, remoteUpdatedAt: remoteUpdatedAt, date: date, intakeTime: intakeTime)
             state.recordsForClientByDoseKey[doseKey] = found
-            return
+            return true
         }
 
         let record = IntakeRecord(id: resolvedRecordId, date: date, status: dto.status, intakeTime: intakeTime, updatedAtEpochMs: remoteUpdatedAt, supplement: supplement)
         context.insert(record)
         state.recordsForClient[resolvedRecordId] = record
         state.recordsForClientByDoseKey[doseKey] = record
+        return true
     }
     
     private static func resolvedImportId(
@@ -885,7 +988,7 @@ struct SupplementExportCodec {
         return try JSONEncoder().encode(file)
     }
     
-    static func decode(data: Data) throws -> SupplementExportFile {
+    nonisolated static func decode(data: Data) throws -> SupplementExportFile {
         let file: SupplementExportFile
         do {
             file = try JSONDecoder().decode(SupplementExportFile.self, from: data)

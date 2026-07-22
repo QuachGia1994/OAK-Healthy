@@ -23,6 +23,19 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
             }
         }
     }
+
+    func testBackupDecodeRunsOutsideMainActor() async throws {
+        let json = #"{"version":"2.0","supplements":[],"historyLogs":[]}"#
+        let data = try XCTUnwrap(json.data(using: .utf8))
+
+        let backup = try await Task.detached {
+            try SupplementExportCodec.decodeBackupCompat(data: data)
+        }.value
+
+        XCTAssertEqual(backup.version, "2.0")
+        XCTAssertTrue(backup.stack.isEmpty)
+        XCTAssertTrue(backup.history.isEmpty)
+    }
 }
 
 final class CloudSyncTelemetryTests: XCTestCase {
@@ -101,6 +114,35 @@ final class FirebaseRevisionTests: XCTestCase {
         XCTAssertTrue(FirebaseCloudStore.matchesExpected(current: 7, expected: "7"))
         XCTAssertFalse(FirebaseCloudStore.matchesExpected(current: 8, expected: "7"))
         XCTAssertFalse(FirebaseCloudStore.matchesExpected(current: nil, expected: "7"))
+    }
+
+    func testRealtimeListenerQueuesOnlyUnappliedRevision() async {
+        let shouldQueue = await MainActor.run {
+            FirebaseRealtimeSyncListener.shouldQueueRevision(
+                lastProcessed: "40",
+                applied: "41",
+                pending: nil,
+                incoming: "42"
+            )
+        }
+        XCTAssertTrue(shouldQueue)
+    }
+
+    func testRealtimeListenerSkipsAppliedOrPendingRevision() async {
+        let results = await MainActor.run {
+            [
+                FirebaseRealtimeSyncListener.shouldQueueRevision(
+                    lastProcessed: "42", applied: nil, pending: nil, incoming: "42"
+                ),
+                FirebaseRealtimeSyncListener.shouldQueueRevision(
+                    lastProcessed: nil, applied: "42", pending: nil, incoming: "42"
+                ),
+                FirebaseRealtimeSyncListener.shouldQueueRevision(
+                    lastProcessed: nil, applied: nil, pending: "42", incoming: "42"
+                )
+            ]
+        }
+        XCTAssertEqual(results, [false, false, false])
     }
 }
 

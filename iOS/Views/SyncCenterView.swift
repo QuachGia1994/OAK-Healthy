@@ -93,7 +93,6 @@ public struct SyncCenterView: View {
                 modelContext: modelContext,
                 activeClientManager: activeClientManager
             )
-            await syncNow(label: "AUTO")
         }
         .task(id: isCloudEncryptionEnabled) {
             DebugReporter.report("sync_center_task_refresh_key", fields: [
@@ -850,8 +849,8 @@ public struct SyncCenterView: View {
                 syncPhase = .merging
                 appendLog(binId: manifestId, phase: "MERGE", message: "START")
                 let mergeStartedAt = Date()
-                if let stackData = stackData.data { try SupplementExportCodec.mergeBackup(data: stackData, client: client, context: modelContext) }
-                if let historyData = historyData.data { try SupplementExportCodec.mergeBackup(data: historyData, client: client, context: modelContext) }
+                if let stackData = stackData.data { try await SupplementExportCodec.mergeBackupCooperatively(data: stackData, client: client, context: modelContext) }
+                if let historyData = historyData.data { try await SupplementExportCodec.mergeBackupCooperatively(data: historyData, client: client, context: modelContext) }
                 UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
                 appendLog(binId: manifestId, phase: "MERGE", message: "DONE")
             }
@@ -946,7 +945,7 @@ public struct SyncCenterView: View {
         if let data = downloaded.data {
             syncPhase = .merging
             let mergeStartedAt = Date()
-            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            try await SupplementExportCodec.mergeBackupCooperatively(data: data, client: client, context: modelContext)
             UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
             await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: binId)
         }
@@ -1137,7 +1136,7 @@ public struct SyncCenterView: View {
             appendLog(binId: binId, phase: "CONFLICT", message: "RETRY START")
             let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
             guard let data = latest.data else { throw CloudSyncError.invalidResponse }
-            try SupplementExportCodec.mergeBackup(data: data, client: client, context: modelContext)
+            try await SupplementExportCodec.mergeBackupCooperatively(data: data, client: client, context: modelContext)
             await CloudSyncManager.shared.commitRevision(latest.revision, binId: binId)
             let payload = try retryPayload()
             let etagKey = "cloudSyncEtagV2_\(binId)"
