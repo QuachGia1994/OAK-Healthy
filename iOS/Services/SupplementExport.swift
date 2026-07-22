@@ -569,37 +569,9 @@ struct SupplementExportCodec {
     }
 
     static func mergeBackupDataSafely(_ backup: OAKBackupData, client: ClientProfile, context: ModelContext) throws {
-        let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
-        let supplementOwners = supplementOwnersById(allSupplements)
-        var takenSupplementIds = Set(supplementOwners.keys)
-
-        var supplementIdMap: [UUID: UUID] = [:]
-        var supplementsForClient = supplementsForClient(clientId: client.id, allSupplements: allSupplements)
-        let supplementChanges = try mergeSupplementsSafely(
-            backup: backup,
-            client: client,
-            context: context,
-            supplementOwners: supplementOwners,
-            takenSupplementIds: &takenSupplementIds,
-            supplementIdMap: &supplementIdMap,
-            supplementsForClient: &supplementsForClient
-        )
-        try saveChanges(supplementChanges, context: context)
+        let supplements = try prepareSupplementMerge(backup: backup, client: client, context: context)
         guard !backup.history.isEmpty else { return }
-
-        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordOwners = recordOwnersById(allRecords)
-        var recordsForClient = recordsForClient(clientId: client.id, allRecords: allRecords)
-        let dedupe = dedupeByDoseKey(recordsForClient: &recordsForClient, context: context)
-        try saveChanges(dedupe.removedCount, context: context)
-
-        var state = makeMergeState(
-            supplementIdMap: supplementIdMap,
-            supplementsForClient: supplementsForClient,
-            recordOwners: recordOwners,
-            recordsForClient: recordsForClient,
-            recordsForClientByDoseKey: dedupe.recordsByDoseKey
-        )
+        var state = try prepareHistoryMerge(clientId: client.id, supplements: supplements, context: context)
         try mergeHistorySafely(backup: backup, clientId: client.id, context: context, state: &state)
     }
 
@@ -608,38 +580,45 @@ struct SupplementExportCodec {
         client: ClientProfile,
         context: ModelContext
     ) async throws {
-        let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
-        let supplementOwners = supplementOwnersById(allSupplements)
-        var takenSupplementIds = Set(supplementOwners.keys)
-        var supplementIdMap: [UUID: UUID] = [:]
-        var supplements = supplementsForClient(clientId: client.id, allSupplements: allSupplements)
-        let supplementChanges = try mergeSupplementsSafely(
-            backup: backup,
-            client: client,
-            context: context,
-            supplementOwners: supplementOwners,
-            takenSupplementIds: &takenSupplementIds,
-            supplementIdMap: &supplementIdMap,
-            supplementsForClient: &supplements
-        )
-        try saveChanges(supplementChanges, context: context)
+        let supplements = try prepareSupplementMerge(backup: backup, client: client, context: context)
         guard !backup.history.isEmpty else { return }
         await Task.yield()
-
-        let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordOwners = recordOwnersById(allRecords)
-        var records = recordsForClient(clientId: client.id, allRecords: allRecords)
-        let dedupe = dedupeByDoseKey(recordsForClient: &records, context: context)
-        try saveChanges(dedupe.removedCount, context: context)
-        var state = makeMergeState(
-            supplementIdMap: supplementIdMap,
-            supplementsForClient: supplements,
-            recordOwners: recordOwners,
-            recordsForClient: records,
-            recordsForClientByDoseKey: dedupe.recordsByDoseKey
-        )
+        var state = try prepareHistoryMerge(clientId: client.id, supplements: supplements, context: context)
         await Task.yield()
         try await mergeHistoryCooperatively(backup: backup, clientId: client.id, context: context, state: &state)
+    }
+
+    private struct SupplementMergePreparation {
+        let idMap: [UUID: UUID]
+        let supplements: [UUID: UserSupplement]
+    }
+
+    private static func prepareSupplementMerge(
+        backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws -> SupplementMergePreparation {
+        let all = try context.fetch(FetchDescriptor<UserSupplement>())
+        let owners = supplementOwnersById(all)
+        var takenIds = Set(owners.keys)
+        var idMap: [UUID: UUID] = [:]
+        var supplements = supplementsForClient(clientId: client.id, allSupplements: all)
+        let changes = try mergeSupplementsSafely(backup: backup, client: client, context: context, supplementOwners: owners, takenSupplementIds: &takenIds, supplementIdMap: &idMap, supplementsForClient: &supplements)
+        try saveChanges(changes, context: context)
+        return SupplementMergePreparation(idMap: idMap, supplements: supplements)
+    }
+
+    private static func prepareHistoryMerge(
+        clientId: UUID,
+        supplements: SupplementMergePreparation,
+        context: ModelContext
+    ) throws -> MergeBackupState {
+        let all = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let owners = recordOwnersById(all)
+        var records = recordsForClient(clientId: clientId, allRecords: all)
+        let dedupe = dedupeByDoseKey(recordsForClient: &records, context: context)
+        try saveChanges(dedupe.removedCount, context: context)
+        return makeMergeState(supplementIdMap: supplements.idMap, supplementsForClient: supplements.supplements, recordOwners: owners, recordsForClient: records, recordsForClientByDoseKey: dedupe.recordsByDoseKey)
     }
 
     private struct MergeBackupState {
