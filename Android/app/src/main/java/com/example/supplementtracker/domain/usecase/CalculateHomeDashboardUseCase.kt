@@ -101,28 +101,40 @@ class CalculateHomeDashboardUseCase(
         zoneId: ZoneId
     ): Map<String, List<ActiveDose>> {
         val items = supplements
-            .filter {
-                calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.ON &&
-                    matchesWeeklyRecurrenceIfNeeded(it, today) &&
-                    matchesIntervalRecurrenceIfNeeded(it, today)
-            }
+            .filter { isActiveOnDay(it, today) }
             .flatMap { supplement ->
                 effectiveTimes(supplement).map { time ->
-                    val scheduledAt = scheduledAtEpochMs(today, time, zoneId) ?: 0L
-                    val status = statusByDose[DoseEventKey.make(supplement.id.toString(), scheduledAt)]
-                    val doseStatus = doseStatus(scheduledAt, status, nowEpochMs)
-                    val dueSoonMs = 20 * 60 * 1000L
-                    val missedAfter = scheduledAt + (2 * 60 * 60 * 1000L)
-                    val isDueSoon = doseStatus == DoseStatus.PLANNED &&
-                        scheduledAt > nowEpochMs &&
-                        scheduledAt - nowEpochMs <= dueSoonMs
-                    val isMissedSoon = doseStatus == DoseStatus.PLANNED &&
-                        scheduledAt > 0L &&
-                        nowEpochMs in (missedAfter - dueSoonMs) until missedAfter
-                    ActiveDose(supplement, time, scheduledAt, doseStatus, isDueSoon, isMissedSoon)
+                    buildActiveDose(supplement, time, today, nowEpochMs, statusByDose, zoneId)
                 }
             }
         return items.groupBy { it.timeString }.toSortedMap()
+    }
+
+    private fun isActiveOnDay(supplement: UserSupplement, today: LocalDate): Boolean =
+        calculateCycleUseCase(supplement.startDate, supplement.cycleConfig, today) == CycleStatus.ON &&
+            matchesWeeklyRecurrenceIfNeeded(supplement, today) &&
+            matchesIntervalRecurrenceIfNeeded(supplement, today)
+
+    private fun buildActiveDose(
+        supplement: UserSupplement,
+        time: String,
+        today: LocalDate,
+        nowEpochMs: Long,
+        statusByDose: Map<String, String>,
+        zoneId: ZoneId
+    ): ActiveDose {
+        val scheduledAt = scheduledAtEpochMs(today, time, zoneId) ?: 0L
+        val status = statusByDose[DoseEventKey.make(supplement.id.toString(), scheduledAt)]
+        val doseStatus = doseStatus(scheduledAt, status, nowEpochMs)
+        val dueSoonMs = 20 * 60 * 1000L
+        val missedAfter = scheduledAt + (2 * 60 * 60 * 1000L)
+        val isDueSoon = doseStatus == DoseStatus.PLANNED &&
+            scheduledAt > nowEpochMs &&
+            scheduledAt - nowEpochMs <= dueSoonMs
+        val isMissedSoon = doseStatus == DoseStatus.PLANNED &&
+            scheduledAt > 0L &&
+            nowEpochMs in (missedAfter - dueSoonMs) until missedAfter
+        return ActiveDose(supplement, time, scheduledAt, doseStatus, isDueSoon, isMissedSoon)
     }
 
     private fun buildRestingList(

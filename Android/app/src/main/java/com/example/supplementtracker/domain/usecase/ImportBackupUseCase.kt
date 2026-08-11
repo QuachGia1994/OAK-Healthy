@@ -21,60 +21,70 @@ class ImportBackupUseCase(
         val decoded = OAKBackupJson.decodeCompat(preparedJson).getOrThrow()
         val clientIdString = clientId.toString()
         val importedSupplementIds = HashSet<String>(decoded.stack.size)
-
-        val supplementsToImport = decoded.stack.mapNotNull { dto ->
-            val weekly = run {
-                val mask = dto.cycle.weeklyWeekdaysMask ?: return@run null
-                val interval = dto.cycle.weeklyIntervalWeeks ?: return@run null
-                val anchor = dto.cycle.weeklyAnchorDate
-                    ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                    ?: return@run null
-                WeeklyRecurrenceConfig(
-                    weekdaysMask = mask,
-                    intervalWeeks = interval,
-                    anchorDate = anchor
-                )
+        val supplementsToImport = decoded.stack.map { dto ->
+            mapSupplement(dto, clientId).also {
+                importedSupplementIds.add(it.id.toString().lowercase(Locale.ROOT))
             }
-            val cycle = CycleConfig(
-                daysOn = dto.cycle.daysOn,
-                daysOff = dto.cycle.daysOff,
-                isContinuous = dto.cycle.isContinuous,
-                durationMonths = dto.cycle.durationMonths,
-                weeklyRecurrence = weekly
-            )
-            val startDate = runCatching { LocalDate.parse(dto.startDate) }
-                .getOrElse { LocalDate.now() }
-            val imported = UserSupplement(
-                id = runCatching { UUID.fromString(dto.id) }.getOrElse {
-                    StableId.uuidFromString(dto.id.trim().lowercase(Locale.ROOT))
-                },
-                clientId = clientId,
-                name = dto.name,
-                startDate = startDate,
-                cycleConfig = cycle,
-                dailyDose = dto.dailyDose,
-                intakeTime = dto.intakeTime,
-                updatedAtEpochMs = dto.updatedAtEpochMs.takeIf { it > 0L }
-                    ?: System.currentTimeMillis(),
-                deletedAtEpochMs = dto.deletedAtEpochMs
-            )
-            importedSupplementIds.add(imported.id.toString().lowercase(Locale.ROOT))
-            imported
         }
-
-        val recordsToImport = decoded.history.mapNotNull { record ->
-            val normalizedSupplementId = record.supplementId.lowercase(Locale.ROOT)
-            if (!importedSupplementIds.contains(normalizedSupplementId)) return@mapNotNull null
-            IntakeRecord(
-                id = record.id,
-                supplementId = normalizedSupplementId,
-                date = record.dateEpochMs,
-                status = record.status,
-                updatedAtEpochMs = record.updatedAtEpochMs.takeIf { it > 0L }
-                    ?: record.dateEpochMs
-            )
-        }
-
+        val recordsToImport = mapHistoryRecords(decoded.history, importedSupplementIds)
         repository.importBackupAtomic(clientIdString, supplementsToImport, recordsToImport)
+    }
+
+    private fun mapSupplement(
+        dto: com.example.supplementtracker.domain.export.OAKBackupSupplementDTO,
+        clientId: UUID
+    ): UserSupplement {
+        val weekly = mapWeeklyRecurrence(dto)
+        val cycle = CycleConfig(
+            daysOn = dto.cycle.daysOn,
+            daysOff = dto.cycle.daysOff,
+            isContinuous = dto.cycle.isContinuous,
+            durationMonths = dto.cycle.durationMonths,
+            weeklyRecurrence = weekly
+        )
+        val startDate = runCatching { LocalDate.parse(dto.startDate) }.getOrElse { LocalDate.now() }
+        return UserSupplement(
+            id = runCatching { UUID.fromString(dto.id) }.getOrElse {
+                StableId.uuidFromString(dto.id.trim().lowercase(Locale.ROOT))
+            },
+            clientId = clientId,
+            name = dto.name,
+            startDate = startDate,
+            cycleConfig = cycle,
+            dailyDose = dto.dailyDose,
+            intakeTime = dto.intakeTime,
+            updatedAtEpochMs = dto.updatedAtEpochMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
+            deletedAtEpochMs = dto.deletedAtEpochMs
+        )
+    }
+
+    private fun mapWeeklyRecurrence(
+        dto: com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
+    ): WeeklyRecurrenceConfig? {
+        val mask = dto.cycle.weeklyWeekdaysMask ?: return null
+        val interval = dto.cycle.weeklyIntervalWeeks ?: return null
+        val anchor = dto.cycle.weeklyAnchorDate
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?: return null
+        return WeeklyRecurrenceConfig(
+            weekdaysMask = mask,
+            intervalWeeks = interval,
+            anchorDate = anchor
+        )
+    }
+
+    private fun mapHistoryRecords(
+        history: List<com.example.supplementtracker.domain.export.OAKBackupHistoryDTO>,
+        importedSupplementIds: Set<String>
+    ): List<IntakeRecord> = history.mapNotNull { record ->
+        val normalizedSupplementId = record.supplementId.lowercase(Locale.ROOT)
+        if (!importedSupplementIds.contains(normalizedSupplementId)) return@mapNotNull null
+        IntakeRecord(
+            id = record.id,
+            supplementId = normalizedSupplementId,
+            date = record.dateEpochMs,
+            status = record.status,
+            updatedAtEpochMs = record.updatedAtEpochMs.takeIf { it > 0L } ?: record.dateEpochMs
+        )
     }
 }

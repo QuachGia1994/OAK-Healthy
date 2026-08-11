@@ -9,6 +9,8 @@ import com.example.supplementtracker.domain.export.OAKBackupMetaDTO
 import com.example.supplementtracker.domain.export.OAKBackupSchema
 import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.export.SupplementExportCycleDTO
+import com.example.supplementtracker.domain.model.UserSupplement
+import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.util.DoseEventKey
 import java.time.LocalDate
@@ -24,79 +26,26 @@ class CloudBackupEngine(
     private val repository: SupplementRepository,
     private val currentClientId: () -> Any?
 ) {
-    suspend fun buildStackBackupJson(): Result<String> = buildBackupJson(includeStack = true, includeHistory = false)
+    suspend fun buildStackBackupJson(): Result<String> =
+        buildBackupJson(includeStack = true, includeHistory = false)
 
-    suspend fun buildHistoryBackupJson(): Result<String> = buildBackupJson(includeStack = false, includeHistory = true)
+    suspend fun buildHistoryBackupJson(): Result<String> =
+        buildBackupJson(includeStack = false, includeHistory = true)
 
-    suspend fun buildFullBackupJson(): Result<String> = buildBackupJson(includeStack = true, includeHistory = true)
+    suspend fun buildFullBackupJson(): Result<String> =
+        buildBackupJson(includeStack = true, includeHistory = true)
 
-    private suspend fun buildBackupJson(includeStack: Boolean, includeHistory: Boolean): Result<String> = runCatching {
+    private suspend fun buildBackupJson(
+        includeStack: Boolean,
+        includeHistory: Boolean
+    ): Result<String> = runCatching {
         val clientId = currentClientId()
             ?: error(context.getString(R.string.missing_active_client))
         val clientIdString = clientId.toString()
-
-        val prefs = OakPrefs.get(context)
-        val deviceId = prefs.getString("cloudSyncDeviceId", null) ?: run {
-            val created = java.util.UUID.randomUUID().toString()
-            prefs.edit().putString("cloudSyncDeviceId", created).apply()
-            created
-        }
+        val deviceId = resolveDeviceId()
         val now = System.currentTimeMillis()
-
-        val stack = if (includeStack) {
-            val allFields = setOf("name", "dailyDose", "intakeTime", "startDate", "cycle", "lastTakenLocalDate")
-            repository.getAllSupplementsForSync(clientIdString).map { supplement ->
-                OAKBackupSupplementDTO(
-                    id = supplement.id.toString(),
-                    name = supplement.name,
-                    dailyDose = supplement.dailyDose,
-                    intakeTime = supplement.intakeTime,
-                    startDate = supplement.startDate.toString(),
-                    cycle = SupplementExportCycleDTO(
-                        isContinuous = supplement.cycleConfig.isContinuous,
-                        daysOn = supplement.cycleConfig.daysOn,
-                        daysOff = supplement.cycleConfig.daysOff,
-                        durationMonths = supplement.cycleConfig.durationMonths,
-                        weeklyWeekdaysMask = supplement.cycleConfig.weeklyRecurrence?.weekdaysMask,
-                        weeklyIntervalWeeks = supplement.cycleConfig.weeklyRecurrence?.intervalWeeks,
-                        weeklyAnchorDate = supplement.cycleConfig.weeklyRecurrence?.anchorDate?.toString(),
-                        intervalDays = supplement.cycleConfig.intervalDays
-                    ),
-                    lastTakenLocalDate = supplement.lastTakenLocalDate?.toString(),
-                    updatedAtEpochMs = supplement.updatedAtEpochMs,
-                    deletedAtEpochMs = supplement.deletedAtEpochMs,
-                    modifiedFields = allFields
-                )
-            }
-        } else {
-            emptyList()
-        }
-
-        val history = if (includeHistory) {
-            val cutoffEpochMs = LocalDate.now()
-                .minusDays(90)
-                .atStartOfDay()
-                .atZone(ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli()
-            repository.getAllRecordsForSync(clientIdString)
-                .filter { it.date >= cutoffEpochMs }
-                .groupBy { DoseEventKey.make(it.supplementId, it.date) }
-                .mapNotNull { (_, list) -> list.maxByOrNull { it.updatedAtEpochMs } }
-                .map { record ->
-                    val key = DoseEventKey.make(record.supplementId, record.date)
-                    OAKBackupHistoryDTO(
-                        id = key,
-                        supplementId = record.supplementId.lowercase(Locale.ROOT),
-                        dateEpochMs = record.date,
-                        status = record.status,
-                        updatedAtEpochMs = record.updatedAtEpochMs
-                    )
-                }
-        } else {
-            emptyList()
-        }
-
+        val stack = if (includeStack) mapStack(clientIdString) else emptyList()
+        val history = if (includeHistory) mapHistory(clientIdString) else emptyList()
         OAKBackupJson.encode(
             OAKBackupDataDTO(
                 version = OAKBackupSchema.VERSION,
@@ -105,6 +54,77 @@ class CloudBackupEngine(
                 history = history,
                 historyZlibBase64 = null
             )
+        )
+    }
+
+    private fun resolveDeviceId(): String {
+        val prefs = OakPrefs.get(context)
+        return prefs.getString("cloudSyncDeviceId", null) ?: run {
+            val created = java.util.UUID.randomUUID().toString()
+            prefs.edit().putString("cloudSyncDeviceId", created).apply()
+            created
+        }
+    }
+
+    private suspend fun mapStack(clientIdString: String): List<OAKBackupSupplementDTO> {
+        val allFields = setOf("name", "dailyDose", "intakeTime", "startDate", "cycle", "lastTakenLocalDate")
+        return repository.getAllSupplementsForSync(clientIdString).map { supplement ->
+            toBackupSupplement(supplement, allFields)
+        }
+    }
+
+    private fun toBackupSupplement(
+        supplement: UserSupplement,
+        allFields: Set<String>
+    ): OAKBackupSupplementDTO = OAKBackupSupplementDTO(
+        id = supplement.id.toString(),
+        name = supplement.name,
+        dailyDose = supplement.dailyDose,
+        intakeTime = supplement.intakeTime,
+        startDate = supplement.startDate.toString(),
+        cycle = toExportCycle(supplement),
+        lastTakenLocalDate = supplement.lastTakenLocalDate?.toString(),
+        updatedAtEpochMs = supplement.updatedAtEpochMs,
+        deletedAtEpochMs = supplement.deletedAtEpochMs,
+        modifiedFields = allFields
+    )
+
+    private fun toExportCycle(supplement: UserSupplement): SupplementExportCycleDTO {
+        val weekly = supplement.cycleConfig.weeklyRecurrence
+        return SupplementExportCycleDTO(
+            isContinuous = supplement.cycleConfig.isContinuous,
+            daysOn = supplement.cycleConfig.daysOn,
+            daysOff = supplement.cycleConfig.daysOff,
+            durationMonths = supplement.cycleConfig.durationMonths,
+            weeklyWeekdaysMask = weekly?.weekdaysMask,
+            weeklyIntervalWeeks = weekly?.intervalWeeks,
+            weeklyAnchorDate = weekly?.anchorDate?.toString(),
+            intervalDays = supplement.cycleConfig.intervalDays
+        )
+    }
+
+    private suspend fun mapHistory(clientIdString: String): List<OAKBackupHistoryDTO> {
+        val cutoffEpochMs = LocalDate.now()
+            .minusDays(90)
+            .atStartOfDay()
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        return repository.getAllRecordsForSync(clientIdString)
+            .filter { it.date >= cutoffEpochMs }
+            .groupBy { DoseEventKey.make(it.supplementId, it.date) }
+            .mapNotNull { (_, list) -> list.maxByOrNull { it.updatedAtEpochMs } }
+            .map { record -> toBackupHistory(record) }
+    }
+
+    private fun toBackupHistory(record: IntakeRecord): OAKBackupHistoryDTO {
+        val key = DoseEventKey.make(record.supplementId, record.date)
+        return OAKBackupHistoryDTO(
+            id = key,
+            supplementId = record.supplementId.lowercase(Locale.ROOT),
+            dateEpochMs = record.date,
+            status = record.status,
+            updatedAtEpochMs = record.updatedAtEpochMs
         )
     }
 }
