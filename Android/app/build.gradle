@@ -84,10 +84,14 @@ android {
     }
 
     testOptions {
-        unitTests.all {
-            jacoco {
-                includeNoLocationClasses = true
-                excludes = ['jdk.internal.*']
+        unitTests {
+            // Required for Robolectric + Room in-memory DB on the JVM unit-test classpath.
+            includeAndroidResources = true
+            all {
+                jacoco {
+                    includeNoLocationClasses = true
+                    excludes = ['jdk.internal.*']
+                }
             }
         }
     }
@@ -140,6 +144,9 @@ dependencies {
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20231013'
+    // Phrase 12A: minimal infra for real Room persistence tests on JVM
+    testImplementation "androidx.room:room-testing:$room_version"
+    testImplementation 'org.robolectric:robolectric:4.13'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     androidTestImplementation platform('androidx.compose:compose-bom:2024.06.00')

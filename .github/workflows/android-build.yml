@@ -19,6 +19,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
@@ -47,7 +50,6 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout mã nguồn
         uses: actions/checkout@v6
@@ -88,7 +90,7 @@ jobs:
           set -o pipefail
           chmod +x ./gradlew
           ./gradlew clean
-          ./gradlew :app:testDebugUnitTest :app:jacocoTestReport --stacktrace --console=plain --no-daemon 2>&1 | tee test-build.log
+          ./gradlew :app:compileDebugKotlin :app:testDebugUnitTest :app:jacocoTestReport --stacktrace --console=plain --no-daemon 2>&1 | tee test-build.log
         working-directory: ./Android
 
       - name: Report Coverage (warn)
