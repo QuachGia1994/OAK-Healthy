@@ -78,6 +78,16 @@ class CalculateHomeDashboardUseCaseTest {
     private fun epochAt(date: LocalDate, hour: Int, minute: Int = 0): Long =
         date.atTime(LocalTime.of(hour, minute)).atZone(zone).toInstant().toEpochMilli()
 
+    private fun takenRecord(supp: UserSupplement, date: LocalDate, hour: Int = 8, minute: Int = 0): IntakeRecord {
+        val scheduledAt = epochAt(date, hour, minute)
+        return IntakeRecord(
+            id = DoseEventKey.make(supp.id.toString(), scheduledAt),
+            supplementId = supp.id.toString(),
+            date = scheduledAt,
+            status = "Taken"
+        )
+    }
+
     @Test
     fun emptySupplements_returnsEmptyResult() {
         val result = useCase(emptyList(), emptyList(), LocalDate.of(2026, 3, 1), zoneId = zone)
@@ -173,7 +183,8 @@ class CalculateHomeDashboardUseCaseTest {
         assertTrue(result.activeDoses.isEmpty())
         assertEquals(1, result.restingSupplements.size)
         assertEquals(supp.id, result.restingSupplements[0].supplement.id)
-        assertTrue(result.restingSupplements[0].daysRemaining > 0)
+        // dayInCycle=5, totalCycleDays=7 → daysRemaining = 7 - 5 = 2
+        assertEquals(2, result.restingSupplements[0].daysRemaining)
     }
 
     @Test
@@ -214,4 +225,180 @@ class CalculateHomeDashboardUseCaseTest {
         assertTrue(result.activeDoses.isEmpty())
         assertTrue(result.restingSupplements.isEmpty())
     }
+
+    // --- Phrase 10: streak / interval / multi-time regression ---
+
+    @Test
+    fun streakDays_countsCompleteDaysIncludingToday() {
+        val today = LocalDate.of(2026, 3, 10)
+        val supp = supplement(start = LocalDate.of(2026, 1, 1), intakeTime = "08:00")
+        val records = listOf(
+            takenRecord(supp, today.minusDays(2)),
+            takenRecord(supp, today.minusDays(1)),
+            takenRecord(supp, today)
+        )
+        val result = useCase(
+            listOf(supp),
+            records,
+            today,
+            nowEpochMs = epochAt(today, 12, 0),
+            zoneId = zone
+        )
+        assertEquals(3, result.streakDays)
+    }
+
+    @Test
+    fun streakDays_usesYesterdayWhenTodayIncomplete() {
+        val today = LocalDate.of(2026, 3, 10)
+        val supp = supplement(start = LocalDate.of(2026, 1, 1), intakeTime = "08:00")
+        val records = listOf(
+            takenRecord(supp, today.minusDays(2)),
+            takenRecord(supp, today.minusDays(1))
+        )
+        val result = useCase(
+            listOf(supp),
+            records,
+            today,
+            nowEpochMs = epochAt(today, 12, 0),
+            zoneId = zone
+        )
+        assertEquals(2, result.streakDays)
+    }
+
+    @Test
+    fun streakDays_breaksOnMissingDay() {
+        val today = LocalDate.of(2026, 3, 10)
+        val supp = supplement(start = LocalDate.of(2026, 1, 1), intakeTime = "08:00")
+        val records = listOf(
+            takenRecord(supp, today.minusDays(2)),
+            takenRecord(supp, today)
+        )
+        val result = useCase(
+            listOf(supp),
+            records,
+            today,
+            nowEpochMs = epochAt(today, 12, 0),
+            zoneId = zone
+        )
+        assertEquals(1, result.streakDays)
+    }
+
+    @Test
+    fun intervalDays_activeOnlyOnIntervalBoundary() {
+        val start = LocalDate.of(2026, 1, 1)
+        val config = CycleConfig(
+            daysOn = 1,
+            daysOff = 0,
+            isContinuous = true,
+            intervalDays = 3
+        )
+        val supp = supplement(start = start, config = config, intakeTime = "08:00")
+
+        val onDay = useCase(
+            listOf(supp),
+            emptyList(),
+            start.plusDays(3),
+            nowEpochMs = epochAt(start.plusDays(3), 7, 0),
+            zoneId = zone
+        )
+        assertEquals(1, onDay.activeDoses["08:00"]?.size ?: 0)
+
+        val offDay = useCase(
+            listOf(supp),
+            emptyList(),
+            start.plusDays(1),
+            nowEpochMs = epochAt(start.plusDays(1), 7, 0),
+            zoneId = zone
+        )
+        assertTrue(offDay.activeDoses.isEmpty())
+    }
+
+    @Test
+    fun intervalDays_usesLastTakenWhenPresent() {
+        val start = LocalDate.of(2026, 1, 1)
+        val lastTaken = LocalDate.of(2026, 3, 5)
+        val config = CycleConfig(
+            daysOn = 1,
+            daysOff = 0,
+            isContinuous = true,
+            intervalDays = 2
+        )
+        val supp = supplement(
+            start = start,
+            config = config,
+            intakeTime = "08:00",
+            lastTaken = lastTaken
+        )
+
+        val onDay = useCase(
+            listOf(supp),
+            emptyList(),
+            lastTaken.plusDays(2),
+            nowEpochMs = epochAt(lastTaken.plusDays(2), 7, 0),
+            zoneId = zone
+        )
+        assertEquals(1, onDay.activeDoses["08:00"]?.size ?: 0)
+
+        val offDay = useCase(
+            listOf(supp),
+            emptyList(),
+            lastTaken.plusDays(1),
+            nowEpochMs = epochAt(lastTaken.plusDays(1), 7, 0),
+            zoneId = zone
+        )
+        assertTrue(offDay.activeDoses.isEmpty())
+    }
+
+    @Test
+    fun multiTimeIntake_createsSeparateActiveSlots() {
+        val today = LocalDate.of(2026, 3, 10)
+        val supp = supplement(
+            start = LocalDate.of(2026, 1, 1),
+            intakeTime = "08:00, 20:00"
+        )
+        val result = useCase(
+            listOf(supp),
+            emptyList(),
+            today,
+            nowEpochMs = epochAt(today, 7, 0),
+            zoneId = zone
+        )
+        assertEquals(1, result.activeDoses["08:00"]?.size ?: 0)
+        assertEquals(1, result.activeDoses["20:00"]?.size ?: 0)
+        assertEquals(
+            CalculateHomeDashboardUseCase.DoseStatus.PLANNED,
+            result.activeDoses["08:00"]!![0].doseStatus
+        )
+        assertEquals(
+            CalculateHomeDashboardUseCase.DoseStatus.PLANNED,
+            result.activeDoses["20:00"]!![0].doseStatus
+        )
+    }
+
+    @Test
+    fun intervalDays_takesOnlyFirstTimeWhenIntervalGreaterThanOne() {
+        val start = LocalDate.of(2026, 1, 1)
+        val config = CycleConfig(
+            daysOn = 1,
+            daysOff = 0,
+            isContinuous = true,
+            intervalDays = 3
+        )
+        val supp = supplement(
+            start = start,
+            config = config,
+            intakeTime = "08:00, 20:00"
+        )
+        val onDay = start.plusDays(3)
+        val result = useCase(
+            listOf(supp),
+            emptyList(),
+            onDay,
+            nowEpochMs = epochAt(onDay, 7, 0),
+            zoneId = zone
+        )
+        assertEquals(1, result.activeDoses["08:00"]?.size ?: 0)
+        assertTrue(result.activeDoses["20:00"].isNullOrEmpty())
+    }
 }
+
