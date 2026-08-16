@@ -31,12 +31,11 @@ enum ClientScopedStore {
         clientId: UUID,
         limit: Int
     ) throws -> [IntakeRecord] {
-        var descriptor = FetchDescriptor<IntakeRecord>(
-            predicate: #Predicate { $0.supplement?.client?.id == clientId },
-            sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
+        let records = try recordsForClient(
+            modelContext: modelContext,
+            clientId: clientId
         )
-        descriptor.fetchLimit = limit
-        return try modelContext.fetch(descriptor)
+        return newestRecords(records, limit: limit)
     }
 
     static func recentHistoryRecords(
@@ -45,14 +44,11 @@ enum ClientScopedStore {
         cutoff: Date,
         limit: Int
     ) throws -> [IntakeRecord] {
-        var descriptor = FetchDescriptor<IntakeRecord>(
-            predicate: #Predicate {
-                $0.supplement?.client?.id == clientId && $0.date >= cutoff
-            },
-            sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
-        )
-        descriptor.fetchLimit = limit
-        return try modelContext.fetch(descriptor)
+        let records = try recordsForClient(
+            modelContext: modelContext,
+            clientId: clientId
+        ).filter { $0.date >= cutoff }
+        return newestRecords(records, limit: limit)
     }
 
     static func hasSupplementChanges(
@@ -60,15 +56,10 @@ enum ClientScopedStore {
         clientId: UUID,
         since lastSyncEpochMs: Int64
     ) throws -> Bool {
-        var descriptor = FetchDescriptor<UserSupplement>(
-            predicate: #Predicate {
-                $0.client?.id == clientId &&
-                ($0.updatedAtEpochMs > lastSyncEpochMs ||
-                 ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs))
-            }
-        )
-        descriptor.fetchLimit = 1
-        return try !modelContext.fetch(descriptor).isEmpty
+        try supplements(modelContext: modelContext, clientId: clientId).contains {
+            $0.updatedAtEpochMs > lastSyncEpochMs ||
+                ($0.deletedAtEpochMs ?? 0) > lastSyncEpochMs
+        }
     }
 
     static func hasHistoryChanges(
@@ -76,13 +67,23 @@ enum ClientScopedStore {
         clientId: UUID,
         since lastSyncEpochMs: Int64
     ) throws -> Bool {
-        var descriptor = FetchDescriptor<IntakeRecord>(
-            predicate: #Predicate {
-                $0.supplement?.client?.id == clientId &&
-                $0.updatedAtEpochMs > lastSyncEpochMs
-            }
-        )
-        descriptor.fetchLimit = 1
-        return try !modelContext.fetch(descriptor).isEmpty
+        try recordsForClient(modelContext: modelContext, clientId: clientId).contains {
+            $0.updatedAtEpochMs > lastSyncEpochMs
+        }
+    }
+
+    private static func recordsForClient(
+        modelContext: ModelContext,
+        clientId: UUID
+    ) throws -> [IntakeRecord] {
+        try supplements(modelContext: modelContext, clientId: clientId)
+            .flatMap(\.intakeRecords)
+    }
+
+    private static func newestRecords(
+        _ records: [IntakeRecord],
+        limit: Int
+    ) -> [IntakeRecord] {
+        Array(records.sorted { $0.date > $1.date }.prefix(max(0, limit)))
     }
 }
