@@ -40,6 +40,7 @@ versioning where practical.
 - iOS client-scoped SwiftData reads now scope through the target profile before applying record limits, preventing other profiles from hiding History or sync records and reducing fetch-all work.
 - Notification scheduling and dose actions now stay isolated to the active profile on Android and iOS, including profile switches, reboot/time-change rescheduling, and stale notification actions.
 - Cloud host/link ownership is now scoped per profile on Android and iOS; legacy global links migrate once to the active profile, profile switches rebind realtime sync, and Android in-flight exports retain their captured profile.
+- iOS realtime cloud sync sessions now bind to both profile and manifest identity, reject stale generation completions, and cannot let an old listener clear or mark a newer profile session.
 - Android alarm receivers now retain their broadcast lifetime while asynchronous reminder validation and rescheduling complete.
 - Cloud hosting now cleans up partial uploads, and iOS re-hosting keeps the previous host until the replacement is ready.
 
