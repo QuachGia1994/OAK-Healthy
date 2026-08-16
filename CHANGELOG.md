@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- StoreKit 2 and Google Play Billing 9.1 subscription flows with store-localized pricing, purchase/restore handling, verified entitlement resolution, and fail-closed pending/unverified purchase behavior.
 - Cross-platform Free/Pro/Coach entitlement policy, stable subscription product catalog, Plan & Access UI, and monetization delivery roadmap.
 - Cross-platform AES-GCM interoperability and revision validation tests.
 - In-app sync security guidance, unlink controls, and protected key display.
