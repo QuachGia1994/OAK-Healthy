@@ -425,7 +425,7 @@
     <string name="plan_feature_reminders">Reminder notifications</string>
     <string name="plan_feature_recent_history">Recent history</string>
     <string name="plan_feature_advanced_cycles">Advanced cycle scheduling</string>
-    <string name="plan_feature_unlimited_history">Unlimited history</string>
+    <string name="plan_feature_unlimited_history">Extended history (up to 90 days)</string>
     <string name="plan_feature_adherence_analytics">Adherence analytics</string>
     <string name="plan_feature_encrypted_sync">Encrypted cloud sync</string>
     <string name="plan_feature_data_export">Data export</string>

@@ -425,7 +425,7 @@
     <string name="plan_feature_reminders">Thông báo nhắc lịch</string>
     <string name="plan_feature_recent_history">Lịch sử gần đây</string>
     <string name="plan_feature_advanced_cycles">Lịch chu kỳ nâng cao</string>
-    <string name="plan_feature_unlimited_history">Lịch sử không giới hạn</string>
+    <string name="plan_feature_unlimited_history">Lịch sử mở rộng (tối đa 90 ngày)</string>
     <string name="plan_feature_adherence_analytics">Phân tích mức độ tuân thủ</string>
     <string name="plan_feature_encrypted_sync">Đồng bộ cloud mã hóa</string>
     <string name="plan_feature_data_export">Xuất dữ liệu</string>

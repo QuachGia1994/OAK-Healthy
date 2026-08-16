@@ -60,7 +60,7 @@ public struct LocalizationService: Sendable {
         "plan_feature_reminders": ("Reminder notifications", "Thông báo nhắc lịch"),
         "plan_feature_recent_history": ("Recent history", "Lịch sử gần đây"),
         "plan_feature_advanced_cycles": ("Advanced cycle scheduling", "Lịch chu kỳ nâng cao"),
-        "plan_feature_unlimited_history": ("Unlimited history", "Lịch sử không giới hạn"),
+        "plan_feature_unlimited_history": ("Extended history (up to 90 days)", "Lịch sử mở rộng (tối đa 90 ngày)"),
         "plan_feature_adherence_analytics": ("Adherence analytics", "Phân tích mức độ tuân thủ"),
         "plan_feature_encrypted_sync": ("Encrypted cloud sync", "Đồng bộ cloud mã hóa"),
         "plan_feature_data_export": ("Data export", "Xuất dữ liệu"),

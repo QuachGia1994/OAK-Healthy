@@ -22,14 +22,25 @@ on:
           - beta
           - production
         default: internal
+      confirm_production:
+        type: boolean
+        description: Confirm a production store upload
+        default: false
+      build_number:
+        type: string
+        description: Optional monotonic store build number override
+        required: false
+        default: ""
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  IOS_LANE: ${{ github.event.inputs.ios_lane || 'release' }}
-  ANDROID_TRACK: ${{ github.event.inputs.android_track || 'production' }}
+  IOS_LANE: ${{ github.event.inputs.ios_lane || 'beta' }}
+  ANDROID_TRACK: ${{ github.event.inputs.android_track || 'internal' }}
+  CONFIRM_PRODUCTION: ${{ github.event.inputs.confirm_production || 'false' }}
+  STORE_BUILD_NUMBER: ${{ github.event.inputs.build_number || github.run_number }}
 
 jobs:
   prepare:
@@ -39,6 +50,22 @@ jobs:
       ios_store: ${{ steps.mode.outputs.ios_store }}
       android_store: ${{ steps.mode.outputs.android_store }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Release preflight
+        run: python3 scripts/release_preflight.py
+
+      - name: Block unconfirmed production upload
+        shell: bash
+        run: |
+          if { [ "${IOS_LANE}" = "release" ] || [ "${ANDROID_TRACK}" = "production" ]; } && [ "${CONFIRM_PRODUCTION}" != "true" ]; then
+            echo "Production upload requires workflow_dispatch confirm_production=true."
+            exit 1
+          fi
+
       - name: Check required secrets (without failing)
         id: mode
         shell: bash
@@ -53,6 +80,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          PLAY_BILLING_PUBLIC_KEY: ${{ secrets.PLAY_BILLING_PUBLIC_KEY }}
         run: |
           ios_ok=1
           for v in MATCH_GIT_URL MATCH_PASSWORD APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
@@ -62,7 +90,7 @@ jobs:
           done
 
           android_ok=1
-          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON; do
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON PLAY_BILLING_PUBLIC_KEY; do
             if [ -z "${!v}" ]; then
               android_ok=0
             fi
@@ -181,6 +209,7 @@ jobs:
       - name: Create local.properties
         env:
           JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
+          PLAY_BILLING_PUBLIC_KEY: ${{ secrets.PLAY_BILLING_PUBLIC_KEY }}
         run: |
           mkdir -p Android
           sdk_dir=""
@@ -197,6 +226,7 @@ jobs:
           fi
           printf "sdk.dir=%s\n" "${sdk_dir}" > Android/local.properties
           printf "JSONBIN_API_KEY=%s\n" "${JSONBIN_KEY:-}" >> Android/local.properties
+          printf "PLAY_BILLING_PUBLIC_KEY=%s\n" "${PLAY_BILLING_PUBLIC_KEY}" >> Android/local.properties
 
       - name: Setup signing files
         shell: bash
@@ -243,4 +273,4 @@ jobs:
         run: |
           echo "Skipping Android Play upload because required secrets are missing."
           echo "Publishing to Google Play requires a Play Console developer account."
-          echo "To enable Android store release, set secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, GOOGLE_PLAY_SERVICE_ACCOUNT_JSON."
+          echo "To enable Android store release, set secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, GOOGLE_PLAY_SERVICE_ACCOUNT_JSON, PLAY_BILLING_PUBLIC_KEY."

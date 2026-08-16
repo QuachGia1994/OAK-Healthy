@@ -1,5 +1,11 @@
 default_platform(:ios)
 
+def apply_store_build_number(project_path)
+  build_number = ENV.fetch("STORE_BUILD_NUMBER").strip
+  UI.user_error!("STORE_BUILD_NUMBER must be a positive integer") unless build_number.match?(/\A[1-9]\d*\z/)
+  increment_build_number(build_number: build_number, xcodeproj: project_path)
+end
+
 platform :ios do
   desc "Build and Archive the iOS App"
   lane :build do
@@ -46,6 +52,7 @@ platform :ios do
       readonly: true
     )
     project_path = File.expand_path("../OAKHealthy.xcodeproj", __dir__)
+    apply_store_build_number(project_path)
     gym(
       project: project_path,
       scheme: "OAKHealthy",
@@ -73,6 +80,7 @@ platform :ios do
       readonly: true
     )
     project_path = File.expand_path("../OAKHealthy.xcodeproj", __dir__)
+    apply_store_build_number(project_path)
     gym(
       project: project_path,
       scheme: "OAKHealthy",

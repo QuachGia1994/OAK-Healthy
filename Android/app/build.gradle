@@ -18,6 +18,12 @@ def jsonbinApiKeyRaw = properties.getProperty('JSONBIN_API_KEY', '')
 def jsonbinApiKeyEscaped = jsonbinApiKeyRaw.replace('\\', '\\\\').replace('"', '\\"')
 def playBillingPublicKeyRaw = properties.getProperty('PLAY_BILLING_PUBLIC_KEY', '')
 def playBillingPublicKeyEscaped = playBillingPublicKeyRaw.replace('\\', '\\\\').replace('"', '\\"')
+def baseVersionCode = 2
+def storeBuildNumberRaw = System.getenv('STORE_BUILD_NUMBER')?.trim()
+def resolvedVersionCode = storeBuildNumberRaw ? Integer.parseInt(storeBuildNumberRaw) : baseVersionCode
+if (resolvedVersionCode <= 0 || resolvedVersionCode > 2_100_000_000) {
+    throw new GradleException('STORE_BUILD_NUMBER must be between 1 and 2100000000')
+}
 
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('keystore.properties')
@@ -44,7 +50,7 @@ android {
         applicationId "com.phongqk.oakhealthy"
         minSdk 26
         targetSdk 34
-        versionCode 2
+        versionCode resolvedVersionCode
         versionName "1.0.1"
         resConfigs "en", "vi"
         buildConfigField "String", "JSONBIN_API_KEY", "\"${jsonbinApiKeyEscaped}\""
