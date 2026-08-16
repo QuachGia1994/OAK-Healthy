@@ -13,8 +13,6 @@ cross-platform reliability rather than by a fixed delivery date.
 
 ## Next
 
-- Add migration tests for long-lived local databases and sync payload versions.
-- Add opt-in diagnostics that contain no health records or sync secrets.
 - Expand contributor documentation and reproducible issue examples.
 - Validate notification and background-sync behavior on a wider device matrix.
 

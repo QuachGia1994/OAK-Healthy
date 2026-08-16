@@ -127,6 +127,48 @@ class ImportBackupUseCaseTest {
     }
 
     @Test
+    fun legacyV1Export_derivesCanonicalCrossPlatformSupplementId() = kotlinx.coroutines.runBlocking {
+        val json = """
+            {
+              "schemaVersion":1,
+              "exportedAtEpochMs":1700000000000,
+              "supplements":[{
+                "name":"Vitamin C","dailyDose":"500 mg","intakeTime":"08:00","startDate":"2026-01-02","category":null,
+                "cycle":{"isContinuous":false,"daysOn":5,"daysOff":2,"durationMonths":3,"weeklyWeekdaysMask":2,
+                  "weeklyIntervalWeeks":2,"weeklyAnchorDate":"2026-01-05","intervalDays":3}
+              }]
+            }
+        """.trimIndent()
+
+        val result = useCase(json, clientId)
+
+        assertTrue(result.isSuccess)
+        assertEquals(
+            UUID.fromString("0c13f015-3ab0-47b7-af85-713a1c628ff0"),
+            repository.importedSupplements.single().id
+        )
+    }
+
+    @Test
+    fun legacyArrayWithoutId_derivesCanonicalCrossPlatformSupplementId() = kotlinx.coroutines.runBlocking {
+        val json = """
+            [{
+              "name":"Vitamin C","dailyDose":"500 mg","intakeTime":"08:00","startDate":"2026-01-02",
+              "cycle":{"isContinuous":false,"daysOn":5,"daysOff":2,"durationMonths":3,"weeklyWeekdaysMask":2,
+                "weeklyIntervalWeeks":2,"weeklyAnchorDate":"2026-01-05","intervalDays":3}
+            }]
+        """.trimIndent()
+
+        val result = useCase(json, clientId)
+
+        assertTrue(result.isSuccess)
+        assertEquals(
+            UUID.fromString("0c13f015-3ab0-47b7-af85-713a1c628ff0"),
+            repository.importedSupplements.single().id
+        )
+    }
+
+    @Test
     fun invalidJson_returnsFailureWithoutImporting() = kotlinx.coroutines.runBlocking {
         val result = useCase("not-json", clientId)
 

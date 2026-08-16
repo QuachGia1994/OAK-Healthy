@@ -64,6 +64,17 @@ abstract class SupplementDatabase : RoomDatabase() {
             FROM supplements
             """.trimIndent()
 
+        private val CREATE_INTAKE_RECORDS_STAGING_TABLE_SQL =
+            """
+            CREATE TABLE IF NOT EXISTS intake_records_staging (
+                id TEXT NOT NULL,
+                supplementId TEXT NOT NULL,
+                date INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                PRIMARY KEY(id)
+            )
+            """.trimIndent()
+
         private val CREATE_INTAKE_RECORDS_NEW_TABLE_SQL =
             """
             CREATE TABLE IF NOT EXISTS intake_records_new (
@@ -76,11 +87,18 @@ abstract class SupplementDatabase : RoomDatabase() {
             )
             """.trimIndent()
 
-        private val COPY_INTAKE_RECORDS_TO_NEW_SQL =
+        private val COPY_INTAKE_RECORDS_TO_STAGING_SQL =
+            """
+            INSERT INTO intake_records_staging (id, supplementId, date, status)
+            SELECT id, supplementId, date, status
+            FROM intake_records
+            """.trimIndent()
+
+        private val COPY_STAGED_INTAKE_RECORDS_TO_NEW_SQL =
             """
             INSERT INTO intake_records_new (id, supplementId, date, status)
             SELECT id, supplementId, date, status
-            FROM intake_records
+            FROM intake_records_staging
             """.trimIndent()
 
         fun getInstance(context: Context): SupplementDatabase {
@@ -101,14 +119,6 @@ abstract class SupplementDatabase : RoomDatabase() {
             }
         }
 
-        private fun disableForeignKeys(db: SupportSQLiteDatabase) {
-            db.execSQL("PRAGMA foreign_keys=OFF")
-        }
-
-        private fun enableForeignKeys(db: SupportSQLiteDatabase) {
-            db.execSQL("PRAGMA foreign_keys=ON")
-        }
-
         private fun ensureClientProfiles(db: SupportSQLiteDatabase) {
             db.execSQL(CREATE_CLIENT_PROFILES_TABLE_SQL)
             db.execSQL(INSERT_DEFAULT_CLIENT_PROFILE_SQL)
@@ -122,21 +132,26 @@ abstract class SupplementDatabase : RoomDatabase() {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_supplements_clientId ON supplements(clientId)")
         }
 
-        private fun migrateIntakeRecordsToCascade(db: SupportSQLiteDatabase) {
-            db.execSQL(CREATE_INTAKE_RECORDS_NEW_TABLE_SQL)
-            db.execSQL(COPY_INTAKE_RECORDS_TO_NEW_SQL)
+        private fun stageLegacyIntakeRecords(db: SupportSQLiteDatabase) {
+            db.execSQL(CREATE_INTAKE_RECORDS_STAGING_TABLE_SQL)
+            db.execSQL(COPY_INTAKE_RECORDS_TO_STAGING_SQL)
             db.execSQL("DROP TABLE intake_records")
+        }
+
+        private fun restoreStagedIntakeRecords(db: SupportSQLiteDatabase) {
+            db.execSQL(CREATE_INTAKE_RECORDS_NEW_TABLE_SQL)
+            db.execSQL(COPY_STAGED_INTAKE_RECORDS_TO_NEW_SQL)
+            db.execSQL("DROP TABLE intake_records_staging")
             db.execSQL("ALTER TABLE intake_records_new RENAME TO intake_records")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_intake_records_supplementId ON intake_records(supplementId)")
         }
 
         val MIGRATION_2_3: Migration = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                disableForeignKeys(db)
+                stageLegacyIntakeRecords(db)
                 ensureClientProfiles(db)
                 migrateSupplementsToClientScoped(db)
-                migrateIntakeRecordsToCascade(db)
-                enableForeignKeys(db)
+                restoreStagedIntakeRecords(db)
             }
         }
         

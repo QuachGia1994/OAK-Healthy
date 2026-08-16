@@ -278,7 +278,7 @@ private struct SafeBootView: View {
         DebugReporter.report("bootstrap_start")
         UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
-        let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
+        let schema = Schema(versionedSchema: OAKSchemaV1.self)
         guard let container = makeModelContainer(schema: schema) else {
             errorMessage = "bootstrap_init_failed_message".localized
             DebugReporter.report("bootstrap_container_failed")
@@ -323,11 +323,17 @@ private struct SafeBootView: View {
     
     @MainActor
     private func makeModelContainer(schema: Schema) -> ModelContainer? {
-        guard let storeURL = persistentStoreURL() else { return try? ModelContainer(for: schema) }
+        guard let storeURL = persistentStoreURL() else {
+            return try? ModelContainer(for: schema, migrationPlan: OAKSchemaMigrationPlan.self)
+        }
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         
         do {
-            return try ModelContainer(for: schema, configurations: configuration)
+            return try ModelContainer(
+                for: schema,
+                migrationPlan: OAKSchemaMigrationPlan.self,
+                configurations: [configuration]
+            )
         } catch {
             DebugReporter.report("swiftdata_init_failed", fields: [
                 "storeURL": storeURL.path,

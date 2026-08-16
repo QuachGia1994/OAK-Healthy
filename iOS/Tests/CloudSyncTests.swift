@@ -37,6 +37,26 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
         XCTAssertEqual(String(data: output, encoding: .utf8), #"{"oak":"interop"}"#)
     }
 
+    func testLegacyV1ExportDerivesCanonicalCrossPlatformSupplementId() throws {
+        let json = #"{"schemaVersion":1,"exportedAtEpochMs":1700000000000,"supplements":[{"name":"Vitamin C","dailyDose":"500 mg","intakeTime":"08:00","startDate":"2026-01-02","category":null,"cycle":{"isContinuous":false,"daysOn":5,"daysOff":2,"durationMonths":3,"weeklyWeekdaysMask":2,"weeklyIntervalWeeks":2,"weeklyAnchorDate":"2026-01-05","intervalDays":3}}]}"#
+        let data = try XCTUnwrap(json.data(using: .utf8))
+
+        let backup = try SupplementExportCodec.decodeBackupCompat(data: data)
+
+        XCTAssertEqual(backup.stack.count, 1)
+        XCTAssertEqual(backup.stack[0].id.lowercased(), "0c13f015-3ab0-47b7-af85-713a1c628ff0")
+    }
+
+    func testLegacyArrayWithoutIdDerivesCanonicalCrossPlatformSupplementId() throws {
+        let json = #"[{"name":"Vitamin C","dailyDose":"500 mg","intakeTime":"08:00","startDate":"2026-01-02","cycle":{"isContinuous":false,"daysOn":5,"daysOff":2,"durationMonths":3,"weeklyWeekdaysMask":2,"weeklyIntervalWeeks":2,"weeklyAnchorDate":"2026-01-05","intervalDays":3}}]"#
+        let data = try XCTUnwrap(json.data(using: .utf8))
+
+        let backup = try SupplementExportCodec.decodeBackupCompat(data: data)
+
+        XCTAssertEqual(backup.stack.count, 1)
+        XCTAssertEqual(backup.stack[0].id.lowercased(), "0c13f015-3ab0-47b7-af85-713a1c628ff0")
+    }
+
     func testBackupDecodeRunsOutsideMainActor() async throws {
         let json = #"{"version":"2.0","supplements":[],"historyLogs":[]}"#
         let data = try XCTUnwrap(json.data(using: .utf8))
