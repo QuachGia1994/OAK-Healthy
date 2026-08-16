@@ -88,6 +88,17 @@ public enum CloudSyncKeyManager {
         if isValidKeyId(keyId), try readKeyData(keyId: keyId) != nil { return keyId }
         return try rotateKey()
     }
+
+    public static func clearLocalKeyMaterial() throws(CloudSyncCryptoError) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw .cryptoFailed(message: "Keychain delete failed: \(status)")
+        }
+    }
     
     public static func keyData(for keyId: String) throws(CloudSyncCryptoError) -> Data? {
         guard isValidKeyId(keyId) else { return nil }

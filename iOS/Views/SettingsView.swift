@@ -326,7 +326,9 @@ public struct SettingsView: View {
             titleVisibility: .visible
         ) {
             Button("delete".localized, role: .destructive) {
-                performFactoryReset()
+                Task { @MainActor in
+                    await performFactoryReset()
+                }
             }
             Button("cancel".localized, role: .cancel) {}
         }
@@ -378,43 +380,20 @@ public struct SettingsView: View {
         return String(format: "cycle_summary_format".localized, statusText, config.daysOn, config.daysOff)
     }
 
-    private func performFactoryReset() {
+    @MainActor
+    private func performFactoryReset() async {
         do {
-            let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
-            for record in records {
-                modelContext.delete(record)
-            }
-            
-            let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
-            for supplement in supplements {
-                modelContext.delete(supplement)
-            }
-            
-            let clients = try modelContext.fetch(FetchDescriptor<ClientProfile>())
-            for client in clients {
-                modelContext.delete(client)
-            }
-            
-            try modelContext.save()
+            try await FactoryResetService.perform(
+                modelContext: modelContext,
+                activeClientManager: activeClientManager
+            )
         } catch {
+            showError(message: error.localizedDescription)
             return
         }
-        
-        UserDefaults.standard.removeObject(forKey: "SkippedUpdateVersion")
         appTheme = "system"
-        activeClientManager.setCurrentClientId(nil)
-        clearKeychainItems()
-    }
-
-    private func clearKeychainItems() {
-        let services = ["com.oakhealthy.cloudsync"]
-        for service in services {
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service
-            ]
-            SecItemDelete(query as CFDictionary)
-        }
+        isNotificationEnabledByUser = false
+        shareStackPNGURL = nil
     }
     
     @MainActor

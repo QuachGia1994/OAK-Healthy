@@ -37,6 +37,7 @@ import com.example.supplementtracker.service.CloudBackupEngine
 import com.example.supplementtracker.service.CloudSyncCrypto
 import com.example.supplementtracker.service.CloudSyncPayloadCodec
 import com.example.supplementtracker.service.CloudSyncLogStore
+import com.example.supplementtracker.service.FactoryResetEngine
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -116,6 +117,14 @@ class HomeViewModel(
     private val importBackupUseCase = ImportBackupUseCase(repository)
     private val recordDoseUseCase = RecordDoseUseCase(repository)
     private val notificationScheduleEngine = NotificationScheduleEngine(context, repository)
+    private val factoryResetEngine = FactoryResetEngine(
+        repository = repository,
+        clearNotifications = { notificationScheduleEngine.clearAll() },
+        disableAutoSync = { stopAutoSync() },
+        clearPreferences = { check(OakPrefs.get(context).edit().clear().commit()) },
+        clearCryptoMaterial = { CloudSyncCrypto.clearLocalKeyMaterial().getOrThrow() },
+        clearActiveClient = { activeClientManager.setCurrentClientId(null) }
+    )
     private val clientProfileUseCase = ClientProfileUseCase(repository)
     private val cloudHostEngine = CloudHostEngine(
         context = context,
@@ -522,6 +531,19 @@ class HomeViewModel(
     fun clearPendingNotifications() {
         viewModelScope.launch {
             notificationScheduleEngine.clearAll()
+        }
+    }
+
+    fun factoryReset(onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val result = factoryResetEngine.reset()
+            if (result.isSuccess) {
+                _hostedBinId.value = null
+                _cloudSyncUiStatus.value = null
+                _cloudSyncLoading.value = false
+                refresh()
+            }
+            onResult(result)
         }
     }
 

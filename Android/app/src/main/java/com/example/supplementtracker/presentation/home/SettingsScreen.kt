@@ -597,9 +597,19 @@ fun SettingsScreen(
             text = { Text(stringResource(R.string.wipe_data_warning)) },
             confirmButton = {
                 TextButton(onClick = {
-                    clients.forEach { homeViewModel.deleteClient(it) }
-                    activeClientManager.setCurrentClientId(null)
-                    isFactoryResetDialogVisible = false
+                    homeViewModel.factoryReset { result ->
+                        result.onSuccess {
+                            isNotificationEnabledByUser = false
+                            onThemeChange(AppTheme.SYSTEM)
+                            isFactoryResetDialogVisible = false
+                        }.onFailure { error ->
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    error.message ?: context.getString(R.string.error_unknown)
+                                )
+                            }
+                        }
+                    }
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
