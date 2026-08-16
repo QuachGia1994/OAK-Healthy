@@ -12,9 +12,6 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
-    configFiles:
-      Debug: Secrets.xcconfig
-      Release: Secrets.xcconfig
     sources:
       - path: SupplementTrackerApp.swift
       - path: Assets.xcassets
@@ -58,7 +55,6 @@ targets:
           - en
           - vi
         NSUserNotificationsUsageDescription: "OAK Healthy cần quyền gửi thông báo để nhắc nhở bạn uống đúng giờ."
-        JSONBIN_API_KEY: "$(JSONBIN_API_KEY)"
         UIApplicationSceneManifest:
           UISceneConfigurations: {}
         UILaunchStoryboardName: LaunchScreen

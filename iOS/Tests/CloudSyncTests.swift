@@ -216,6 +216,58 @@ final class FirebaseRevisionTests: XCTestCase {
     }
 }
 
+final class CloudSyncCoordinatorRegressionTests: XCTestCase {
+    @MainActor
+    func testLegacyFallbackOnlyForLegacyPayloadShapes() {
+        XCTAssertTrue(CloudSyncAutoSync.shouldUseLegacyFallback(.invalidResponse))
+        XCTAssertTrue(CloudSyncAutoSync.shouldUseLegacyFallback(.manifestCodec(.decodeFailed)))
+        XCTAssertFalse(CloudSyncAutoSync.shouldUseLegacyFallback(.networkError(message: "offline")))
+    }
+
+    @MainActor
+    func testConflictRetryOnlyForRevisionConflicts() {
+        XCTAssertTrue(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 409, body: "")))
+        XCTAssertTrue(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 412, body: "")))
+        XCTAssertFalse(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 500, body: "")))
+    }
+
+    @MainActor
+    func testSuccessfulSyncCleanupRemovesStaleFailureState() throws {
+        let suite = "CloudSyncCoordinatorRegressionTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let binId = "test-bin"
+        defaults.set("stale", forKey: "cloudSyncLastError_\(binId)")
+        defaults.set(123.0, forKey: "cloudSyncLastFailureEpoch")
+
+        CloudSyncAutoSync.clearFailureState(binId: binId, defaults: defaults)
+
+        XCTAssertNil(defaults.string(forKey: "cloudSyncLastError_\(binId)"))
+        XCTAssertEqual(defaults.double(forKey: "cloudSyncLastFailureEpoch"), 0)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    @MainActor
+    func testRunGateSerializesManualBehindAuto() async {
+        let gate = CloudSyncRunGate(waitInterval: .milliseconds(1))
+        XCTAssertTrue(gate.beginAuto())
+        XCTAssertFalse(gate.beginAuto())
+        XCTAssertTrue(gate.takeAutoRerun())
+        let release = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(20))
+            gate.finish()
+        }
+        let clock = ContinuousClock()
+        let started = clock.now
+        let acquired = await gate.beginManual()
+        let elapsed = started.duration(to: clock.now)
+
+        XCTAssertTrue(acquired)
+        XCTAssertTrue(elapsed >= Duration.milliseconds(10))
+        gate.finish()
+        _ = await release.value
+    }
+}
+
 final class CloudSyncCryptoInteropTests: XCTestCase {
     private let exportedKey = "interop-key:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
     private let nonce = "AAECAwQFBgcICQoL"

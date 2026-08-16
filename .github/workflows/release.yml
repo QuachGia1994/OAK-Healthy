@@ -124,13 +124,6 @@ jobs:
         with:
           ssh-private-key: ${{ env.MATCH_SSH_PRIVATE_KEY }}
 
-      - name: Inject API Keys securely
-        env:
-          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
-        run: |
-          mkdir -p iOS
-          printf "JSONBIN_API_KEY = %s\n" "${JSONBIN_KEY:-}" > iOS/Secrets.xcconfig
-
       - name: Generate Xcode Project
         run: |
           cd iOS
