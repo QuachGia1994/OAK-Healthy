@@ -107,7 +107,7 @@ enum CloudSyncAutoSync {
                 return
             }
             guard UIApplication.shared.applicationState == .active else { return }
-            await syncIfEnabled(modelContext: modelContext, clientId: clientId)
+            _ = await syncIfEnabled(modelContext: modelContext, clientId: clientId)
         }
     }
 
@@ -122,7 +122,7 @@ enum CloudSyncAutoSync {
             return
         }
         guard !Task.isCancelled else { return }
-        await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
+        _ = await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
         guard !Task.isCancelled else { return }
         if let binId = activeBinId(), !binId.isEmpty {
             await listener.start(manifestId: binId)
@@ -133,7 +133,7 @@ enum CloudSyncAutoSync {
             } catch {
                 return
             }
-            await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
+            _ = await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
         }
     }
 
@@ -171,13 +171,6 @@ enum CloudSyncAutoSync {
         } catch {
             return false
         }
-    }
-
-    private static func waitForCurrentSync() async -> Bool {
-        while isSyncing && !Task.isCancelled {
-            do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
-        }
-        return !Task.isCancelled
     }
 
     private static func performSync(
