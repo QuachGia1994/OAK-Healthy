@@ -38,6 +38,8 @@ versioning where practical.
 - iOS manual and automatic cloud sync now share one serialized engine, including legacy single-bin fallback and stale-error cleanup.
 - iOS cloud sync no longer carries the unused JSONBin HTTP transport or secret injection; orchestration now lives in a dedicated coordinator with regression-tested serialization/fallback/conflict handling.
 - iOS client-scoped SwiftData reads now scope through the target profile before applying record limits, preventing other profiles from hiding History or sync records and reducing fetch-all work.
+- Notification scheduling and dose actions now stay isolated to the active profile on Android and iOS, including profile switches, reboot/time-change rescheduling, and stale notification actions.
+- Android alarm receivers now retain their broadcast lifetime while asynchronous reminder validation and rescheduling complete.
 - Cloud hosting now cleans up partial uploads, and iOS re-hosting keeps the previous host until the replacement is ready.
 
 ### Security
