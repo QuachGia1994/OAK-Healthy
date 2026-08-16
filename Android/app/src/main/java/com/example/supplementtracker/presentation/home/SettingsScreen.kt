@@ -58,6 +58,8 @@ import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.service.ClientProfileMutationResult
+import com.example.supplementtracker.service.CommercialPlan
+import com.example.supplementtracker.service.EntitlementManager
 import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
@@ -87,9 +89,11 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 fun SettingsScreen(
     homeViewModel: HomeViewModel,
     activeClientManager: ActiveClientManager,
+    entitlementManager: EntitlementManager,
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit,
     onNavigateToNotificationCheck: () -> Unit,
+    onNavigateToPlanAccess: () -> Unit,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -101,6 +105,14 @@ fun SettingsScreen(
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val entitlementSnapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
+    val currentPlanLabel = stringResource(
+        when (entitlementSnapshot.plan) {
+            CommercialPlan.FREE -> R.string.plan_free_title
+            CommercialPlan.PRO -> R.string.plan_pro_title
+            CommercialPlan.COACH -> R.string.plan_coach_title
+        }
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     val hostView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -284,6 +296,16 @@ fun SettingsScreen(
                         ) {
                             Text(stringResource(R.string.add_a_client))
                         }
+                    }
+                }
+
+                item {
+                    SettingsSection(title = stringResource(R.string.plan_access_title)) {
+                        SettingsRow(
+                            title = stringResource(R.string.plan_access_manage),
+                            trailing = currentPlanLabel,
+                            onClick = onNavigateToPlanAccess
+                        )
                     }
                 }
 

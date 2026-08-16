@@ -8,6 +8,7 @@ import com.example.supplementtracker.presentation.add_supplement.AddSupplementVi
 import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.service.EntitlementManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -15,7 +16,8 @@ internal data class AppDependencies(
     val homeViewModel: HomeViewModel,
     val historyViewModel: HistoryViewModel,
     val addSupplementViewModel: AddSupplementViewModel,
-    val activeClientManager: ActiveClientManager
+    val activeClientManager: ActiveClientManager,
+    val entitlementManager: EntitlementManager
 )
 
 internal class AppDependenciesFactory(private val context: Context) {
@@ -33,6 +35,12 @@ internal class AppDependenciesFactory(private val context: Context) {
             context = context,
             activeClientManager = activeClientManager
         )
-        return AppDependencies(homeViewModel, historyViewModel, addViewModel, activeClientManager)
+        return AppDependencies(
+            homeViewModel,
+            historyViewModel,
+            addViewModel,
+            activeClientManager,
+            EntitlementManager()
+        )
     }
 }

@@ -410,6 +410,29 @@
     <string name="add_supplement_error_save_failed_format">Failed to save: %1$s</string>
     <string name="home_confirm_intake_action">Taken</string>
 
+    <string name="plan_access_title">Plan &amp; Access</string>
+    <string name="plan_access_manage">Manage plan and access</string>
+    <string name="plan_access_current_plan">Current plan</string>
+    <string name="plan_access_current_badge">Current</string>
+    <string name="plan_access_store_note">Purchases and localized prices will be provided by Google Play Billing in the store-connection stage.</string>
+    <string name="plan_free_title">Free</string>
+    <string name="plan_free_subtitle">Core tracking for one person.</string>
+    <string name="plan_pro_title">Pro</string>
+    <string name="plan_pro_subtitle">Advanced cycles, analytics and secure sync.</string>
+    <string name="plan_coach_title">Coach</string>
+    <string name="plan_coach_subtitle">Multi-client workflows for coaches.</string>
+    <string name="plan_feature_basic_tracking">Basic supplement tracking</string>
+    <string name="plan_feature_reminders">Reminder notifications</string>
+    <string name="plan_feature_recent_history">Recent history</string>
+    <string name="plan_feature_advanced_cycles">Advanced cycle scheduling</string>
+    <string name="plan_feature_unlimited_history">Unlimited history</string>
+    <string name="plan_feature_adherence_analytics">Adherence analytics</string>
+    <string name="plan_feature_encrypted_sync">Encrypted cloud sync</string>
+    <string name="plan_feature_data_export">Data export</string>
+    <string name="plan_feature_all_pro">Everything in Pro</string>
+    <string name="plan_feature_multi_client">Multi-client management</string>
+    <string name="plan_feature_coach_reports">Coach reports</string>
+
     <!-- Accessibility labels -->
     <string name="a11y_navigate_back">Go back</string>
     <string name="a11y_settings">Settings</string>

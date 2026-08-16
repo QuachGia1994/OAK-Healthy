@@ -7,6 +7,7 @@ public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
@@ -96,6 +97,7 @@ public struct SettingsView: View {
     private var settingsList: some View {
         List {
             clientManagementSection
+            planAccessSection
             appHeaderSection
             themeSelectionSection
             notificationsSection
@@ -221,6 +223,25 @@ public struct SettingsView: View {
     }
     
     @ViewBuilder
+    private var planAccessSection: some View {
+        Section {
+            NavigationLink {
+                PlanAccessView()
+            } label: {
+                HStack {
+                    Text("plan_access_manage".localized)
+                    Spacer()
+                    Text(planTitle(entitlementManager.snapshot.plan))
+                        .oakSecondaryText()
+                }
+            }
+        } header: {
+            Text("plan_access_title".localized)
+        }
+        .listRowBackground(glassRowBackground)
+    }
+
+    @ViewBuilder
     private var appHeaderSection: some View {
         Section {
             VStack(spacing: 12) {
@@ -313,6 +334,14 @@ public struct SettingsView: View {
                 }
             }
             Button("cancel".localized, role: .cancel) {}
+        }
+    }
+
+    private func planTitle(_ plan: CommercialPlan) -> String {
+        switch plan {
+        case .free: return "plan_free_title".localized
+        case .pro: return "plan_pro_title".localized
+        case .coach: return "plan_coach_title".localized
         }
     }
 
@@ -542,4 +571,5 @@ private struct MyStackListView: View {
 
 #Preview {
     SettingsView(activeClientManager: ActiveClientManager())
+        .environment(EntitlementManager())
 }

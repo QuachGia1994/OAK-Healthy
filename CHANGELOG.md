@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- Cross-platform Free/Pro/Coach entitlement policy, stable subscription product catalog, Plan & Access UI, and monetization delivery roadmap.
 - Cross-platform AES-GCM interoperability and revision validation tests.
 - In-app sync security guidance, unlink controls, and protected key display.
 - Durable iOS notification actions for Taken and Skipped dose events.

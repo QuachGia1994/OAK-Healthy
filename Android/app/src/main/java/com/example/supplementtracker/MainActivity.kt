@@ -222,6 +222,7 @@ class MainActivity : ComponentActivity() {
             historyViewModel = ready.historyViewModel,
             addSupplementViewModel = ready.addSupplementViewModel,
             activeClientManager = ready.activeClientManager,
+            entitlementManager = ready.entitlementManager,
             appTheme = appTheme,
             onThemeChange = onThemeChange
         )

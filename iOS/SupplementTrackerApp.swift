@@ -113,6 +113,7 @@ private struct RootLaunchView: View {
                     }
                 }
                 .modelContainer(dependencies.modelContainer)
+                .environment(dependencies.entitlementManager)
                 .task {
                     DebugReporter.report("ui_task_start", fields: [
                         "safeMode": String(isSafeModeEnabled),
@@ -176,6 +177,7 @@ struct AppDependencyContainer {
     let modelContainer: ModelContainer
     let activeClientManager: ActiveClientManager
     let notificationService: NotificationService
+    let entitlementManager: EntitlementManager
 }
 
 private struct IntegrityBlockedView: View {
@@ -286,7 +288,8 @@ private struct SafeBootView: View {
             AppDependencyContainer(
                 modelContainer: container,
                 activeClientManager: manager,
-                notificationService: notificationService
+                notificationService: notificationService,
+                entitlementManager: EntitlementManager()
             )
         )
         Task { @MainActor in

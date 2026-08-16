@@ -410,6 +410,29 @@
     <string name="add_supplement_error_save_failed_format">Lưu thất bại: %1$s</string>
     <string name="home_confirm_intake_action">Đã uống</string>
 
+    <string name="plan_access_title">Gói &amp; Quyền truy cập</string>
+    <string name="plan_access_manage">Quản lý gói và quyền truy cập</string>
+    <string name="plan_access_current_plan">Gói hiện tại</string>
+    <string name="plan_access_current_badge">Hiện tại</string>
+    <string name="plan_access_store_note">Mua gói và giá bản địa hóa sẽ được cung cấp bởi Google Play Billing ở giai đoạn kết nối store.</string>
+    <string name="plan_free_title">Free</string>
+    <string name="plan_free_subtitle">Theo dõi cốt lõi cho một người.</string>
+    <string name="plan_pro_title">Pro</string>
+    <string name="plan_pro_subtitle">Chu kỳ nâng cao, phân tích và đồng bộ bảo mật.</string>
+    <string name="plan_coach_title">Coach</string>
+    <string name="plan_coach_subtitle">Quy trình đa học viên dành cho coach.</string>
+    <string name="plan_feature_basic_tracking">Theo dõi supplement cơ bản</string>
+    <string name="plan_feature_reminders">Thông báo nhắc lịch</string>
+    <string name="plan_feature_recent_history">Lịch sử gần đây</string>
+    <string name="plan_feature_advanced_cycles">Lịch chu kỳ nâng cao</string>
+    <string name="plan_feature_unlimited_history">Lịch sử không giới hạn</string>
+    <string name="plan_feature_adherence_analytics">Phân tích mức độ tuân thủ</string>
+    <string name="plan_feature_encrypted_sync">Đồng bộ cloud mã hóa</string>
+    <string name="plan_feature_data_export">Xuất dữ liệu</string>
+    <string name="plan_feature_all_pro">Toàn bộ tính năng Pro</string>
+    <string name="plan_feature_multi_client">Quản lý nhiều học viên</string>
+    <string name="plan_feature_coach_reports">Báo cáo cho coach</string>
+
     <!-- Nhãn hỗ trợ tiếp cận -->
     <string name="a11y_navigate_back">Quay lại</string>
     <string name="a11y_settings">Cài đặt</string>

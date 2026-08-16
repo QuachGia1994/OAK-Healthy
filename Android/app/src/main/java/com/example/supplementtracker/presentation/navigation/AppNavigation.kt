@@ -77,6 +77,8 @@ import com.example.supplementtracker.presentation.home.SettingsScreen
 import com.example.supplementtracker.presentation.home.UserGuideScreen
 import com.example.supplementtracker.presentation.sync.SyncCenterScreen
 import com.example.supplementtracker.presentation.onboarding.OnboardingScreen
+import com.example.supplementtracker.presentation.monetization.PlanAccessScreen
+import com.example.supplementtracker.service.EntitlementManager
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -100,6 +102,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object AddSupplement : Screen("add_supplement", R.string.app_name, { })
     data object EditSupplement : Screen("edit_supplement/{id}", R.string.app_name, { })
     data object SyncCenter : Screen("sync_center", R.string.sync_center_title, { })
+    data object PlanAccess : Screen("plan_access", R.string.plan_access_title, { })
     data object Onboarding : Screen("onboarding", R.string.app_name, { })
 }
 
@@ -110,6 +113,7 @@ fun AppNavigation(
     historyViewModel: HistoryViewModel,
     addSupplementViewModel: AddSupplementViewModel,
     activeClientManager: ActiveClientManager,
+    entitlementManager: EntitlementManager,
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
@@ -234,10 +238,18 @@ fun AppNavigation(
                     SettingsScreen(
                         homeViewModel = homeViewModel,
                         activeClientManager = activeClientManager,
+                        entitlementManager = entitlementManager,
                         appTheme = appTheme,
                         onThemeChange = onThemeChange,
                         onNavigateToNotificationCheck = { navController.navigate(Screen.NotificationCheck.route) },
+                        onNavigateToPlanAccess = { navController.navigate(Screen.PlanAccess.route) },
                         onClose = { navController.popBackStack() }
+                    )
+                }
+                composable(Screen.PlanAccess.route) {
+                    PlanAccessScreen(
+                        entitlementManager = entitlementManager,
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable(Screen.AddSupplement.route) {
