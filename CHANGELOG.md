@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- P9.1 Data Recovery 2.0 adds detailed no-write import previews, duplicate/orphan collision gates, pre-restore snapshots with rollback, Android↔iOS fixtures, and complete supported-schema/database migration matrices.
 - P7.1–P8 reliability/maturity work: cross-platform reminder health and repair paths, 7/30/90-day Coach reports, typed sync recovery states, semantic backup integrity manifests, adaptive report/demo layouts, synthetic QA scenarios, and a repository product-readiness CI gate.
 - New Android/iOS backup fixtures assert the same canonical SHA-256 digest and reject payload changes before import persistence mutation.
 - P5.1A store-neutral commerce lifecycle/replay core on Android and iOS with retry-safe authority-unavailable behavior, fail-closed downgrade states, and unit fixtures; it is not a runtime premium unlock path.
@@ -44,6 +45,7 @@ versioning where practical.
 
 ### Fixed
 
+- Backup restore no longer silently drops orphan or high-volume history; future schemas and incomplete recurrence payloads now fail closed, and Safe Mode requires a stable preview before applying downloaded data.
 - P7/P8 Android backup identity compatibility now stays within the enforced core function-length gate.
 - Android consumed one-shot reminders now remove their schedule-registry entry when the broadcast is received, preventing successfully delivered alarms from being reported as stale by reminder-health diagnostics.
 - Android Coach Overview no longer imports Compose's internal `weight` symbol, fixing the `defc7bf` compile regression; iOS SwiftData schema version identity is now computed rather than stored as a non-Sendable static value under Swift 6 concurrency checks.

@@ -23,8 +23,11 @@ jobs:
       - name: Validate P7/P8 maturity scenarios
         run: python3 scripts/product_readiness.py
 
+      - name: Validate P9.1 data recovery matrix
+        run: python3 scripts/data_recovery_gate.py
+
       - name: Run readiness unit tests
-        run: python3 -m unittest scripts.tests.test_product_readiness -q
+        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate -q
 
   ios:
     name: iOS Coverage >= 80%
