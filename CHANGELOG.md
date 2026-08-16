@@ -8,6 +8,8 @@ versioning where practical.
 
 ### Added
 
+- P7.1–P8 reliability/maturity work: cross-platform reminder health and repair paths, 7/30/90-day Coach reports, typed sync recovery states, semantic backup integrity manifests, adaptive report/demo layouts, synthetic QA scenarios, and a repository product-readiness CI gate.
+- New Android/iOS backup fixtures assert the same canonical SHA-256 digest and reject payload changes before import persistence mutation.
 - P5.1A store-neutral commerce lifecycle/replay core on Android and iOS with retry-safe authority-unavailable behavior, fail-closed downgrade states, and unit fixtures; it is not a runtime premium unlock path.
 - P5.2–P6 product work for deferred-store development: plan-preview fallback, first-value onboarding guidance, entitlement-gated Coach Overview, overdue recovery CTA, reminder-rebuild visibility, EN/VI copy, and debug-only read-only synthetic demo screens.
 - Phase 4 commercial validation/growth gates: machine-checkable real-store evidence, production candidate matching, privacy-safe aggregate KPI reporting, and a P4.1–P4.4 operations runbook/templates.
@@ -42,6 +44,8 @@ versioning where practical.
 
 ### Fixed
 
+- Android consumed one-shot reminders now remove their schedule-registry entry when the broadcast is received, preventing successfully delivered alarms from being reported as stale by reminder-health diagnostics.
+- Android Coach Overview no longer imports Compose's internal `weight` symbol, fixing the `defc7bf` compile regression; iOS SwiftData schema version identity is now computed rather than stored as a non-Sendable static value under Swift 6 concurrency checks.
 - Android Room v2→v3 now stages intake history before rebuilding the supplement table, preventing foreign-key cascades from deleting legacy history during migration.
 - Legacy v1 and ID-less backup payloads now derive the same deterministic supplement identity on Android and iOS, preventing cross-platform duplicate identities after import or sync.
 - iOS dose-time and supplement deletion now await notification cleanup before returning, and nil-client autosync requests no longer retain short-lived SwiftData contexts after teardown.
