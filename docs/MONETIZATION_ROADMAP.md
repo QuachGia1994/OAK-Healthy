@@ -9,13 +9,13 @@ OAK Healthy is a supplement cycle and adherence system for individual power user
 ### Free
 - Basic supplement tracking
 - Reminder notifications
-- Recent history
+- Recent history (7 days)
 - One client profile
 
 ### Pro
 - Everything in Free
 - Advanced cycle scheduling
-- Unlimited history
+- Extended history (90 days)
 - Adherence analytics
 - Encrypted cloud sync
 - Data export
@@ -24,6 +24,7 @@ OAK Healthy is a supplement cycle and adherence system for individual power user
 ### Coach
 - Everything in Pro
 - Multi-client management
+- Extended history (365 days)
 - Coach reports and client-oriented workflows
 
 Store prices are never hard-coded into entitlement logic. App Store and Google Play are the source of truth for localized price and offer data.
@@ -63,7 +64,7 @@ Changing these identifiers after launch requires store-side migration, so they a
 
 ### P3.4 — Commercial Feature Enforcement
 - Enforce one-client limit for Free/Pro without deleting existing user data.
-- Gate advanced cycles, unlimited history, analytics, encrypted cloud sync and export behind Pro.
+- Gate advanced cycles, extended history, analytics, encrypted cloud sync and export behind Pro.
 - Gate multi-client/coach workflows behind Coach.
 - Existing users above a new limit remain readable and receive an upgrade path instead of destructive migration.
 - Deep links and background workers fail closed when entitlement is insufficient.

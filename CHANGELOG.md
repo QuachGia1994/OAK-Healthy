@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- Beta/store release preflight, safe beta/internal defaults, explicit production confirmation, Play billing-key release wiring, launch checklist, listing copy, and signed iOS Crashlytics dSYM upload.
 - Privacy-first Firebase Analytics/Crashlytics diagnostics on Android and iOS with explicit opt-in, allowlisted commercial funnel events, health-data field scrubbing, in-app disclosure, and store privacy declaration guidance.
 - StoreKit 2 and Google Play Billing 9.1 subscription flows with store-localized pricing, purchase/restore handling, verified entitlement resolution, and fail-closed pending/unverified purchase behavior.
 - Cross-platform Free/Pro/Coach entitlement policy, stable subscription product catalog, Plan & Access UI, and monetization delivery roadmap.
