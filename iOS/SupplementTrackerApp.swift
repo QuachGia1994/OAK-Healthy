@@ -472,7 +472,7 @@ private struct SafeModeView: View {
             let client = try createImportClient()
             try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
             activeClientManager.setCurrentClientId(client.id)
-            applyPendingImportLink()
+            applyPendingImportLink(clientId: client.id)
             if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser"),
                !(await rescheduleImportedNotifications(clientId: client.id)) {
                 return
@@ -491,10 +491,10 @@ private struct SafeModeView: View {
         }
     }
     
-    private func applyPendingImportLink() {
+    private func applyPendingImportLink(clientId: UUID) {
         let linked = pendingImportLinkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !linked.isEmpty else { return }
-        UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
+        CloudSyncProfileStore().setLinkedBinId(linked, clientId: clientId)
     }
 
     @MainActor
@@ -621,6 +621,7 @@ struct MainTabView: View {
             }
         }
         .onChange(of: activeClientManager.currentClientId, initial: false) { _, _ in
+            handleAutoSync(phase: scenePhase)
             Task { @MainActor in
                 await rescheduleNotificationsIfEnabled()
                 await refreshHomeBadgeCount()

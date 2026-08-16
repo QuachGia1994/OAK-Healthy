@@ -61,7 +61,7 @@ enum CloudSyncAutoSync {
         modelContext: ModelContext,
         activeClientManager: ActiveClientManager
     ) {
-        let requestedManifestId = activeBinId()
+        let requestedManifestId = activeBinId(clientId: activeClientManager.currentClientId)
         guard realtimeTask == nil || realtimeManifestId != requestedManifestId else { return }
         markActivity()
         guard realtimeTask == nil else {
@@ -124,7 +124,7 @@ enum CloudSyncAutoSync {
         guard !Task.isCancelled else { return }
         _ = await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
         guard !Task.isCancelled else { return }
-        if let binId = activeBinId(), !binId.isEmpty {
+        if let binId = activeBinId(clientId: activeClientManager.currentClientId), !binId.isEmpty {
             await listener.start(manifestId: binId)
         }
         while !Task.isCancelled {
@@ -164,7 +164,7 @@ enum CloudSyncAutoSync {
 
     private static func performSyncIfEnabled(modelContext: ModelContext, clientId: UUID?) async -> Bool {
         guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return false }
-        guard let binId = activeBinId(), let clientId else { return false }
+        guard let clientId, let binId = activeBinId(clientId: clientId) else { return false }
         do {
             try await performSync(modelContext: modelContext, clientId: clientId, binId: binId)
             return true
@@ -679,11 +679,8 @@ enum CloudSyncAutoSync {
         return .seconds(600)
     }
 
-    private static func activeBinId() -> String? {
-        let hosted = UserDefaults.standard.string(forKey: "cloudSyncHostedBinId") ?? ""
-        let linked = UserDefaults.standard.string(forKey: "cloudSyncLinkedBinId") ?? ""
-        let trimmed = (hosted.isEmpty ? linked : hosted).trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+    private static func activeBinId(clientId: UUID?) -> String? {
+        CloudSyncProfileStore().activeManifestId(clientId: clientId)
     }
 
     private static func makeStackBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {

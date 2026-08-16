@@ -345,7 +345,8 @@ public struct SettingsView: View {
             showError(message: error.localizedDescription)
             return
         }
-        
+        CloudSyncProfileStore().clearLinks(clientId: client.id)
+
         guard deletingActive else { return }
         let fallback = clients.first { $0.id != client.id }?.id
         activeClientManager.setCurrentClientId(fallback)

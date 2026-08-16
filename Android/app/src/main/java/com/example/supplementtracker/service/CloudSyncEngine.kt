@@ -32,9 +32,9 @@ class CloudSyncEngine(
     private val context: Context,
     private val repository: SupplementRepository,
     private val currentClientId: () -> java.util.UUID?,
-    private val buildFullBackupJson: suspend () -> Result<String>,
-    private val buildStackBackupJson: suspend () -> Result<String>,
-    private val buildHistoryBackupJson: suspend () -> Result<String>,
+    private val buildFullBackupJson: suspend (java.util.UUID) -> Result<String>,
+    private val buildStackBackupJson: suspend (java.util.UUID) -> Result<String>,
+    private val buildHistoryBackupJson: suspend (java.util.UUID) -> Result<String>,
     private val updateUi: suspend (String) -> Unit,
     private val setLoading: (Boolean) -> Unit,
     private val rescheduleNotifications: suspend () -> Unit,
@@ -369,7 +369,7 @@ class CloudSyncEngine(
             )
             return
         }
-        pushLegacyFullPayload(prefs, keys, manifestEtag, bytesDown, startedAt)
+        pushLegacyFullPayload(prefs, keys, manifestEtag, bytesDown, clientId, startedAt)
     }
 
     private suspend fun mergeLegacyPayload(
@@ -403,12 +403,13 @@ class CloudSyncEngine(
         keys: SyncKeys,
         manifestEtag: String,
         bytesDown: Int,
+        clientId: java.util.UUID,
         startedAt: Long
     ) {
         prefs.edit().putString(keys.phase, SyncPhase.PUSHING.name).apply()
         updateUi(keys.manifestId)
         val pushStartedAt = SystemClock.elapsedRealtime()
-        val fullEnc = buildAndEncryptFullBackup(prefs, keys, pushStartedAt, startedAt) ?: return
+        val fullEnc = buildAndEncryptFullBackup(prefs, keys, clientId, pushStartedAt, startedAt) ?: return
         val bytesUp = fullEnc.toByteArray(Charsets.UTF_8).size.toLong()
         prefs.edit().putLong(keys.bytesUp, bytesUp).apply()
         if (!upsertLegacyManifest(prefs, keys, fullEnc, manifestEtag, pushStartedAt, startedAt)) return
@@ -419,10 +420,11 @@ class CloudSyncEngine(
     private suspend fun buildAndEncryptFullBackup(
         prefs: android.content.SharedPreferences,
         keys: SyncKeys,
+        clientId: java.util.UUID,
         pushStartedAt: Long,
         startedAt: Long
     ): String? {
-        val fullPlain = buildFullBackupJson().getOrElse {
+        val fullPlain = buildFullBackupJson(clientId).getOrElse {
             abortCloudSync(
                 prefs, keys.manifestId, keys.lastError, keys.phase, keys.pushMs,
                 pushStartedAt, startedAt, it.message ?: "Export failed", "Export failed"
@@ -634,12 +636,12 @@ class CloudSyncEngine(
         val (stackResult, historyResult) = coroutineScope {
             val stackDeferred = async(Dispatchers.IO) {
                 if (localStackChanged) {
-                    pushPart(cloud, prefs, keys, stackId, keys.etagStack, { buildStackBackupJson() }, "STACK", clientId, mergeMutex)
+                    pushPart(cloud, prefs, keys, stackId, keys.etagStack, { buildStackBackupJson(clientId) }, "STACK", clientId, mergeMutex)
                 } else null
             }
             val historyDeferred = async(Dispatchers.IO) {
                 if (localHistoryChanged) {
-                    pushPart(cloud, prefs, keys, historyId, keys.etagHistory, { buildHistoryBackupJson() }, "HISTORY", clientId, mergeMutex)
+                    pushPart(cloud, prefs, keys, historyId, keys.etagHistory, { buildHistoryBackupJson(clientId) }, "HISTORY", clientId, mergeMutex)
                 } else null
             }
             stackDeferred.await() to historyDeferred.await()

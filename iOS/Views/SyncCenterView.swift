@@ -8,10 +8,10 @@ public struct SyncCenterView: View {
     
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
-    @AppStorage("cloudSyncHostedBinId") private var hostedBinId: String = ""
-    @AppStorage("cloudSyncLinkedBinId") private var linkedBinId: String = ""
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
-    
+
+    @State private var hostedBinId: String = ""
+    @State private var linkedBinId: String = ""
     @State private var selectedTab: SyncCenterTab = .host
     @State private var linkCodeInput: String = ""
     @State private var isInputCodeVisible: Bool = false
@@ -43,6 +43,7 @@ public struct SyncCenterView: View {
     @State private var logEntries: [CloudSyncLogEntry] = []
     
     public let activeClientManager: ActiveClientManager
+    private let cloudSyncProfileStore = CloudSyncProfileStore()
     
     public init(activeClientManager: ActiveClientManager) {
         self.activeClientManager = activeClientManager
@@ -79,6 +80,7 @@ public struct SyncCenterView: View {
             DebugReporter.report("sync_center_task_reload_caches", fields: [
                 "clientId": activeClientManager.currentClientId?.uuidString ?? ""
             ])
+            loadProfileCloudLinks()
             await reloadCaches()
         }
         .task(id: activeBinId) {
@@ -477,11 +479,7 @@ public struct SyncCenterView: View {
 
         if !linkedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("sync_center_unlink_action".localized, role: .destructive) {
-                linkedBinId = ""
-                linkCodeInput = ""
-                if hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    isAutoSyncEnabled = false
-                }
+                unlinkCurrentProfile()
             }
             .disabled(isCloudSyncLoading)
         }
@@ -736,17 +734,19 @@ public struct SyncCenterView: View {
     }
     
     private func hostData() async {
-        guard activeClientManager.currentClientId != nil else {
+        guard let clientId = activeClientManager.currentClientId else {
             showToast("sync_center_toast_missing_client".localized)
             return
         }
         await withLoading {
             await reloadCaches()
+            guard activeClientManager.currentClientId == clientId else { return }
             isBinIdVisible = false
             do {
                 let old = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
                 let newId = try await uploadHostedBackup()
-                hostedBinId = newId
+                cloudSyncProfileStore.setHostedBinId(newId, clientId: clientId)
+                if activeClientManager.currentClientId == clientId { hostedBinId = newId }
                 if !old.isEmpty, old != newId {
                     try? await revokeOldHostedBinIfNeeded(oldBinId: old)
                 }
@@ -759,6 +759,7 @@ public struct SyncCenterView: View {
     }
     
     private func revokeHostedBin() async {
+        guard let clientId = activeClientManager.currentClientId else { return }
         let binId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !binId.isEmpty else { return }
         
@@ -774,7 +775,8 @@ public struct SyncCenterView: View {
             if !stack.isEmpty { try? await CloudSyncManager.shared.deleteBackup(binId: stack) }
             if !history.isEmpty { try? await CloudSyncManager.shared.deleteBackup(binId: history) }
             try await CloudSyncManager.shared.deleteBackup(binId: binId)
-            hostedBinId = ""
+            cloudSyncProfileStore.setHostedBinId(nil, clientId: clientId)
+            if activeClientManager.currentClientId == clientId { hostedBinId = "" }
             isBinIdVisible = false
             appendLog(binId: binId, phase: "HOST", message: "REVOKE DONE")
             showToast("sync_center_toast_revoke_done".localized)
@@ -797,6 +799,8 @@ public struct SyncCenterView: View {
         }
         await withLoading {
             if await runSyncFlow(binId: binId, clientId: clientId, label: "LINK") {
+                guard activeClientManager.currentClientId == clientId else { return }
+                cloudSyncProfileStore.setLinkedBinId(binId, clientId: clientId)
                 linkedBinId = binId
             }
         }
@@ -980,6 +984,24 @@ public struct SyncCenterView: View {
             cachedRecords = recordIds.compactMap { modelContext.model(for: $0) as? IntakeRecord }
         } catch {
             clearCaches()
+        }
+    }
+
+    private func loadProfileCloudLinks() {
+        let links = cloudSyncProfileStore.links(clientId: activeClientManager.currentClientId)
+        hostedBinId = links.hostedBinId ?? ""
+        linkedBinId = links.linkedBinId ?? ""
+        linkCodeInput = linkedBinId
+    }
+
+    private func unlinkCurrentProfile() {
+        guard let clientId = activeClientManager.currentClientId else { return }
+        cloudSyncProfileStore.setLinkedBinId(nil, clientId: clientId)
+        linkedBinId = ""
+        linkCodeInput = ""
+        if hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            isAutoSyncEnabled = false
+            CloudSyncAutoSync.stopRealtimeSync()
         }
     }
 

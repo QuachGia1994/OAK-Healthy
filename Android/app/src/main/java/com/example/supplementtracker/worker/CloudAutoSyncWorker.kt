@@ -9,6 +9,7 @@ import com.example.supplementtracker.service.ActiveClientStore
 import com.example.supplementtracker.service.CloudBackupEngine
 import com.example.supplementtracker.service.CloudSyncEngine
 import com.example.supplementtracker.service.CloudSyncLogStore
+import com.example.supplementtracker.service.CloudSyncProfileStore
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.service.OakPrefs
 import kotlinx.coroutines.Dispatchers
@@ -22,12 +23,13 @@ class CloudAutoSyncWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         val prefs = OakPrefs.get(applicationContext)
+        val clientId = activeClientStore.currentClientId() ?: return@withContext Result.success()
+        val links = CloudSyncProfileStore(applicationContext).links(clientId)
         val manifestId = CloudAutoSyncPolicy.selectManifestId(
             enabled = prefs.getBoolean("isAutoSyncEnabled", false),
-            hosted = prefs.getString("cloudSyncHostedBinId", ""),
-            linked = prefs.getString("cloudSyncLinkedBinId", "")
+            hosted = links.hostedBinId,
+            linked = links.linkedBinId
         ) ?: return@withContext Result.success()
-        if (activeClientStore.currentClientId() == null) return@withContext Result.success()
         if (isRecentlyAttempted(prefs, manifestId)) return@withContext Result.success()
         val syncSucceeded = runCatching { buildSyncEngine().syncTwoWay(manifestId) }.getOrDefault(false)
         when (CloudAutoSyncPolicy.outcome(
@@ -60,9 +62,9 @@ class CloudAutoSyncWorker(
             context = applicationContext,
             repository = repository,
             currentClientId = activeClientStore::currentClientId,
-            buildFullBackupJson = { backupEngine.buildFullBackupJson() },
-            buildStackBackupJson = { backupEngine.buildStackBackupJson() },
-            buildHistoryBackupJson = { backupEngine.buildHistoryBackupJson() },
+            buildFullBackupJson = { clientId -> backupEngine.buildFullBackupJson(clientId) },
+            buildStackBackupJson = { clientId -> backupEngine.buildStackBackupJson(clientId) },
+            buildHistoryBackupJson = { clientId -> backupEngine.buildHistoryBackupJson(clientId) },
             updateUi = {},
             setLoading = {},
             rescheduleNotifications = { notificationEngine.rescheduleAll() },

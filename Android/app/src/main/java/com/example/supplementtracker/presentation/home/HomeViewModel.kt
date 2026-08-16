@@ -39,6 +39,7 @@ import com.example.supplementtracker.service.CloudBackupEngine
 import com.example.supplementtracker.service.CloudSyncCrypto
 import com.example.supplementtracker.service.CloudSyncPayloadCodec
 import com.example.supplementtracker.service.CloudSyncLogStore
+import com.example.supplementtracker.service.CloudSyncProfileStore
 import com.example.supplementtracker.service.ActiveProfileNotificationPolicy
 import com.example.supplementtracker.service.FactoryResetEngine
 import com.example.supplementtracker.service.NotificationScheduleEngine
@@ -93,8 +94,12 @@ class HomeViewModel(
     val dataTransferMessage: StateFlow<String?> = _dataTransferMessage
     private val _cloudSyncLoading = MutableStateFlow(false)
     val cloudSyncLoading: StateFlow<Boolean> = _cloudSyncLoading
-    private val _hostedBinId = MutableStateFlow<String?>(null)
+    private val cloudSyncProfileStore = CloudSyncProfileStore(context)
+    private val initialCloudLinks = cloudSyncProfileStore.links(activeClientManager.currentClientId.value)
+    private val _hostedBinId = MutableStateFlow(initialCloudLinks.hostedBinId)
     val hostedBinId: StateFlow<String?> = _hostedBinId
+    private val _linkedBinId = MutableStateFlow(initialCloudLinks.linkedBinId)
+    val linkedBinId: StateFlow<String?> = _linkedBinId
     private val _cloudSyncUiStatus = MutableStateFlow<CloudSyncUiStatus?>(null)
     val cloudSyncUiStatus: StateFlow<CloudSyncUiStatus?> = _cloudSyncUiStatus
     private var pendingAutoSyncJob: Job? = null
@@ -107,9 +112,9 @@ class HomeViewModel(
         context = context,
         repository = repository,
         currentClientId = { activeClientManager.currentClientId.value },
-        buildFullBackupJson = { cloudBackupEngine.buildFullBackupJson() },
-        buildStackBackupJson = { cloudBackupEngine.buildStackBackupJson() },
-        buildHistoryBackupJson = { cloudBackupEngine.buildHistoryBackupJson() },
+        buildFullBackupJson = { clientId -> cloudBackupEngine.buildFullBackupJson(clientId) },
+        buildStackBackupJson = { clientId -> cloudBackupEngine.buildStackBackupJson(clientId) },
+        buildHistoryBackupJson = { clientId -> cloudBackupEngine.buildHistoryBackupJson(clientId) },
         updateUi = { updateCloudSyncUiStatus(it) },
         setLoading = { _cloudSyncLoading.value = it },
         rescheduleNotifications = { rescheduleNotificationsNow() },
@@ -135,11 +140,12 @@ class HomeViewModel(
     private val clientProfileUseCase = ClientProfileUseCase(repository)
     private val cloudHostEngine = CloudHostEngine(
         context = context,
-        getHostedBinId = { _hostedBinId.value },
-        setHostedBinId = { _hostedBinId.value = it },
-        buildStackBackupJson = { cloudBackupEngine.buildStackBackupJson() },
-        buildHistoryBackupJson = { cloudBackupEngine.buildHistoryBackupJson() },
-        buildFullBackupJson = { cloudBackupEngine.buildFullBackupJson() },
+        currentClientId = { activeClientManager.currentClientId.value },
+        getHostedBinId = { clientId -> cloudSyncProfileStore.links(clientId).hostedBinId },
+        setHostedBinId = { clientId, binId -> setHostedBinId(clientId, binId) },
+        buildStackBackupJson = { clientId -> cloudBackupEngine.buildStackBackupJson(clientId) },
+        buildHistoryBackupJson = { clientId -> cloudBackupEngine.buildHistoryBackupJson(clientId) },
+        buildFullBackupJson = { clientId -> cloudBackupEngine.buildFullBackupJson(clientId) },
         updateUi = { updateCloudSyncUiStatus(it) },
         setLoading = { _cloudSyncLoading.value = it },
         appendLog = CloudSyncLogStore::append,
@@ -192,8 +198,23 @@ class HomeViewModel(
         viewModelScope.launch {
             activeClientManager.currentClientId
                 .drop(1)
-                .collectLatest { rescheduleNotificationsNow() }
+                .collectLatest { handleActiveClientChanged(it) }
         }
+    }
+
+    private suspend fun handleActiveClientChanged(clientId: java.util.UUID?) {
+        pendingAutoSyncJob?.cancel()
+        pendingAutoSyncJob = null
+        stopRealtimeListener()
+        val links = cloudSyncProfileStore.links(clientId)
+        _hostedBinId.value = links.hostedBinId
+        _linkedBinId.value = links.linkedBinId
+        _cloudSyncUiStatus.value = null
+        rescheduleNotificationsNow()
+        if (!OakPrefs.get(context).getBoolean("isAutoSyncEnabled", false)) return
+        val manifestId = links.activeManifestId ?: return
+        startRealtimeListener()
+        requestAutoSyncDebounced(manifestId, delayMillis = 0L)
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -521,13 +542,14 @@ class HomeViewModel(
     }
     
     private fun activeAutoSyncBinId(): String? {
-        val prefs = OakPrefs.get(context)
-        val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
-        if (!enabled) return null
-        val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
-        val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
-        val id = if (hosted.isNotEmpty()) hosted else linked
-        return id.takeIf { it.isNotEmpty() }
+        if (!OakPrefs.get(context).getBoolean("isAutoSyncEnabled", false)) return null
+        return cloudSyncProfileStore.activeManifestId(activeClientManager.currentClientId.value)
+    }
+
+    private fun setHostedBinId(clientId: java.util.UUID, binId: String?) {
+        cloudSyncProfileStore.setHostedBinId(clientId, binId)
+        if (activeClientManager.currentClientId.value != clientId) return
+        _hostedBinId.value = binId?.trim()?.takeIf { it.isNotEmpty() }
     }
     
     private fun requestAutoSyncDebounced(binId: String, delayMillis: Long = 350L) {
@@ -558,6 +580,7 @@ class HomeViewModel(
             val result = factoryResetEngine.reset()
             if (result.isSuccess) {
                 _hostedBinId.value = null
+                _linkedBinId.value = null
                 _cloudSyncUiStatus.value = null
                 _cloudSyncLoading.value = false
                 refresh()
@@ -570,10 +593,23 @@ class HomeViewModel(
         notificationScheduleEngine.rescheduleAll()
     }
 
-    fun receiveData(binId: String) {
+    fun linkData(binId: String) {
         viewModelScope.launch {
-            syncTwoWay(binId)
+            val clientId = activeClientManager.currentClientId.value ?: return@launch
+            val id = binId.trim()
+            if (id.isEmpty() || !syncTwoWay(id)) return@launch
+            if (activeClientManager.currentClientId.value != clientId) return@launch
+            cloudSyncProfileStore.setLinkedBinId(clientId, id)
+            _linkedBinId.value = id
+            if (OakPrefs.get(context).getBoolean("isAutoSyncEnabled", false)) startRealtimeListener()
         }
+    }
+
+    fun unlinkData() {
+        val clientId = activeClientManager.currentClientId.value ?: return
+        cloudSyncProfileStore.setLinkedBinId(clientId, null)
+        _linkedBinId.value = null
+        if (_hostedBinId.value.isNullOrBlank()) stopRealtimeListener()
     }
 
     fun createClient(profile: ClientProfile) {
@@ -585,6 +621,7 @@ class HomeViewModel(
     fun deleteClient(profile: ClientProfile) {
         viewModelScope.launch {
             clientProfileUseCase.delete(profile)
+            cloudSyncProfileStore.clearLinks(profile.id)
         }
     }
 

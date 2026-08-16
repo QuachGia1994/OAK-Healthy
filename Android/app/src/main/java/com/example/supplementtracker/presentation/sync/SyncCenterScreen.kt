@@ -86,6 +86,7 @@ fun SyncCenterScreen(
     val context = LocalContext.current
     val prefs = remember { OakPrefs.get(context) }
     val hostedBinId by homeViewModel.hostedBinId.collectAsStateWithLifecycle()
+    val linkedBinId by homeViewModel.linkedBinId.collectAsStateWithLifecycle()
     val cloudSyncLoading by homeViewModel.cloudSyncLoading.collectAsStateWithLifecycle()
     val uiStatus by homeViewModel.cloudSyncUiStatus.collectAsStateWithLifecycle()
     val formatter = remember {
@@ -95,8 +96,7 @@ fun SyncCenterScreen(
     val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    var activeLinkedBinId by remember { mutableStateOf(prefs.getString("cloudSyncLinkedBinId", "").orEmpty()) }
-    var linkedBinInput by remember { mutableStateOf(activeLinkedBinId) }
+    var linkedBinInput by remember { mutableStateOf(linkedBinId.orEmpty()) }
     var isAutoSyncEnabled by remember { mutableStateOf(prefs.getBoolean("isAutoSyncEnabled", false)) }
     var isEncryptionEnabled by remember { mutableStateOf(prefs.getBoolean("cloudSyncEncryptionEnabled", false)) }
     var encryptionKeyInput by remember { mutableStateOf("") }
@@ -117,9 +117,9 @@ fun SyncCenterScreen(
     var isStatusBinIdVisible by remember { mutableStateOf(false) }
     var isManifestPartsVisible by remember { mutableStateOf(false) }
 
-    val activeBinId = remember(hostedBinId, activeLinkedBinId) {
-        val hosted = (hostedBinId ?: "").trim()
-        val linked = activeLinkedBinId.trim()
+    val activeBinId = remember(hostedBinId, linkedBinId) {
+        val hosted = hostedBinId.orEmpty().trim()
+        val linked = linkedBinId.orEmpty().trim()
         if (hosted.isNotEmpty()) hosted else linked
     }
     val hasActiveCloudLink = activeBinId.isNotEmpty()
@@ -129,14 +129,14 @@ fun SyncCenterScreen(
             when (key) {
                 "isAutoSyncEnabled" -> isAutoSyncEnabled = prefs.getBoolean("isAutoSyncEnabled", false)
                 "cloudSyncEncryptionEnabled" -> isEncryptionEnabled = prefs.getBoolean("cloudSyncEncryptionEnabled", false)
-                "cloudSyncLinkedBinId" -> {
-                    activeLinkedBinId = prefs.getString("cloudSyncLinkedBinId", "").orEmpty()
-                    if (activeLinkedBinId.isEmpty()) linkedBinInput = ""
-                }
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    LaunchedEffect(linkedBinId) {
+        linkedBinInput = linkedBinId.orEmpty()
     }
 
     LaunchedEffect(isAutoSyncEnabled) {
@@ -491,19 +491,16 @@ fun SyncCenterScreen(
                                                 Toast.makeText(context, context.getString(R.string.sync_center_invalid_link_code), Toast.LENGTH_SHORT).show()
                                                 return@OutlinedButton
                                             }
-                                            activeLinkedBinId = linkCode
-                                            prefs.edit().putString("cloudSyncLinkedBinId", linkCode).apply()
-                                            homeViewModel.receiveData(linkCode)
+                                            homeViewModel.linkData(linkCode)
                                         },
                                         enabled = linkedBinInput.trim().isNotEmpty() && !cloudSyncLoading
                                     ) { Text(stringResource(R.string.sync_center_action_download)) }
                                 }
-                                if (activeLinkedBinId.isNotBlank()) {
+                                if (!linkedBinId.isNullOrBlank()) {
                                     OutlinedButton(
                                         onClick = {
-                                            activeLinkedBinId = ""
+                                            homeViewModel.unlinkData()
                                             linkedBinInput = ""
-                                            prefs.edit().remove("cloudSyncLinkedBinId").apply()
                                             if (hostedBinId.isNullOrBlank()) isAutoSyncEnabled = false
                                         },
                                         enabled = !cloudSyncLoading
