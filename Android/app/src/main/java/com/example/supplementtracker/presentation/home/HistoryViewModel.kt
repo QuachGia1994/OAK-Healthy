@@ -17,6 +17,11 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.service.CommercialFeature
+import com.example.supplementtracker.service.CommercialPlan
+import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.EntitlementPolicy
+import kotlinx.coroutines.flow.combine
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -40,7 +45,8 @@ sealed class HistoryUiState {
         val insights7: InsightsSummary?,
         val insights30: InsightsSummary?,
         val trend7: List<InsightsTrendPoint>,
-        val trend30: List<InsightsTrendPoint>
+        val trend30: List<InsightsTrendPoint>,
+        val analyticsAvailable: Boolean
     ) : HistoryUiState()
 }
 
@@ -77,14 +83,18 @@ data class InsightsSummary(
 @OptIn(ExperimentalCoroutinesApi::class)
 class HistoryViewModel(
     private val repository: SupplementRepository,
-    private val activeClientManager: ActiveClientManager
+    private val activeClientManager: ActiveClientManager,
+    private val entitlementManager: EntitlementManager
 ) : ViewModel() {
 
-    val uiState: StateFlow<HistoryUiState> = activeClientManager.currentClientId
-        .flatMapLatest { clientId ->
+    val uiState: StateFlow<HistoryUiState> = combine(
+        activeClientManager.currentClientId,
+        entitlementManager.snapshot
+    ) { clientId, entitlement -> clientId to entitlement.plan }
+        .flatMapLatest { (clientId, plan) ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HistoryUiState.NoClient)
             repository.observeAllRecordsByClient(id)
-                .mapLatest { records -> withContext(Dispatchers.Default) { processHistory(records) } }
+                .mapLatest { records -> withContext(Dispatchers.Default) { processHistory(records, plan) } }
         }
         .stateIn(
             scope = viewModelScope,
@@ -92,11 +102,15 @@ class HistoryViewModel(
             initialValue = HistoryUiState.Loading
         )
 
-    private fun processHistory(records: List<IntakeRecord>): HistoryUiState {
+    private fun processHistory(records: List<IntakeRecord>, plan: CommercialPlan): HistoryUiState {
         val zoneId = ZoneId.systemDefault()
         val today = LocalDate.now(zoneId)
+        val historyStart = today.minusDays(EntitlementPolicy.historyDays(plan) - 1)
+        val orderedRecords = records.sortedByDescending { it.date }.filter { record ->
+            val day = java.time.Instant.ofEpochMilli(record.date).atZone(zoneId).toLocalDate()
+            !day.isBefore(historyStart) && !day.isAfter(today)
+        }
         val startDate = today.minusDays(6)
-        val orderedRecords = records.sortedByDescending { it.date }
         val counts = mutableMapOf<LocalDate, Int>()
         val sections = mutableListOf<HistorySection>()
         var currentDate: LocalDate? = null
@@ -128,17 +142,13 @@ class HistoryViewModel(
             chartData.add(HistoryChartData(label = dayLabel(date), count = counts[date] ?: 0))
         }
 
-        val insights7 = buildInsights(records = orderedRecords, windowDays = 7, zoneId = zoneId)
-        val insights30 = buildInsights(records = orderedRecords, windowDays = 30, zoneId = zoneId)
-        val trend7 = buildTrend(records = orderedRecords, windowDays = 7, zoneId = zoneId)
-        val trend30 = buildTrend(records = orderedRecords, windowDays = 30, zoneId = zoneId)
+        val analyticsAvailable = EntitlementPolicy.allows(plan, CommercialFeature.ADHERENCE_ANALYTICS)
+        val insights7 = if (analyticsAvailable) buildInsights(orderedRecords, 7, zoneId) else null
+        val insights30 = if (analyticsAvailable) buildInsights(orderedRecords, 30, zoneId) else null
+        val trend7 = if (analyticsAvailable) buildTrend(orderedRecords, 7, zoneId) else emptyList()
+        val trend30 = if (analyticsAvailable) buildTrend(orderedRecords, 30, zoneId) else emptyList()
         return HistoryUiState.Success(
-            chartData = chartData,
-            sections = sections,
-            insights7 = insights7,
-            insights30 = insights30,
-            trend7 = trend7,
-            trend30 = trend30
+            chartData, sections, insights7, insights30, trend7, trend30, analyticsAvailable
         )
     }
 

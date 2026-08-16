@@ -249,6 +249,11 @@ fun OnboardingScreen(
                             context.getString(R.string.client_name_duplicate),
                             Toast.LENGTH_SHORT
                         ).show()
+                        ClientProfileMutationResult.ClientLimitReached -> Toast.makeText(
+                            context,
+                            context.getString(R.string.plan_client_limit_reached),
+                            Toast.LENGTH_SHORT
+                        ).show()
                         is ClientProfileMutationResult.Failure -> Toast.makeText(
                             context,
                             context.getString(

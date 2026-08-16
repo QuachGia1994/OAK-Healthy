@@ -104,6 +104,14 @@ public enum EntitlementPolicy {
         case .coach: return nil
         }
     }
+
+    public static func historyDays(plan: CommercialPlan) -> Int {
+        switch plan {
+        case .free: return 7
+        case .pro: return 90
+        case .coach: return 365
+        }
+    }
 }
 
 @MainActor
@@ -122,4 +130,12 @@ public final class EntitlementManager {
     public func resetToFree() {
         snapshot = .free
     }
+
+    public func canUse(_ feature: CommercialFeature) -> Bool {
+        EntitlementPolicy.allows(plan: snapshot.plan, feature: feature)
+    }
+
+    public var maxClients: Int? { EntitlementPolicy.maxClients(plan: snapshot.plan) }
+
+    public var historyDays: Int { EntitlementPolicy.historyDays(plan: snapshot.plan) }
 }

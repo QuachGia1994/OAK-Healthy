@@ -308,16 +308,24 @@ private fun RhythmSection(state: AddSupplementState, viewModel: AddSupplementVie
         subtitle = stringResource(R.string.supplement_rhythm_body),
         icon = Icons.Default.Tune
     ) {
-        CycleModePicker(state.isContinuous, viewModel::onContinuousToggle)
-        if (!state.isContinuous) CycleFields(state, viewModel)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        WeeklyControls(state, viewModel)
-        IntervalControls(state, viewModel)
-        NumberField(
-            value = state.durationMonths,
-            onValueChange = viewModel::onDurationChange,
-            label = stringResource(R.string.duration_months_label)
-        )
+        if (!state.advancedCyclesAllowed) {
+            Text(
+                stringResource(R.string.plan_advanced_cycles_required),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            CycleModePicker(state.isContinuous, viewModel::onContinuousToggle)
+            if (!state.isContinuous) CycleFields(state, viewModel)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            WeeklyControls(state, viewModel)
+            IntervalControls(state, viewModel)
+            NumberField(
+                value = state.durationMonths,
+                onValueChange = viewModel::onDurationChange,
+                label = stringResource(R.string.duration_months_label)
+            )
+        }
     }
 }
 

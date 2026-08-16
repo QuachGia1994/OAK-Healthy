@@ -72,6 +72,7 @@ import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.service.ClientProfileMutationResult
+import com.example.supplementtracker.service.EntitlementManager
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -79,6 +80,7 @@ import java.util.UUID
 fun HomeScreen(
     viewModel: HomeViewModel,
     activeClientManager: ActiveClientManager,
+    entitlementManager: EntitlementManager,
     onNavigateToAdd: () -> Unit,
     onNavigateToEdit: (String) -> Unit,
     onNavigateToSettings: () -> Unit
@@ -92,7 +94,11 @@ fun HomeScreen(
     val isUpdateAvailable by updateService.isUpdateAvailable.collectAsStateWithLifecycle()
     val updateInfo by updateService.updateInfo.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
-    val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
+    val entitlementSnapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
+    val clients = remember(clientsRaw, entitlementSnapshot.plan) {
+        val unique = clientsRaw.distinctBy { it.id }
+        entitlementManager.maxClients()?.let(unique::take) ?: unique
+    }
     val menuClients = remember(clients) { clients.distinctBy { it.name.trim().lowercase() } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val currentClientName = clients.firstOrNull { it.id == currentClientId }?.name
@@ -253,6 +259,11 @@ fun HomeScreen(
                         ClientProfileMutationResult.DuplicateName -> Toast.makeText(
                             context,
                             context.getString(R.string.client_name_duplicate),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        ClientProfileMutationResult.ClientLimitReached -> Toast.makeText(
+                            context,
+                            context.getString(R.string.plan_client_limit_reached),
                             Toast.LENGTH_SHORT
                         ).show()
                         is ClientProfileMutationResult.Failure -> Toast.makeText(

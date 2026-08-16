@@ -29,6 +29,12 @@ final class CommercialEntitlementsTests: XCTestCase {
         XCTAssertNil(EntitlementPolicy.maxClients(plan: .coach))
     }
 
+    func testHistoryWindowsMatchPlanLimits() {
+        XCTAssertEqual(EntitlementPolicy.historyDays(plan: .free), 7)
+        XCTAssertEqual(EntitlementPolicy.historyDays(plan: .pro), 90)
+        XCTAssertEqual(EntitlementPolicy.historyDays(plan: .coach), 365)
+    }
+
     func testProductCatalogUsesUniqueStableIdentifiers() {
         let ids = CommercialProductCatalog.products.map(\.productId)
 
@@ -62,5 +68,8 @@ final class CommercialEntitlementsTests: XCTestCase {
         XCTAssertEqual(manager.snapshot.plan, .pro)
         manager.resetToFree()
         XCTAssertEqual(manager.snapshot, .free)
+        XCTAssertFalse(manager.canUse(.encryptedCloudSync))
+        XCTAssertEqual(manager.maxClients, 1)
+        XCTAssertEqual(manager.historyDays, 7)
     }
 }

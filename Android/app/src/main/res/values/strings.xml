@@ -442,6 +442,11 @@
     <string name="billing_verification_not_configured">Google Play purchase verification is not configured for this build.</string>
     <string name="billing_store_unavailable_play">Google Play Billing is unavailable or subscriptions are not configured yet.</string>
     <string name="billing_store_authoritative_note_play">Prices come from Google Play. Paid access requires a completed, verified Play purchase; local settings cannot unlock a paid plan.</string>
+    <string name="plan_unlock_analytics">Unlock adherence analytics with Pro</string>
+    <string name="plan_unlock_export">Unlock data export with Pro</string>
+    <string name="plan_unlock_cloud_sync">Unlock encrypted cloud sync with Pro</string>
+    <string name="plan_advanced_cycles_required">Advanced cycle scheduling requires Pro or Coach.</string>
+    <string name="plan_client_limit_reached">Your current plan allows one client. Upgrade to Coach for multi-client access.</string>
 
     <!-- Accessibility labels -->
     <string name="a11y_navigate_back">Go back</string>

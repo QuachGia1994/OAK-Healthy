@@ -58,8 +58,10 @@ import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.service.ClientProfileMutationResult
+import com.example.supplementtracker.service.CommercialFeature
 import com.example.supplementtracker.service.CommercialPlan
 import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.EntitlementPolicy
 import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
@@ -103,9 +105,13 @@ fun SettingsScreen(
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val allSupplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
-    val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val entitlementSnapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
+    val clients = remember(clientsRaw, entitlementSnapshot.plan) {
+        val unique = clientsRaw.distinctBy { it.id }
+        entitlementManager.maxClients()?.let(unique::take) ?: unique
+    }
+    val canExport = EntitlementPolicy.allows(entitlementSnapshot.plan, CommercialFeature.DATA_EXPORT)
     val currentPlanLabel = stringResource(
         when (entitlementSnapshot.plan) {
             CommercialPlan.FREE -> R.string.plan_free_title
@@ -151,6 +157,9 @@ fun SettingsScreen(
             ClientProfileMutationResult.Success -> onSuccess()
             ClientProfileMutationResult.DuplicateName -> coroutineScope.launch {
                 snackbarHostState.showSnackbar(context.getString(R.string.client_name_duplicate))
+            }
+            ClientProfileMutationResult.ClientLimitReached -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.plan_client_limit_reached))
             }
             is ClientProfileMutationResult.Failure -> coroutineScope.launch {
                 snackbarHostState.showSnackbar(
@@ -324,7 +333,9 @@ fun SettingsScreen(
                         SettingsRow(
                             title = shareStackTitle,
                             onClick = {
-                                coroutineScope.launch(Dispatchers.Main) {
+                                if (!canExport) {
+                                    onNavigateToPlanAccess()
+                                } else coroutineScope.launch(Dispatchers.Main) {
                                     try {
                                         val activity = context as? Activity
                                         if (activity == null) {

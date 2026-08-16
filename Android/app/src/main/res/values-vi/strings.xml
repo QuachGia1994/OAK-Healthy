@@ -442,6 +442,11 @@
     <string name="billing_verification_not_configured">Bản build này chưa cấu hình khóa xác minh giao dịch Google Play.</string>
     <string name="billing_store_unavailable_play">Google Play Billing đang không khả dụng hoặc subscription chưa được cấu hình.</string>
     <string name="billing_store_authoritative_note_play">Giá do Google Play cung cấp. Quyền trả phí chỉ mở sau giao dịch Play đã hoàn tất và xác minh; cài đặt cục bộ không thể mở gói trả phí.</string>
+    <string name="plan_unlock_analytics">Mở phân tích tuân thủ với Pro</string>
+    <string name="plan_unlock_export">Mở xuất dữ liệu với Pro</string>
+    <string name="plan_unlock_cloud_sync">Mở đồng bộ cloud mã hóa với Pro</string>
+    <string name="plan_advanced_cycles_required">Lịch chu kỳ nâng cao cần gói Pro hoặc Coach.</string>
+    <string name="plan_client_limit_reached">Gói hiện tại chỉ cho phép một học viên. Nâng cấp Coach để quản lý nhiều học viên.</string>
 
     <!-- Nhãn hỗ trợ tiếp cận -->
     <string name="a11y_navigate_back">Quay lại</string>

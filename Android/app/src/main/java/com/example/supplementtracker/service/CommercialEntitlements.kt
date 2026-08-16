@@ -99,6 +99,12 @@ object EntitlementPolicy {
             CommercialPlan.COACH -> null
         }
     }
+
+    fun historyDays(plan: CommercialPlan): Long = when (plan) {
+        CommercialPlan.FREE -> 7
+        CommercialPlan.PRO -> 90
+        CommercialPlan.COACH -> 365
+    }
 }
 
 class EntitlementManager(
@@ -114,4 +120,12 @@ class EntitlementManager(
     fun resetToFree() {
         mutableSnapshot.value = EntitlementSnapshot.Free
     }
+
+    fun canUse(feature: CommercialFeature): Boolean {
+        return EntitlementPolicy.allows(mutableSnapshot.value.plan, feature)
+    }
+
+    fun maxClients(): Int? = EntitlementPolicy.maxClients(mutableSnapshot.value.plan)
+
+    fun historyDays(): Long = EntitlementPolicy.historyDays(mutableSnapshot.value.plan)
 }

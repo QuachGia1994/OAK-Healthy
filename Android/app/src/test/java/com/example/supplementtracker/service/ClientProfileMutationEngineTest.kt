@@ -53,6 +53,24 @@ class ClientProfileMutationEngineTest {
     }
 
     @Test
+    fun create_rejectsProfileBeyondPlanLimitBeforePersistence() = runBlocking {
+        var persisted = false
+        val engine = engine(
+            createProfile = {
+                persisted = true
+                true
+            },
+            loadClients = { listOf(clientA) },
+            maxClients = { 1 }
+        )
+
+        val result = engine.create(clientB)
+
+        assertEquals(ClientProfileMutationResult.ClientLimitReached, result)
+        assertFalse(persisted)
+    }
+
+    @Test
     fun create_failureKeepsCurrentClientUntouched() = runBlocking {
         val activated = mutableListOf<UUID?>()
         val engine = engine(
@@ -142,7 +160,8 @@ class ClientProfileMutationEngineTest {
         loadClients: suspend () -> List<ClientProfile> = { listOf(clientA, clientB) },
         currentClientId: () -> UUID? = { clientA.id },
         setCurrentClientId: (UUID?) -> Unit = {},
-        clearCloudLinks: (UUID) -> Unit = {}
+        clearCloudLinks: (UUID) -> Unit = {},
+        maxClients: () -> Int? = { null }
     ) = ClientProfileMutationEngine(
         createProfile = createProfile,
         updateProfile = updateProfile,
@@ -150,6 +169,7 @@ class ClientProfileMutationEngineTest {
         loadClients = loadClients,
         currentClientId = currentClientId,
         setCurrentClientId = setCurrentClientId,
-        clearCloudLinks = clearCloudLinks
+        clearCloudLinks = clearCloudLinks,
+        maxClients = maxClients
     )
 }

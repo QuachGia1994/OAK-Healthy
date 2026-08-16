@@ -5,6 +5,7 @@ import SwiftData
 /// Màn hình lịch sử uống với biểu đồ (iOS).
 public struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(EntitlementManager.self) private var entitlementManager
     @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     @State private var viewModel = HistoryViewModel()
     @State private var sections: [HistorySectionModel] = []
@@ -28,12 +29,22 @@ public struct HistoryView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        InsightsTrendCard(
-                            trend7: viewModel.trend7,
-                            trend30: viewModel.trend30,
-                            insights7: viewModel.insights7,
-                            insights30: viewModel.insights30
-                        )
+                        if entitlementManager.canUse(.adherenceAnalytics) {
+                            InsightsTrendCard(
+                                trend7: viewModel.trend7,
+                                trend30: viewModel.trend30,
+                                insights7: viewModel.insights7,
+                                insights30: viewModel.insights30
+                            )
+                        } else {
+                            NavigationLink {
+                                PlanAccessView()
+                            } label: {
+                                Label("plan_unlock_analytics".localized, systemImage: "lock.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
 
                         VStack(alignment: .leading, spacing: 14) {
                             Text("intake_frequency_last_7".localized)
@@ -140,7 +151,11 @@ public struct HistoryView: View {
             .sheet(isPresented: $isShowingSettingsSheet) {
                 SettingsView(activeClientManager: activeClientManager)
             }
-            .task(id: ReloadKey(clientId: activeClientManager.currentClientId, syncEpochMs: lastSyncEpochMs)) {
+            .task(id: ReloadKey(
+                clientId: activeClientManager.currentClientId,
+                syncEpochMs: lastSyncEpochMs,
+                plan: entitlementManager.snapshot.plan
+            )) {
                 DebugReporter.report("history_task_start", fields: [
                     "clientId": activeClientManager.currentClientId?.uuidString ?? ""
                 ])
@@ -169,9 +184,15 @@ public struct HistoryView: View {
             "clientId": clientId.uuidString
         ])
         do {
-            let records = try ClientScopedStore.historyRecords(
+            let cutoff = Calendar.current.date(
+                byAdding: .day,
+                value: -(entitlementManager.historyDays - 1),
+                to: .now
+            ) ?? .now
+            let records = try ClientScopedStore.recentHistoryRecords(
                 modelContext: modelContext,
                 clientId: clientId,
+                cutoff: cutoff,
                 limit: 5_000
             )
             applyHistory(records)
@@ -234,6 +255,7 @@ public struct HistoryView: View {
     private struct ReloadKey: Hashable {
         let clientId: UUID?
         let syncEpochMs: Double
+        let plan: CommercialPlan
     }
 }
 
@@ -564,5 +586,6 @@ enum HistoryFormatters {
 
 #Preview {
     HistoryView(activeClientManager: ActiveClientManager())
+        .environment(EntitlementManager())
         .modelContainer(for: [ClientProfile.self, UserSupplement.self, IntakeRecord.self], inMemory: true)
 }

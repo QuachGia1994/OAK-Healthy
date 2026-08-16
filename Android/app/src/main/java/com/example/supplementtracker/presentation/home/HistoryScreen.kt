@@ -61,7 +61,8 @@ private val historyTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatter
 @Composable
 fun HistoryScreen(
     viewModel: HistoryViewModel,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToPlanAccess: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
@@ -92,7 +93,7 @@ fun HistoryScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 when (val state = uiState) {
                     is HistoryUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    is HistoryUiState.Success -> HistoryContent(state)
+                    is HistoryUiState.Success -> HistoryContent(state, onNavigateToPlanAccess)
                     is HistoryUiState.NoClient -> {
                         Text(
                             text = stringResource(R.string.add_client_to_start),
@@ -111,7 +112,10 @@ fun HistoryScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HistoryContent(state: HistoryUiState.Success) {
+private fun HistoryContent(
+    state: HistoryUiState.Success,
+    onNavigateToPlanAccess: () -> Unit
+) {
     val shape = RoundedCornerShape(20.dp)
     val containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
@@ -144,12 +148,21 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             key = "insights_trend",
             contentType = "insights_trend"
         ) {
-            InsightsTrendCard(
-                trend7 = state.trend7,
-                trend30 = state.trend30,
-                insights7 = state.insights7,
-                insights30 = state.insights30
-            )
+            if (state.analyticsAvailable) {
+                InsightsTrendCard(
+                    trend7 = state.trend7,
+                    trend30 = state.trend30,
+                    insights7 = state.insights7,
+                    insights30 = state.insights30
+                )
+            } else {
+                OutlinedButton(
+                    onClick = onNavigateToPlanAccess,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.plan_unlock_analytics))
+                }
+            }
         }
 
         item(

@@ -15,6 +15,8 @@ import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
 import com.example.supplementtracker.domain.usecase.SearchSupplementUseCase
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.service.CommercialFeature
+import com.example.supplementtracker.service.EntitlementManager
 import com.example.supplementtracker.service.NotificationSchedulerImpl
 import com.example.supplementtracker.worker.CycleCheckWorker
 import java.util.concurrent.TimeUnit
@@ -36,7 +38,8 @@ class AddSupplementViewModel(
     private val saveSupplementUseCase: SaveSupplementUseCase,
     private val repository: SupplementRepository,
     private val context: Context,
-    private val activeClientManager: ActiveClientManager
+    private val activeClientManager: ActiveClientManager,
+    private val entitlementManager: EntitlementManager
 ) : ViewModel() {
 
     private val searchUseCase: SearchSupplementUseCase = SearchSupplementUseCase(context)
@@ -44,6 +47,15 @@ class AddSupplementViewModel(
     val state = _state.asStateFlow()
 
     private var searchJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            entitlementManager.snapshot.collect { snapshot ->
+                val allowed = entitlementManager.canUse(CommercialFeature.ADVANCED_CYCLES)
+                _state.update { it.copy(advancedCyclesAllowed = allowed) }
+            }
+        }
+    }
 
     /**
      * Cập nhật tên và tìm kiếm gợi ý (Debounce).
@@ -193,7 +205,11 @@ class AddSupplementViewModel(
     }
 
     fun resetForAdd() {
-        _state.value = AddSupplementState()
+        val allowed = entitlementManager.canUse(CommercialFeature.ADVANCED_CYCLES)
+        _state.value = AddSupplementState(
+            isContinuous = !allowed,
+            advancedCyclesAllowed = allowed
+        )
     }
 
     fun loadSupplementForEdit(supplementId: String) {
@@ -234,6 +250,10 @@ class AddSupplementViewModel(
         val currentState = _state.value
         val name = currentState.name.trim()
         if (name.isEmpty()) return
+        if (usesAdvancedCycle(currentState) && !currentState.advancedCyclesAllowed) {
+            _state.update { it.copy(error = context.getString(R.string.plan_advanced_cycles_required)) }
+            return
+        }
 
         val normalizedTime = TimeStrings.normalizeString(currentState.intakeTime)
         if (normalizedTime.isBlank()) {
@@ -337,6 +357,13 @@ class AddSupplementViewModel(
     
     // Các hàm update khác cho daysOn, daysOff, startDate...
     
+    private fun usesAdvancedCycle(state: AddSupplementState): Boolean {
+        return !state.isContinuous ||
+            state.isWeeklyRecurrenceEnabled ||
+            state.isIntervalDaysEnabled ||
+            state.durationMonths.isNotBlank()
+    }
+
     private fun weeklyConfigIfNeeded(state: AddSupplementState): WeeklyRecurrenceConfig? {
         if (!state.isWeeklyRecurrenceEnabled) return null
         val interval = state.intervalWeeks.toIntOrNull() ?: 1

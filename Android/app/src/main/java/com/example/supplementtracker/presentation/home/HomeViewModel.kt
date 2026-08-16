@@ -45,6 +45,8 @@ import com.example.supplementtracker.service.ActiveProfileNotificationPolicy
 import com.example.supplementtracker.service.FactoryResetEngine
 import com.example.supplementtracker.service.ClientProfileMutationEngine
 import com.example.supplementtracker.service.ClientProfileMutationResult
+import com.example.supplementtracker.service.CommercialFeature
+import com.example.supplementtracker.service.EntitlementManager
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -61,6 +63,7 @@ class HomeViewModel(
     private val context: Context,
     private val repository: com.example.supplementtracker.domain.repository.SupplementRepository,
     private val activeClientManager: ActiveClientManager,
+    private val entitlementManager: EntitlementManager,
     private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
 ) : ViewModel() {
     private val _today = MutableStateFlow(LocalDate.now())
@@ -148,7 +151,8 @@ class HomeViewModel(
         loadClients = { repository.observeClients().first() },
         currentClientId = { activeClientManager.currentClientId.value },
         setCurrentClientId = activeClientManager::setCurrentClientId,
-        clearCloudLinks = cloudSyncProfileStore::clearLinks
+        clearCloudLinks = cloudSyncProfileStore::clearLinks,
+        maxClients = entitlementManager::maxClients
     )
     private val cloudHostEngine = CloudHostEngine(
         context = context,
@@ -166,6 +170,11 @@ class HomeViewModel(
     private var realtimeListener: com.example.supplementtracker.service.FirebaseRealtimeSyncListener? = null
 
     fun startAutoSync() {
+        if (!entitlementManager.canUse(CommercialFeature.ENCRYPTED_CLOUD_SYNC)) {
+            OakPrefs.get(context).edit().putBoolean("isAutoSyncEnabled", false).apply()
+            stopAutoSync()
+            return
+        }
         CloudAutoSyncWork.setEnabled(context, true)
         startRealtimeListener()
         activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it, delayMillis = 0L) }

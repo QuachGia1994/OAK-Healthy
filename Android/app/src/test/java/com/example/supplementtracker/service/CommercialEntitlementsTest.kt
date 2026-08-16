@@ -39,6 +39,13 @@ class CommercialEntitlementsTest {
     }
 
     @Test
+    fun historyWindowsMatchPlanLimits() {
+        assertEquals(7L, EntitlementPolicy.historyDays(CommercialPlan.FREE))
+        assertEquals(90L, EntitlementPolicy.historyDays(CommercialPlan.PRO))
+        assertEquals(365L, EntitlementPolicy.historyDays(CommercialPlan.COACH))
+    }
+
+    @Test
     fun productCatalogUsesUniqueStableIdentifiers() {
         val ids = CommercialProductCatalog.products.map { it.productId }
 
@@ -74,5 +81,8 @@ class CommercialEntitlementsTest {
         assertEquals(CommercialPlan.PRO, manager.snapshot.value.plan)
         manager.resetToFree()
         assertEquals(EntitlementSnapshot.Free, manager.snapshot.value)
+        assertFalse(manager.canUse(CommercialFeature.ENCRYPTED_CLOUD_SYNC))
+        assertEquals(1, manager.maxClients())
+        assertEquals(7L, manager.historyDays())
     }
 }

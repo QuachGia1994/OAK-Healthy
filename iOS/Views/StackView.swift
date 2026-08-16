@@ -3,6 +3,7 @@ import SwiftData
 
 public struct StackView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     
@@ -115,7 +116,7 @@ public struct StackView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Menu {
-                            ForEach(clients) { client in
+                            ForEach(permittedClients) { client in
                                 Button(client.name) {
                                     activeClientManager.setCurrentClientId(client.id)
                                 }
@@ -187,15 +188,23 @@ public struct StackView: View {
     private func destinationView(for destination: StackDestination) -> some View {
         switch destination {
         case .syncCenter:
-            SyncCenterView(activeClientManager: activeClientManager)
+            if entitlementManager.canUse(.encryptedCloudSync) {
+                SyncCenterView(activeClientManager: activeClientManager)
+            } else {
+                PlanAccessView()
+            }
         case .userGuide:
             UserGuideView()
         }
     }
     
+    private var permittedClients: [ClientProfile] {
+        entitlementManager.maxClients.map { Array(clients.prefix($0)) } ?? clients
+    }
+
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
-        return clients.first { $0.id == id }
+        return permittedClients.first { $0.id == id }
     }
     
     private var displayedSupplements: [UserSupplement] {

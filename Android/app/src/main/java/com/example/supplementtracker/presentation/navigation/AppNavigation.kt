@@ -78,7 +78,9 @@ import com.example.supplementtracker.presentation.home.UserGuideScreen
 import com.example.supplementtracker.presentation.sync.SyncCenterScreen
 import com.example.supplementtracker.presentation.onboarding.OnboardingScreen
 import com.example.supplementtracker.presentation.monetization.PlanAccessScreen
+import com.example.supplementtracker.service.CommercialFeature
 import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.EntitlementPolicy
 import com.example.supplementtracker.service.GooglePlayBillingService
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -125,6 +127,18 @@ fun AppNavigation(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val prefs = remember { OakPrefs.get(context) }
+    val entitlementSnapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
+    val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
+    val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val allowedClientIds = remember(clientsRaw, entitlementSnapshot.plan) {
+        val unique = clientsRaw.distinctBy { it.id }
+        val allowed = entitlementManager.maxClients()?.let(unique::take) ?: unique
+        allowed.map { it.id }
+    }
+    val cloudSyncAllowed = EntitlementPolicy.allows(
+        entitlementSnapshot.plan,
+        CommercialFeature.ENCRYPTED_CLOUD_SYNC
+    )
     var hasCompletedOnboarding by rememberSaveable { mutableStateOf(prefs.getBoolean("hasCompletedOnboarding", false)) }
 
     fun refreshOnboardingFlag() {
@@ -133,7 +147,19 @@ fun AppNavigation(
 
     LaunchedEffect(Unit) {
         refreshOnboardingFlag()
-        if (prefs.getBoolean("isAutoSyncEnabled", false)) {
+    }
+
+    LaunchedEffect(allowedClientIds, currentClientId) {
+        if (currentClientId != null && currentClientId !in allowedClientIds) {
+            activeClientManager.setCurrentClientId(allowedClientIds.firstOrNull())
+        }
+    }
+
+    LaunchedEffect(cloudSyncAllowed) {
+        if (!cloudSyncAllowed) {
+            prefs.edit().putBoolean("isAutoSyncEnabled", false).apply()
+            homeViewModel.stopAutoSync()
+        } else if (prefs.getBoolean("isAutoSyncEnabled", false)) {
             homeViewModel.startAutoSync()
         }
     }
@@ -143,7 +169,7 @@ fun AppNavigation(
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshOnboardingFlag()
                 homeViewModel.refresh()
-                if (prefs.getBoolean("isAutoSyncEnabled", false)) {
+                if (cloudSyncAllowed && prefs.getBoolean("isAutoSyncEnabled", false)) {
                     homeViewModel.startAutoSync()
                 }
             }
@@ -187,6 +213,7 @@ fun AppNavigation(
                     HomeScreen(
                         viewModel = homeViewModel,
                         activeClientManager = activeClientManager,
+                        entitlementManager = entitlementManager,
                         onNavigateToAdd = { navController.navigate(Screen.AddSupplement.route) },
                         onNavigateToEdit = { id -> navController.navigate("edit_supplement/$id") },
                         onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
@@ -205,7 +232,8 @@ fun AppNavigation(
                 composable(Screen.History.route) {
                     HistoryScreen(
                         viewModel = historyViewModel,
-                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+                        onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                        onNavigateToPlanAccess = { navController.navigate(Screen.PlanAccess.route) }
                     )
                 }
                 composable(Screen.Onboarding.route) {
@@ -226,10 +254,18 @@ fun AppNavigation(
                     )
                 }
                 composable(Screen.SyncCenter.route) {
-                    SyncCenterScreen(
-                        homeViewModel = homeViewModel,
-                        onBack = { navController.popBackStack() }
-                    )
+                    if (cloudSyncAllowed) {
+                        SyncCenterScreen(
+                            homeViewModel = homeViewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    } else {
+                        PlanAccessScreen(
+                            entitlementManager = entitlementManager,
+                            billingService = billingService,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
                 }
                 composable(Screen.UserGuide.route) {
                     UserGuideScreen(

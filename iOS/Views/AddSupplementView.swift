@@ -4,6 +4,7 @@ import SwiftUI
 /// Presents the add or edit supplement workflow.
 public struct AddSupplementView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(EntitlementManager.self) private var entitlementManager
     @State private var viewModel: AddSupplementViewModel
 
     private let isEditing: Bool
@@ -46,6 +47,9 @@ public struct AddSupplementView: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .task(id: entitlementManager.snapshot.plan) {
+            applyEntitlement()
+        }
     }
 
     private var formContent: some View {
@@ -210,12 +214,18 @@ public struct AddSupplementView: View {
             subtitle: "supplement_rhythm_body".localized,
             systemImage: "waveform.path.ecg"
         ) {
-            cycleModePicker
-            cycleFields
-            Divider().opacity(0.35)
-            weeklyControls
-            intervalControls
-            durationField
+            if viewModel.advancedCyclesAllowed {
+                cycleModePicker
+                cycleFields
+                Divider().opacity(0.35)
+                weeklyControls
+                intervalControls
+                durationField
+            } else {
+                Label("plan_advanced_cycles_required".localized, systemImage: "lock.fill")
+                    .font(.subheadline)
+                    .oakSecondaryText()
+            }
         }
     }
 
@@ -366,6 +376,16 @@ public struct AddSupplementView: View {
         Task { await viewModel.updateSuggestions() }
     }
 
+    private func applyEntitlement() {
+        let allowed = entitlementManager.canUse(.advancedCycles)
+        viewModel.advancedCyclesAllowed = allowed
+        guard !allowed, !isEditing else { return }
+        viewModel.isContinuous = true
+        viewModel.isWeeklyRecurrenceEnabled = false
+        viewModel.isIntervalDaysEnabled = false
+        viewModel.durationMonths = ""
+    }
+
     private func save() {
         Task {
             guard let supplement = await viewModel.saveSupplement() else { return }
@@ -422,6 +442,7 @@ private extension View {
 
 #Preview {
     AddSupplementPreview()
+        .environment(EntitlementManager())
 }
 
 private struct AddSupplementPreview: View {

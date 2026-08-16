@@ -12,6 +12,7 @@ public final class AddSupplementViewModel {
         case invalidIntakeTime
         case invalidCycleDays
         case invalidIntervalDays
+        case advancedCyclesRequired
         case modelSaveFailed(Error)
         case notificationSyncFailed(Error)
         
@@ -27,6 +28,8 @@ public final class AddSupplementViewModel {
                 return "add_supplement_error_invalid_cycle_days".localized
             case .invalidIntervalDays:
                 return "add_supplement_error_invalid_interval_days".localized
+            case .advancedCyclesRequired:
+                return "plan_advanced_cycles_required".localized
             case .modelSaveFailed(let error), .notificationSyncFailed(let error):
                 return String(format: "add_supplement_error_save_failed_format".localized, error.localizedDescription)
             }
@@ -53,6 +56,7 @@ public final class AddSupplementViewModel {
     public var isLoading: Bool = false
     public var isSaving: Bool = false
     public var errorMessage: String? = nil
+    public var advancedCyclesAllowed: Bool = true
     
     // MARK: - Dependencies
     private let suggestService: any AutoSuggestService
@@ -286,6 +290,7 @@ public final class AddSupplementViewModel {
     private func buildSupplementOrThrow(id: UUID) throws -> UserSupplement {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw SaveFailure.invalidName }
+        guard advancedCyclesAllowed || !usesAdvancedCycle else { throw SaveFailure.advancedCyclesRequired }
         let client = try resolveClientOrThrow()
         
         let weekly = makeWeeklyRecurrenceIfNeeded()
@@ -327,6 +332,10 @@ public final class AddSupplementViewModel {
             weeklyRecurrence: weekly,
             intervalDays: interval
         )
+    }
+
+    private var usesAdvancedCycle: Bool {
+        !isContinuous || isWeeklyRecurrenceEnabled || isIntervalDaysEnabled || !durationMonths.isEmpty
     }
 
     private func intervalDaysValueOrThrow() throws -> Int? {

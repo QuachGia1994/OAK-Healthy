@@ -29,15 +29,16 @@ internal class AppDependenciesFactory(private val context: Context) {
             SupplementRepositoryImpl(database.supplementDao)
         }
         val activeClientManager = ActiveClientManager(context, repository)
-        val homeViewModel = HomeViewModel(context, repository, activeClientManager)
-        val historyViewModel = HistoryViewModel(repository, activeClientManager)
+        val entitlementManager = EntitlementManager()
+        val homeViewModel = HomeViewModel(context, repository, activeClientManager, entitlementManager)
+        val historyViewModel = HistoryViewModel(repository, activeClientManager, entitlementManager)
         val addViewModel = AddSupplementViewModel(
             saveSupplementUseCase = SaveSupplementUseCase(repository),
             repository = repository,
             context = context,
-            activeClientManager = activeClientManager
+            activeClientManager = activeClientManager,
+            entitlementManager = entitlementManager
         )
-        val entitlementManager = EntitlementManager()
         return AppDependencies(
             homeViewModel,
             historyViewModel,

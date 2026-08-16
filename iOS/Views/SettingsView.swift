@@ -55,7 +55,10 @@ public struct SettingsView: View {
                 initialName: "",
                 confirmTitle: "client_create_action".localized
             ) { name in
-                guard !name.isEmpty else { return }
+                guard !name.isEmpty, canCreateClient else {
+                    showError(message: "plan_client_limit_reached".localized)
+                    return
+                }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
                 do {
@@ -98,6 +101,7 @@ public struct SettingsView: View {
         List {
             clientManagementSection
             planAccessSection
+            syncCenterSection
             appHeaderSection
             themeSelectionSection
             notificationsSection
@@ -157,18 +161,25 @@ public struct SettingsView: View {
     @ViewBuilder
     private var dataToolsSection: some View {
         Section {
-            
-            if let shareStackPNGURL {
-                ShareLink(item: shareStackPNGURL) {
-                    Label("share_stack".localized, systemImage: "square.and.arrow.up")
+            if entitlementManager.canUse(.dataExport) {
+                if let shareStackPNGURL {
+                    ShareLink(item: shareStackPNGURL) {
+                        Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                    }
+                } else {
+                    Button {
+                        Task { @MainActor in await prepareShareStack() }
+                    } label: {
+                        Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(isPreparingShareStack || activeClientManager.currentClientId == nil)
                 }
             } else {
-                Button {
-                    Task { @MainActor in await prepareShareStack() }
+                NavigationLink {
+                    PlanAccessView()
                 } label: {
-                    Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                    Label("plan_unlock_export".localized, systemImage: "lock.fill")
                 }
-                .disabled(isPreparingShareStack || activeClientManager.currentClientId == nil)
             }
         } header: {
             Text("data_tools".localized)
@@ -179,8 +190,16 @@ public struct SettingsView: View {
     @ViewBuilder
     private var syncCenterSection: some View {
         Section {
-            NavigationLink("sync_center_title".localized) {
-                SyncCenterView(activeClientManager: activeClientManager)
+            if entitlementManager.canUse(.encryptedCloudSync) {
+                NavigationLink("sync_center_title".localized) {
+                    SyncCenterView(activeClientManager: activeClientManager)
+                }
+            } else {
+                NavigationLink {
+                    PlanAccessView()
+                } label: {
+                    Label("plan_unlock_cloud_sync".localized, systemImage: "lock.fill")
+                }
             }
         } header: {
             Text("multi_device_sync_header".localized)
@@ -202,7 +221,7 @@ public struct SettingsView: View {
                         .multilineTextAlignment(.center)
                 }
             } else {
-                ForEach(clients) { client in
+                ForEach(permittedClients) { client in
                     ClientRow(
                         client: client,
                         isActive: client.id == activeClientManager.currentClientId,
@@ -213,8 +232,16 @@ public struct SettingsView: View {
                 }
             }
             
-            Button("add_client".localized) {
-                isShowingAddClientSheet = true
+            if canCreateClient {
+                Button("add_client".localized) {
+                    isShowingAddClientSheet = true
+                }
+            } else {
+                NavigationLink {
+                    PlanAccessView()
+                } label: {
+                    Label("plan_client_limit_reached".localized, systemImage: "lock.fill")
+                }
             }
         } header: {
             Text("client_management".localized)
@@ -222,6 +249,14 @@ public struct SettingsView: View {
         .listRowBackground(glassRowBackground)
     }
     
+    private var permittedClients: [ClientProfile] {
+        entitlementManager.maxClients.map { Array(clients.prefix($0)) } ?? clients
+    }
+
+    private var canCreateClient: Bool {
+        entitlementManager.maxClients.map { clients.count < $0 } ?? true
+    }
+
     @ViewBuilder
     private var planAccessSection: some View {
         Section {

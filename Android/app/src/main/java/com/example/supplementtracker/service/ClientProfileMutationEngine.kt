@@ -7,6 +7,7 @@ import java.util.UUID
 sealed interface ClientProfileMutationResult {
     data object Success : ClientProfileMutationResult
     data object DuplicateName : ClientProfileMutationResult
+    data object ClientLimitReached : ClientProfileMutationResult
     data class Failure(val error: Throwable) : ClientProfileMutationResult
 }
 
@@ -17,10 +18,13 @@ class ClientProfileMutationEngine(
     private val loadClients: suspend () -> List<ClientProfile>,
     private val currentClientId: () -> UUID?,
     private val setCurrentClientId: (UUID?) -> Unit,
-    private val clearCloudLinks: (UUID) -> Unit
+    private val clearCloudLinks: (UUID) -> Unit,
+    private val maxClients: () -> Int? = { null }
 ) {
     suspend fun create(profile: ClientProfile): ClientProfileMutationResult = try {
-        if (!createProfile(profile)) {
+        if (hasReachedClientLimit()) {
+            ClientProfileMutationResult.ClientLimitReached
+        } else if (!createProfile(profile)) {
             ClientProfileMutationResult.DuplicateName
         } else {
             setCurrentClientId(profile.id)
@@ -59,5 +63,10 @@ class ClientProfileMutationEngine(
 
     private suspend fun fallbackClientId(deletingId: UUID): UUID? {
         return loadClients().firstOrNull { it.id != deletingId }?.id
+    }
+
+    private suspend fun hasReachedClientLimit(): Boolean {
+        val limit = maxClients() ?: return false
+        return loadClients().distinctBy { it.id }.size >= limit
     }
 }

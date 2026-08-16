@@ -4,6 +4,7 @@ import SwiftData
 /// Màn hình chính Dashboard trên iOS.
 public struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     
@@ -48,7 +49,10 @@ public struct HomeView: View {
                 initialName: "",
                 confirmTitle: "client_create_action".localized
             ) { name in
-                guard !name.isEmpty else { return }
+                guard !name.isEmpty, canCreateClient else {
+                    isShowingSettingsSheet = true
+                    return
+                }
                 let created = ClientProfile(name: name)
                 modelContext.insert(created)
                 do {
@@ -82,13 +86,19 @@ public struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        ForEach(clients) { client in
+                        ForEach(permittedClients) { client in
                             Button(client.name) {
                                 activeClientManager.setCurrentClientId(client.id)
                             }
                         }
-                        Button("add_client".localized) {
-                            isShowingAddClientSheet = true
+                        if canCreateClient {
+                            Button("add_client".localized) {
+                                isShowingAddClientSheet = true
+                            }
+                        } else {
+                            Button("plan_client_limit_reached".localized) {
+                                isShowingSettingsSheet = true
+                            }
                         }
                     } label: {
                         Text(clientTitle)
@@ -184,9 +194,17 @@ public struct HomeView: View {
         }
     }
     
+    private var permittedClients: [ClientProfile] {
+        entitlementManager.maxClients.map { Array(clients.prefix($0)) } ?? clients
+    }
+
+    private var canCreateClient: Bool {
+        entitlementManager.maxClients.map { clients.count < $0 } ?? true
+    }
+
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
-        return clients.first { $0.id == id }
+        return permittedClients.first { $0.id == id }
     }
 
     private var supplementsForActiveClient: [UserSupplement] {
@@ -861,5 +879,6 @@ private struct RestingSupplementRow: View {
 
 #Preview {
     HomeView(activeClientManager: ActiveClientManager(), notificationService: NotificationService())
+        .environment(EntitlementManager())
         .modelContainer(for: [ClientProfile.self, UserSupplement.self, IntakeRecord.self], inMemory: true)
 }

@@ -401,6 +401,7 @@ private struct SafeBootView: View {
 
 private struct SafeModeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(EntitlementManager.self) private var entitlementManager
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
     @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
     @AppStorage("oakPendingImportFilePath") private var pendingImportFilePath: String = ""
@@ -536,13 +537,16 @@ private struct SafeModeView: View {
         let storedName = pendingImportClientName.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = storedName.lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !normalized.isEmpty {
-            let existing = try modelContext.fetch(FetchDescriptor<ClientProfile>())
-            if let matched = existing.first(where: { $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == normalized }) {
-                return matched
-            }
+        let existing = try modelContext.fetch(FetchDescriptor<ClientProfile>())
+        if !normalized.isEmpty,
+           let matched = existing.first(where: {
+               $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == normalized
+           }) {
+            return matched
         }
-        
+        if let limit = entitlementManager.maxClients, existing.count >= limit {
+            throw SafeModeAccessError.clientLimitReached
+        }
         let name = storedName.isEmpty ? "imported_client_default_name".localized : storedName
         let client = ClientProfile(id: UUID(), name: name)
         modelContext.insert(client)
@@ -576,9 +580,19 @@ private struct SafeModeView: View {
     }
 }
 
+private enum SafeModeAccessError: LocalizedError {
+    case clientLimitReached
+
+    var errorDescription: String? {
+        "plan_client_limit_reached".localized
+    }
+}
+
 struct MainTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(EntitlementManager.self) private var entitlementManager
+    @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Binding var selectedTab: Int
     let activeClientManager: ActiveClientManager
     let notificationService: NotificationService
@@ -640,11 +654,19 @@ struct MainTabView: View {
             }
         }
         .onChange(of: activeClientManager.currentClientId, initial: false) { _, _ in
+            guard !enforceClientAccess() else { return }
             handleAutoSync(phase: scenePhase)
             Task { @MainActor in
                 await rescheduleNotificationsIfEnabled()
                 await refreshHomeBadgeCount()
             }
+        }
+        .onChange(of: entitlementManager.snapshot.plan, initial: true) { _, _ in
+            _ = enforceClientAccess()
+            handleAutoSync(phase: scenePhase)
+        }
+        .onChange(of: clients.count, initial: false) { _, _ in
+            _ = enforceClientAccess()
         }
         .onChange(of: lastSyncEpochMs, initial: false) { _, _ in
             Task { @MainActor in
@@ -662,6 +684,11 @@ struct MainTabView: View {
     }
     
     private func handleAutoSync(phase: ScenePhase) {
+        guard entitlementManager.canUse(.encryptedCloudSync) else {
+            UserDefaults.standard.set(false, forKey: "isAutoSyncEnabled")
+            CloudSyncAutoSync.stopRealtimeSync()
+            return
+        }
         guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else {
             CloudSyncAutoSync.stopRealtimeSync()
             return
@@ -671,6 +698,15 @@ struct MainTabView: View {
             return
         }
         CloudSyncAutoSync.startRealtimeSync(modelContext: modelContext, activeClientManager: activeClientManager)
+    }
+
+    @discardableResult
+    private func enforceClientAccess() -> Bool {
+        let allowed = entitlementManager.maxClients.map { Array(clients.prefix($0)) } ?? clients
+        guard let currentId = activeClientManager.currentClientId else { return false }
+        guard !allowed.contains(where: { $0.id == currentId }) else { return false }
+        activeClientManager.setCurrentClientId(allowed.first?.id)
+        return true
     }
     
     @MainActor
