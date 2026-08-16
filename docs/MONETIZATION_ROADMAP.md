@@ -87,6 +87,8 @@ Repository implementation for P3.6 is complete when release preflight, Android C
 
 ## Phase 4 — Commercial Validation & Growth
 
+> Execution status: **deferred by product-owner choice** until developer accounts are desired. Repository readiness remains preserved; see `DEFERRED_STORE_DEVELOPMENT.md`.
+
 ### P4.1 — Store & Beta Validation
 - Activate and verify all four stable products in App Store Connect and Google Play Console.
 - Execute platform-accurate subscription matrices: shared Free/paid/highest-plan/cancel/invalid/restore/expiry-refund-revocation/offline cases, iOS Sandbox billing-retry behavior, and Android auto-renew grace-period/account-hold/recovery behavior.
@@ -110,6 +112,39 @@ Repository implementation for P3.6 is complete when release preflight, Android C
 - Track checkout and restore reliability, active subscriber change, annual/Coach mix, churn/refund signals, and purchase-support load.
 - Use `scripts/commercial_metrics.py` for a vendor-neutral aggregate KPI snapshot; do not introduce a custom health-linked analytics identity.
 - Iterate pricing/offers without changing the four stable product identifiers unless a deliberate store-side migration is planned.
+
+## Phase 5 — Product Value Without Store Dependency
+
+### P5.1A — Offline Commerce Architecture Hardening
+- Store-neutral lifecycle model and authoritative-verifier boundary.
+- Bounded replay/idempotency ledger; unavailable authority remains retryable.
+- Active/grace can resolve verified products; hold/expiry/revoke/refund/unverified fail closed.
+- Unit fixtures only; no debug/local premium unlock path.
+
+### P5.2 — Activation & Plan Preview
+- Keep Free/Pro/Coach comparison useful while store products are unavailable.
+- Never display invented prices or offers.
+- End onboarding with a concrete first-value action: add the first supplement and reminder.
+
+### P5.3 — Coach Value Expansion
+- Add Coach Overview with local seven-day client adherence summaries.
+- Keep Coach access entitlement-gated and use neutral check-in language.
+- Avoid diagnosis/treatment claims and avoid exposing supplement details in the overview.
+
+### P5.4 — Retention
+- Surface overdue recovery actions without auto-resolving or shaming missed routine items.
+- Preserve existing streak/progress behavior as optional feedback, not a medical recommendation.
+
+### P5.5 — Reliability & Scale
+- Surface the last successful reminder-schedule rebuild alongside existing notification diagnostics.
+- Continue migration/offline/background-sync/device-matrix hardening independently of store distribution.
+
+## Phase 6 — Product Polish
+
+- Keep new UI copy aligned across EN/VI.
+- Use wellness/non-medical positioning consistently.
+- Maintain responsive and accessibility-aware Coach/recovery/preview states.
+- Provide a debug-only, read-only synthetic demo preview for screenshots and UX review without contaminating user data.
 
 ## Monetization safety rules
 
