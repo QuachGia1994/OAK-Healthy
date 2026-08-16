@@ -37,7 +37,7 @@ versioning where practical.
 - Cross-platform sync now preserves newer deletion tombstones, keeps the revision returned by Android conflict retries, and avoids multi-client history truncation on iOS.
 - iOS manual and automatic cloud sync now share one serialized engine, including legacy single-bin fallback and stale-error cleanup.
 - iOS cloud sync no longer carries the unused JSONBin HTTP transport or secret injection; orchestration now lives in a dedicated coordinator with regression-tested serialization/fallback/conflict handling.
-- iOS client-scoped SwiftData reads now predicate by profile before applying limits, preventing other profiles from hiding History or sync records and reducing fetch-all work.
+- iOS client-scoped SwiftData reads now scope through the target profile before applying record limits, preventing other profiles from hiding History or sync records and reducing fetch-all work.
 - Cloud hosting now cleans up partial uploads, and iOS re-hosting keeps the previous host until the replacement is ready.
 
 ### Security
