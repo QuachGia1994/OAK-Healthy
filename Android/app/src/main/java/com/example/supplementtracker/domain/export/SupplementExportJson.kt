@@ -128,18 +128,10 @@ object OAKBackupJson {
         cycle: SupplementExportCycleDTO
     ): String {
         val key = listOf(
-            "supplement",
-            name.trim(),
-            dailyDose.trim(),
-            intakeTime.trim(),
-            startDate.trim(),
-            cycle.isContinuous.toString(),
-            cycle.daysOn.toString(),
-            cycle.daysOff.toString(),
-            cycle.durationMonths?.toString().orEmpty(),
-            cycle.weeklyWeekdaysMask?.toString().orEmpty(),
-            cycle.weeklyIntervalWeeks?.toString().orEmpty(),
-            cycle.intervalDays?.toString().orEmpty(),
+            "supplement", name.trim(), dailyDose.trim(), intakeTime.trim(), startDate.trim(),
+            cycle.isContinuous.toString(), cycle.daysOn.toString(), cycle.daysOff.toString(),
+            cycle.durationMonths?.toString().orEmpty(), cycle.weeklyWeekdaysMask?.toString().orEmpty(),
+            cycle.weeklyIntervalWeeks?.toString().orEmpty(), cycle.intervalDays?.toString().orEmpty(),
             cycle.weeklyAnchorDate?.trim().orEmpty()
         ).joinToString("|").lowercase()
         return com.example.supplementtracker.domain.util.StableId.uuidFromString(key).toString()
