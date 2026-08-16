@@ -72,6 +72,14 @@ public struct PlanAccessView: View {
         Section {
             if billingService.isLoading && billingService.products.isEmpty {
                 ProgressView()
+            } else if billingService.products.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("plan_preview_title".localized)
+                        .font(.headline)
+                    Text("plan_preview_body".localized)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
             ForEach(billingService.products, id: \.productId) { product in
                 purchaseRow(product)

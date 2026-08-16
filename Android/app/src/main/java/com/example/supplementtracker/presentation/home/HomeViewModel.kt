@@ -96,6 +96,10 @@ class HomeViewModel(
     )
 
     private val _refreshTrigger = MutableStateFlow(0)
+    private val _lastNotificationRebuildEpochMs = MutableStateFlow(
+        OakPrefs.get(context).getLong("oakLastNotificationRebuildEpochMs", 0L)
+    )
+    val lastNotificationRebuildEpochMs: StateFlow<Long> = _lastNotificationRebuildEpochMs
     private val _dataTransferMessage = MutableStateFlow<String?>(null)
     val dataTransferMessage: StateFlow<String?> = _dataTransferMessage
     private val _cloudSyncLoading = MutableStateFlow(false)
@@ -612,6 +616,9 @@ class HomeViewModel(
 
     private suspend fun rescheduleNotificationsNow() {
         notificationScheduleEngine.rescheduleAll()
+        val rebuiltAt = System.currentTimeMillis()
+        OakPrefs.get(context).edit().putLong("oakLastNotificationRebuildEpochMs", rebuiltAt).apply()
+        _lastNotificationRebuildEpochMs.value = rebuiltAt
     }
 
     fun linkData(binId: String) {

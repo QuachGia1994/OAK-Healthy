@@ -32,7 +32,7 @@
     <string name="user_guide_7_body">Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung nhanh vào Due/Quá hạn.</string>
 
     <string name="settings_intro_title">Giới thiệu</string>
-    <string name="settings_intro_content">OAK Healthy - Trợ lý quản lý thực phẩm bổ sung chuyên nghiệp dành cho Trader, Vận Động Viên và cả Bác Sĩ theo dõi bệnh nhân. Giúp tối ưu hóa hiệu suất và duy trì kỷ luật sức khỏe.</string>
+    <string name="settings_intro_content">OAK Healthy là ứng dụng theo dõi thói quen wellness dành cho cá nhân và coach. Quản lý lịch supplement, nhắc lịch và lịch sử tuân thủ mà không đưa ra chẩn đoán hay tuyên bố điều trị y khoa.</string>
 
     <string name="settings_copyright_title">Bản quyền &amp; Tác giả</string>
     <string name="settings_app_version">Tên app: OAK Healthy v1.0.1</string>
@@ -89,7 +89,7 @@
     <string name="onboarding_step_battery_title">Tắt tối ưu hoá pin</string>
     <string name="onboarding_step_battery_body">Tắt Tối ưu hoá pin để app chạy ngầm ổn định (tuỳ từng dòng máy).</string>
     <string name="onboarding_step_done_title">Hoàn tất</string>
-    <string name="onboarding_step_done_body">Bạn có thể thay đổi các thiết lập này bất cứ lúc nào trong Cài đặt.</string>
+    <string name="onboarding_step_done_body">Tiếp theo, hãy thêm supplement đầu tiên và giờ nhắc để tạo routine hữu ích đầu tiên. Bạn có thể thay đổi các thiết lập bất cứ lúc nào trong Cài đặt.</string>
 
     <string name="appearance_title">Giao diện</string>
     <string name="appearance_light">Sáng</string>
@@ -494,4 +494,34 @@
     <string name="intake_times_empty">Thêm ít nhất một giờ nhắc.</string>
     <string name="change_time">Thay đổi</string>
     <string name="remove_time">Xóa giờ</string>
+    <string name="plan_preview_title">Xem trước gói</string>
+    <string name="plan_preview_body">Bản build này chưa bật mua gói. Bạn vẫn có thể so sánh các gói; quyền trả phí tiếp tục bị khóa cho đến khi kết nối store được cấu hình.</string>
+    <string name="coach_overview_title">Tổng quan Coach</string>
+    <string name="coach_overview_open">Mở</string>
+    <string name="coach_overview_locked_title">Tính năng Coach</string>
+    <string name="coach_overview_locked_body">Tổng quan Coach cần quyền Coach. Bạn vẫn có thể xem so sánh gói trong thời gian chưa kết nối store.</string>
+    <string name="coach_overview_last_7_days">7 ngày gần nhất</string>
+    <string name="coach_overview_empty">Chưa có học viên. Hãy thêm học viên để tạo tổng quan Coach.</string>
+    <string name="coach_overview_error">Không thể tải tổng quan Coach. Dữ liệu cục bộ của bạn không bị thay đổi.</string>
+    <string name="coach_retry">Thử lại</string>
+    <string name="coach_metric_clients">Học viên</string>
+    <string name="coach_metric_active">Có hoạt động</string>
+    <string name="coach_metric_check_in">Cần hỏi lại</string>
+    <string name="coach_check_in_badge">Cần hỏi lại</string>
+    <string name="coach_no_recent_records">Chưa có ghi nhận gần đây</string>
+    <string name="coach_completion_format">Hoàn thành %1$d%% • Đã uống %2$d • Bỏ qua %3$d</string>
+    <string name="coach_last_activity_none">Không có hoạt động trong 7 ngày qua</string>
+    <string name="coach_last_activity_format">Hoạt động gần nhất: %1$s</string>
+    <string name="recovery_title">Quay lại nhịp</string>
+    <string name="recovery_body_format">Có %1$d mục quá hạn. Hãy xem lại và ghi Đã uống hoặc Bỏ qua khi phù hợp.</string>
+    <string name="recovery_review_action">Xem lại</string>
+    <string name="reliability_last_rebuild">Lần dựng lại lịch nhắc gần nhất</string>
+    <string name="reliability_never">Chưa có</string>
+    <string name="demo_preview_title">Demo dữ liệu giả lập</string>
+    <string name="demo_preview_body">Chỉ có trong debug build. Toàn bộ tên, lịch và kết quả bên dưới là dữ liệu giả lập và không được ghi vào dữ liệu của bạn.</string>
+    <string name="demo_preview_client">Vận động viên Demo</string>
+    <string name="demo_preview_streak">Chuỗi 6 ngày</string>
+    <string name="demo_preview_due">Đến hạn 2</string>
+    <string name="demo_preview_overdue">Quá hạn 1</string>
+    <string name="demo_preview_taken">Đã uống 3</string>
 </resources>

@@ -13,6 +13,7 @@ public struct SettingsView: View {
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("shareAnonymousDiagnostics") private var shareAnonymousDiagnostics: Bool = false
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
+    @AppStorage("oakLastNotificationRebuildEpochMs") private var lastNotificationRebuildEpochMs: Double = 0
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
@@ -135,6 +136,12 @@ public struct SettingsView: View {
         .listRowBackground(glassRowBackground)
     }
 
+    private var lastReminderRebuildText: String {
+        guard lastNotificationRebuildEpochMs > 0 else { return "reliability_never".localized }
+        let date = Date(timeIntervalSince1970: lastNotificationRebuildEpochMs)
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
     @ViewBuilder
     private var notificationsSection: some View {
         Section {
@@ -142,6 +149,12 @@ public struct SettingsView: View {
                 Text("onboarding_permission_status".localized)
                 Spacer()
                 Text(notificationPermissionText)
+                    .oakSecondaryText()
+            }
+            HStack {
+                Text("reliability_last_rebuild".localized)
+                Spacer()
+                Text(lastReminderRebuildText)
                     .oakSecondaryText()
             }
             
@@ -291,6 +304,27 @@ public struct SettingsView: View {
                         .oakSecondaryText()
                 }
             }
+            if entitlementManager.canUse(.coachReports) {
+                NavigationLink("coach_overview_title".localized) {
+                    CoachOverviewView()
+                }
+            } else {
+                NavigationLink {
+                    PlanAccessView()
+                } label: {
+                    HStack {
+                        Text("coach_overview_title".localized)
+                        Spacer()
+                        Text("plan_coach_title".localized)
+                            .oakSecondaryText()
+                    }
+                }
+            }
+#if DEBUG
+            NavigationLink("demo_preview_title".localized) {
+                DemoPreviewView()
+            }
+#endif
         } header: {
             Text("plan_access_title".localized)
         }

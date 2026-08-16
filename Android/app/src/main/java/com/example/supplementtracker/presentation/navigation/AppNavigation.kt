@@ -52,6 +52,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.supplementtracker.presentation.add_supplement.AddSupplementScreen
 import com.example.supplementtracker.presentation.add_supplement.AddSupplementViewModel
+import com.example.supplementtracker.presentation.coach.CoachOverviewScreen
+import com.example.supplementtracker.presentation.demo.DemoPreviewScreen
 import com.example.supplementtracker.presentation.home.HistoryScreen
 import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.home.HomeScreen
@@ -106,6 +108,8 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object EditSupplement : Screen("edit_supplement/{id}", R.string.app_name, { })
     data object SyncCenter : Screen("sync_center", R.string.sync_center_title, { })
     data object PlanAccess : Screen("plan_access", R.string.plan_access_title, { })
+    data object CoachOverview : Screen("coach_overview", R.string.coach_overview_title, { })
+    data object DemoPreview : Screen("demo_preview", R.string.demo_preview_title, { })
     data object Onboarding : Screen("onboarding", R.string.app_name, { })
 }
 
@@ -281,6 +285,8 @@ fun AppNavigation(
                         onThemeChange = onThemeChange,
                         onNavigateToNotificationCheck = { navController.navigate(Screen.NotificationCheck.route) },
                         onNavigateToPlanAccess = { navController.navigate(Screen.PlanAccess.route) },
+                        onNavigateToCoachOverview = { navController.navigate(Screen.CoachOverview.route) },
+                        onNavigateToDemoPreview = { navController.navigate(Screen.DemoPreview.route) },
                         onClose = { navController.popBackStack() }
                     )
                 }
@@ -290,6 +296,16 @@ fun AppNavigation(
                         billingService = billingService,
                         onBack = { navController.popBackStack() }
                     )
+                }
+                composable(Screen.CoachOverview.route) {
+                    CoachOverviewScreen(
+                        viewModel = historyViewModel,
+                        onBack = { navController.popBackStack() },
+                        onOpenPlans = { navController.navigate(Screen.PlanAccess.route) }
+                    )
+                }
+                composable(Screen.DemoPreview.route) {
+                    DemoPreviewScreen(onBack = { navController.popBackStack() })
                 }
                 composable(Screen.AddSupplement.route) {
                     AddSupplementScreen(

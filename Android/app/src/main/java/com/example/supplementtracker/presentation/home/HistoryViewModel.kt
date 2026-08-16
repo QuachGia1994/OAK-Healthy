@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,15 +14,23 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.service.CoachClientSnapshot
+import com.example.supplementtracker.service.CoachOverviewBuilder
+import com.example.supplementtracker.service.CoachOverviewSummary
+import com.example.supplementtracker.service.CoachRecordSnapshot
 import com.example.supplementtracker.service.CommercialFeature
 import com.example.supplementtracker.service.CommercialPlan
 import com.example.supplementtracker.service.EntitlementManager
 import com.example.supplementtracker.service.EntitlementPolicy
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -77,6 +86,14 @@ data class InsightsSummary(
     val topLateHour: InsightsItem?
 )
 
+sealed class CoachOverviewUiState {
+    data object Idle : CoachOverviewUiState()
+    data object Loading : CoachOverviewUiState()
+    data object Locked : CoachOverviewUiState()
+    data object Error : CoachOverviewUiState()
+    data class Ready(val summary: CoachOverviewSummary) : CoachOverviewUiState()
+}
+
 /**
  * ViewModel xử lý lịch sử uống cho Android.
  */
@@ -86,6 +103,8 @@ class HistoryViewModel(
     private val activeClientManager: ActiveClientManager,
     private val entitlementManager: EntitlementManager
 ) : ViewModel() {
+    private val mutableCoachOverview = MutableStateFlow<CoachOverviewUiState>(CoachOverviewUiState.Idle)
+    val coachOverview: StateFlow<CoachOverviewUiState> = mutableCoachOverview.asStateFlow()
 
     val uiState: StateFlow<HistoryUiState> = combine(
         activeClientManager.currentClientId,
@@ -101,6 +120,34 @@ class HistoryViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = HistoryUiState.Loading
         )
+
+    fun refreshCoachOverview() {
+        if (!entitlementManager.canUse(CommercialFeature.COACH_REPORTS)) {
+            mutableCoachOverview.value = CoachOverviewUiState.Locked
+            return
+        }
+        viewModelScope.launch {
+            mutableCoachOverview.value = CoachOverviewUiState.Loading
+            try {
+                mutableCoachOverview.value = CoachOverviewUiState.Ready(loadCoachOverview())
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                mutableCoachOverview.value = CoachOverviewUiState.Error
+            }
+        }
+    }
+
+    private suspend fun loadCoachOverview(): CoachOverviewSummary {
+        val clients = repository.observeClients().first()
+        val records = clients.associate { client ->
+            client.id to repository.getAllRecordsByClient(client.id.toString()).map {
+                CoachRecordSnapshot(epochMs = it.date, status = it.status)
+            }
+        }
+        val snapshots = clients.map { CoachClientSnapshot(it.id, it.name) }
+        return CoachOverviewBuilder.build(snapshots, records, System.currentTimeMillis())
+    }
 
     private fun processHistory(records: List<IntakeRecord>, plan: CommercialPlan): HistoryUiState {
         val zoneId = ZoneId.systemDefault()

@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.supplementtracker.BuildConfig
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakLogoMark
@@ -67,6 +68,8 @@ import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
 import java.io.FileOutputStream
+import java.text.DateFormat
+import java.util.Date
 import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -97,6 +100,8 @@ fun SettingsScreen(
     onThemeChange: (AppTheme) -> Unit,
     onNavigateToNotificationCheck: () -> Unit,
     onNavigateToPlanAccess: () -> Unit,
+    onNavigateToCoachOverview: () -> Unit,
+    onNavigateToDemoPreview: () -> Unit,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -105,6 +110,7 @@ fun SettingsScreen(
     val prefs = remember { OakPrefs.get(context) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val allSupplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
+    val lastNotificationRebuildEpochMs by homeViewModel.lastNotificationRebuildEpochMs.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val entitlementSnapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
@@ -317,6 +323,28 @@ fun SettingsScreen(
                             trailing = currentPlanLabel,
                             onClick = onNavigateToPlanAccess
                         )
+                        SettingsRow(
+                            title = stringResource(R.string.coach_overview_title),
+                            trailing = if (entitlementSnapshot.plan == CommercialPlan.COACH) {
+                                stringResource(R.string.coach_overview_open)
+                            } else {
+                                stringResource(R.string.plan_coach_title)
+                            },
+                            onClick = {
+                                if (entitlementSnapshot.plan == CommercialPlan.COACH) {
+                                    onNavigateToCoachOverview()
+                                } else {
+                                    onNavigateToPlanAccess()
+                                }
+                            }
+                        )
+                        if (BuildConfig.DEBUG) {
+                            SettingsRow(
+                                title = stringResource(R.string.demo_preview_title),
+                                trailing = "DEBUG",
+                                onClick = onNavigateToDemoPreview
+                            )
+                        }
                     }
                 }
 
@@ -515,6 +543,15 @@ fun SettingsScreen(
                         SettingsRow(
                             title = stringResource(R.string.notification_check_open_diagnostics),
                             onClick = onNavigateToNotificationCheck
+                        )
+                        SettingsRow(
+                            title = stringResource(R.string.reliability_last_rebuild),
+                            trailing = if (lastNotificationRebuildEpochMs <= 0L) {
+                                stringResource(R.string.reliability_never)
+                            } else {
+                                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                                    .format(Date(lastNotificationRebuildEpochMs))
+                            }
                         )
 
                         SettingsRow(

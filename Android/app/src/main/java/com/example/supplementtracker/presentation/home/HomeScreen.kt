@@ -444,12 +444,36 @@ private fun HomeDashboardHeader(
             StreakPill(days = streakDays)
         }
         TodayStrip(counts = counts, selected = selected, onSelected = onSelected)
+        if (counts.missed > 0) {
+            RecoveryCard(counts.missed) { onSelected(HomeDoseFilter.OVERDUE) }
+        }
         if (selected != HomeDoseFilter.ALL && hiddenCount > 0) {
             Text(
                 text = stringResource(R.string.home_filter_hint_format, hiddenCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun RecoveryCard(missedCount: Int, onReview: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.recovery_title), fontWeight = FontWeight.SemiBold)
+                Text(
+                    stringResource(R.string.recovery_body_format, missedCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(onClick = onReview) { Text(stringResource(R.string.recovery_review_action)) }
         }
     }
 }

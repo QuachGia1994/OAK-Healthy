@@ -242,6 +242,24 @@ public struct HomeView: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func recoveryCard(missedCount: Int) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("recovery_title".localized)
+                    .font(.subheadline.weight(.semibold))
+                Text(String(format: "recovery_body_format".localized, missedCount))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("recovery_review_action".localized) { doseFilter = .overdue }
+                .buttonStyle(.bordered)
+        }
+        .padding(12)
+        .oakCardStyle(.glass, cornerRadius: 14)
+        .accessibilityElement(children: .combine)
+    }
+
     private func dashboardView(bottomPadding: CGFloat) -> some View {
         let now = renderNow
         let overdue = cachedOverdue
@@ -256,7 +274,12 @@ public struct HomeView: View {
             HomeDoseFilterBar(filter: $doseFilter, counts: viewModel.cachedTodayCounts)
                 .padding(.horizontal, 16)
                 .padding(.top, 10)
-                .padding(.bottom, 10)
+
+            if viewModel.cachedTodayCounts.missed > 0 {
+                recoveryCard(missedCount: viewModel.cachedTodayCounts.missed)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+            }
 
             List {
                 if viewModel.activeSupplements.isEmpty {

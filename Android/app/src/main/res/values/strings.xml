@@ -32,7 +32,7 @@
     <string name="user_guide_7_body">Green = Taken, orange = Skipped, red = Overdue. Use filters to focus on Due/Overdue quickly.</string>
     
     <string name="settings_intro_title">About</string>
-    <string name="settings_intro_content">OAK Healthy - A professional supplement cycle assistant for Traders, Athletes, and Doctors monitoring patients. Helps optimize performance and discipline.</string>
+    <string name="settings_intro_content">OAK Healthy is a wellness routine tracker for individuals and coaches. Plan supplement schedules, reminders and adherence history without medical diagnosis or treatment claims.</string>
     
     <string name="settings_copyright_title">Copyright &amp; Author</string>
     <string name="settings_app_version">App: OAK Healthy v1.0.1</string>
@@ -89,7 +89,7 @@
     <string name="onboarding_step_battery_title">Disable battery optimization</string>
     <string name="onboarding_step_battery_body">Disable Battery Optimization so the app can run reliably in background (varies by device).</string>
     <string name="onboarding_step_done_title">All set</string>
-    <string name="onboarding_step_done_body">You can change these settings anytime in Settings.</string>
+    <string name="onboarding_step_done_body">Next, add your first supplement and reminder time to create your first useful routine. You can change setup options anytime in Settings.</string>
 
     <string name="client_management">Client Management</string>
     <string name="add_a_client">Add a Client</string>
@@ -494,4 +494,34 @@
     <string name="intake_times_empty">Add at least one reminder time.</string>
     <string name="change_time">Change</string>
     <string name="remove_time">Remove time</string>
+    <string name="plan_preview_title">Plan preview</string>
+    <string name="plan_preview_body">Purchases are not enabled in this build yet. You can compare plans now; paid access stays locked until a store connection is configured.</string>
+    <string name="coach_overview_title">Coach Overview</string>
+    <string name="coach_overview_open">Open</string>
+    <string name="coach_overview_locked_title">Coach feature</string>
+    <string name="coach_overview_locked_body">Coach Overview is available with the Coach entitlement. Plan comparison remains available while store connection is deferred.</string>
+    <string name="coach_overview_last_7_days">Last 7 days</string>
+    <string name="coach_overview_empty">No clients yet. Add clients to build a coach overview.</string>
+    <string name="coach_overview_error">Coach summary could not be loaded. Your local data was not changed.</string>
+    <string name="coach_retry">Retry</string>
+    <string name="coach_metric_clients">Clients</string>
+    <string name="coach_metric_active">Active</string>
+    <string name="coach_metric_check_in">Check-in</string>
+    <string name="coach_check_in_badge">Check in</string>
+    <string name="coach_no_recent_records">No recent records</string>
+    <string name="coach_completion_format">%1$d%% completion • %2$d taken • %3$d skipped</string>
+    <string name="coach_last_activity_none">No activity in the last 7 days</string>
+    <string name="coach_last_activity_format">Last activity: %1$s</string>
+    <string name="recovery_title">Get back on track</string>
+    <string name="recovery_body_format">%1$d overdue item(s). Review them and record Taken or Skip when you are ready.</string>
+    <string name="recovery_review_action">Review</string>
+    <string name="reliability_last_rebuild">Last reminder rebuild</string>
+    <string name="reliability_never">Never</string>
+    <string name="demo_preview_title">Synthetic Demo</string>
+    <string name="demo_preview_body">Debug-only preview. All names, routines and results below are synthetic and are never written to your data.</string>
+    <string name="demo_preview_client">Demo Athlete</string>
+    <string name="demo_preview_streak">6 day streak</string>
+    <string name="demo_preview_due">Due 2</string>
+    <string name="demo_preview_overdue">Overdue 1</string>
+    <string name="demo_preview_taken">Taken 3</string>
 </resources>

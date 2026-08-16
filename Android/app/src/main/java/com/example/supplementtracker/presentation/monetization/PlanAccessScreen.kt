@@ -97,6 +97,9 @@ private fun PlanAccessContent(
         item { PlanCard(CommercialPlan.FREE, currentPlan) }
         item { PlanCard(CommercialPlan.PRO, currentPlan) }
         item { PlanCard(CommercialPlan.COACH, currentPlan) }
+        if (!billingState.isLoading && billingState.products.isEmpty()) {
+            item { StorePreviewCard() }
+        }
         items(billingState.products, key = { it.productId }) { product ->
             PurchaseRow(product, billingState.purchasingProductId, activity, billingService)
         }
@@ -144,6 +147,24 @@ private fun FeatureRow(label: String) {
         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.width(8.dp))
         Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun StorePreviewCard() {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                stringResource(R.string.plan_preview_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                stringResource(R.string.plan_preview_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

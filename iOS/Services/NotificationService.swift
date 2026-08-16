@@ -212,6 +212,7 @@ public struct NotificationService: NotificationManaging {
                 await logShadowScheduleFailure(supplement: supplement, error: error)
             }
         }
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "oakLastNotificationRebuildEpochMs")
     }
 
     @MainActor

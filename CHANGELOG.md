@@ -8,6 +8,8 @@ versioning where practical.
 
 ### Added
 
+- P5.1A store-neutral commerce lifecycle/replay core on Android and iOS with retry-safe authority-unavailable behavior, fail-closed downgrade states, and unit fixtures; it is not a runtime premium unlock path.
+- P5.2–P6 product work for deferred-store development: plan-preview fallback, first-value onboarding guidance, entitlement-gated Coach Overview, overdue recovery CTA, reminder-rebuild visibility, EN/VI copy, and debug-only read-only synthetic demo screens.
 - Phase 4 commercial validation/growth gates: machine-checkable real-store evidence, production candidate matching, privacy-safe aggregate KPI reporting, and a P4.1–P4.4 operations runbook/templates.
 - Commercial funnel diagnostics now cover store product-load, purchase-result, and restore-result outcomes with allowlisted product/plan/period/store metadata only.
 - An explicit iOS SwiftData schema v1/migration-plan baseline plus a regression fixture that writes an existing unversioned store and reopens it through the versioned container without losing client, supplement, or intake data.
@@ -23,6 +25,8 @@ versioning where practical.
 
 ### Changed
 
+- Store execution is explicitly deferred until developer accounts are desired; repository commerce/store gates remain intact and do not block continued product development.
+- About/onboarding/recovery copy now consistently positions OAK Healthy as a wellness routine tracker for individuals and coaches without diagnosis/treatment claims.
 - Production store promotion now requires an explicit beta-tested candidate commit/version/build and release-specific P4 evidence; iOS reuses that TestFlight build and Android promotes that Play versionCode instead of rebuilding production binaries.
 - iOS production bootstrap now constructs its persistent `ModelContainer` from the versioned SwiftData schema and central migration plan.
 - Firebase payload and revision reads are now atomic snapshots.
