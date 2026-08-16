@@ -71,7 +71,7 @@ targets:
       - package: Firebase
         product: FirebaseAppCheck
       - package: Firebase
-        product: FirebaseAnalyticsWithoutAdIdSupport
+        product: FirebaseAnalytics
       - package: Firebase
         product: FirebaseCrashlytics
   OAKHealthyTests:
