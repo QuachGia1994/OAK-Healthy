@@ -61,10 +61,27 @@ class CloudHostEngine(
         historyEncrypted: String
     ) {
         val stackId = uploadOrAbort(stackEncrypted, R.string.cloud_host_upload_stack_failed) ?: return
-        val historyId = uploadOrAbort(historyEncrypted, R.string.cloud_host_upload_history_failed) ?: return
-        val manifestEncrypted = encryptManifest(stackId, historyId) ?: return
-        val newManifestId = uploadOrAbort(manifestEncrypted, R.string.cloud_host_upload_manifest_failed) ?: return
+        val historyId = uploadOrAbort(historyEncrypted, R.string.cloud_host_upload_history_failed)
+        if (historyId == null) {
+            deleteUploadedBins(stackId)
+            return
+        }
+        val manifestEncrypted = encryptManifest(stackId, historyId)
+        if (manifestEncrypted == null) {
+            deleteUploadedBins(stackId, historyId)
+            return
+        }
+        val newManifestId = uploadOrAbort(manifestEncrypted, R.string.cloud_host_upload_manifest_failed)
+        if (newManifestId == null) {
+            deleteUploadedBins(stackId, historyId)
+            return
+        }
         persistNewHost(prefs, newManifestId, stackId, historyId)
+    }
+
+    private suspend fun deleteUploadedBins(vararg binIds: String) {
+        val manager = CloudSyncManager()
+        binIds.forEach { binId -> runCatching { manager.deleteBackup(binId).getOrThrow() } }
     }
 
     private suspend fun uploadOrAbort(payload: String, failRes: Int): String? {

@@ -6,6 +6,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
+import com.example.supplementtracker.domain.util.DoseEventKey
 import com.example.supplementtracker.domain.util.StableId
 import java.time.LocalDate
 import java.util.Locale
@@ -20,19 +21,24 @@ class ImportBackupUseCase(
     suspend operator fun invoke(preparedJson: String, clientId: UUID): Result<Unit> = runCatching {
         val decoded = OAKBackupJson.decodeCompat(preparedJson).getOrThrow()
         val clientIdString = clientId.toString()
-        val importedSupplementIds = HashSet<String>(decoded.stack.size)
+        val resolvedIds = HashMap<String, String>(decoded.stack.size)
+        val reservedIds = HashSet<String>(decoded.stack.size)
         val supplementsToImport = decoded.stack.map { dto ->
-            mapSupplement(dto, clientId).also {
-                importedSupplementIds.add(it.id.toString().lowercase(Locale.ROOT))
-            }
+            val sourceId = normalizeId(dto.id)
+            val resolvedId = resolvedIds[sourceId]?.let(UUID::fromString)
+                ?: resolveSupplementId(dto.id, clientId, reservedIds).also {
+                    resolvedIds[sourceId] = normalizeId(it.toString())
+                }
+            mapSupplement(dto, clientId, resolvedId)
         }
-        val recordsToImport = mapHistoryRecords(decoded.history, importedSupplementIds)
+        val recordsToImport = mapHistoryRecords(decoded.history, resolvedIds)
         repository.importBackupAtomic(clientIdString, supplementsToImport, recordsToImport)
     }
 
     private fun mapSupplement(
         dto: com.example.supplementtracker.domain.export.OAKBackupSupplementDTO,
-        clientId: UUID
+        clientId: UUID,
+        resolvedId: UUID
     ): UserSupplement {
         val weekly = mapWeeklyRecurrence(dto)
         val cycle = CycleConfig(
@@ -40,19 +46,21 @@ class ImportBackupUseCase(
             daysOff = dto.cycle.daysOff,
             isContinuous = dto.cycle.isContinuous,
             durationMonths = dto.cycle.durationMonths,
-            weeklyRecurrence = weekly
+            weeklyRecurrence = weekly,
+            intervalDays = dto.cycle.intervalDays
         )
         val startDate = runCatching { LocalDate.parse(dto.startDate) }.getOrElse { LocalDate.now() }
+        val lastTakenLocalDate = dto.lastTakenLocalDate
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
         return UserSupplement(
-            id = runCatching { UUID.fromString(dto.id) }.getOrElse {
-                StableId.uuidFromString(dto.id.trim().lowercase(Locale.ROOT))
-            },
+            id = resolvedId,
             clientId = clientId,
             name = dto.name,
             startDate = startDate,
             cycleConfig = cycle,
             dailyDose = dto.dailyDose,
             intakeTime = dto.intakeTime,
+            lastTakenLocalDate = lastTakenLocalDate,
             updatedAtEpochMs = dto.updatedAtEpochMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
             deletedAtEpochMs = dto.deletedAtEpochMs
         )
@@ -73,18 +81,50 @@ class ImportBackupUseCase(
         )
     }
 
+    private suspend fun resolveSupplementId(
+        rawId: String,
+        clientId: UUID,
+        reservedIds: MutableSet<String>
+    ): UUID {
+        val normalizedRawId = normalizeId(rawId)
+        val parsed = runCatching { UUID.fromString(rawId) }.getOrElse {
+            StableId.uuidFromString(normalizedRawId)
+        }
+        if (reserveIfAvailable(parsed, clientId, reservedIds)) return parsed
+        var attempt = 0
+        while (true) {
+            val candidate = StableId.uuidFromString("${clientId.toString().lowercase(Locale.ROOT)}|$normalizedRawId|$attempt")
+            if (reserveIfAvailable(candidate, clientId, reservedIds)) return candidate
+            attempt += 1
+        }
+    }
+
+    private suspend fun reserveIfAvailable(
+        candidate: UUID,
+        clientId: UUID,
+        reservedIds: MutableSet<String>
+    ): Boolean {
+        val key = normalizeId(candidate.toString())
+        if (!reservedIds.add(key)) return false
+        val existing = repository.getSupplementById(candidate.toString())
+        return existing == null || existing.clientId == clientId
+    }
+
     private fun mapHistoryRecords(
         history: List<com.example.supplementtracker.domain.export.OAKBackupHistoryDTO>,
-        importedSupplementIds: Set<String>
+        resolvedIds: Map<String, String>
     ): List<IntakeRecord> = history.mapNotNull { record ->
-        val normalizedSupplementId = record.supplementId.lowercase(Locale.ROOT)
-        if (!importedSupplementIds.contains(normalizedSupplementId)) return@mapNotNull null
+        val supplementId = resolvedIds[normalizeId(record.supplementId)] ?: return@mapNotNull null
         IntakeRecord(
-            id = record.id,
-            supplementId = normalizedSupplementId,
+            id = DoseEventKey.make(supplementId, record.dateEpochMs),
+            supplementId = supplementId,
             date = record.dateEpochMs,
             status = record.status,
             updatedAtEpochMs = record.updatedAtEpochMs.takeIf { it > 0L } ?: record.dateEpochMs
         )
+    }.groupBy { it.id }.mapNotNull { (_, records) ->
+        records.maxByOrNull { it.updatedAtEpochMs }
     }
+
+    private fun normalizeId(raw: String): String = raw.trim().lowercase(Locale.ROOT)
 }

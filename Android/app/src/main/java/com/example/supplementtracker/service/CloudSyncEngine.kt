@@ -704,8 +704,8 @@ class CloudSyncEngine(
         val retryPlain = build().getOrThrow()
         val retryEnc = encryptAndPrepare(retryPlain)
         val extraBytes = retryEnc.toByteArray(Charsets.UTF_8).size.toLong()
-        cloud.upsertBackup(partId, retryEnc, latest.etag).getOrThrow()
-        return latest.etag to extraBytes
+        val retryEtag = cloud.upsertBackup(partId, retryEnc, latest.etag).getOrThrow()
+        return retryEtag to extraBytes
     }
 
     private suspend fun finishCloudSyncSuccess(
@@ -793,8 +793,7 @@ class CloudSyncEngine(
     private fun shouldUpdateSupplement(remote: OAKBackupSupplementDTO, local: UserSupplement): Boolean {
         val remoteUpdatedAt = remote.updatedAtEpochMs
         val localTs = maxOf(local.updatedAtEpochMs, local.deletedAtEpochMs ?: 0L)
-        val fields = remote.modifiedFields
-        return if (fields != null) remoteUpdatedAt > local.updatedAtEpochMs else remoteUpdatedAt > localTs
+        return remoteUpdatedAt > localTs
     }
 
     private fun buildUpdatedSupplement(

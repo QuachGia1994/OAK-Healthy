@@ -300,14 +300,14 @@ class MainActivity : ComponentActivity() {
     
     override fun onResume() {
         super.onResume()
-        homeViewModel?.refreshNotificationSchedules()
         val prefs = OakPrefs.get(applicationContext)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
             val stored = prefs.getBoolean("isNotificationEnabledByUser", false)
-            if (granted != stored) prefs.edit().putBoolean("isNotificationEnabledByUser", granted).apply()
+            if (!granted && stored) prefs.edit().putBoolean("isNotificationEnabledByUser", false).apply()
         }
+        homeViewModel?.refreshNotificationSchedules()
 
         val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
         if (!enabled) return

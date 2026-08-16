@@ -654,12 +654,9 @@ struct SupplementExportCodec {
     }
 
     private static func shouldUpdate(local: UserSupplement, remote: OAKBackupSupplement) -> Bool {
-        if remote.modifiedFields == nil {
-            let localTs = max(local.updatedAtEpochMs, local.deletedAtEpochMs ?? 0)
-            let remoteTs = max(remote.updatedAtEpochMs, remote.deletedAtEpochMs ?? 0)
-            return remoteTs > localTs
-        }
-        return remote.updatedAtEpochMs > local.updatedAtEpochMs
+        let localTs = max(local.updatedAtEpochMs, local.deletedAtEpochMs ?? 0)
+        let remoteTs = max(remote.updatedAtEpochMs, remote.deletedAtEpochMs ?? 0)
+        return remoteTs > localTs
     }
 
     private static func dedupeByDoseKey(

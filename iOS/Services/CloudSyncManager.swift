@@ -480,36 +480,69 @@ enum CloudSyncAutoSync {
         return didSucceed
     }
 
-    private static func performSyncIfEnabled(modelContext: ModelContext, clientId: UUID?) async -> Bool {
-        guard let ctx = makeSyncContext(modelContext: modelContext, clientId: clientId) else { return false }
+    static func syncNow(
+        modelContext: ModelContext,
+        clientId: UUID,
+        binId: String
+    ) async -> Result<Void, Error> {
+        guard await waitForCurrentSync() else { return .failure(CancellationError()) }
+        isSyncing = true
+        defer { isSyncing = false }
         do {
-            markAttempt(ctx: ctx)
-            guard let client = fetchClient(modelContext: modelContext, clientId: ctx.clientId) else { return false }
-            let parts = try await resolveManifestParts(manifestId: ctx.id)
-            let (stackDownload, historyDownload) = try await downloadPartsForImmediateConsistency(parts: parts)
-            let decodedParts = try await decodeRemoteParts(stackData: stackDownload.data, historyData: historyDownload.data)
-            try await mergeRemotePartIfNeeded(decodedParts.stack, client: client, modelContext: modelContext)
-            try await mergeRemotePartIfNeeded(decodedParts.history, client: client, modelContext: modelContext)
-            await commitRevisionIfDownloaded(stackDownload, binId: parts.stackBinId)
-            await commitRevisionIfDownloaded(historyDownload, binId: parts.historyBinId)
-            let remoteChanged = stackDownload.data != nil || historyDownload.data != nil
-            if shouldExitEarly(remoteChanged: remoteChanged, localChanged: ctx.localStackChanged || ctx.localHistoryChanged) {
-                markSuccess(ctx: ctx)
-                return true
-            }
-            if ctx.localStackChanged || ctx.localHistoryChanged {
-                try await uploadPartsIfNeeded(ctx: ctx, modelContext: modelContext, client: client, parts: parts)
-            }
-            markSuccess(ctx: ctx)
+            try await performSync(modelContext: modelContext, clientId: clientId, binId: binId)
+            return .success(())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private static func performSyncIfEnabled(modelContext: ModelContext, clientId: UUID?) async -> Bool {
+        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return false }
+        guard let binId = activeBinId(), let clientId else { return false }
+        do {
+            try await performSync(modelContext: modelContext, clientId: clientId, binId: binId)
             return true
         } catch {
-            markFailure(ctx: ctx, error: error)
             return false
         }
     }
 
+    private static func waitForCurrentSync() async -> Bool {
+        while isSyncing && !Task.isCancelled {
+            do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
+        }
+        return !Task.isCancelled
+    }
+
+    private static func performSync(
+        modelContext: ModelContext,
+        clientId: UUID,
+        binId: String
+    ) async throws {
+        guard let ctx = makeSyncContext(modelContext: modelContext, clientId: clientId, binId: binId) else {
+            throw CloudSyncError.invalidBinId
+        }
+        let startedAt = Date()
+        do {
+            resetSyncMetrics(ctx: ctx)
+            markAttempt(ctx: ctx)
+            setPhase("pulling", ctx: ctx)
+            guard let client = fetchClient(modelContext: modelContext, clientId: clientId) else {
+                throw CloudSyncError.invalidResponse
+            }
+            if let parts = try await resolveManifestPartsOrNil(manifestId: ctx.id) {
+                try await performManifestSync(ctx: ctx, modelContext: modelContext, client: client, parts: parts)
+            } else {
+                try await performLegacySync(ctx: ctx, modelContext: modelContext, client: client)
+            }
+            markSuccess(ctx: ctx, startedAt: startedAt)
+        } catch {
+            markFailure(ctx: ctx, error: error)
+            throw error
+        }
+    }
+
     private struct SyncContext: Sendable {
-        let binId: String
         let id: String
         let clientId: UUID
         let lastSyncKey: String
@@ -519,10 +552,11 @@ enum CloudSyncAutoSync {
         let localHistoryChanged: Bool
     }
 
-    private static func makeSyncContext(modelContext: ModelContext, clientId: UUID?) -> SyncContext? {
-        guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return nil }
-        guard let binId = activeBinId() else { return nil }
-        guard let clientId else { return nil }
+    private static func makeSyncContext(
+        modelContext: ModelContext,
+        clientId: UUID,
+        binId: String
+    ) -> SyncContext? {
         let id = binId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { return nil }
         let lastSyncKey = "cloudSyncLastSyncEpochMs_\(id)"
@@ -532,7 +566,6 @@ enum CloudSyncAutoSync {
         let localStackChanged = hasLocalStackChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
         let localHistoryChanged = hasLocalHistoryChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
         return SyncContext(
-            binId: binId,
             id: id,
             clientId: clientId,
             lastSyncKey: lastSyncKey,
@@ -541,6 +574,68 @@ enum CloudSyncAutoSync {
             localStackChanged: localStackChanged,
             localHistoryChanged: localHistoryChanged
         )
+    }
+
+    private static func resetSyncMetrics(ctx: SyncContext) {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "cloudSyncConflictRetryCount_\(ctx.id)", "cloudSyncBytesDownloaded_\(ctx.id)",
+            "cloudSyncBytesUploaded_\(ctx.id)", "cloudSyncPullMs_\(ctx.id)",
+            "cloudSyncMergeMs_\(ctx.id)", "cloudSyncPushMs_\(ctx.id)",
+            "cloudSyncTotalMs_\(ctx.id)"
+        ]
+        keys.forEach { defaults.set(0, forKey: $0) }
+    }
+
+    private static func setPhase(_ phase: String, ctx: SyncContext) {
+        UserDefaults.standard.set(phase, forKey: "cloudSyncPhase_\(ctx.id)")
+    }
+
+    private static func resolveManifestPartsOrNil(manifestId: String) async throws -> CloudSyncManifest? {
+        do {
+            return try await resolveManifestParts(manifestId: manifestId)
+        } catch CloudSyncError.invalidResponse {
+            return nil
+        } catch CloudSyncError.manifestCodec(let error) where error == .decodeFailed {
+            return nil
+        }
+    }
+
+    private static func performManifestSync(
+        ctx: SyncContext,
+        modelContext: ModelContext,
+        client: ClientProfile,
+        parts: CloudSyncManifest
+    ) async throws {
+        let (stackDownload, historyDownload) = try await downloadPartsForImmediateConsistency(parts: parts)
+        let decoded = try await decodeRemoteParts(stackData: stackDownload.data, historyData: historyDownload.data)
+        try await mergeRemotePartIfNeeded(decoded.stack, client: client, modelContext: modelContext)
+        try await mergeRemotePartIfNeeded(decoded.history, client: client, modelContext: modelContext)
+        await commitRevisionIfDownloaded(stackDownload, binId: parts.stackBinId)
+        await commitRevisionIfDownloaded(historyDownload, binId: parts.historyBinId)
+        let remoteChanged = stackDownload.data != nil || historyDownload.data != nil
+        guard !shouldExitEarly(remoteChanged: remoteChanged, localChanged: ctx.localStackChanged || ctx.localHistoryChanged) else { return }
+        guard ctx.localStackChanged || ctx.localHistoryChanged else { return }
+        try await uploadPartsIfNeeded(ctx: ctx, modelContext: modelContext, client: client, parts: parts)
+    }
+
+    private static func performLegacySync(
+        ctx: SyncContext,
+        modelContext: ModelContext,
+        client: ClientProfile
+    ) async throws {
+        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: ctx.id)
+        if let data = downloaded.data {
+            try await mergeRemoteDataIfNeeded(data, client: client, modelContext: modelContext)
+            await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: ctx.id)
+        }
+        guard ctx.localStackChanged || ctx.localHistoryChanged else { return }
+        let payload = try makeFullBackup(modelContext: modelContext, clientId: ctx.clientId)
+        try await upsertPartWithRetry(binId: ctx.id, modelContext: modelContext, client: client) {
+            payload
+        } retryPayload: {
+            try makeFullBackup(modelContext: modelContext, clientId: ctx.clientId)
+        }
     }
 
     private static func markAttempt(ctx: SyncContext) {
@@ -769,16 +864,26 @@ enum CloudSyncAutoSync {
         try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: etag)
     }
     
+    static func hasLocalChangesSince(
+        modelContext: ModelContext,
+        clientId: UUID,
+        lastSyncEpochMs: Int64
+    ) -> Bool {
+        if hasLocalStackChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs) {
+            return true
+        }
+        return hasLocalHistoryChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
+    }
+
     private static func hasLocalStackChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
         guard lastSyncEpochMs > 0 else { return true }
         do {
-            var descriptor = FetchDescriptor<UserSupplement>(
+            let descriptor = FetchDescriptor<UserSupplement>(
                 predicate: #Predicate {
                     $0.updatedAtEpochMs > lastSyncEpochMs ||
                         ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs)
                 }
             )
-            descriptor.fetchLimit = 50
             return try modelContext.fetch(descriptor).contains { $0.client?.id == clientId }
         } catch {
             return true
@@ -788,21 +893,25 @@ enum CloudSyncAutoSync {
     private static func hasLocalHistoryChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
         guard lastSyncEpochMs > 0 else { return true }
         do {
-            var descriptor = FetchDescriptor<IntakeRecord>(
+            let descriptor = FetchDescriptor<IntakeRecord>(
                 predicate: #Predicate { $0.updatedAtEpochMs > lastSyncEpochMs },
                 sortBy: [SortDescriptor(\IntakeRecord.updatedAtEpochMs, order: .reverse)]
             )
-            descriptor.fetchLimit = 100
             return try modelContext.fetch(descriptor).contains { $0.supplement?.client?.id == clientId }
         } catch {
             return true
         }
     }
 
-    private static func markSuccess(ctx: SyncContext) {
+    private static func markSuccess(ctx: SyncContext, startedAt: Date) {
+        let defaults = UserDefaults.standard
         let now = Double(Date().timeIntervalSince1970 * 1000)
-        UserDefaults.standard.set(now, forKey: ctx.lastSyncKey)
-        UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
+        defaults.set(now, forKey: ctx.lastSyncKey)
+        defaults.set(now, forKey: "oakLastSyncEpochMs")
+        defaults.set(Int(startedAt.distance(to: Date()) * 1000), forKey: "cloudSyncTotalMs_\(ctx.id)")
+        defaults.removeObject(forKey: ctx.lastErrorKey)
+        defaults.removeObject(forKey: lastFailureKey)
+        setPhase("done", ctx: ctx)
         DebugReporter.report("cloud_sync_success", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: nil))
     }
 
@@ -812,6 +921,7 @@ enum CloudSyncAutoSync {
         UserDefaults.standard.set(nowMs, forKey: ctx.lastAttemptKey)
         UserDefaults.standard.set(message, forKey: ctx.lastErrorKey)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastFailureKey)
+        setPhase("error", ctx: ctx)
         
         let logTsKey = "cloudSyncLastFailureLogEpochMs_\(ctx.id)"
         let logMsgKey = "cloudSyncLastFailureLogMessage_\(ctx.id)"
@@ -911,15 +1021,27 @@ enum CloudSyncAutoSync {
     }
     
     private static func makeHistoryBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
+        let records = try historyRecords(modelContext: modelContext, clientId: clientId)
+        return try SupplementExportCodec.encodeBackup(supplements: [], records: records)
+    }
+
+    private static func makeFullBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
+        let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
+            .filter { $0.client?.id == clientId }
+        let records = try historyRecords(modelContext: modelContext, clientId: clientId)
+        return try SupplementExportCodec.encodeBackup(supplements: supplements, records: records)
+    }
+
+    private static func historyRecords(modelContext: ModelContext, clientId: UUID) throws -> [IntakeRecord] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: .now) ?? .now
-        var descriptor = FetchDescriptor<IntakeRecord>(
+        let descriptor = FetchDescriptor<IntakeRecord>(
             predicate: #Predicate { $0.date >= cutoff },
             sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
         )
-        descriptor.fetchLimit = 8_000
-        let records = try modelContext.fetch(descriptor)
-            .filter { $0.supplement?.client?.id == clientId }
-            .prefix(5_000)
-        return try SupplementExportCodec.encodeBackup(supplements: [], records: Array(records))
+        return Array(
+            try modelContext.fetch(descriptor)
+                .filter { $0.supplement?.client?.id == clientId }
+                .prefix(5_000)
+        )
     }
 }

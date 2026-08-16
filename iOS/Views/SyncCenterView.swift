@@ -174,7 +174,11 @@ public struct SyncCenterView: View {
                 let pushMs = UserDefaults.standard.integer(forKey: pushMsKey)
                 let totalMs = UserDefaults.standard.integer(forKey: totalMsKey)
                 let hasPendingChanges = activeClientManager.currentClientId.map {
-                    hasLocalChangesSince(clientId: $0, lastSyncEpochMs: lastSyncEpochMs)
+                    CloudSyncAutoSync.hasLocalChangesSince(
+                        modelContext: modelContext,
+                        clientId: $0,
+                        lastSyncEpochMs: lastSyncEpochMs
+                    )
                 } ?? false
                 let lastError = (UserDefaults.standard.string(forKey: lastErrorKey) ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -741,9 +745,11 @@ public struct SyncCenterView: View {
             isBinIdVisible = false
             do {
                 let old = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-                try await revokeOldHostedBinIfNeeded(oldBinId: old)
                 let newId = try await uploadHostedBackup()
                 hostedBinId = newId
+                if !old.isEmpty, old != newId {
+                    try? await revokeOldHostedBinIfNeeded(oldBinId: old)
+                }
                 appendLog(binId: newId, phase: "HOST", message: "DONE")
                 showToast("sync_center_toast_host_success".localized)
             } catch {
@@ -790,12 +796,7 @@ public struct SyncCenterView: View {
             return
         }
         await withLoading {
-            await reloadCaches()
-            guard let client = clients.first(where: { $0.id == clientId }) ?? clients.first else {
-                showToast("sync_center_toast_missing_client".localized)
-                return
-            }
-            if await runSyncFlow(binId: binId, client: client, label: "LINK") {
+            if await runSyncFlow(binId: binId, clientId: clientId, label: "LINK") {
                 linkedBinId = binId
             }
         }
@@ -806,206 +807,11 @@ public struct SyncCenterView: View {
         guard let clientId = activeClientManager.currentClientId else { return }
         let id = activeBinId
         guard !id.isEmpty else { return }
-        guard let client = clients.first(where: { $0.id == clientId }) ?? clients.first else { return }
         await withLoading {
-            await reloadCaches()
-            await runSyncFlow(binId: id, client: client, label: label)
+            _ = await runSyncFlow(binId: id, clientId: clientId, label: label)
         }
     }
     
-    @MainActor
-    private func syncTwoWay(binId: String, client: ClientProfile) async throws {
-        let manifestId = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !manifestId.isEmpty else { throw CloudSyncError.invalidBinId }
-        let keys = SyncKeys(binId: manifestId)
-        let startedAt = Date()
-        let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: keys.lastSync))
-        let localStackChanged = hasLocalStackChangesSince(clientId: client.id, lastSyncEpochMs: lastSyncEpochMs)
-        let localHistoryChanged = hasLocalHistoryChangesSince(clientId: client.id, lastSyncEpochMs: lastSyncEpochMs)
-        
-        do {
-            resetSyncMetrics(keys: keys)
-            markAttempt(keys: keys)
-            syncPhase = .pulling
-            appendLog(binId: manifestId, phase: "PULL", message: "START")
-            let pullStartedAt = Date()
-            let parts: CloudSyncManifest
-            do {
-                parts = try await resolveManifestParts(manifestId: manifestId)
-            } catch CloudSyncError.invalidResponse {
-                try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
-                return
-            } catch CloudSyncError.manifestCodec(let error) where error == .decodeFailed {
-                try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
-                return
-            }
-            async let stackDataTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.stackBinId)
-            async let historyDataTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.historyBinId)
-            let (stackData, historyData) = try await (stackDataTask, historyDataTask)
-            UserDefaults.standard.set(Int(pullStartedAt.distance(to: Date()) * 1000), forKey: keys.pullMs)
-            UserDefaults.standard.set((stackData.data?.count ?? 0) + (historyData.data?.count ?? 0), forKey: keys.bytesDown)
-            
-            if stackData.data != nil || historyData.data != nil {
-                syncPhase = .merging
-                appendLog(binId: manifestId, phase: "MERGE", message: "START")
-                let mergeStartedAt = Date()
-                if let stackData = stackData.data { try await SupplementExportCodec.mergeBackupCooperatively(data: stackData, client: client, context: modelContext) }
-                if let historyData = historyData.data { try await SupplementExportCodec.mergeBackupCooperatively(data: historyData, client: client, context: modelContext) }
-                UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
-                appendLog(binId: manifestId, phase: "MERGE", message: "DONE")
-            }
-            await commitRevisionIfDownloaded(stackData, binId: parts.stackBinId)
-            await commitRevisionIfDownloaded(historyData, binId: parts.historyBinId)
-            
-            if !localStackChanged && !localHistoryChanged {
-                finalizeSuccess(keys: keys, startedAt: startedAt)
-                return
-            }
-            
-            syncPhase = .pushing
-            appendLog(binId: manifestId, phase: "PUSH", message: "START")
-            let pushStartedAt = Date()
-            var bytesUp = 0
-            if localStackChanged {
-                let payload = try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: [])
-                bytesUp += payload.count
-                try await upsertWithConflictRetry(
-                    binId: parts.stackBinId,
-                    client: client,
-                    payload: payload,
-                    retryPayload: { try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: []) },
-                    keys: keys
-                )
-            }
-            if localHistoryChanged {
-                let payload = try SupplementExportCodec.encodeBackup(supplements: [], records: cachedRecords)
-                bytesUp += payload.count
-                try await upsertWithConflictRetry(
-                    binId: parts.historyBinId,
-                    client: client,
-                    payload: payload,
-                    retryPayload: { try SupplementExportCodec.encodeBackup(supplements: [], records: cachedRecords) },
-                    keys: keys
-                )
-            }
-            UserDefaults.standard.set(bytesUp, forKey: keys.bytesUp)
-            UserDefaults.standard.set(Int(pushStartedAt.distance(to: Date()) * 1000), forKey: keys.pushMs)
-            appendLog(binId: manifestId, phase: "PUSH", message: "DONE")
-            finalizeSuccess(keys: keys, startedAt: startedAt)
-        } catch {
-            finalizeError(keys: keys, error: error)
-            throw error
-        }
-    }
-
-    private func commitRevisionIfDownloaded(_ download: CloudSyncDownload, binId: String) async {
-        guard download.data != nil else { return }
-        await CloudSyncManager.shared.commitRevision(download.revision, binId: binId)
-    }
-
-    @MainActor
-    private func resolveManifestParts(manifestId: String) async throws -> CloudSyncManifest {
-        let stackKey = "cloudSyncStackBinId_\(manifestId)"
-        let historyKey = "cloudSyncHistoryBinId_\(manifestId)"
-        let storedStack = (UserDefaults.standard.string(forKey: stackKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let storedHistory = (UserDefaults.standard.string(forKey: historyKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !storedStack.isEmpty, !storedHistory.isEmpty {
-            return CloudSyncManifest(v: 1, stackBinId: storedStack, historyBinId: storedHistory)
-        }
-        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: manifestId)
-        guard let manifestData = downloaded.data else { throw CloudSyncError.invalidResponse }
-        let decoded: CloudSyncManifest
-        do {
-            decoded = try CloudSyncManifestCodec.decode(manifestData)
-        } catch let error as CloudSyncManifestCodecError {
-            throw CloudSyncError.manifestCodec(error)
-        }
-        let stackId = decoded.stackBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        let historyId = decoded.historyBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !stackId.isEmpty, !historyId.isEmpty else { throw CloudSyncError.invalidResponse }
-        UserDefaults.standard.set(stackId, forKey: stackKey)
-        UserDefaults.standard.set(historyId, forKey: historyKey)
-        await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: manifestId)
-        return decoded
-    }
-
-    @MainActor
-    private func syncTwoWayLegacy(
-        binId: String,
-        client: ClientProfile,
-        keys: SyncKeys,
-        startedAt: Date,
-        lastSyncEpochMs: Int64
-    ) async throws {
-        let localChanged = hasLocalChangesSince(clientId: client.id, lastSyncEpochMs: lastSyncEpochMs)
-        let pullStartedAt = Date()
-        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
-        UserDefaults.standard.set(Int(pullStartedAt.distance(to: Date()) * 1000), forKey: keys.pullMs)
-        UserDefaults.standard.set(downloaded.data?.count ?? 0, forKey: keys.bytesDown)
-        if let data = downloaded.data {
-            syncPhase = .merging
-            let mergeStartedAt = Date()
-            try await SupplementExportCodec.mergeBackupCooperatively(data: data, client: client, context: modelContext)
-            UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
-            await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: binId)
-        }
-        guard localChanged else {
-            finalizeSuccess(keys: keys, startedAt: startedAt)
-            return
-        }
-        syncPhase = .pushing
-        let pushStartedAt = Date()
-        let payload = try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: cachedRecords)
-        UserDefaults.standard.set(payload.count, forKey: keys.bytesUp)
-        try await upsertWithConflictRetry(
-            binId: binId,
-            client: client,
-            payload: payload,
-            retryPayload: { try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: cachedRecords) },
-            keys: keys
-        )
-        UserDefaults.standard.set(Int(pushStartedAt.distance(to: Date()) * 1000), forKey: keys.pushMs)
-        finalizeSuccess(keys: keys, startedAt: startedAt)
-    }
-    
-    private func hasLocalChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
-        guard lastSyncEpochMs > 0 else { return true }
-        if hasLocalStackChangesSince(clientId: clientId, lastSyncEpochMs: lastSyncEpochMs) { return true }
-        return hasLocalHistoryChangesSince(clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
-    }
-    
-    private func hasLocalStackChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
-        guard lastSyncEpochMs > 0 else { return true }
-        do {
-            var descriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate {
-                    $0.updatedAtEpochMs > lastSyncEpochMs ||
-                        ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs)
-                }
-            )
-            descriptor.fetchLimit = 50
-            let changed = try modelContext.fetch(descriptor)
-            return changed.contains(where: { $0.client?.id == clientId })
-        } catch {
-            return true
-        }
-    }
-    
-    private func hasLocalHistoryChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
-        guard lastSyncEpochMs > 0 else { return true }
-        do {
-            var descriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate { $0.updatedAtEpochMs > lastSyncEpochMs },
-                sortBy: [SortDescriptor(\IntakeRecord.updatedAtEpochMs, order: .reverse)]
-            )
-            descriptor.fetchLimit = 100
-            let changed = try modelContext.fetch(descriptor)
-            return changed.contains(where: { $0.supplement?.client?.id == clientId })
-        } catch {
-            return true
-        }
-    }
-
     @MainActor
     private func withLoading(_ work: () async -> Void) async {
         guard !isCloudSyncLoading else { return }
@@ -1030,48 +836,60 @@ public struct SyncCenterView: View {
         UserDefaults.standard.removeObject(forKey: "cloudSyncEtagStackV2_\(oldBinId)")
         UserDefaults.standard.removeObject(forKey: "cloudSyncEtagHistoryV2_\(oldBinId)")
         UserDefaults.standard.removeObject(forKey: "cloudSyncLastSeenRevV2_\(oldBinId)")
-        hostedBinId = ""
     }
     
     @MainActor
     private func uploadHostedBackup() async throws -> String {
         let stackPayload = try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: [])
         let historyPayload = try SupplementExportCodec.encodeBackup(supplements: [], records: cachedRecords)
-        let stackId = try await CloudSyncManager.shared.uploadBackup(jsonData: stackPayload)
-        let historyId = try await CloudSyncManager.shared.uploadBackup(jsonData: historyPayload)
-        let manifest: Data
+        var createdIds: [String] = []
         do {
-            manifest = try CloudSyncManifestCodec.encode(stackBinId: stackId, historyBinId: historyId)
-        } catch let error as CloudSyncManifestCodecError {
-            throw CloudSyncError.manifestCodec(error)
+            let stackId = try await CloudSyncManager.shared.uploadBackup(jsonData: stackPayload)
+            createdIds.append(stackId)
+            let historyId = try await CloudSyncManager.shared.uploadBackup(jsonData: historyPayload)
+            createdIds.append(historyId)
+            let manifest: Data
+            do {
+                manifest = try CloudSyncManifestCodec.encode(stackBinId: stackId, historyBinId: historyId)
+            } catch let error as CloudSyncManifestCodecError {
+                throw CloudSyncError.manifestCodec(error)
+            }
+            let manifestId = try await CloudSyncManager.shared.uploadBackup(jsonData: manifest)
+            UserDefaults.standard.set(stackId, forKey: "cloudSyncStackBinId_\(manifestId)")
+            UserDefaults.standard.set(historyId, forKey: "cloudSyncHistoryBinId_\(manifestId)")
+            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: "cloudSyncLastSyncEpochMs_\(manifestId)")
+            return manifestId
+        } catch {
+            for id in createdIds.reversed() { try? await CloudSyncManager.shared.deleteBackup(binId: id) }
+            throw error
         }
-        let manifestId = try await CloudSyncManager.shared.uploadBackup(jsonData: manifest)
-        UserDefaults.standard.set(stackId, forKey: "cloudSyncStackBinId_\(manifestId)")
-        UserDefaults.standard.set(historyId, forKey: "cloudSyncHistoryBinId_\(manifestId)")
-        UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: "cloudSyncLastSyncEpochMs_\(manifestId)")
-        return manifestId
     }
     
     @MainActor
     @discardableResult
-    private func runSyncFlow(binId: String, client: ClientProfile, label: String) async -> Bool {
+    private func runSyncFlow(binId: String, clientId: UUID, label: String) async -> Bool {
         appendLog(binId: binId, phase: "DIAG", message: FirebaseBootstrap.firebaseDiag)
-        do {
-            appendLog(binId: binId, phase: "SYNC", message: "\(label) START")
-            try await syncTwoWay(binId: binId, client: client)
-            activeClientManager.setCurrentClientId(client.id)
+        appendLog(binId: binId, phase: "SYNC", message: "\(label) START")
+        syncPhase = .pulling
+        let result = await CloudSyncAutoSync.syncNow(
+            modelContext: modelContext,
+            clientId: clientId,
+            binId: binId
+        )
+        switch result {
+        case .success:
+            activeClientManager.setCurrentClientId(clientId)
             isSafeModeEnabled = false
+            syncPhase = .done
+            await reloadCaches()
             await rescheduleNotificationsIfEnabled()
             appendLog(binId: binId, phase: "SYNC", message: "\(label) DONE")
-            if label != "AUTO" {
-                showToast("sync_center_toast_sync_success".localized)
-            }
+            if label != "AUTO" { showToast("sync_center_toast_sync_success".localized) }
             return true
-        } catch {
+        case .failure(let error):
+            syncPhase = .error
             appendLog(binId: binId, phase: "SYNC", message: "\(label) ERROR: \(error.localizedDescription)")
-            if label != "AUTO" {
-                showSyncFailure(error)
-            }
+            if label != "AUTO" { showSyncFailure(error) }
             return false
         }
     }
@@ -1099,68 +917,6 @@ public struct SyncCenterView: View {
         }
         let active = cachedSupplements.filter { $0.deletedAtEpochMs == nil }
         await NotificationService.shared.replaceAllSchedules(supplements: active)
-    }
-    
-    @MainActor
-    private func resetSyncMetrics(keys: SyncKeys) {
-        UserDefaults.standard.set(0, forKey: keys.bytesDown)
-        UserDefaults.standard.set(0, forKey: keys.bytesUp)
-        UserDefaults.standard.set(0, forKey: keys.pullMs)
-        UserDefaults.standard.set(0, forKey: keys.mergeMs)
-        UserDefaults.standard.set(0, forKey: keys.pushMs)
-        UserDefaults.standard.set(0, forKey: keys.totalMs)
-        UserDefaults.standard.set(0, forKey: keys.retryCount)
-    }
-    
-    @MainActor
-    private func markAttempt(keys: SyncKeys) {
-        let now = Double(Date().timeIntervalSince1970 * 1000)
-        UserDefaults.standard.set(now, forKey: keys.lastAttempt)
-    }
-    
-    @MainActor
-    private func upsertWithConflictRetry(
-        binId: String,
-        client: ClientProfile,
-        payload: Data,
-        retryPayload: () throws -> Data,
-        keys: SyncKeys
-    ) async throws {
-        do {
-            let etagKey = "cloudSyncEtagV2_\(binId)"
-            let etag = UserDefaults.standard.string(forKey: etagKey)
-            try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: etag)
-        } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 409 || statusCode == 412 {
-            syncPhase = .retryingConflict
-            UserDefaults.standard.set(1, forKey: keys.retryCount)
-            appendLog(binId: binId, phase: "CONFLICT", message: "RETRY START")
-            let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
-            guard let data = latest.data else { throw CloudSyncError.invalidResponse }
-            try await SupplementExportCodec.mergeBackupCooperatively(data: data, client: client, context: modelContext)
-            await CloudSyncManager.shared.commitRevision(latest.revision, binId: binId)
-            let payload = try retryPayload()
-            let etagKey = "cloudSyncEtagV2_\(binId)"
-            let retryEtag = UserDefaults.standard.string(forKey: etagKey)
-            try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: retryEtag)
-        }
-    }
-    
-    @MainActor
-    private func finalizeSuccess(keys: SyncKeys, startedAt: Date) {
-        UserDefaults.standard.removeObject(forKey: keys.lastError)
-        let now = Double(Date().timeIntervalSince1970 * 1000)
-        UserDefaults.standard.set(now, forKey: keys.lastSync)
-        UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
-        UserDefaults.standard.set(Int(startedAt.distance(to: Date()) * 1000), forKey: keys.totalMs)
-        syncPhase = .done
-        appendLog(binId: keys.binId, phase: "SYNC", message: "DONE")
-    }
-    
-    @MainActor
-    private func finalizeError(keys: SyncKeys, error: Error) {
-        UserDefaults.standard.set(error.localizedDescription, forKey: keys.lastError)
-        syncPhase = .error
-        appendLog(binId: keys.binId, phase: "SYNC", message: "ERROR: \(error.localizedDescription)")
     }
     
     @MainActor
@@ -1213,12 +969,10 @@ public struct SyncCenterView: View {
                 )
                 let suppIds = supplementsAll.filter { $0.client?.id == clientId }.map { $0.persistentModelID }
 
-                var recordsDescriptor = FetchDescriptor<IntakeRecord>(
-                    sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
-                )
-                recordsDescriptor.fetchLimit = 5_000
+                let recordsDescriptor = FetchDescriptor<IntakeRecord>(sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)])
                 let recordsAll = try ctx.fetch(recordsDescriptor)
-                let recordIds = recordsAll.filter { $0.supplement?.client?.id == clientId && $0.date >= cutoff }.map { $0.persistentModelID }
+                let recordIds = recordsAll.filter { $0.supplement?.client?.id == clientId && $0.date >= cutoff }
+                    .prefix(5_000).map { $0.persistentModelID }
                 return (suppIds, recordIds)
             }.value
 
@@ -1305,36 +1059,6 @@ public struct SyncCenterView: View {
 private enum SyncCenterTab: String {
     case host
     case link
-}
-
-private struct SyncKeys {
-    let binId: String
-    let lastSync: String
-    let lastAttempt: String
-    let retryCount: String
-    let bytesDown: String
-    let bytesUp: String
-    let pullMs: String
-    let mergeMs: String
-    let pushMs: String
-    let totalMs: String
-    let lastError: String
-    let etag: String
-    
-    init(binId: String) {
-        self.binId = binId
-        lastSync = "cloudSyncLastSyncEpochMs_\(binId)"
-        lastAttempt = "cloudSyncLastAttemptEpochMs_\(binId)"
-        retryCount = "cloudSyncConflictRetryCount_\(binId)"
-        bytesDown = "cloudSyncBytesDownloaded_\(binId)"
-        bytesUp = "cloudSyncBytesUploaded_\(binId)"
-        pullMs = "cloudSyncPullMs_\(binId)"
-        mergeMs = "cloudSyncMergeMs_\(binId)"
-        pushMs = "cloudSyncPushMs_\(binId)"
-        totalMs = "cloudSyncTotalMs_\(binId)"
-        lastError = "cloudSyncLastError_\(binId)"
-        etag = "cloudSyncEtagV2_\(binId)"
-    }
 }
 
 private struct CloudSyncLogEntry: Codable, Identifiable {

@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.model.UserSupplement
@@ -148,11 +149,19 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
             buildIntent(supplement, timeString, scheduledAtMillis),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        scheduleAlarm(triggerAtMillis, pendingIntent)
         NotificationDebugStore.recordScheduled(
             context,
             ScheduledAlarmInfo(requestCode, supplement.id.toString(), supplement.name, supplement.dailyDose, cycleLabel(supplement, date), triggerAtMillis)
         )
+    }
+
+    private fun scheduleAlarm(triggerAtMillis: Long, pendingIntent: PendingIntent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            return
+        }
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
     }
 
     private data class QuietHoursPlan(

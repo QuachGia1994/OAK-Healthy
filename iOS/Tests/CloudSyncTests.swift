@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import OAKHealthy
 
 final class CloudSyncPayloadCodecTests: XCTestCase {
@@ -70,6 +71,40 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
         compressed[lastIndex] ^= 0x01
 
         XCTAssertThrowsError(try ZlibBase64Codec.decodeArray(base64: compressed.base64EncodedString()))
+    }
+}
+
+final class SupplementMergeRegressionTests: XCTestCase {
+    @MainActor
+    func testMergeDoesNotResurrectNewerLocalDeletion() throws {
+        let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: config)
+        let context = ModelContext(container)
+        let client = ClientProfile(name: "Test")
+        let id = UUID()
+        let local = UserSupplement(
+            id: id, name: "Local", startDate: .now, cycleConfig: .continuous,
+            dailyDose: "1", intakeTime: "08:00", updatedAtEpochMs: 100,
+            deletedAtEpochMs: 300, client: client
+        )
+        context.insert(client)
+        context.insert(local)
+        try context.save()
+        let cycle = SupplementExportCycle(
+            isContinuous: true, daysOn: 1, daysOff: 0, durationMonths: nil,
+            weeklyWeekdaysMask: nil, weeklyIntervalWeeks: nil, weeklyAnchorDate: nil, intervalDays: nil
+        )
+        let remote = OAKBackupSupplement(
+            id: id.uuidString, name: "Remote", dailyDose: "2", intakeTime: "09:00",
+            startDate: "2026-01-01", cycle: cycle, lastTakenLocalDate: nil,
+            updatedAtEpochMs: 200, deletedAtEpochMs: nil, modifiedFields: ["name"]
+        )
+        let backup = OAKBackupData(version: "2.0", meta: nil, stack: [remote], history: [], historyZlibBase64: nil)
+        try SupplementExportCodec.mergeBackupDataSafely(backup, client: client, context: context)
+
+        XCTAssertEqual(local.name, "Local")
+        XCTAssertEqual(local.deletedAtEpochMs, 300)
     }
 }
 

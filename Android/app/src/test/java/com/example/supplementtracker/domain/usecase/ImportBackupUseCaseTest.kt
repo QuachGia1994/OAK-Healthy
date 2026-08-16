@@ -1,10 +1,12 @@
 package com.example.supplementtracker.domain.usecase
 
 import com.example.supplementtracker.domain.model.ClientProfile
+import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
+import com.example.supplementtracker.domain.util.DoseEventKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -12,12 +14,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 import java.util.UUID
 
 private class RecordingImportRepository : SupplementRepository {
     var importedClientId: String? = null
     var importedSupplements: List<UserSupplement> = emptyList()
     var importedRecords: List<IntakeRecord> = emptyList()
+    val existingSupplements = mutableMapOf<String, UserSupplement>()
 
     override suspend fun saveClient(profile: ClientProfile) = Unit
     override suspend fun updateClient(profile: ClientProfile) = Unit
@@ -26,7 +30,7 @@ private class RecordingImportRepository : SupplementRepository {
     override suspend fun saveSupplement(supplement: UserSupplement) = Unit
     override suspend fun updateSupplement(supplement: UserSupplement) = Unit
     override suspend fun deleteSupplement(supplement: UserSupplement) = Unit
-    override suspend fun getSupplementById(id: String): UserSupplement? = null
+    override suspend fun getSupplementById(id: String): UserSupplement? = existingSupplements[id.lowercase()]
     override fun getAllSupplements(clientId: String): Flow<List<UserSupplement>> = emptyFlow()
     override fun getSupplementsWithTakenToday(clientId: String, startOfDay: Long, endOfDay: Long): Flow<List<UserSupplementTakenToday>> = emptyFlow()
     override suspend fun logIntake(supplementId: String, date: Long) = Unit
@@ -92,7 +96,34 @@ class ImportBackupUseCaseTest {
         assertEquals("2026-08-11", imported.lastTakenLocalDate.toString())
         assertEquals("08:00, 20:00", imported.intakeTime)
         assertEquals(1, repository.importedRecords.size)
-        assertEquals("keep", repository.importedRecords.single().id)
+        assertEquals(DoseEventKey.make(supplementId.toString(), 1000), repository.importedRecords.single().id)
+    }
+
+    @Test
+    fun import_remapsIdOwnedByAnotherClientAndKeepsHistoryLinked() = kotlinx.coroutines.runBlocking {
+        val otherClientId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        repository.existingSupplements[supplementId.toString()] = UserSupplement(
+            id = supplementId,
+            clientId = otherClientId,
+            name = "Other",
+            startDate = LocalDate.parse("2026-01-01"),
+            cycleConfig = CycleConfig.Continuous,
+            dailyDose = "1",
+            intakeTime = "08:00"
+        )
+        val json = """
+            {"version":"2.0","supplements":[{"id":"$supplementId","name":"Imported","dailyDose":"1",
+            "intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":true,"daysOn":1,"daysOff":0}}],
+            "historyLogs":[{"id":"foreign-id","supplementId":"$supplementId","dateEpochMs":1000,"status":"Taken","updatedAtEpochMs":2000}]}
+        """.trimIndent()
+
+        val result = useCase(json, clientId)
+
+        assertTrue(result.isSuccess)
+        val imported = repository.importedSupplements.single()
+        assertTrue(imported.id != supplementId)
+        assertEquals(imported.id.toString(), repository.importedRecords.single().supplementId)
+        assertEquals(DoseEventKey.make(imported.id.toString(), 1000), repository.importedRecords.single().id)
     }
 
     @Test

@@ -95,23 +95,23 @@ class HomeViewModel(
     private val _cloudSyncUiStatus = MutableStateFlow<CloudSyncUiStatus?>(null)
     val cloudSyncUiStatus: StateFlow<CloudSyncUiStatus?> = _cloudSyncUiStatus
     private var pendingAutoSyncJob: Job? = null
+    private val cloudBackupEngine = CloudBackupEngine(
+        context = context,
+        repository = repository,
+        currentClientId = { activeClientManager.currentClientId.value }
+    )
     private val cloudSyncEngine = CloudSyncEngine(
         context = context,
         repository = repository,
         currentClientId = { activeClientManager.currentClientId.value },
-        buildFullBackupJson = { buildFullBackupJson() },
-        buildStackBackupJson = { buildStackBackupJson() },
-        buildHistoryBackupJson = { buildHistoryBackupJson() },
+        buildFullBackupJson = { cloudBackupEngine.buildFullBackupJson() },
+        buildStackBackupJson = { cloudBackupEngine.buildStackBackupJson() },
+        buildHistoryBackupJson = { cloudBackupEngine.buildHistoryBackupJson() },
         updateUi = { updateCloudSyncUiStatus(it) },
         setLoading = { _cloudSyncLoading.value = it },
         rescheduleNotifications = { rescheduleNotificationsNow() },
         disableAutoSync = { stopAutoSync() },
         appendLog = { prefs, binId, phase, message -> appendCloudSyncLog(prefs, binId, phase, message) }
-    )
-    private val cloudBackupEngine = CloudBackupEngine(
-        context = context,
-        repository = repository,
-        currentClientId = { activeClientManager.currentClientId.value }
     )
     private val calculateHomeDashboardUseCase = CalculateHomeDashboardUseCase(calculateCycleUseCase)
     private val importBackupUseCase = ImportBackupUseCase(repository)
@@ -163,6 +163,7 @@ class HomeViewModel(
         realtimeListener?.close()
         realtimeListener = null
     }
+
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
     private val expiredCleanupIds = ConcurrentHashMap.newKeySet<String>()
@@ -232,60 +233,43 @@ class HomeViewModel(
     
     private suspend fun updateCloudSyncUiStatus(binId: String) {
         val clientId = activeClientManager.currentClientId.value ?: return
-        val prefs = OakPrefs.get(context)
         val id = binId.trim()
         if (id.isEmpty()) {
             _cloudSyncUiStatus.value = null
             return
         }
-        val lastSyncKey = "cloudSyncLastSyncEpochMs_$id"
-        val lastAttemptKey = "cloudSyncLastAttemptEpochMs_$id"
-        val lastErrorKey = "cloudSyncLastError_$id"
-        val phaseKey = "cloudSyncPhase_$id"
-        val retryKey = "cloudSyncConflictRetryCount_$id"
-        val bytesDownloadedKey = "cloudSyncBytesDownloaded_$id"
-        val bytesUploadedKey = "cloudSyncBytesUploaded_$id"
-        val pullMsKey = "cloudSyncPullMs_$id"
-        val mergeMsKey = "cloudSyncMergeMs_$id"
-        val pushMsKey = "cloudSyncPushMs_$id"
-        val totalMsKey = "cloudSyncTotalMs_$id"
-        val lastSyncEpochMs = prefs.getLong(lastSyncKey, 0L)
-        val lastAttemptEpochMs = prefs.getLong(lastAttemptKey, 0L)
-        val lastError = prefs.getString(lastErrorKey, null)?.trim()?.takeIf { it.isNotEmpty() }
-        val phase = runCatching { CloudSyncPhase.valueOf(prefs.getString(phaseKey, "") ?: "") }.getOrNull()
-            ?: CloudSyncPhase.IDLE
-        val retryCount = prefs.getInt(retryKey, 0)
-        val bytesDownloaded = prefs.getLong(bytesDownloadedKey, 0L)
-        val bytesUploaded = prefs.getLong(bytesUploadedKey, 0L)
-        val pullMs = prefs.getLong(pullMsKey, 0L)
-        val mergeMs = prefs.getLong(mergeMsKey, 0L)
-        val pushMs = prefs.getLong(pushMsKey, 0L)
-        val totalMs = prefs.getLong(totalMsKey, 0L)
-        val pending = cloudSyncEngine.hasLocalChangesSince(clientId, lastSyncEpochMs)
-        _cloudSyncUiStatus.value = CloudSyncUiStatus(
+        val prefs = OakPrefs.get(context)
+        val lastSync = prefs.getLong("cloudSyncLastSyncEpochMs_$id", 0L)
+        val pending = cloudSyncEngine.hasLocalChangesSince(clientId, lastSync)
+        _cloudSyncUiStatus.value = buildCloudSyncUiStatus(prefs, id, lastSync, pending)
+    }
+
+    private fun buildCloudSyncUiStatus(
+        prefs: android.content.SharedPreferences,
+        id: String,
+        lastSync: Long,
+        pending: Boolean
+    ): CloudSyncUiStatus {
+        val phase = runCatching {
+            CloudSyncPhase.valueOf(prefs.getString("cloudSyncPhase_$id", "").orEmpty())
+        }.getOrDefault(CloudSyncPhase.IDLE)
+        return CloudSyncUiStatus(
             binId = id,
-            lastSyncEpochMs = lastSyncEpochMs,
-            lastAttemptEpochMs = lastAttemptEpochMs,
+            lastSyncEpochMs = lastSync,
+            lastAttemptEpochMs = prefs.getLong("cloudSyncLastAttemptEpochMs_$id", 0L),
             hasPendingChanges = pending,
-            lastError = lastError
-            ,
+            lastError = prefs.getString("cloudSyncLastError_$id", null)?.trim()?.takeIf(String::isNotEmpty),
             phase = phase,
-            conflictRetryCount = retryCount,
-            bytesDownloaded = bytesDownloaded,
-            bytesUploaded = bytesUploaded,
-            pullMs = pullMs,
-            mergeMs = mergeMs,
-            pushMs = pushMs,
-            totalMs = totalMs
+            conflictRetryCount = prefs.getInt("cloudSyncConflictRetryCount_$id", 0),
+            bytesDownloaded = prefs.getLong("cloudSyncBytesDownloaded_$id", 0L),
+            bytesUploaded = prefs.getLong("cloudSyncBytesUploaded_$id", 0L),
+            pullMs = prefs.getLong("cloudSyncPullMs_$id", 0L),
+            mergeMs = prefs.getLong("cloudSyncMergeMs_$id", 0L),
+            pushMs = prefs.getLong("cloudSyncPushMs_$id", 0L),
+            totalMs = prefs.getLong("cloudSyncTotalMs_$id", 0L)
         )
     }
     
-    private suspend fun buildStackBackupJson(): Result<String> = cloudBackupEngine.buildStackBackupJson()
-
-    private suspend fun buildHistoryBackupJson(): Result<String> = cloudBackupEngine.buildHistoryBackupJson()
-
-    private suspend fun buildFullBackupJson(): Result<String> = cloudBackupEngine.buildFullBackupJson()
-
     private fun getStartOfDay(daysAgo: Long): Long {
         return LocalDate.now().minusDays(daysAgo).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
@@ -556,20 +540,6 @@ class HomeViewModel(
         prefs.edit().putString(key, trimmed.toString()).apply()
     }
 
-
-
-
-
-
-
-
-
-
-    
-
-
-
-    
     fun refreshNotificationSchedules() {
         viewModelScope.launch {
             rescheduleNotificationsNow()
@@ -592,25 +562,9 @@ class HomeViewModel(
         }
     }
 
-    fun silentDownloadAndMerge(binId: String) {
-        viewModelScope.launch { syncTwoWay(binId) }
-    }
-
     suspend fun runSyncTwoWayNow(binId: String) {
         syncTwoWay(binId)
     }
-    
-
-    
-
-    
-
-
-
-
-
-
-
 
     fun createClient(profile: ClientProfile) {
         viewModelScope.launch {
