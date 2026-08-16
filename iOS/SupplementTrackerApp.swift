@@ -656,7 +656,10 @@ struct MainTabView: View {
     @MainActor
     private func rescheduleNotificationsIfEnabled() async {
         guard isNotificationEnabledByUser else { return }
-        guard let clientId = activeClientManager.currentClientId else { return }
+        guard let clientId = activeClientManager.currentClientId else {
+            await notificationService.clearAllPendingNotifications()
+            return
+        }
         do {
             let supplements = try ClientScopedStore.activeSupplements(
                 modelContext: modelContext,
@@ -731,6 +734,13 @@ struct MainTabView: View {
     @MainActor
     private func doseActionContext(_ payload: NotificationDoseAction) -> NotificationDoseContext? {
         guard let supplement = fetchSupplement(id: payload.supplementId) else { return nil }
+        guard ActiveProfileNotificationPolicy.allows(
+            activeClientId: activeClientManager.currentClientId,
+            supplementClientId: supplement.client?.id
+        ) else {
+            DebugReporter.report("dose_action_client_mismatch")
+            return nil
+        }
         let scheduledAt = Date(timeIntervalSince1970: TimeInterval(payload.scheduledAtEpochMs) / 1000)
         let intakeTime = TimeStrings.normalizeList(payload.intakeTime).first ?? payload.intakeTime
         let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: payload.scheduledAtEpochMs)

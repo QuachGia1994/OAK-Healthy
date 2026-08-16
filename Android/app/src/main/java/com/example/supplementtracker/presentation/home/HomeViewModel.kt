@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -37,6 +39,7 @@ import com.example.supplementtracker.service.CloudBackupEngine
 import com.example.supplementtracker.service.CloudSyncCrypto
 import com.example.supplementtracker.service.CloudSyncPayloadCodec
 import com.example.supplementtracker.service.CloudSyncLogStore
+import com.example.supplementtracker.service.ActiveProfileNotificationPolicy
 import com.example.supplementtracker.service.FactoryResetEngine
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.worker.CloudAutoSyncWork
@@ -116,7 +119,11 @@ class HomeViewModel(
     private val calculateHomeDashboardUseCase = CalculateHomeDashboardUseCase(calculateCycleUseCase)
     private val importBackupUseCase = ImportBackupUseCase(repository)
     private val recordDoseUseCase = RecordDoseUseCase(repository)
-    private val notificationScheduleEngine = NotificationScheduleEngine(context, repository)
+    private val notificationScheduleEngine = NotificationScheduleEngine(
+        context,
+        repository,
+        { activeClientManager.currentClientId.value }
+    )
     private val factoryResetEngine = FactoryResetEngine(
         repository = repository,
         clearNotifications = { notificationScheduleEngine.clearAll() },
@@ -178,6 +185,15 @@ class HomeViewModel(
 
     init {
         observeDayChanges()
+        observeActiveClientChanges()
+    }
+
+    private fun observeActiveClientChanges() {
+        viewModelScope.launch {
+            activeClientManager.currentClientId
+                .drop(1)
+                .collectLatest { rescheduleNotificationsNow() }
+        }
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -359,6 +375,9 @@ class HomeViewModel(
         action: DoseAction
     ) {
         viewModelScope.launch {
+            val supplement = repository.getSupplementById(supplementId) ?: return@launch
+            val activeClientId = activeClientManager.currentClientId.value
+            if (!ActiveProfileNotificationPolicy.allows(activeClientId, supplement.clientId)) return@launch
             val normalizedSupplementId = supplementId.lowercase(Locale.ROOT)
             val recordId = DoseEventKey.make(normalizedSupplementId, scheduledAtEpochMs)
             if (repository.getIntakeRecordById(recordId) != null) return@launch

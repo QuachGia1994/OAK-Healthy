@@ -199,12 +199,12 @@ public struct NotificationService: NotificationManaging {
     
     @MainActor
     public func replaceAllSchedules(supplements: [UserSupplement]) async {
+        center.removeAllPendingNotificationRequests()
+        await NotificationShadowLogStore.shared.clear()
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
         let settings = await center.notificationSettings()
         let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
         guard authorized else { return }
-        center.removeAllPendingNotificationRequests()
-        await NotificationShadowLogStore.shared.clear()
         for supplement in supplements {
             do {
                 try await scheduleReminders(for: supplement)

@@ -5,9 +5,9 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.supplementtracker.data.local.SupplementDatabase
 import com.example.supplementtracker.data.repository.SupplementRepositoryImpl
-import com.example.supplementtracker.service.NotificationSchedulerImpl
+import com.example.supplementtracker.service.ActiveClientStore
+import com.example.supplementtracker.service.NotificationScheduleEngine
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class CycleCheckWorker(
@@ -19,12 +19,12 @@ class CycleCheckWorker(
         try {
             val database = SupplementDatabase.getInstance(applicationContext)
             val repository = SupplementRepositoryImpl(database.supplementDao)
-            val scheduler = NotificationSchedulerImpl(applicationContext)
-            val clients = repository.observeClients().first()
-            val supplements = clients.flatMap { client ->
-                repository.getAllSupplements(client.id.toString()).first()
-            }
-            supplements.forEach(scheduler::schedule)
+            val activeClientStore = ActiveClientStore(applicationContext)
+            NotificationScheduleEngine(
+                applicationContext,
+                repository,
+                activeClientStore::currentClientId
+            ).rescheduleAll()
             Result.success()
         } catch (e: Exception) {
             Result.retry()

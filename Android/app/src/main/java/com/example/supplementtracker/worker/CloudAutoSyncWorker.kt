@@ -51,7 +51,11 @@ class CloudAutoSyncWorker(
         val database = SupplementDatabase.getInstance(applicationContext)
         val repository = SupplementRepositoryImpl(database.supplementDao)
         val backupEngine = CloudBackupEngine(applicationContext, repository, activeClientStore::currentClientId)
-        val notificationEngine = NotificationScheduleEngine(applicationContext, repository)
+        val notificationEngine = NotificationScheduleEngine(
+            applicationContext,
+            repository,
+            activeClientStore::currentClientId
+        )
         return CloudSyncEngine(
             context = applicationContext,
             repository = repository,
