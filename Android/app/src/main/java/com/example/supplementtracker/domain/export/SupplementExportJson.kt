@@ -94,6 +94,13 @@ object SupplementExportJson {
     }
 }
 
+data class OAKBackupPreview(
+    val version: String,
+    val supplementCount: Int,
+    val historyCount: Int,
+    val integrityVerified: Boolean
+)
+
 object OAKBackupJson {
     private const val HISTORY_COMPRESS_THRESHOLD = 200
 
@@ -157,12 +164,22 @@ object OAKBackupJson {
         val (historyLogsArray, historyZlibBase64) = encodeHistoryPayload(data.history)
         root.put("historyLogs", historyLogsArray)
         if (!historyZlibBase64.isNullOrBlank()) root.put("historyZlibBase64", historyZlibBase64)
+        root.put("integrity", encodeIntegrity(OAKBackupIntegrity.create(data)))
 
         return root.toString(2)
     }
 
     fun decodeCompat(json: String): Result<OAKBackupDataDTO> {
         return runCatching { decodeCompatOrThrow(json) }
+    }
+
+    fun preview(json: String): Result<OAKBackupPreview> = decodeCompat(json).map { data ->
+        OAKBackupPreview(
+            version = data.version,
+            supplementCount = data.stack.size,
+            historyCount = data.history.size,
+            integrityVerified = data.integrity != null
+        )
     }
 
     private fun decodeCompatOrThrow(json: String): OAKBackupDataDTO {
@@ -206,15 +223,43 @@ object OAKBackupJson {
 
     private fun decodeFromRoot(root: JSONObject, rawJson: String): OAKBackupDataDTO {
         val stackArray = root.optJSONArray("supplements") ?: root.optJSONArray("stack")
-        if (stackArray == null) return decodeFromSupplementExport(rawJson)
+        if (stackArray == null) {
+            require(!root.has("integrity")) { "Integrity manifest requires an OAK backup payload" }
+            return decodeFromSupplementExport(rawJson)
+        }
         val stack = decodeStackArray(stackArray)
         val (history, historyZlibBase64) = decodeHistoryCompat(root)
-        return OAKBackupDataDTO(
+        val data = OAKBackupDataDTO(
             version = root.optString("version", OAKBackupSchema.VERSION),
             meta = decodeMeta(root),
             stack = stack,
             history = history,
             historyZlibBase64 = historyZlibBase64
+        )
+        val integrity = decodeIntegrity(root) ?: return data
+        OAKBackupIntegrity.validate(data, integrity).getOrThrow()
+        return data.copy(integrity = integrity)
+    }
+
+    private fun encodeIntegrity(integrity: OAKBackupIntegrityDTO): JSONObject {
+        return JSONObject()
+            .put("schemaVersion", integrity.schemaVersion)
+            .put("algorithm", integrity.algorithm)
+            .put("digest", integrity.digest)
+            .put("supplementCount", integrity.supplementCount)
+            .put("historyCount", integrity.historyCount)
+    }
+
+    private fun decodeIntegrity(root: JSONObject): OAKBackupIntegrityDTO? {
+        if (!root.has("integrity")) return null
+        require(!root.isNull("integrity")) { "Integrity manifest is null" }
+        val obj = root.optJSONObject("integrity") ?: error("Invalid integrity manifest")
+        return OAKBackupIntegrityDTO(
+            schemaVersion = obj.optInt("schemaVersion", -1),
+            algorithm = obj.optString("algorithm", ""),
+            digest = obj.optString("digest", ""),
+            supplementCount = obj.optInt("supplementCount", -1),
+            historyCount = obj.optInt("historyCount", -1)
         )
     }
 

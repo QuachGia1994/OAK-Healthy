@@ -146,7 +146,7 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
-            buildIntent(supplement, timeString, scheduledAtMillis),
+            buildIntent(supplement, timeString, scheduledAtMillis, requestCode),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         scheduleAlarm(triggerAtMillis, pendingIntent)
@@ -195,13 +195,19 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         }
     }
 
-    private fun buildIntent(supplement: UserSupplement, timeString: String, scheduledAtMillis: Long): Intent {
+    private fun buildIntent(
+        supplement: UserSupplement,
+        timeString: String,
+        scheduledAtMillis: Long,
+        requestCode: Int
+    ): Intent {
         return Intent(context, NotificationReceiver::class.java).apply {
             putExtra("SUPPLEMENT_NAME", supplement.name)
             putExtra("DAILY_DOSE", supplement.dailyDose)
             putExtra("SUPPLEMENT_ID", supplement.id.toString())
             putExtra("INTAKE_TIME", timeString)
             putExtra("SCHEDULED_AT_MILLIS", scheduledAtMillis)
+            putExtra("REQUEST_CODE", requestCode)
         }
     }
 
@@ -232,6 +238,28 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
     fun clearAll(supplements: List<UserSupplement>) {
         cancelAllKnown()
         supplements.forEach { cancel(it) }
+    }
+
+    fun auditDebugEntries(nowMillis: Long = System.currentTimeMillis()): NotificationAlarmAudit {
+        val entries = NotificationDebugStore.getAll(context)
+        val staleEntries = entries.filter { it.scheduledAtMillis < nowMillis }
+        staleEntries.forEach { NotificationDebugStore.recordCancelled(context, it.requestCode) }
+        val upcoming = entries.filter { it.scheduledAtMillis >= nowMillis }
+        val missing = upcoming.count { !pendingIntentExists(it.requestCode) }
+        return NotificationAlarmAudit(
+            scheduledCount = upcoming.size,
+            missingPendingIntentCount = missing,
+            staleEntryCount = staleEntries.size
+        )
+    }
+
+    private fun pendingIntentExists(requestCode: Int): Boolean {
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            Intent(context, NotificationReceiver::class.java),
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        ) != null
     }
 
     private fun cancelAllKnown() {

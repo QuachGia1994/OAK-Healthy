@@ -57,6 +57,15 @@ public struct NotificationDebugScreen: View {
                 LabeledContent("notification_debug_pending_only_label".localized) { Text("\(pendingOnlyCount)") }
                 LabeledContent("notification_debug_shadow_only_label".localized) { Text("\(shadowOnlyCount)") }
                 LabeledContent("notification_debug_shadow_errors_label".localized) { Text("\(shadowErrorCount)") }
+                LabeledContent("notification_reliability_health".localized) { Text(reliabilityLevelText) }
+                LabeledContent("notification_reliability_mismatch".localized) { Text("\(reliabilityReport.mismatchCount)") }
+
+                if reliabilityReport.shouldOfferRepair {
+                    Button("notification_reliability_rebuild".localized) {
+                        Task { await rebuildSchedules() }
+                    }
+                    .disabled(isRepairingShadow)
+                }
                 
                 if shouldShowRepairShadow {
                     Button("notification_debug_repair_shadow".localized) {
@@ -122,6 +131,21 @@ public struct NotificationDebugScreen: View {
     }
     
     @MainActor
+    private func rebuildSchedules() async {
+        guard let clientId = activeClientManager.currentClientId else { return }
+        do {
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            await NotificationService.shared.replaceAllSchedules(supplements: supplements)
+            await refresh()
+        } catch {
+            return
+        }
+    }
+
+    @MainActor
     private func repairShadow() async {
         guard !isRepairingShadow else { return }
         isRepairingShadow = true
@@ -130,6 +154,30 @@ public struct NotificationDebugScreen: View {
         await refresh()
     }
     
+    private var reliabilityReport: NotificationReliabilityReport {
+        NotificationReliabilityEvaluator.evaluate(
+            NotificationReliabilityInput(
+                permissionGranted: authorizationStatus == .authorized || authorizationStatus == .provisional,
+                enabledByUser: isNotificationEnabledByUser,
+                hasActiveClient: activeClientManager.currentClientId != nil,
+                activeSupplementCount: activeSupplementCount,
+                pendingCount: pendingEntries.count,
+                pendingOnlyCount: pendingOnlyCount,
+                shadowOnlyCount: shadowOnlyCount,
+                shadowErrorCount: shadowErrorCount
+            )
+        )
+    }
+
+    private var reliabilityLevelText: String {
+        switch reliabilityReport.level {
+        case .healthy: return "notification_reliability_healthy".localized
+        case .degraded: return "notification_reliability_degraded".localized
+        case .needsRepair: return "notification_reliability_needs_repair".localized
+        case .inactive: return "notification_reliability_inactive".localized
+        }
+    }
+
     private var shouldShowRepairShadow: Bool {
         isNotificationEnabledByUser &&
             (authorizationStatus == .authorized || authorizationStatus == .provisional) &&

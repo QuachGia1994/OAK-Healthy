@@ -72,6 +72,39 @@ class CoachOverviewTest {
         assertEquals(2, result.totalClients)
     }
 
+    @Test
+    fun thirtyDayReportIncludesOlderRecordsAndWeeklyTrend() {
+        val client = CoachClientSnapshot(UUID.randomUUID(), "Alex")
+        val records = listOf(
+            record(today, "Taken"),
+            record(today.minusDays(12), "Skipped"),
+            record(today.minusDays(29), "Taken"),
+            record(today.minusDays(31), "Skipped")
+        )
+
+        val result = CoachOverviewBuilder.build(
+            listOf(client),
+            mapOf(client.id to records),
+            now,
+            zone,
+            windowDays = 30
+        )
+
+        assertEquals(30, result.windowDays)
+        assertEquals(2, result.takenCount)
+        assertEquals(1, result.skippedCount)
+        assertEquals(66, result.overallCompletionPercent)
+        assertEquals(5, result.trend.size)
+    }
+
+    @Test
+    fun unsupportedWindowFallsBackToSevenDays() {
+        val result = CoachOverviewBuilder.build(emptyList(), emptyMap(), now, zone, windowDays = 14)
+
+        assertEquals(7, result.windowDays)
+        assertEquals(7, result.trend.size)
+    }
+
     private fun record(day: LocalDate, status: String): CoachRecordSnapshot {
         return CoachRecordSnapshot(
             epochMs = day.atTime(9, 0).atZone(zone).toInstant().toEpochMilli(),

@@ -593,6 +593,11 @@ class HomeViewModel(
             rescheduleNotificationsNow()
         }
     }
+
+    suspend fun rebuildNotificationSchedules(): Long {
+        rescheduleNotificationsNow()
+        return _lastNotificationRebuildEpochMs.value
+    }
     
     fun clearPendingNotifications() {
         viewModelScope.launch {

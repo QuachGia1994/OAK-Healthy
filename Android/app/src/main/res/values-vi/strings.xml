@@ -1,10 +1,10 @@
 <resources>
     <string name="app_name">OAK Healthy</string>
     <string name="nav_home">Trang chủ</string>
-    <string name="nav_stack">Stack</string>
+    <string name="nav_stack">Danh sách</string>
     <string name="nav_history">Lịch sử</string>
     <string name="nav_settings">Cài đặt</string>
-    <string name="sync_center_title">Sync Center</string>
+    <string name="sync_center_title">Trung tâm đồng bộ</string>
     <string name="integrity_blocked_title">Cảnh báo bảo mật</string>
     <string name="integrity_blocked_body">Thiết bị không đạt kiểm tra toàn vẹn (root/jailbreak/debug). Ứng dụng tạm ngừng để bảo vệ dữ liệu.</string>
     <string name="integrity_blocked_exit">Thoát</string>
@@ -15,24 +15,24 @@
     <string name="settings_title">Cài đặt</string>
     <string name="app_information_title">Thông tin ứng dụng</string>
     <string name="settings_guide_title">Hướng dẫn sử dụng</string>
-    <string name="settings_guide_content">1. Stack &amp; Lịch uống: Thêm chất, chọn lịch và xem các mục cần uống hôm nay.\n2. Sync Center: Thiết bị A chọn chế độ mã hoá trước khi Host. Thiết bị B import key nếu cần, dán Link Code rồi bấm Tải về một lần.\n3. Mã hoá &amp; key: Giữ key bí mật; key được ẩn mặc định và không thể khôi phục. Muốn đổi chế độ hoặc thay key đã lộ, hãy thu hồi mã cũ rồi Host lại.\n4. Thông báo: Cho phép thông báo để nhắc uống hoạt động ổn định. Có thể bấm Taken/Skip trực tiếp trên thông báo.\n5. Auto-Sync: Mở hoặc quay lại app sẽ sync ngay; chỉnh sửa cục bộ được upload sau một khoảng debounce ngắn. Mạng và giới hạn chạy nền của hệ điều hành vẫn áp dụng.\n6. Khắc phục: Nếu báo thiếu key, import key từ Host rồi bật lại Auto-Sync. Dùng Chẩn đoán thông báo cho lỗi nhắc lịch.\n7. Trạng thái &amp; lọc: Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung vào Due/Quá hạn.</string>
-    <string name="user_guide_1_title">Mục 1: Stack &amp; Lịch uống</string>
-    <string name="user_guide_1_body">Thêm chất và chọn lịch (liên tục, On/Off, cách N ngày, theo thứ). Trang chủ hiển thị những mục cần uống hôm nay.</string>
-    <string name="user_guide_2_title">Mục 2: Sync Center</string>
-    <string name="user_guide_2_body">Thiết bị A chọn chế độ mã hoá trước khi Host tạo Link Code. Thiết bị B import key nếu cần, dán mã rồi bấm Tải về một lần.</string>
-    <string name="user_guide_3_title">Mục 3: Mã hoá &amp; Key</string>
-    <string name="user_guide_3_body">Giữ sync key bí mật; key được ẩn mặc định và không thể khôi phục. Chế độ mã hoá bị khoá khi Link Code đang hoạt động. Muốn đổi chế độ hoặc thay key đã lộ, hãy thu hồi mã cũ rồi Host lại.</string>
+    <string name="settings_guide_content">1. Danh sách &amp; lịch uống: Thêm chất, chọn lịch và xem các mục cần uống hôm nay.\n2. Trung tâm đồng bộ: Thiết bị A chọn chế độ mã hóa trước khi tạo mã liên kết. Thiết bị B nhập khóa nếu cần, dán mã rồi bấm Tải về một lần.\n3. Mã hóa &amp; khóa: Giữ khóa bí mật; khóa được ẩn mặc định và không thể khôi phục. Muốn đổi chế độ hoặc thay khóa đã lộ, hãy thu hồi mã cũ rồi tạo mã mới.\n4. Thông báo: Cho phép thông báo để nhắc uống hoạt động ổn định. Có thể bấm Đã uống/Bỏ qua trực tiếp trên thông báo.\n5. Tự động đồng bộ: Mở hoặc quay lại ứng dụng sẽ đồng bộ ngay; chỉnh sửa cục bộ được tải lên sau một khoảng chờ ngắn. Mạng và giới hạn chạy nền của hệ điều hành vẫn áp dụng.\n6. Khắc phục: Nếu báo thiếu khóa, nhập khóa từ thiết bị tạo mã rồi bật lại tự động đồng bộ. Dùng Chẩn đoán thông báo cho lỗi nhắc lịch.\n7. Trạng thái &amp; lọc: Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung vào Đến hạn/Quá hạn.</string>
+    <string name="user_guide_1_title">Mục 1: Danh sách &amp; Lịch uống</string>
+    <string name="user_guide_1_body">Thêm chất và chọn lịch (liên tục, bật/nghỉ, cách N ngày, theo thứ). Trang chủ hiển thị những mục cần uống hôm nay.</string>
+    <string name="user_guide_2_title">Mục 2: Trung tâm đồng bộ</string>
+    <string name="user_guide_2_body">Thiết bị A chọn chế độ mã hóa trước khi tạo mã liên kết. Thiết bị B nhập khóa nếu cần, dán mã rồi bấm Tải về một lần.</string>
+    <string name="user_guide_3_title">Mục 3: Mã hóa &amp; Khóa</string>
+    <string name="user_guide_3_body">Giữ khóa đồng bộ bí mật; khóa được ẩn mặc định và không thể khôi phục. Chế độ mã hóa bị khóa khi mã liên kết đang hoạt động. Muốn đổi chế độ hoặc thay khóa đã lộ, hãy thu hồi mã cũ rồi tạo mã mới.</string>
     <string name="user_guide_4_title">Mục 4: Thông báo</string>
-    <string name="user_guide_4_body">Cho phép thông báo để nhắc uống ổn định. Bạn có thể bấm Taken/Skip trực tiếp trên thông báo để lưu nhanh.</string>
-    <string name="user_guide_5_title">Mục 5: Auto‑Sync</string>
-    <string name="user_guide_5_body">Mở hoặc quay lại app sẽ sync ngay. Chỉnh sửa cục bộ được upload sau một khoảng debounce ngắn; mạng và giới hạn chạy nền của hệ điều hành vẫn áp dụng. Nếu thiếu key, hãy import rồi bật lại Auto-Sync.</string>
+    <string name="user_guide_4_body">Cho phép thông báo để nhắc uống ổn định. Bạn có thể bấm Đã uống/Bỏ qua trực tiếp trên thông báo để lưu nhanh.</string>
+    <string name="user_guide_5_title">Mục 5: Tự động đồng bộ</string>
+    <string name="user_guide_5_body">Mở hoặc quay lại ứng dụng sẽ đồng bộ ngay. Chỉnh sửa cục bộ được tải lên sau một khoảng chờ ngắn; mạng và giới hạn chạy nền của hệ điều hành vẫn áp dụng. Nếu thiếu khóa, hãy nhập khóa rồi bật lại tự động đồng bộ.</string>
     <string name="user_guide_6_title">Mục 6: Khắc phục</string>
-    <string name="user_guide_6_body">Khi sync lỗi, kiểm tra Internet, Link Code và key mã hoá trước. Với lỗi nhắc lịch, dùng Chẩn đoán thông báo và kiểm tra Focus/Không làm phiền.</string>
+    <string name="user_guide_6_body">Khi đồng bộ lỗi, kiểm tra Internet, mã liên kết và khóa mã hóa trước. Với lỗi nhắc lịch, dùng Chẩn đoán thông báo và kiểm tra chế độ Không làm phiền.</string>
     <string name="user_guide_7_title">Mục 7: Trạng thái &amp; Lọc</string>
-    <string name="user_guide_7_body">Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung nhanh vào Due/Quá hạn.</string>
+    <string name="user_guide_7_body">Xanh = Đã uống, cam = Bỏ qua, đỏ = Quá hạn. Dùng bộ lọc để tập trung nhanh vào Đến hạn/Quá hạn.</string>
 
     <string name="settings_intro_title">Giới thiệu</string>
-    <string name="settings_intro_content">OAK Healthy là ứng dụng theo dõi thói quen wellness dành cho cá nhân và coach. Quản lý lịch supplement, nhắc lịch và lịch sử tuân thủ mà không đưa ra chẩn đoán hay tuyên bố điều trị y khoa.</string>
+    <string name="settings_intro_content">OAK Healthy là ứng dụng theo dõi thói quen sức khỏe dành cho cá nhân và huấn luyện viên. Quản lý lịch thực phẩm bổ sung, nhắc lịch và lịch sử tuân thủ mà không đưa ra chẩn đoán hay tuyên bố điều trị y khoa.</string>
 
     <string name="settings_copyright_title">Bản quyền &amp; Tác giả</string>
     <string name="settings_app_version">Tên app: OAK Healthy v1.0.1</string>
@@ -258,7 +258,7 @@
     <string name="sync_center_step_link_2">Nhập mã liên kết rồi bấm Tải về một lần.</string>
     <string name="sync_center_step_link_3">Bật Tự động đồng bộ để nhận thay đổi ngay khi app hoạt động.</string>
     <string name="sync_center_link_code_input_label">Mã liên kết</string>
-    <string name="sync_center_invalid_link_code">Link Code không hợp lệ.</string>
+    <string name="sync_center_invalid_link_code">Mã liên kết không hợp lệ.</string>
     <string name="sync_center_action_download">Tải về</string>
     <string name="sync_center_action_unlink">Bỏ liên kết thiết bị này</string>
     <string name="sync_center_auto_sync_label">Tự động đồng bộ</string>
@@ -276,7 +276,7 @@
     <string name="sync_center_status_hint_missing_key">Gợi ý: có thể thiếu sync key. Hãy Copy key từ thiết bị Host và Import key tại mục Mã hoá.</string>
 
     <string name="sync_center_encryption_title">Mã hoá dữ liệu cloud</string>
-    <string name="sync_center_encryption_locked_hint">Mã hoá đi theo Link Code đang hoạt động. Hãy thu hồi hoặc bỏ liên kết trước khi đổi cài đặt này.</string>
+    <string name="sync_center_encryption_locked_hint">Mã hóa đi theo mã liên kết đang hoạt động. Hãy thu hồi hoặc bỏ liên kết trước khi đổi cài đặt này.</string>
     <string name="sync_center_encryption_off_hint">Dữ liệu cloud đang ở dạng plaintext. Hãy bật mã hoá trước khi Host.</string>
     <string name="sync_center_export_key_label">Sync key (copy sang thiết bị khác)</string>
     <string name="sync_center_import_key_input_label">Nhập key (keyId:base64)</string>
@@ -524,4 +524,33 @@
     <string name="demo_preview_due">Đến hạn 2</string>
     <string name="demo_preview_overdue">Quá hạn 1</string>
     <string name="demo_preview_taken">Đã uống 3</string>
+    <string name="notification_reliability_health">Tình trạng lịch nhắc</string>
+    <string name="notification_reliability_missing">Báo thức đã đăng ký bị thiếu</string>
+    <string name="notification_reliability_stale">Mục lịch nhắc đã cũ</string>
+    <string name="notification_reliability_mismatch">Lịch nhắc không khớp</string>
+    <string name="notification_reliability_rebuild">Dựng lại lịch nhắc</string>
+    <string name="notification_reliability_healthy">Ổn định</string>
+    <string name="notification_reliability_degraded">Cần kiểm tra</string>
+    <string name="notification_reliability_needs_repair">Nên sửa lịch nhắc</string>
+    <string name="notification_reliability_inactive">Không hoạt động</string>
+    <string name="coach_window_days_format">%1$d ngày</string>
+    <string name="coach_report_window_format">Báo cáo học viên · %1$d ngày</string>
+    <string name="coach_report_total_format">Hoàn thành %1$d%% · Đã uống %2$d · Bỏ qua %3$d</string>
+    <string name="coach_trend_title">Xu hướng tuân thủ</string>
+    <string name="coach_search_clients">Tìm học viên</string>
+    <string name="coach_sort_title">Sắp xếp học viên</string>
+    <string name="coach_sort_attention">Cần hỏi lại</string>
+    <string name="coach_sort_name">Tên</string>
+    <string name="coach_sort_completion">Hoàn thành</string>
+    <string name="sync_health_unlinked">Chưa liên kết</string>
+    <string name="sync_health_idle">Sẵn sàng đồng bộ</string>
+    <string name="sync_health_healthy">Đồng bộ ổn định</string>
+    <string name="sync_health_pending">Có thay đổi cục bộ đang chờ</string>
+    <string name="sync_health_needs_key">Cần khóa mã hóa</string>
+    <string name="sync_health_retryable">Lỗi đồng bộ tạm thời</string>
+    <string name="sync_health_action_required">Đồng bộ cần kiểm tra</string>
+    <string name="sync_health_hint_none">Không cần thao tác khôi phục.</string>
+    <string name="sync_health_hint_sync_now">Có thể thử lại an toàn; dữ liệu cục bộ vẫn được giữ.</string>
+    <string name="sync_health_hint_import_key">Nhập đúng khóa bên dưới trước khi thử lại.</string>
+    <string name="sync_health_hint_check_link">Kiểm tra mã liên kết và cấu hình đồng bộ trước khi thử lại.</string>
 </resources>

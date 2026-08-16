@@ -103,8 +103,16 @@ class HistoryViewModel(
     private val activeClientManager: ActiveClientManager,
     private val entitlementManager: EntitlementManager
 ) : ViewModel() {
+    private data class CoachSource(
+        val clients: List<CoachClientSnapshot>,
+        val records: Map<java.util.UUID, List<CoachRecordSnapshot>>
+    )
+
     private val mutableCoachOverview = MutableStateFlow<CoachOverviewUiState>(CoachOverviewUiState.Idle)
     val coachOverview: StateFlow<CoachOverviewUiState> = mutableCoachOverview.asStateFlow()
+    private val mutableCoachWindowDays = MutableStateFlow(7)
+    val coachWindowDays: StateFlow<Int> = mutableCoachWindowDays.asStateFlow()
+    private var coachSource: CoachSource? = null
 
     val uiState: StateFlow<HistoryUiState> = combine(
         activeClientManager.currentClientId,
@@ -129,7 +137,8 @@ class HistoryViewModel(
         viewModelScope.launch {
             mutableCoachOverview.value = CoachOverviewUiState.Loading
             try {
-                mutableCoachOverview.value = CoachOverviewUiState.Ready(loadCoachOverview())
+                coachSource = loadCoachSource()
+                mutableCoachOverview.value = CoachOverviewUiState.Ready(buildCoachOverview())
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -138,15 +147,30 @@ class HistoryViewModel(
         }
     }
 
-    private suspend fun loadCoachOverview(): CoachOverviewSummary {
+    fun selectCoachWindow(windowDays: Int) {
+        if (windowDays !in setOf(7, 30, 90) || mutableCoachWindowDays.value == windowDays) return
+        mutableCoachWindowDays.value = windowDays
+        val source = coachSource ?: return
+        mutableCoachOverview.value = CoachOverviewUiState.Ready(buildCoachOverview(source))
+    }
+
+    private suspend fun loadCoachSource(): CoachSource {
         val clients = repository.observeClients().first()
         val records = clients.associate { client ->
             client.id to repository.getAllRecordsByClient(client.id.toString()).map {
                 CoachRecordSnapshot(epochMs = it.date, status = it.status)
             }
         }
-        val snapshots = clients.map { CoachClientSnapshot(it.id, it.name) }
-        return CoachOverviewBuilder.build(snapshots, records, System.currentTimeMillis())
+        return CoachSource(clients.map { CoachClientSnapshot(it.id, it.name) }, records)
+    }
+
+    private fun buildCoachOverview(source: CoachSource = coachSource ?: CoachSource(emptyList(), emptyMap())): CoachOverviewSummary {
+        return CoachOverviewBuilder.build(
+            clients = source.clients,
+            recordsByClient = source.records,
+            nowEpochMs = System.currentTimeMillis(),
+            windowDays = mutableCoachWindowDays.value
+        )
     }
 
     private fun processHistory(records: List<IntakeRecord>, plan: CommercialPlan): HistoryUiState {

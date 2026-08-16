@@ -69,7 +69,7 @@ public struct SyncCenterView: View {
         }
         .task {
             DebugReporter.report("sync_center_task_boot", fields: [
-                "currentClientId": activeClientManager.currentClientId?.uuidString ?? "",
+                "hasClient": String(activeClientManager.currentClientId != nil),
                 "clientsCount": String(clients.count)
             ])
             guard activeClientManager.currentClientId == nil else { return }
@@ -78,14 +78,14 @@ public struct SyncCenterView: View {
         }
         .task(id: activeClientManager.currentClientId) {
             DebugReporter.report("sync_center_task_reload_caches", fields: [
-                "clientId": activeClientManager.currentClientId?.uuidString ?? ""
+                "hasClient": String(activeClientManager.currentClientId != nil)
             ])
             loadProfileCloudLinks()
             await reloadCaches()
         }
         .task(id: activeBinId) {
             DebugReporter.report("sync_center_task_load_logs", fields: [
-                "binId": activeBinId
+                "hasLink": String(!activeBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             ])
             logEntries = loadLogEntries(binId: activeBinId)
             let trimmed = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -184,12 +184,24 @@ public struct SyncCenterView: View {
                 } ?? false
                 let lastError = (UserDefaults.standard.string(forKey: lastErrorKey) ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                let health = SyncHealthEvaluator.evaluate(
+                    SyncHealthInput(
+                        hasLink: true,
+                        autoSyncEnabled: isAutoSyncEnabled,
+                        hasPendingChanges: hasPendingChanges,
+                        lastSyncEpochMs: lastSyncEpochMs,
+                        lastAttemptEpochMs: lastAttemptEpochMs,
+                        lastError: lastError.isEmpty ? nil : lastError,
+                        encryptionEnabled: isCloudEncryptionEnabled
+                    )
+                )
                 let stackId = (UserDefaults.standard.string(forKey: "cloudSyncStackBinId_\(activeBinId)") ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 let historyId = (UserDefaults.standard.string(forKey: "cloudSyncHistoryBinId_\(activeBinId)") ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 
                 VStack(alignment: .leading, spacing: 6) {
+                    syncHealthSummary(health)
                     if lastSyncEpochMs > 0 {
                         let date = Date(timeIntervalSince1970: Double(lastSyncEpochMs) / 1000.0)
                         Text(
@@ -349,6 +361,46 @@ public struct SyncCenterView: View {
         .listRowBackground(glassRowBackground)
     }
     
+    @ViewBuilder
+    private func syncHealthSummary(_ report: SyncHealthReport) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(syncHealthTitle(report.level)).font(.subheadline.weight(.semibold))
+                Text(syncRecoveryHint(report.action)).font(.caption).oakSecondaryText()
+            }
+            Spacer()
+            if report.action == .syncNow {
+                Button("sync_center_sync_now".localized) {
+                    Task { await syncNow(label: "MANUAL") }
+                }
+                .buttonStyle(.borderless)
+                .disabled(isCloudSyncLoading)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func syncHealthTitle(_ level: SyncHealthLevel) -> String {
+        switch level {
+        case .unlinked: return "sync_health_unlinked".localized
+        case .idle: return "sync_health_idle".localized
+        case .healthy: return "sync_health_healthy".localized
+        case .pending: return "sync_health_pending".localized
+        case .needsKey: return "sync_health_needs_key".localized
+        case .retryableError: return "sync_health_retryable".localized
+        case .actionRequired: return "sync_health_action_required".localized
+        }
+    }
+
+    private func syncRecoveryHint(_ action: SyncRecoveryAction) -> String {
+        switch action {
+        case .none: return "sync_health_hint_none".localized
+        case .syncNow: return "sync_health_hint_sync_now".localized
+        case .importKey: return "sync_health_hint_import_key".localized
+        case .checkLink: return "sync_health_hint_check_link".localized
+        }
+    }
+
     @ViewBuilder
     private var tabSection: some View {
         Section {

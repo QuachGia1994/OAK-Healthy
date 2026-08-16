@@ -10,6 +10,15 @@ public struct DemoPreviewView: View {
 
     public init() {}
 
+    @ViewBuilder
+    private var demoSummaryMetrics: some View {
+        Text("demo_preview_streak".localized).fontWeight(.semibold)
+        Spacer(minLength: 8)
+        Text("demo_preview_due".localized)
+        Text("demo_preview_overdue".localized)
+        Text("demo_preview_taken".localized)
+    }
+
     public var body: some View {
         List {
             Section {
@@ -18,13 +27,11 @@ public struct DemoPreviewView: View {
                     .foregroundStyle(.secondary)
             }
             Section("demo_preview_client".localized) {
-                HStack {
-                    Text("demo_preview_streak".localized).fontWeight(.semibold)
-                    Spacer()
-                    Text("demo_preview_due".localized)
-                    Text("demo_preview_overdue".localized)
-                    Text("demo_preview_taken".localized)
+                ViewThatFits(in: .horizontal) {
+                    HStack { demoSummaryMetrics }
+                    VStack(alignment: .leading) { demoSummaryMetrics }
                 }
+                .accessibilityElement(children: .combine)
             }
             Section("today_intake_title".localized) {
                 ForEach(routines) { routine in

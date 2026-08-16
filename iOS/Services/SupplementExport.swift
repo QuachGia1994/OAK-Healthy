@@ -48,6 +48,7 @@ struct OAKBackupData: Codable, Sendable {
     var stack: [OAKBackupSupplement]
     var history: [OAKBackupHistory]
     var historyZlibBase64: String?
+    var integrity: OAKBackupIntegrity?
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -55,6 +56,7 @@ struct OAKBackupData: Codable, Sendable {
         case stack = "supplements"
         case history = "historyLogs"
         case historyZlibBase64
+        case integrity
     }
 
     enum LegacyCodingKeys: String, CodingKey {
@@ -62,12 +64,20 @@ struct OAKBackupData: Codable, Sendable {
         case history
     }
 
-    init(version: String, meta: OAKBackupMeta?, stack: [OAKBackupSupplement], history: [OAKBackupHistory], historyZlibBase64: String?) {
+    init(
+        version: String,
+        meta: OAKBackupMeta?,
+        stack: [OAKBackupSupplement],
+        history: [OAKBackupHistory],
+        historyZlibBase64: String?,
+        integrity: OAKBackupIntegrity? = nil
+    ) {
         self.version = version
         self.meta = meta
         self.stack = stack
         self.history = history
         self.historyZlibBase64 = historyZlibBase64
+        self.integrity = integrity
     }
 
     init(from decoder: Decoder) throws {
@@ -77,6 +87,18 @@ struct OAKBackupData: Codable, Sendable {
         self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.1"
         self.meta = try? container.decodeIfPresent(OAKBackupMeta.self, forKey: .meta)
         self.historyZlibBase64 = try? container.decodeIfPresent(String.self, forKey: .historyZlibBase64)
+        if container.contains(.integrity) {
+            if try container.decodeNil(forKey: .integrity) {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .integrity,
+                    in: container,
+                    debugDescription: "Integrity manifest cannot be null"
+                )
+            }
+            self.integrity = try container.decode(OAKBackupIntegrity.self, forKey: .integrity)
+        } else {
+            self.integrity = nil
+        }
 
         if let supplements = try container.decodeIfPresent([OAKBackupSupplement].self, forKey: .stack) {
             self.stack = supplements
@@ -99,6 +121,7 @@ struct OAKBackupData: Codable, Sendable {
             mergedHistory.append(contentsOf: try ZlibBase64Codec.decodeArray(base64: historyZlibBase64))
         }
         self.history = ZlibBase64Codec.dedupeByIdKeepingNewest(items: mergedHistory)
+        if let integrity { try OAKBackupIntegrityCodec.validate(self, manifest: integrity) }
     }
 }
 
@@ -310,6 +333,16 @@ enum SupplementExportError: Error {
 
 @MainActor
 struct SupplementExportCodec {
+    static func previewBackup(_ data: Data) throws -> OAKBackupPreview {
+        let backup = try JSONDecoder().decode(OAKBackupData.self, from: data)
+        return OAKBackupPreview(
+            version: backup.version,
+            supplementCount: backup.stack.count,
+            historyCount: backup.history.count,
+            integrityVerified: backup.integrity != nil
+        )
+    }
+
     static func encodeBackup(
         supplements: [UserSupplement],
         records: [IntakeRecord]
@@ -318,13 +351,14 @@ struct SupplementExportCodec {
         let deviceId = loadOrCreateDeviceId()
         let stack = makeBackupStack(from: supplements)
         let history = makeBackupHistory(from: records)
-        let file = OAKBackupData(
+        var file = OAKBackupData(
             version: "2.0",
             meta: OAKBackupMeta(schemaVersion: 2, updatedAtEpochMs: now, deviceId: deviceId),
             stack: stack,
             history: history,
             historyZlibBase64: nil
         )
+        file.integrity = OAKBackupIntegrityCodec.create(file)
         return try JSONEncoder().encode(file)
     }
 
@@ -396,11 +430,20 @@ struct SupplementExportCodec {
     }
     
     nonisolated static func decodeBackupCompat(data: Data) throws -> OAKBackupData {
+        if hasIntegrityManifest(data) {
+            return try JSONDecoder().decode(OAKBackupData.self, from: data)
+        }
         if let decoded = tryDecodeBackupData(data: data) { return decoded }
         if let stack = tryDecodeBackupStack(data: data) {
             return OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
         }
         return convertLegacyToBackup(try decode(data: data))
+    }
+
+    nonisolated private static func hasIntegrityManifest(_ data: Data) -> Bool {
+        guard let object = try? JSONSerialization.jsonObject(with: data),
+              let dictionary = object as? [String: Any] else { return false }
+        return dictionary["integrity"] != nil
     }
 
     nonisolated static func decodeBackupOffMain(data: Data) async throws -> OAKBackupData {

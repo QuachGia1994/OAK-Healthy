@@ -20,9 +20,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.R
 
@@ -84,13 +86,37 @@ private fun DemoSummaryCard() {
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.demo_preview_streak), fontWeight = FontWeight.SemiBold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stringResource(R.string.demo_preview_due))
-                Text(stringResource(R.string.demo_preview_overdue))
-                Text(stringResource(R.string.demo_preview_taken))
-            }
+            DemoSummaryMetrics()
         }
     }
+}
+
+@Composable
+private fun DemoSummaryMetrics() {
+    val largeText = LocalDensity.current.fontScale >= 1.3f
+    if (largeText) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            DemoMetric(R.string.demo_preview_due)
+            DemoMetric(R.string.demo_preview_overdue)
+            DemoMetric(R.string.demo_preview_taken)
+        }
+        return
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        DemoMetric(R.string.demo_preview_due, Modifier.weight(1f))
+        DemoMetric(R.string.demo_preview_overdue, Modifier.weight(1f))
+        DemoMetric(R.string.demo_preview_taken, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DemoMetric(labelRes: Int, modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(labelRes),
+        modifier = modifier,
+        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.bodySmall
+    )
 }
 
 @Composable

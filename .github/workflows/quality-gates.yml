@@ -12,8 +12,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  readiness:
+    name: Product Readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Validate P7/P8 maturity scenarios
+        run: python3 scripts/product_readiness.py
+
+      - name: Run readiness unit tests
+        run: python3 -m unittest scripts.tests.test_product_readiness -q
+
   ios:
     name: iOS Coverage >= 80%
+    needs: readiness
     runs-on: macos-15
     timeout-minutes: 25
     steps:
@@ -86,6 +101,7 @@ jobs:
 
   android:
     name: Android Coverage >= 80%
+    needs: readiness
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

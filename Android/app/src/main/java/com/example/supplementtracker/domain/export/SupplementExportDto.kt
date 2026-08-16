@@ -36,7 +36,16 @@ data class OAKBackupDataDTO(
     val meta: OAKBackupMetaDTO? = null,
     val stack: List<OAKBackupSupplementDTO>,
     val history: List<OAKBackupHistoryDTO>,
-    val historyZlibBase64: String? = null
+    val historyZlibBase64: String? = null,
+    val integrity: OAKBackupIntegrityDTO? = null
+)
+
+data class OAKBackupIntegrityDTO(
+    val schemaVersion: Int,
+    val algorithm: String,
+    val digest: String,
+    val supplementCount: Int,
+    val historyCount: Int
 )
 
 data class OAKBackupMetaDTO(

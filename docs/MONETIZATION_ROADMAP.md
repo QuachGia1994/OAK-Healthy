@@ -146,6 +146,37 @@ Repository implementation for P3.6 is complete when release preflight, Android C
 - Maintain responsive and accessibility-aware Coach/recovery/preview states.
 - Provide a debug-only, read-only synthetic demo preview for screenshots and UX review without contaminating user data.
 
+## Phase 7 — Reliability, Reporting & Portability
+
+### P7.1 — Reminder Reliability 2.0
+- Reconcile reminder registry state with platform scheduling state where platform APIs allow it.
+- Separate valid zero-future schedules from confirmed stale/missing registrations.
+- Offer schedule rebuild without mutating intake history.
+
+### P7.2 — Coach Reports 2.0
+- Support local 7/30/90-day aggregates, trend buckets, search and sort.
+- Cache/reuse report source data where practical and keep check-in language non-medical.
+
+### P7.3 — Sync Recovery & Conflict UX
+- Classify unlinked, healthy, pending, missing-key, retryable and action-required states.
+- Keep recovery local-first: retry/import-key/check-link actions do not delete local data.
+
+### P7.4 — Backup & Data Portability
+- Add an optional versioned SHA-256 semantic integrity manifest to new backups.
+- Keep legacy backups readable and retain deterministic cross-profile collision handling.
+- Require Android/iOS to match the same fixed canonical digest fixture.
+
+### P7.5 — Performance, Accessibility & Large Text
+- Avoid needless Coach refetch/recompute during report-window changes.
+- Keep new summary/demo/report layouts readable with large text and EN/VI content.
+
+## Phase 8 — Product Maturity
+
+- Maintain a synthetic-only QA scenario catalog covering reminders, Coach, sync, backup, accessibility, demo and migration behavior.
+- Run `scripts/product_readiness.py` and its tests in Quality Gates.
+- Treat accepted integrity corruption, reminder-repair data mutation, local-data loss, identifier/health telemetry leaks, or migration regressions as STOP conditions.
+- Store execution remains deferred until developer accounts are intentionally resumed.
+
 ## Monetization safety rules
 
 1. Purchases and entitlements are store-authoritative; local storage is cache only.

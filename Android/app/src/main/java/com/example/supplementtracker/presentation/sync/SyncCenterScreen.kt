@@ -7,6 +7,11 @@ import android.content.Context
 import android.os.PersistableBundle
 import com.example.supplementtracker.service.OakPrefs
 import com.example.supplementtracker.service.FirebaseRevision
+import com.example.supplementtracker.service.SyncHealthEvaluator
+import com.example.supplementtracker.service.SyncHealthInput
+import com.example.supplementtracker.service.SyncHealthLevel
+import com.example.supplementtracker.service.SyncHealthReport
+import com.example.supplementtracker.service.SyncRecoveryAction
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -525,6 +530,19 @@ fun SyncCenterScreen(
                 item(key = "status") {
                     if (activeBinId.isNotBlank() && uiStatus?.binId == activeBinId.trim()) {
                         val status = uiStatus!!
+                        val health = remember(status, isAutoSyncEnabled, isEncryptionEnabled) {
+                            SyncHealthEvaluator.evaluate(
+                                SyncHealthInput(
+                                    hasLink = true,
+                                    autoSyncEnabled = isAutoSyncEnabled,
+                                    hasPendingChanges = status.hasPendingChanges,
+                                    lastSyncEpochMs = status.lastSyncEpochMs,
+                                    lastAttemptEpochMs = status.lastAttemptEpochMs,
+                                    lastError = status.lastError,
+                                    encryptionEnabled = isEncryptionEnabled
+                                )
+                            )
+                        }
                         val notYet = stringResource(R.string.sync_center_not_yet)
                         val lastSyncText = if (status.lastSyncEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastSyncEpochMs)) else notYet
                         val lastAttemptText = if (status.lastAttemptEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastAttemptEpochMs)) else notYet
@@ -537,6 +555,10 @@ fun SyncCenterScreen(
                         ) {
                             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(stringResource(R.string.sync_center_status_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
+                                SyncHealthSummary(
+                                    report = health,
+                                    onSyncNow = { homeViewModel.syncNow(status.binId) }
+                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
@@ -898,6 +920,42 @@ fun SyncCenterScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SyncHealthSummary(report: SyncHealthReport, onSyncNow: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(syncHealthTitle(report.level), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            Text(syncRecoveryHint(report.action), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (report.action == SyncRecoveryAction.SYNC_NOW) {
+            OutlinedButton(onClick = onSyncNow) { Text(stringResource(R.string.sync_center_action_sync_now)) }
+        }
+    }
+}
+
+@Composable
+private fun syncHealthTitle(level: SyncHealthLevel): String = when (level) {
+    SyncHealthLevel.UNLINKED -> stringResource(R.string.sync_health_unlinked)
+    SyncHealthLevel.IDLE -> stringResource(R.string.sync_health_idle)
+    SyncHealthLevel.HEALTHY -> stringResource(R.string.sync_health_healthy)
+    SyncHealthLevel.PENDING -> stringResource(R.string.sync_health_pending)
+    SyncHealthLevel.NEEDS_KEY -> stringResource(R.string.sync_health_needs_key)
+    SyncHealthLevel.RETRYABLE_ERROR -> stringResource(R.string.sync_health_retryable)
+    SyncHealthLevel.ACTION_REQUIRED -> stringResource(R.string.sync_health_action_required)
+}
+
+@Composable
+private fun syncRecoveryHint(action: SyncRecoveryAction): String = when (action) {
+    SyncRecoveryAction.NONE -> stringResource(R.string.sync_health_hint_none)
+    SyncRecoveryAction.SYNC_NOW -> stringResource(R.string.sync_health_hint_sync_now)
+    SyncRecoveryAction.IMPORT_KEY -> stringResource(R.string.sync_health_hint_import_key)
+    SyncRecoveryAction.CHECK_LINK -> stringResource(R.string.sync_health_hint_check_link)
 }
 
 private data class CloudSyncLogUiItem(

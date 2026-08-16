@@ -17,6 +17,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import com.example.supplementtracker.service.ActiveClientStore
 import com.example.supplementtracker.service.ActiveProfileNotificationPolicy
+import com.example.supplementtracker.service.NotificationDebugStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -31,12 +32,14 @@ class NotificationReceiver : BroadcastReceiver() {
         val dose: String,
         val supplementId: String,
         val intakeTime: String,
-        val scheduledAtMillis: Long
+        val scheduledAtMillis: Long,
+        val requestCode: Int
     )
 
     override fun onReceive(context: Context, intent: Intent) {
         val payload = parsePayload(context, intent) ?: return
         val appContext = context.applicationContext
+        if (payload.requestCode >= 0) NotificationDebugStore.recordCancelled(appContext, payload.requestCode)
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -55,7 +58,8 @@ class NotificationReceiver : BroadcastReceiver() {
             dose = intent.getStringExtra("DAILY_DOSE").orEmpty(),
             supplementId = supplementId,
             intakeTime = intent.getStringExtra("INTAKE_TIME").orEmpty(),
-            scheduledAtMillis = intent.getLongExtra("SCHEDULED_AT_MILLIS", 0L)
+            scheduledAtMillis = intent.getLongExtra("SCHEDULED_AT_MILLIS", 0L),
+            requestCode = intent.getIntExtra("REQUEST_CODE", -1)
         )
     }
 

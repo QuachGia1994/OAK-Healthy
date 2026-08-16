@@ -46,6 +46,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,12 +63,18 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.supplementtracker.service.NotificationAlarmAudit
 import com.example.supplementtracker.service.NotificationDebugStore
+import com.example.supplementtracker.service.NotificationReliabilityEvaluator
+import com.example.supplementtracker.service.NotificationReliabilityInput
+import com.example.supplementtracker.service.NotificationReliabilityLevel
+import com.example.supplementtracker.service.NotificationSchedulerImpl
 import com.example.supplementtracker.service.ScheduledAlarmInfo
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 private data class NotificationDayGroup(
     val day: LocalDate,
@@ -96,8 +103,10 @@ fun NotificationCheckScreen(
     val prefs = remember { OakPrefs.get(context) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
 
     var upcoming by remember { mutableStateOf(emptyList<ScheduledAlarmInfo>()) }
+    var alarmAudit by remember { mutableStateOf(NotificationAlarmAudit(0, 0, 0)) }
     var isNotificationEnabledByUser by rememberSaveable { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
     var hasNotificationPermission by rememberSaveable { mutableStateOf(checkNotificationPermission(context)) }
     var canScheduleExactAlarms by rememberSaveable { mutableStateOf(canScheduleExactAlarms(context)) }
@@ -159,12 +168,36 @@ fun NotificationCheckScreen(
         NotificationDiagnosis.OK -> stringResource(R.string.notification_check_hint_ok)
     }
 
+    val reliabilityReport = remember(
+        hasNotificationPermission,
+        isNotificationEnabledByUser,
+        currentClientId,
+        activeSupplementCount,
+        canScheduleExactAlarms,
+        isIgnoringBatteryOptimizations,
+        alarmAudit
+    ) {
+        NotificationReliabilityEvaluator.evaluate(
+            NotificationReliabilityInput(
+                permissionGranted = hasNotificationPermission,
+                enabledByUser = isNotificationEnabledByUser,
+                hasActiveClient = currentClientId != null,
+                activeSupplementCount = activeSupplementCount,
+                exactAlarmAvailable = canScheduleExactAlarms,
+                batteryOptimizationIgnored = isIgnoringBatteryOptimizations,
+                scheduledCount = alarmAudit.scheduledCount,
+                missingPendingIntentCount = alarmAudit.missingPendingIntentCount,
+                staleEntryCount = alarmAudit.staleEntryCount
+            )
+        )
+    }
     val grouped = remember(upcoming) { groupByDate(upcoming) }
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy") }
     val timeFormatter = remember { DateTimeFormatter.ofPattern("H:mm") }
 
     val reload: () -> Unit = {
         upcoming = NotificationDebugStore.getUpcoming(context)
+        alarmAudit = NotificationSchedulerImpl(context).auditDebugEntries()
         isNotificationEnabledByUser = prefs.getBoolean("isNotificationEnabledByUser", false)
         hasNotificationPermission = checkNotificationPermission(context)
         canScheduleExactAlarms = canScheduleExactAlarms(context)
@@ -185,10 +218,17 @@ fun NotificationCheckScreen(
             canScheduleExactAlarms = canScheduleExactAlarms,
             isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
             scheduledCount = upcoming.size,
+            reliabilityReport = reliabilityReport,
             grouped = grouped,
             dateFormatter = dateFormatter,
             timeFormatter = timeFormatter,
             onReload = reload,
+            onRepair = {
+                coroutineScope.launch {
+                    homeViewModel.rebuildNotificationSchedules()
+                    reload()
+                }
+            },
             modifier = Modifier.padding(padding)
         )
     }
@@ -236,10 +276,12 @@ private fun NotificationCheckContent(
     canScheduleExactAlarms: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
     scheduledCount: Int,
+    reliabilityReport: com.example.supplementtracker.service.NotificationReliabilityReport,
     grouped: List<NotificationDayGroup>,
     dateFormatter: DateTimeFormatter,
     timeFormatter: DateTimeFormatter,
     onReload: () -> Unit,
+    onRepair: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -258,10 +300,18 @@ private fun NotificationCheckContent(
                 activeSupplementCount = activeSupplementCount,
                 canScheduleExactAlarms = canScheduleExactAlarms,
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
-                scheduledCount = scheduledCount
+                scheduledCount = scheduledCount,
+                reliabilityReport = reliabilityReport
             )
         }
-        item { OutlinedButton(onClick = onReload) { Text(stringResource(R.string.notification_check_reload)) } }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(onClick = onReload) { Text(stringResource(R.string.notification_check_reload)) }
+                if (reliabilityReport.shouldOfferRepair) {
+                    OutlinedButton(onClick = onRepair) { Text(stringResource(R.string.notification_reliability_rebuild)) }
+                }
+            }
+        }
         if (grouped.isEmpty()) item { EmptyNotificationCard() }
         grouped.forEach { group ->
             val day = group.day
@@ -302,7 +352,8 @@ private fun DiagnosticsCard(
     activeSupplementCount: Int,
     canScheduleExactAlarms: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
-    scheduledCount: Int
+    scheduledCount: Int,
+    reliabilityReport: com.example.supplementtracker.service.NotificationReliabilityReport
 ) {
     val permissionText = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
         stringResource(R.string.notification_check_permission_not_required)
@@ -327,14 +378,14 @@ private fun DiagnosticsCard(
         "diagnosis=$diagnosisTitle",
         "permission=$permissionText",
         "enabledByUser=$enabledText",
-        "activeClient=${activeClientId?.toString() ?: "nil"}",
+        "activeClient=${if (activeClientId == null) "no" else "yes"}",
         "activeSupplements=$activeSupplementCount",
         "scheduledCount=$scheduledCount"
     ).joinToString("\n")
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val chipContainerColor = when (diagnosis) {
-NotificationDiagnosis.OK -> OakColors.Success
+        NotificationDiagnosis.OK -> OakColors.Success
             NotificationDiagnosis.DENIED -> OakColors.ErrorDark
             NotificationDiagnosis.OFF -> if (isDark) OakColors.NeutralDark else OakColors.Neutral
             else -> OakColors.Warning
@@ -364,6 +415,18 @@ NotificationDiagnosis.OK -> OakColors.Success
             KeyValueRow(label = stringResource(R.string.notification_check_active_client_label), value = activeClientText)
             KeyValueRow(label = stringResource(R.string.notification_check_active_supplements_label), value = activeSupplementCount.toString())
             KeyValueRow(label = stringResource(R.string.notification_check_scheduled_count_label), value = scheduledCount.toString())
+            KeyValueRow(
+                label = stringResource(R.string.notification_reliability_health),
+                value = reliabilityLevelText(reliabilityReport.level)
+            )
+            KeyValueRow(
+                label = stringResource(R.string.notification_reliability_missing),
+                value = reliabilityReport.missingPendingIntentCount.toString()
+            )
+            KeyValueRow(
+                label = stringResource(R.string.notification_reliability_stale),
+                value = reliabilityReport.staleEntryCount.toString()
+            )
             Text(stringResource(R.string.notification_check_diagnostics_label), style = MaterialTheme.typography.titleSmall)
             SelectionContainer {
                 Text(
@@ -375,6 +438,14 @@ NotificationDiagnosis.OK -> OakColors.Success
             }
         }
     }
+}
+
+@Composable
+private fun reliabilityLevelText(level: NotificationReliabilityLevel): String = when (level) {
+    NotificationReliabilityLevel.HEALTHY -> stringResource(R.string.notification_reliability_healthy)
+    NotificationReliabilityLevel.DEGRADED -> stringResource(R.string.notification_reliability_degraded)
+    NotificationReliabilityLevel.NEEDS_REPAIR -> stringResource(R.string.notification_reliability_needs_repair)
+    NotificationReliabilityLevel.INACTIVE -> stringResource(R.string.notification_reliability_inactive)
 }
 
 @Composable
