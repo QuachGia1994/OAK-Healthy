@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- Privacy-first Firebase Analytics/Crashlytics diagnostics on Android and iOS with explicit opt-in, allowlisted commercial funnel events, health-data field scrubbing, in-app disclosure, and store privacy declaration guidance.
 - StoreKit 2 and Google Play Billing 9.1 subscription flows with store-localized pricing, purchase/restore handling, verified entitlement resolution, and fail-closed pending/unverified purchase behavior.
 - Cross-platform Free/Pro/Coach entitlement policy, stable subscription product catalog, Plan & Access UI, and monetization delivery roadmap.
 - Cross-platform AES-GCM interoperability and revision validation tests.
@@ -49,6 +50,7 @@ versioning where practical.
 
 ### Security
 
+- Cloud/debug telemetry no longer emits client IDs, cloud link IDs, raw server responses, file paths, or raw error text; analytics and crash collection are disabled by default until the user opts in.
 - Malformed encryption envelopes now fail closed.
 - Firebase identifiers and encryption key IDs are validated before use.
 - In-place encryption-key rotation was removed to prevent inaccessible cloud
