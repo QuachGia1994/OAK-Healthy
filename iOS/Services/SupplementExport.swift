@@ -971,8 +971,14 @@ struct SupplementExportCodec {
         for client: ClientProfile,
         context: ModelContext
     ) throws -> UserSupplement? {
-        let all = try context.fetch(FetchDescriptor<UserSupplement>())
-        return all.first { $0.client?.id == client.id && $0.name == name }
+        let clientId = client.id
+        var descriptor = FetchDescriptor<UserSupplement>(
+            predicate: #Predicate {
+                $0.client?.id == clientId && $0.name == name
+            }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
     }
     
     private static func createSupplement(

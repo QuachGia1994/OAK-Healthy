@@ -472,19 +472,10 @@ private struct SafeModeView: View {
             let client = try createImportClient()
             try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
             activeClientManager.setCurrentClientId(client.id)
-            let linked = pendingImportLinkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !linked.isEmpty {
-                UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
-            }
-            if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") {
-                do {
-                    try await NotificationService.shared.requestAuthorization()
-                    let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
-                        .filter { $0.client?.id == client.id }
-                    await NotificationService.shared.replaceAllSchedules(supplements: supplements)
-                } catch {
-                    return
-                }
+            applyPendingImportLink()
+            if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser"),
+               !(await rescheduleImportedNotifications(clientId: client.id)) {
+                return
             }
             clearPendingImport(at: url)
             pendingImportMessage = "safe_mode_apply_success_message".localized
@@ -500,6 +491,27 @@ private struct SafeModeView: View {
         }
     }
     
+    private func applyPendingImportLink() {
+        let linked = pendingImportLinkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !linked.isEmpty else { return }
+        UserDefaults.standard.set(linked, forKey: "cloudSyncLinkedBinId")
+    }
+
+    @MainActor
+    private func rescheduleImportedNotifications(clientId: UUID) async -> Bool {
+        do {
+            try await NotificationService.shared.requestAuthorization()
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            await NotificationService.shared.replaceAllSchedules(supplements: supplements)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     @MainActor
     private func createImportClient() throws -> ClientProfile {
         let storedName = pendingImportClientName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -646,10 +658,11 @@ struct MainTabView: View {
         guard isNotificationEnabledByUser else { return }
         guard let clientId = activeClientManager.currentClientId else { return }
         do {
-            let descriptor = FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
-            let supplements = try modelContext.fetch(descriptor)
-            let filtered = supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
-            await notificationService.replaceAllSchedules(supplements: filtered)
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            await notificationService.replaceAllSchedules(supplements: supplements)
         } catch {
             DebugReporter.report("auto_reschedule_fetch_failed", fields: ["error": error.localizedDescription])
             return
@@ -663,10 +676,11 @@ struct MainTabView: View {
             return
         }
         do {
-            let descriptor = FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
-            let supplements = try modelContext.fetch(descriptor)
-            let filtered = supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
-            badgeViewModel.processSupplements(filtered)
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            badgeViewModel.processSupplements(supplements)
             homeOverdueCount = badgeViewModel.cachedTodayCounts.missed
         } catch {
             homeOverdueCount = 0

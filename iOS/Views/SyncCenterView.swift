@@ -955,8 +955,7 @@ public struct SyncCenterView: View {
     @MainActor
     private func reloadCaches() async {
         guard let clientId = activeClientManager.currentClientId else {
-            cachedSupplements = []
-            cachedRecords = []
+            clearCaches()
             return
         }
         let container = modelContext.container
@@ -964,24 +963,29 @@ public struct SyncCenterView: View {
         do {
             let (suppIds, recordIds) = try await Task.detached {
                 let ctx = ModelContext(container)
-                let supplementsAll = try ctx.fetch(
-                    FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
+                let supplements = try ClientScopedStore.supplements(
+                    modelContext: ctx,
+                    clientId: clientId
                 )
-                let suppIds = supplementsAll.filter { $0.client?.id == clientId }.map { $0.persistentModelID }
-
-                let recordsDescriptor = FetchDescriptor<IntakeRecord>(sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)])
-                let recordsAll = try ctx.fetch(recordsDescriptor)
-                let recordIds = recordsAll.filter { $0.supplement?.client?.id == clientId && $0.date >= cutoff }
-                    .prefix(5_000).map { $0.persistentModelID }
-                return (suppIds, recordIds)
+                let records = try ClientScopedStore.recentHistoryRecords(
+                    modelContext: ctx,
+                    clientId: clientId,
+                    cutoff: cutoff,
+                    limit: 5_000
+                )
+                return (supplements.map(\.persistentModelID), records.map(\.persistentModelID))
             }.value
 
             cachedSupplements = suppIds.compactMap { modelContext.model(for: $0) as? UserSupplement }
             cachedRecords = recordIds.compactMap { modelContext.model(for: $0) as? IntakeRecord }
         } catch {
-            cachedSupplements = []
-            cachedRecords = []
+            clearCaches()
         }
+    }
+
+    private func clearCaches() {
+        cachedSupplements = []
+        cachedRecords = []
     }
     
     @MainActor

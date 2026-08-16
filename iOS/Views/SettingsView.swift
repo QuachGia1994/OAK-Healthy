@@ -8,7 +8,6 @@ public struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
-    @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
@@ -122,16 +121,7 @@ public struct SettingsView: View {
             Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
                 .onChange(of: isNotificationEnabledByUser) {
                     if isNotificationEnabledByUser {
-                        Task { @MainActor in
-                            do {
-                                try await NotificationService.shared.requestAuthorization()
-                            } catch {
-                                isNotificationEnabledByUser = false
-                                showError(message: error.localizedDescription)
-                                return
-                            }
-                            await NotificationService.shared.replaceAllSchedules(supplements: supplementsForActiveClient)
-                        }
+                        Task { @MainActor in await rescheduleNotifications() }
                         return
                     }
                     Task { @MainActor in
@@ -144,15 +134,7 @@ public struct SettingsView: View {
             }
 
             Button {
-                Task { @MainActor in
-                    do {
-                        try await NotificationService.shared.requestAuthorization()
-                    } catch {
-                        showError(message: error.localizedDescription)
-                        return
-                    }
-                    await NotificationService.shared.replaceAllSchedules(supplements: supplementsForActiveClient)
-                }
+                Task { @MainActor in await rescheduleNotifications() }
             } label: {
                 Label("onboarding_reschedule_now".localized, systemImage: "arrow.triangle.2.circlepath")
             }
@@ -398,13 +380,11 @@ public struct SettingsView: View {
     
     @MainActor
     private func refreshSharePayloads() {
-        guard activeClientManager.currentClientId != nil else {
-            shareStackPNGURL = nil
-            return
-        }
-        
         do {
-            let png = try SupplementExportCodec.renderShareImageData(supplements: supplementsForActiveClient, colorScheme: colorScheme)
+            let png = try SupplementExportCodec.renderShareImageData(
+                supplements: activeSupplements(),
+                colorScheme: colorScheme
+            )
             shareStackPNGURL = try writeTempFile(named: "OAKHealthy_Stack.png", data: png)
         } catch {
             shareStackPNGURL = nil
@@ -424,14 +404,30 @@ public struct SettingsView: View {
         }
     }
     
+    @MainActor
+    private func rescheduleNotifications() async {
+        do {
+            try await NotificationService.shared.requestAuthorization()
+            await NotificationService.shared.replaceAllSchedules(
+                supplements: try activeSupplements()
+            )
+        } catch {
+            isNotificationEnabledByUser = false
+            showError(message: error.localizedDescription)
+        }
+    }
+
+    private func activeSupplements() throws -> [UserSupplement] {
+        guard let clientId = activeClientManager.currentClientId else { return [] }
+        return try ClientScopedStore.activeSupplements(
+            modelContext: modelContext,
+            clientId: clientId
+        )
+    }
+
     private func showError(message: String) {
         errorMessage = message
         isShowingError = true
-    }
-    
-    private var supplementsForActiveClient: [UserSupplement] {
-        guard let clientId = activeClientManager.currentClientId else { return [] }
-        return supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
     }
     
     @MainActor

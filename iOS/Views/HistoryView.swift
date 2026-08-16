@@ -161,10 +161,7 @@ public struct HistoryView: View {
     @MainActor
     private func reload() async {
         guard let clientId = activeClientManager.currentClientId else {
-            recordsCount = 0
-            allRecords = []
-            sections = []
-            viewModel.processHistory(records: [])
+            clearHistoryState()
             DebugReporter.report("history_reload_no_client")
             return
         }
@@ -172,28 +169,35 @@ public struct HistoryView: View {
             "clientId": clientId.uuidString
         ])
         do {
-            var descriptor = FetchDescriptor<IntakeRecord>(
-                sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
+            let records = try ClientScopedStore.historyRecords(
+                modelContext: modelContext,
+                clientId: clientId,
+                limit: 5_000
             )
-            descriptor.fetchLimit = 5_000
-            let fetched = try modelContext.fetch(descriptor)
-            let filtered = fetched.filter { $0.supplement?.client?.id == clientId }
-            recordsCount = filtered.count
-            allRecords = filtered
-            rebuildSections()
-            viewModel.processHistory(records: filtered)
+            applyHistory(records)
             DebugReporter.report("history_reload_success", fields: [
-                "count": String(filtered.count)
+                "count": String(records.count)
             ])
         } catch {
-            recordsCount = 0
-            allRecords = []
-            sections = []
-            viewModel.processHistory(records: [])
+            clearHistoryState()
             DebugReporter.report("history_reload_failed", fields: [
                 "error": String(describing: error)
             ])
         }
+    }
+
+    private func applyHistory(_ records: [IntakeRecord]) {
+        recordsCount = records.count
+        allRecords = records
+        rebuildSections()
+        viewModel.processHistory(records: records)
+    }
+
+    private func clearHistoryState() {
+        recordsCount = 0
+        allRecords = []
+        sections = []
+        viewModel.processHistory(records: [])
     }
 
     @MainActor

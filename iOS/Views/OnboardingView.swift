@@ -303,10 +303,11 @@ public struct OnboardingView: View {
     private func scheduleNotificationsForActiveClient() async {
         guard let clientId = activeClientManager.currentClientId else { return }
         do {
-            let descriptor = FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
-            let supplements = try modelContext.fetch(descriptor)
-            let filtered = supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
-            await notificationService.replaceAllSchedules(supplements: filtered)
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            await notificationService.replaceAllSchedules(supplements: supplements)
         } catch {
             return
         }

@@ -547,13 +547,11 @@ enum CloudSyncAutoSync {
     private static func hasLocalStackChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
         guard lastSyncEpochMs > 0 else { return true }
         do {
-            let descriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate {
-                    $0.updatedAtEpochMs > lastSyncEpochMs ||
-                        ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs)
-                }
+            return try ClientScopedStore.hasSupplementChanges(
+                modelContext: modelContext,
+                clientId: clientId,
+                since: lastSyncEpochMs
             )
-            return try modelContext.fetch(descriptor).contains { $0.client?.id == clientId }
         } catch {
             return true
         }
@@ -562,11 +560,11 @@ enum CloudSyncAutoSync {
     private static func hasLocalHistoryChangesSince(modelContext: ModelContext, clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
         guard lastSyncEpochMs > 0 else { return true }
         do {
-            let descriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate { $0.updatedAtEpochMs > lastSyncEpochMs },
-                sortBy: [SortDescriptor(\IntakeRecord.updatedAtEpochMs, order: .reverse)]
+            return try ClientScopedStore.hasHistoryChanges(
+                modelContext: modelContext,
+                clientId: clientId,
+                since: lastSyncEpochMs
             )
-            return try modelContext.fetch(descriptor).contains { $0.supplement?.client?.id == clientId }
         } catch {
             return true
         }
@@ -689,8 +687,10 @@ enum CloudSyncAutoSync {
     }
 
     private static func makeStackBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
-        let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
-            .filter { $0.client?.id == clientId }
+        let supplements = try ClientScopedStore.supplements(
+            modelContext: modelContext,
+            clientId: clientId
+        )
         return try SupplementExportCodec.encodeBackup(supplements: supplements, records: [])
     }
 
@@ -700,22 +700,21 @@ enum CloudSyncAutoSync {
     }
 
     private static func makeFullBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {
-        let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
-            .filter { $0.client?.id == clientId }
+        let supplements = try ClientScopedStore.supplements(
+            modelContext: modelContext,
+            clientId: clientId
+        )
         let records = try historyRecords(modelContext: modelContext, clientId: clientId)
         return try SupplementExportCodec.encodeBackup(supplements: supplements, records: records)
     }
 
     private static func historyRecords(modelContext: ModelContext, clientId: UUID) throws -> [IntakeRecord] {
         let cutoff = Calendar.current.date(byAdding: .day, value: -90, to: .now) ?? .now
-        let descriptor = FetchDescriptor<IntakeRecord>(
-            predicate: #Predicate { $0.date >= cutoff },
-            sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
-        )
-        return Array(
-            try modelContext.fetch(descriptor)
-                .filter { $0.supplement?.client?.id == clientId }
-                .prefix(5_000)
+        return try ClientScopedStore.recentHistoryRecords(
+            modelContext: modelContext,
+            clientId: clientId,
+            cutoff: cutoff,
+            limit: 5_000
         )
     }
 }
