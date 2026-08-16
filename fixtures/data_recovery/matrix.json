@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "requiredBackupSchemas": [
+    "legacy-array",
+    "export-v1",
+    "oak-1.1",
+    "oak-2.0"
+  ],
+  "fixtures": [
+    {
+      "sourceSchema": "oak-2.0",
+      "direction": "android-to-ios",
+      "file": "android_to_ios_v2.json",
+      "expectedSupplements": 2,
+      "expectedHistory": 3,
+      "clientPolicy": "target-client-preserved"
+    },
+    {
+      "sourceSchema": "oak-2.0",
+      "direction": "ios-to-android",
+      "file": "ios_to_android_v2.json",
+      "expectedSupplements": 2,
+      "expectedHistory": 2,
+      "clientPolicy": "target-client-preserved"
+    },
+    {
+      "sourceSchema": "oak-1.1",
+      "direction": "legacy-cross-platform",
+      "file": "oak_v1_1.json",
+      "expectedSupplements": 1,
+      "expectedHistory": 1,
+      "clientPolicy": "target-client-preserved"
+    },
+    {
+      "sourceSchema": "export-v1",
+      "direction": "legacy-cross-platform",
+      "file": "export_v1.json",
+      "expectedSupplements": 1,
+      "expectedHistory": 0,
+      "clientPolicy": "target-client-preserved"
+    },
+    {
+      "sourceSchema": "legacy-array",
+      "direction": "legacy-cross-platform",
+      "file": "legacy_array.json",
+      "expectedSupplements": 1,
+      "expectedHistory": 0,
+      "clientPolicy": "target-client-preserved"
+    }
+  ],
+  "databaseMigrations": {
+    "androidRoom": {
+      "supportedSources": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "target": 6
+    },
+    "iosSwiftData": {
+      "supportedSources": [
+        "legacy-default",
+        "1.0.0"
+      ],
+      "target": "1.0.0"
+    }
+  },
+  "invariants": [
+    "no-orphan-history",
+    "no-client-replacement",
+    "routine-fields-preserved",
+    "history-count-preserved"
+  ]
+}

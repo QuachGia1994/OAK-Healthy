@@ -1,0 +1,55 @@
+{
+  "version": "2.0",
+  "meta": {
+    "schemaVersion": 2,
+    "updatedAtEpochMs": 1701000000000,
+    "deviceId": "fixture-ios"
+  },
+  "supplements": [
+    {
+      "id": "33333333-3333-3333-3333-333333333333",
+      "name": "Vitamin D",
+      "dailyDose": "1000 IU",
+      "intakeTime": "09:15",
+      "startDate": "2026-02-01",
+      "lastTakenLocalDate": "2026-02-03",
+      "updatedAtEpochMs": 1701000000100,
+      "cycle": {
+        "isContinuous": false,
+        "daysOn": 1,
+        "daysOff": 0,
+        "intervalDays": 3
+      }
+    },
+    {
+      "id": "44444444-4444-4444-4444-444444444444",
+      "name": "Creatine",
+      "dailyDose": "5 g",
+      "intakeTime": "18:45",
+      "startDate": "2026-02-02",
+      "updatedAtEpochMs": 1701000000200,
+      "deletedAtEpochMs": 1701000000300,
+      "cycle": {
+        "isContinuous": true,
+        "daysOn": 1,
+        "daysOff": 0
+      }
+    }
+  ],
+  "historyLogs": [
+    {
+      "id": "i-1",
+      "supplementId": "33333333-3333-3333-3333-333333333333",
+      "dateEpochMs": 1701000100000,
+      "status": "Taken",
+      "updatedAtEpochMs": 1701000100100
+    },
+    {
+      "id": "i-2",
+      "supplementId": "44444444-4444-4444-4444-444444444444",
+      "dateEpochMs": 1701000200000,
+      "status": "Skipped",
+      "updatedAtEpochMs": 1701000200100
+    }
+  ]
+}

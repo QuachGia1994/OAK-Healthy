@@ -11,9 +11,17 @@ struct OAKBackupIntegrity: Codable, Sendable, Equatable {
 
 struct OAKBackupPreview: Sendable, Equatable {
     let version: String
+    let sourceSchema: String
     let supplementCount: Int
     let historyCount: Int
+    let existingSupplementCount: Int
+    let existingHistoryCount: Int
+    let remappedSupplementIdCount: Int
+    let duplicateSupplementIdCount: Int
+    let duplicateHistoryCount: Int
+    let orphanHistoryCount: Int
     let integrityVerified: Bool
+    let canRestore: Bool
 }
 
 enum OAKBackupIntegrityError: Error, Sendable {
@@ -21,6 +29,27 @@ enum OAKBackupIntegrityError: Error, Sendable {
     case unsupportedAlgorithm
     case countMismatch
     case digestMismatch
+}
+
+enum BackupRestoreError: Error, Sendable {
+    case blockedByPreview
+    case rollbackFailed
+}
+
+enum BackupRestoreTransaction {
+    static func run(
+        snapshot: OAKBackupData,
+        apply: () throws -> Void,
+        rollback: (OAKBackupData) throws -> Void
+    ) throws {
+        do {
+            try apply()
+        } catch {
+            let applyError = error
+            do { try rollback(snapshot) } catch { throw BackupRestoreError.rollbackFailed }
+            throw applyError
+        }
+    }
 }
 
 enum OAKBackupIntegrityCodec {

@@ -226,6 +226,9 @@
     <string name="missing_active_client">Vui lòng chọn học viên trước.</string>
     <string name="invalid_json">File JSON không hợp lệ.</string>
     <string name="import_success">Đã nhập dữ liệu.</string>
+    <string name="import_failed_rollback_safe">Nhập thất bại. Dữ liệu trước đó đã được khôi phục.</string>
+    <string name="import_preview_format">Bản sao lưu %1$s: %2$d chất bổ sung và %3$d bản ghi lịch sử. Dữ liệu hiện có: %4$d chất bổ sung và %5$d bản ghi lịch sử. ID được ánh xạ lại: %6$d. Hãy xác nhận để khôi phục.</string>
+    <string name="import_preview_blocked_format">Không thể khôi phục: %1$d ID chất bổ sung trùng, %2$d ID lịch sử trùng và %3$d bản ghi lịch sử mồ côi.</string>
 
     <string name="sync_center_tab_host">Host</string>
     <string name="sync_center_tab_link">Link</string>

@@ -103,6 +103,7 @@ data class OAKBackupPreview(
 
 object OAKBackupJson {
     private const val HISTORY_COMPRESS_THRESHOLD = 200
+    private val supportedBackupVersions = setOf("1.1", OAKBackupSchema.VERSION)
 
     private fun stableHistoryId(supplementId: String, dateEpochMs: Long): String {
         return com.example.supplementtracker.domain.util.DoseEventKey.make(
@@ -165,6 +166,21 @@ object OAKBackupJson {
         return runCatching { decodeCompatOrThrow(json) }
     }
 
+    fun sourceSchema(json: String): Result<String> = runCatching {
+        val trimmed = json.trim()
+        if (trimmed.startsWith("[")) return@runCatching "legacy-array"
+        val root = JSONObject(trimmed)
+        if (root.has("schemaVersion") && !root.has("version")) {
+            require(root.optInt("schemaVersion", -1) == SupplementExportSchema.VERSION) {
+                "Unsupported export schema"
+            }
+            return@runCatching "export-v1"
+        }
+        val version = root.optString("version", "").trim().ifBlank { "1.1" }
+        require(version in supportedBackupVersions) { "Unsupported backup schema" }
+        "oak-$version"
+    }
+
     fun preview(json: String): Result<OAKBackupPreview> = decodeCompat(json).map { data ->
         OAKBackupPreview(
             version = data.version,
@@ -214,6 +230,10 @@ object OAKBackupJson {
     }
 
     private fun decodeFromRoot(root: JSONObject, rawJson: String): OAKBackupDataDTO {
+        val declaredVersion = root.optString("version", "").trim()
+        require(declaredVersion.isEmpty() || declaredVersion in supportedBackupVersions) {
+            "Unsupported backup schema"
+        }
         val stackArray = root.optJSONArray("supplements") ?: root.optJSONArray("stack")
         if (stackArray == null) {
             require(!root.has("integrity")) { "Integrity manifest requires an OAK backup payload" }

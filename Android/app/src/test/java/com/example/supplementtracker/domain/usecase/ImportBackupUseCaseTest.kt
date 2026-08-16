@@ -21,6 +21,10 @@ private class RecordingImportRepository : SupplementRepository {
     var importedClientId: String? = null
     var importedSupplements: List<UserSupplement> = emptyList()
     var importedRecords: List<IntakeRecord> = emptyList()
+    var currentSupplements: List<UserSupplement> = emptyList()
+    var currentRecords: List<IntakeRecord> = emptyList()
+    var importAttempts: Int = 0
+    var failNextImport: Boolean = false
     val existingSupplements = mutableMapOf<String, UserSupplement>()
 
     override suspend fun saveClient(profile: ClientProfile) = Unit
@@ -40,9 +44,9 @@ private class RecordingImportRepository : SupplementRepository {
     override suspend fun removeIntake(supplementId: String, date: Long) = Unit
     override fun getRecordsByDateRange(clientId: String, startDate: Long, endDate: Long): Flow<List<IntakeRecord>> = emptyFlow()
     override fun observeAllRecordsByClient(clientId: String): Flow<List<IntakeRecord>> = emptyFlow()
-    override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = emptyList()
-    override suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement> = emptyList()
-    override suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord> = emptyList()
+    override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = currentRecords
+    override suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement> = currentSupplements
+    override suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord> = currentRecords
     override suspend fun deleteAllSupplementsByClient(clientId: String) = Unit
     override suspend fun deleteAllIntakeRecordsByClient(clientId: String) = Unit
     override suspend fun importBackupAtomic(
@@ -50,9 +54,16 @@ private class RecordingImportRepository : SupplementRepository {
         supplements: List<UserSupplement>,
         records: List<IntakeRecord>
     ) {
+        importAttempts += 1
         importedClientId = clientId
         importedSupplements = supplements
         importedRecords = records
+        currentSupplements = supplements
+        currentRecords = records
+        if (failNextImport) {
+            failNextImport = false
+            error("simulated persistence failure")
+        }
     }
 }
 
@@ -63,7 +74,7 @@ class ImportBackupUseCaseTest {
     private val supplementId = UUID.fromString("22222222-2222-2222-2222-222222222222")
 
     @Test
-    fun import_preservesRecurrenceDeletionLastTakenAndFiltersUnknownHistory() = kotlinx.coroutines.runBlocking {
+    fun import_preservesRecurrenceDeletionAndLastTaken() = kotlinx.coroutines.runBlocking {
         val json = """
             {
               "version":"2.0",
@@ -75,8 +86,7 @@ class ImportBackupUseCaseTest {
                   "weeklyWeekdaysMask":2,"weeklyIntervalWeeks":2,"weeklyAnchorDate":"2026-08-10"}
               }],
               "historyLogs":[
-                {"id":"keep","supplementId":"$supplementId","dateEpochMs":1000,"status":"Taken","updatedAtEpochMs":2000},
-                {"id":"drop","supplementId":"33333333-3333-3333-3333-333333333333","dateEpochMs":1000,"status":"Taken","updatedAtEpochMs":2000}
+                {"id":"keep","supplementId":"$supplementId","dateEpochMs":1000,"status":"Taken","updatedAtEpochMs":2000}
               ]
             }
         """.trimIndent()
@@ -166,6 +176,88 @@ class ImportBackupUseCaseTest {
             UUID.fromString("0c13f015-3ab0-47b7-af85-713a1c628ff0"),
             repository.importedSupplements.single().id
         )
+    }
+
+    @Test
+    fun preview_blocksOrphanHistoryWithoutWriting() = kotlinx.coroutines.runBlocking {
+        val orphanId = "33333333-3333-3333-3333-333333333333"
+        val json = """
+            {"version":"2.0","supplements":[{"id":"$supplementId","name":"Imported","dailyDose":"1",
+            "intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":true,"daysOn":1,"daysOff":0}}],
+            "historyLogs":[{"id":"orphan","supplementId":"$orphanId","dateEpochMs":1000,"status":"Taken","updatedAtEpochMs":2000}]}
+        """.trimIndent()
+
+        val plan = useCase.preview(json, clientId).getOrThrow()
+        val result = useCase(json, clientId)
+
+        assertFalse(plan.preview.canRestore)
+        assertEquals(1, plan.preview.orphanHistoryCount)
+        assertTrue(result.isFailure)
+        assertEquals(0, repository.importAttempts)
+    }
+
+    @Test
+    fun preview_reportsDuplicateIdsAndForeignProfileCollision() = kotlinx.coroutines.runBlocking {
+        val otherClientId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        repository.existingSupplements[supplementId.toString()] = UserSupplement(
+            id = supplementId,
+            clientId = otherClientId,
+            name = "Other",
+            startDate = LocalDate.parse("2026-01-01"),
+            cycleConfig = CycleConfig.Continuous,
+            dailyDose = "1",
+            intakeTime = "08:00"
+        )
+        val json = """
+            {"version":"2.0","supplements":[
+              {"id":"$supplementId","name":"One","dailyDose":"1","intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":true,"daysOn":1,"daysOff":0}},
+              {"id":"$supplementId","name":"Duplicate","dailyDose":"1","intakeTime":"09:00","startDate":"2026-08-10","cycle":{"isContinuous":true,"daysOn":1,"daysOff":0}}
+            ],"historyLogs":[]}
+        """.trimIndent()
+
+        val preview = useCase.preview(json, clientId).getOrThrow().preview
+
+        assertEquals("oak-2.0", preview.sourceSchema)
+        assertEquals(1, preview.duplicateSupplementIdCount)
+        assertEquals(1, preview.remappedSupplementIdCount)
+        assertFalse(preview.canRestore)
+        assertEquals(0, repository.importAttempts)
+    }
+
+    @Test
+    fun restore_rollsBackPreRestoreSnapshotWhenPersistenceFails() = kotlinx.coroutines.runBlocking {
+        val snapshotSupplement = UserSupplement(
+            id = UUID.fromString("44444444-4444-4444-4444-444444444444"),
+            clientId = clientId,
+            name = "Snapshot",
+            startDate = LocalDate.parse("2026-01-01"),
+            cycleConfig = CycleConfig.Continuous,
+            dailyDose = "1",
+            intakeTime = "07:00"
+        )
+        val snapshotRecord = IntakeRecord(
+            id = DoseEventKey.make(snapshotSupplement.id.toString(), 500L),
+            supplementId = snapshotSupplement.id.toString(),
+            date = 500L,
+            status = "Taken",
+            updatedAtEpochMs = 600L
+        )
+        repository.currentSupplements = listOf(snapshotSupplement)
+        repository.currentRecords = listOf(snapshotRecord)
+        val json = """
+            {"version":"2.0","supplements":[{"id":"$supplementId","name":"Imported","dailyDose":"1",
+            "intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":true,"daysOn":1,"daysOff":0}}],
+            "historyLogs":[]}
+        """.trimIndent()
+        val plan = useCase.preview(json, clientId).getOrThrow()
+        repository.failNextImport = true
+
+        val result = useCase.restore(plan)
+
+        assertTrue(result.isFailure)
+        assertEquals(2, repository.importAttempts)
+        assertEquals(listOf(snapshotSupplement), repository.currentSupplements)
+        assertEquals(listOf(snapshotRecord), repository.currentRecords)
     }
 
     @Test

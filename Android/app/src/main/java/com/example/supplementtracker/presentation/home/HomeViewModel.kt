@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
+import com.example.supplementtracker.domain.usecase.BackupImportPlan
+import com.example.supplementtracker.domain.usecase.BackupImportPreview
 import com.example.supplementtracker.domain.usecase.CalculateHomeDashboardUseCase
 import com.example.supplementtracker.domain.usecase.ClientProfileUseCase
 import com.example.supplementtracker.domain.usecase.ImportBackupUseCase
@@ -102,6 +104,8 @@ class HomeViewModel(
     val lastNotificationRebuildEpochMs: StateFlow<Long> = _lastNotificationRebuildEpochMs
     private val _dataTransferMessage = MutableStateFlow<String?>(null)
     val dataTransferMessage: StateFlow<String?> = _dataTransferMessage
+    private val _backupImportPreview = MutableStateFlow<BackupImportPreview?>(null)
+    val backupImportPreview: StateFlow<BackupImportPreview?> = _backupImportPreview
     private val _cloudSyncLoading = MutableStateFlow(false)
     val cloudSyncLoading: StateFlow<Boolean> = _cloudSyncLoading
     private val cloudSyncProfileStore = CloudSyncProfileStore(context)
@@ -133,6 +137,7 @@ class HomeViewModel(
     )
     private val calculateHomeDashboardUseCase = CalculateHomeDashboardUseCase(calculateCycleUseCase)
     private val importBackupUseCase = ImportBackupUseCase(repository)
+    private var pendingBackupImportPlan: BackupImportPlan? = null
     private val recordDoseUseCase = RecordDoseUseCase(repository)
     private val notificationScheduleEngine = NotificationScheduleEngine(
         context,
@@ -493,8 +498,26 @@ class HomeViewModel(
                     _dataTransferMessage.value = context.getString(R.string.invalid_json)
                     return@launch
                 }
-            importBackupUseCase(prepared, clientId)
+            importBackupUseCase.preview(prepared, clientId)
+                .onSuccess(::showBackupImportPreview)
+                .onFailure {
+                    cancelBackupImport()
+                    _dataTransferMessage.value = context.getString(R.string.invalid_json)
+                }
+        }
+    }
+
+    fun confirmBackupImport() {
+        val plan = pendingBackupImportPlan ?: return
+        if (activeClientManager.currentClientId.value?.toString() != plan.clientId) {
+            cancelBackupImport()
+            _dataTransferMessage.value = context.getString(R.string.missing_active_client)
+            return
+        }
+        viewModelScope.launch {
+            importBackupUseCase.restore(plan)
                 .onSuccess {
+                    cancelBackupImport()
                     refresh()
                     rescheduleNotificationsNow()
                     OakPrefs.get(context)
@@ -504,8 +527,37 @@ class HomeViewModel(
                     _dataTransferMessage.value = context.getString(R.string.import_success)
                 }
                 .onFailure {
-                    _dataTransferMessage.value = context.getString(R.string.invalid_json)
+                    _dataTransferMessage.value = context.getString(R.string.import_failed_rollback_safe)
                 }
+        }
+    }
+
+    fun cancelBackupImport() {
+        pendingBackupImportPlan = null
+        _backupImportPreview.value = null
+    }
+
+    private fun showBackupImportPreview(plan: BackupImportPlan) {
+        pendingBackupImportPlan = plan
+        _backupImportPreview.value = plan.preview
+        val preview = plan.preview
+        _dataTransferMessage.value = if (preview.canRestore) {
+            context.getString(
+                R.string.import_preview_format,
+                preview.sourceSchema,
+                preview.supplementCount,
+                preview.historyCount,
+                preview.existingSupplementCount,
+                preview.existingHistoryCount,
+                preview.remappedSupplementIdCount
+            )
+        } else {
+            context.getString(
+                R.string.import_preview_blocked_format,
+                preview.duplicateSupplementIdCount,
+                preview.duplicateHistoryCount,
+                preview.orphanHistoryCount
+            )
         }
     }
 

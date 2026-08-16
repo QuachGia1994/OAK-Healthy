@@ -217,6 +217,9 @@
     <string name="missing_active_client">Please select a client first.</string>
     <string name="invalid_json">Invalid JSON file.</string>
     <string name="import_success">Imported.</string>
+    <string name="import_failed_rollback_safe">Import failed. Your previous data was restored.</string>
+    <string name="import_preview_format">Backup %1$s: %2$d supplements and %3$d history entries. Existing data: %4$d supplements and %5$d history entries. Remapped IDs: %6$d. Confirm to restore.</string>
+    <string name="import_preview_blocked_format">Restore blocked: %1$d duplicate supplement IDs, %2$d duplicate history IDs, and %3$d orphan history entries.</string>
 
     <string name="sync_center_tab_host">Host</string>
     <string name="sync_center_tab_link">Link</string>

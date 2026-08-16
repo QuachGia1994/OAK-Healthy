@@ -1,0 +1,13 @@
+[
+  {
+    "name": "B12",
+    "dailyDose": "1 tablet",
+    "intakeTime": "06:45",
+    "startDate": "2024-06-01",
+    "cycle": {
+      "isContinuous": true,
+      "daysOn": 1,
+      "daysOff": 0
+    }
+  }
+]

@@ -462,7 +462,11 @@ public struct LocalizationService: Sendable {
         "safe_mode_discard_button": ("Discard downloaded data", "Hủy dữ liệu đã tải"),
         "safe_mode_auto_sync_toggle": ("Auto-Sync", "Tự động đồng bộ"),
         "safe_mode_exit_button": ("Exit Safe Mode", "Thoát chế độ an toàn"),
-        "safe_mode_detected_message": ("Downloaded data detected. Apply it here to prevent crashes on startup.", "Đã phát hiện dữ liệu đã tải. Hãy áp dụng từ đây để tránh văng app lúc khởi động."),
+        "safe_mode_detected_message": ("Downloaded data detected. Preview it before applying.", "Đã phát hiện dữ liệu tải về. Hãy xem trước trước khi áp dụng."),
+        "safe_mode_preview_button": ("Preview downloaded data", "Xem trước dữ liệu tải về"),
+        "safe_mode_confirm_apply_button": ("Confirm and apply", "Xác nhận và áp dụng"),
+        "safe_mode_preview_format": ("Preview %@: %d supplements, %d history entries. Blocking issues: %d duplicate supplement IDs, %d duplicate history IDs, %d orphan history entries.", "Xem trước %@: %d chất bổ sung, %d bản ghi lịch sử. Lỗi chặn: %d ID chất bổ sung trùng, %d ID lịch sử trùng, %d bản ghi lịch sử mồ côi."),
+        "safe_mode_preview_changed": ("The downloaded file changed after preview. Review the updated counts before confirming again.", "Tệp tải về đã thay đổi sau khi xem trước. Hãy kiểm tra lại số liệu trước khi xác nhận."),
         "safe_mode_apply_success_message": ("Data applied. Exit Safe Mode to continue using the app.", "Áp dụng dữ liệu thành công. Hãy thoát chế độ an toàn để sử dụng app."),
         "safe_mode_apply_failed_format": ("Apply failed: %@", "Áp dụng dữ liệu thất bại: %@"),
         

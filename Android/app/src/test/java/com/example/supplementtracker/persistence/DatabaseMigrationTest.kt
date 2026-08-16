@@ -35,9 +35,18 @@ class DatabaseMigrationTest {
     }
 
     @Test
-    fun migrateVersion2To6_preservesRowsAndBackfillsCurrentColumns() {
-        createVersion2Database()
-        val database = Room.databaseBuilder(context, SupplementDatabase::class.java, databaseName)
+    fun migrateEverySupportedVersionTo6_preservesRowsAndBackfillsCurrentColumns() {
+        for (sourceVersion in 2..5) {
+            context.deleteDatabase(databaseName)
+            createSourceDatabase(sourceVersion)
+            val database = openCurrentDatabase()
+            assertMigratedRows(database, sourceVersion)
+            database.close()
+        }
+    }
+
+    private fun openCurrentDatabase(): SupplementDatabase =
+        Room.databaseBuilder(context, SupplementDatabase::class.java, databaseName)
             .addMigrations(
                 SupplementDatabase.MIGRATION_2_3,
                 SupplementDatabase.MIGRATION_3_4,
@@ -47,9 +56,14 @@ class DatabaseMigrationTest {
             .allowMainThreadQueries()
             .build()
 
+    private fun assertMigratedRows(database: SupplementDatabase, sourceVersion: Int) {
         val sqlite = database.openHelper.writableDatabase
-        assertEquals(6, sqlite.version)
-        sqlite.query("SELECT id, clientId, name, weeklyWeekdaysMask, intervalDays, lastTakenLocalDate, updatedAtEpochMs, deletedAtEpochMs FROM supplements WHERE id = ?", arrayOf(supplementId)).use { cursor ->
+        assertEquals("source v$sourceVersion", 6, sqlite.version)
+        sqlite.query(
+            "SELECT id, clientId, name, weeklyWeekdaysMask, intervalDays, lastTakenLocalDate, " +
+                "updatedAtEpochMs, deletedAtEpochMs FROM supplements WHERE id = ?",
+            arrayOf(supplementId)
+        ).use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals(supplementId, cursor.getString(0))
             assertEquals(defaultClientId, cursor.getString(1))
@@ -65,7 +79,10 @@ class DatabaseMigrationTest {
             assertEquals(defaultClientId, cursor.getString(0))
             assertEquals("Client 1", cursor.getString(1))
         }
-        sqlite.query("SELECT id, supplementId, date, status, updatedAtEpochMs FROM intake_records WHERE id = ?", arrayOf(recordId)).use { cursor ->
+        sqlite.query(
+            "SELECT id, supplementId, date, status, updatedAtEpochMs FROM intake_records WHERE id = ?",
+            arrayOf(recordId)
+        ).use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals(recordId, cursor.getString(0))
             assertEquals(supplementId, cursor.getString(1))
@@ -76,13 +93,22 @@ class DatabaseMigrationTest {
         sqlite.query("PRAGMA foreign_key_check").use { cursor ->
             assertEquals(0, cursor.count)
         }
-        database.close()
     }
 
-    private fun createVersion2Database() {
+    private fun createSourceDatabase(sourceVersion: Int) {
         val path = context.getDatabasePath(databaseName)
         path.parentFile?.mkdirs()
         val database = SQLiteDatabase.openOrCreateDatabase(path, null)
+        createVersion2Schema(database)
+        seedVersion2Rows(database)
+        if (sourceVersion >= 3) migrateRaw2To3(database)
+        if (sourceVersion >= 4) migrateRaw3To4(database)
+        if (sourceVersion >= 5) migrateRaw4To5(database)
+        database.version = sourceVersion
+        database.close()
+    }
+
+    private fun createVersion2Schema(database: SQLiteDatabase) {
         database.execSQL(
             """
             CREATE TABLE supplements (
@@ -112,15 +138,81 @@ class DatabaseMigrationTest {
             """.trimIndent()
         )
         database.execSQL("CREATE INDEX index_intake_records_supplementId ON intake_records(supplementId)")
+    }
+
+    private fun seedVersion2Rows(database: SQLiteDatabase) {
         database.execSQL(
-            "INSERT INTO supplements (id, name, startDate, daysOn, daysOff, isContinuous, durationMonths, dailyDose, intakeTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO supplements (id, name, startDate, daysOn, daysOff, isContinuous, " +
+                "durationMonths, dailyDose, intakeTime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             arrayOf(supplementId, "Vitamin C", "2026-01-02", 5, 2, 0, 3, "500 mg", "08:00")
         )
         database.execSQL(
             "INSERT INTO intake_records (id, supplementId, date, status) VALUES (?, ?, ?, ?)",
             arrayOf(recordId, supplementId, 1_700_000_000_000L, "Taken")
         )
-        database.version = 2
-        database.close()
+    }
+
+    private fun migrateRaw2To3(database: SQLiteDatabase) {
+        database.execSQL(
+            "CREATE TABLE intake_records_staging (" +
+                "id TEXT NOT NULL, supplementId TEXT NOT NULL, date INTEGER NOT NULL, " +
+                "status TEXT NOT NULL, PRIMARY KEY(id))"
+        )
+        database.execSQL(
+            "INSERT INTO intake_records_staging (id, supplementId, date, status) " +
+                "SELECT id, supplementId, date, status FROM intake_records"
+        )
+        database.execSQL("DROP TABLE intake_records")
+        database.execSQL(
+            "CREATE TABLE client_profiles (" +
+                "id TEXT NOT NULL, name TEXT NOT NULL, avatarColorArgb INTEGER NOT NULL, " +
+                "createdAt INTEGER NOT NULL, PRIMARY KEY(id))"
+        )
+        database.execSQL(
+            "INSERT INTO client_profiles (id, name, avatarColorArgb, createdAt) VALUES (?, ?, ?, ?)",
+            arrayOf(defaultClientId, "Client 1", 0, 1_700_000_000_000L)
+        )
+        database.execSQL(
+            "CREATE TABLE supplements_new (" +
+                "id TEXT NOT NULL, clientId TEXT NOT NULL, name TEXT NOT NULL, startDate TEXT NOT NULL, " +
+                "daysOn INTEGER NOT NULL, daysOff INTEGER NOT NULL, isContinuous INTEGER NOT NULL, " +
+                "durationMonths INTEGER, dailyDose TEXT NOT NULL, intakeTime TEXT NOT NULL, PRIMARY KEY(id), " +
+                "FOREIGN KEY(clientId) REFERENCES client_profiles(id) ON DELETE CASCADE)"
+        )
+        database.execSQL(
+            "INSERT INTO supplements_new (id, clientId, name, startDate, daysOn, daysOff, isContinuous, " +
+                "durationMonths, dailyDose, intakeTime) SELECT id, ?, name, startDate, daysOn, daysOff, " +
+                "isContinuous, durationMonths, dailyDose, intakeTime FROM supplements",
+            arrayOf(defaultClientId)
+        )
+        database.execSQL("DROP TABLE supplements")
+        database.execSQL("ALTER TABLE supplements_new RENAME TO supplements")
+        database.execSQL("CREATE INDEX index_supplements_clientId ON supplements(clientId)")
+        database.execSQL(
+            "CREATE TABLE intake_records_new (" +
+                "id TEXT NOT NULL, supplementId TEXT NOT NULL, date INTEGER NOT NULL, status TEXT NOT NULL, " +
+                "PRIMARY KEY(id), FOREIGN KEY(supplementId) REFERENCES supplements(id) ON DELETE CASCADE)"
+        )
+        database.execSQL(
+            "INSERT INTO intake_records_new (id, supplementId, date, status) " +
+                "SELECT id, supplementId, date, status FROM intake_records_staging"
+        )
+        database.execSQL("DROP TABLE intake_records_staging")
+        database.execSQL("ALTER TABLE intake_records_new RENAME TO intake_records")
+        database.execSQL("CREATE INDEX index_intake_records_supplementId ON intake_records(supplementId)")
+    }
+
+    private fun migrateRaw3To4(database: SQLiteDatabase) {
+        database.execSQL("ALTER TABLE supplements ADD COLUMN weeklyWeekdaysMask INTEGER")
+        database.execSQL("ALTER TABLE supplements ADD COLUMN weeklyIntervalWeeks INTEGER")
+        database.execSQL("ALTER TABLE supplements ADD COLUMN weeklyAnchorDate TEXT")
+    }
+
+    private fun migrateRaw4To5(database: SQLiteDatabase) {
+        database.execSQL("ALTER TABLE supplements ADD COLUMN updatedAtEpochMs INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE supplements ADD COLUMN deletedAtEpochMs INTEGER")
+        database.execSQL("UPDATE supplements SET updatedAtEpochMs = 1700000000000")
+        database.execSQL("ALTER TABLE intake_records ADD COLUMN updatedAtEpochMs INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("UPDATE intake_records SET updatedAtEpochMs = date")
     }
 }

@@ -422,6 +422,7 @@ private struct SafeModeView: View {
     @AppStorage("oakPendingImportLinkedBinId") private var pendingImportLinkedBinId: String = ""
     @AppStorage("debugServerUrl") private var debugServerUrl: String = ""
     @State private var pendingImportMessage: String?
+    @State private var pendingImportPreview: OAKBackupPreview?
     @State private var isApplyingImport: Bool = false
     let activeClientManager: ActiveClientManager
     
@@ -438,10 +439,20 @@ private struct SafeModeView: View {
                         if isApplyingImport {
                             ProgressView()
                         }
-                        Button("safe_mode_apply_button".localized) {
-                            Task { await applyPendingImport() }
+                        Button(
+                            pendingImportPreview == nil
+                                ? "safe_mode_preview_button".localized
+                                : "safe_mode_confirm_apply_button".localized
+                        ) {
+                            Task {
+                                if pendingImportPreview == nil {
+                                    await previewPendingImport()
+                                } else {
+                                    await applyPendingImport()
+                                }
+                            }
                         }
-                        .disabled(isApplyingImport)
+                        .disabled(isApplyingImport || pendingImportPreview?.canRestore == false)
                         .buttonStyle(.borderedProminent)
                         Button("safe_mode_discard_button".localized) {
                             discardPendingImport()
@@ -493,15 +504,45 @@ private struct SafeModeView: View {
     }
     
     @MainActor
-    private func applyPendingImport() async {
-        guard !isApplyingImport else { return }
-        guard let url = pendingImportURL() else { return }
-        DebugReporter.report("safe_mode_apply_start")
+    private func previewPendingImport() async {
+        guard !isApplyingImport, let url = pendingImportURL() else { return }
         do {
             isApplyingImport = true
             defer { isApplyingImport = false }
             let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: url) }.value
-            let client = try createImportClient()
+            let preview = try SupplementExportCodec.previewBackup(data)
+            pendingImportPreview = preview
+            pendingImportMessage = previewMessage(preview)
+            DebugReporter.report("safe_mode_preview_complete", fields: [
+                "canRestore": String(preview.canRestore),
+                "supplementCount": String(preview.supplementCount),
+                "historyCount": String(preview.historyCount)
+            ])
+        } catch {
+            pendingImportPreview = nil
+            pendingImportMessage = String(format: "safe_mode_apply_failed_format".localized, error.localizedDescription)
+        }
+    }
+
+    @MainActor
+    private func applyPendingImport() async {
+        guard !isApplyingImport, let approved = pendingImportPreview, approved.canRestore else { return }
+        guard let url = pendingImportURL() else { return }
+        DebugReporter.report("safe_mode_apply_start")
+        var createdClient: ClientProfile?
+        do {
+            isApplyingImport = true
+            defer { isApplyingImport = false }
+            let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: url) }.value
+            let current = try SupplementExportCodec.previewBackup(data)
+            guard current == approved else {
+                pendingImportPreview = current
+                pendingImportMessage = "safe_mode_preview_changed".localized
+                return
+            }
+            let resolution = try createImportClient()
+            let client = resolution.client
+            createdClient = resolution.created ? client : nil
             try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
             activeClientManager.setCurrentClientId(client.id)
             applyPendingImportLink(clientId: client.id)
@@ -510,17 +551,29 @@ private struct SafeModeView: View {
                 return
             }
             clearPendingImport(at: url)
+            pendingImportPreview = nil
             pendingImportMessage = "safe_mode_apply_success_message".localized
-            DebugReporter.report("safe_mode_apply_success", fields: [
-                "clientId": client.id.uuidString
-            ])
+            DebugReporter.report("safe_mode_apply_success")
         } catch {
-            isApplyingImport = false
+            if let createdClient {
+                modelContext.delete(createdClient)
+                try? modelContext.save()
+            }
             pendingImportMessage = String(format: "safe_mode_apply_failed_format".localized, error.localizedDescription)
-            DebugReporter.report("safe_mode_apply_failed", fields: [
-                "error": String(describing: error)
-            ])
+            DebugReporter.report("safe_mode_apply_failed")
         }
+    }
+
+    private func previewMessage(_ preview: OAKBackupPreview) -> String {
+        String(
+            format: "safe_mode_preview_format".localized,
+            preview.sourceSchema,
+            preview.supplementCount,
+            preview.historyCount,
+            preview.duplicateSupplementIdCount,
+            preview.duplicateHistoryCount,
+            preview.orphanHistoryCount
+        )
     }
     
     private func applyPendingImportLink(clientId: UUID) {
@@ -545,7 +598,7 @@ private struct SafeModeView: View {
     }
 
     @MainActor
-    private func createImportClient() throws -> ClientProfile {
+    private func createImportClient() throws -> (client: ClientProfile, created: Bool) {
         let storedName = pendingImportClientName.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized = storedName.lowercased()
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -554,7 +607,7 @@ private struct SafeModeView: View {
            let matched = existing.first(where: {
                $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == normalized
            }) {
-            return matched
+            return (matched, false)
         }
         if let limit = entitlementManager.maxClients, existing.count >= limit {
             throw SafeModeAccessError.clientLimitReached
@@ -563,7 +616,7 @@ private struct SafeModeView: View {
         let client = ClientProfile(id: UUID(), name: name)
         modelContext.insert(client)
         try modelContext.save()
-        return client
+        return (client, true)
     }
     
     @MainActor
@@ -571,10 +624,12 @@ private struct SafeModeView: View {
         guard let url = pendingImportURL() else {
             clearPendingImport(at: nil)
             pendingImportMessage = nil
+            pendingImportPreview = nil
             return
         }
         clearPendingImport(at: url)
         pendingImportMessage = nil
+        pendingImportPreview = nil
     }
     
     private func pendingImportURL() -> URL? {
