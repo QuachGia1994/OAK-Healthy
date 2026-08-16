@@ -45,12 +45,17 @@ final class CloudSyncRunGate {
     }
 }
 
+struct CloudSyncRealtimeSession: Equatable, Sendable {
+    let clientId: UUID
+    let manifestId: String
+}
+
 @MainActor
 enum CloudSyncAutoSync {
     private static var realtimeTask: Task<Void, Never>?
     private static var pendingSyncTask: Task<Void, Never>?
     private static var realtimeListener: FirebaseRealtimeSyncListener?
-    private static var realtimeManifestId: String?
+    private static var realtimeSession: CloudSyncRealtimeSession?
     private static let runGate = CloudSyncRunGate()
     private static let lastActivityKey = "cloudSyncLastActivityEpoch"
     private static let lastFailureKey = "cloudSyncLastFailureEpoch"
@@ -61,27 +66,18 @@ enum CloudSyncAutoSync {
         modelContext: ModelContext,
         activeClientManager: ActiveClientManager
     ) {
-        let requestedManifestId = activeBinId(clientId: activeClientManager.currentClientId)
-        guard realtimeTask == nil || realtimeManifestId != requestedManifestId else { return }
-        markActivity()
-        guard realtimeTask == nil else {
-            realtimeManifestId = requestedManifestId
-            if let requestedManifestId, !requestedManifestId.isEmpty {
-                Task { await realtimeListener?.start(manifestId: requestedManifestId) }
-            } else {
-                realtimeListener?.stop()
-            }
+        let requested = makeRealtimeSession(clientId: activeClientManager.currentClientId)
+        if shouldReuseRealtimeSession(current: realtimeSession, requested: requested, hasTask: realtimeTask != nil) {
             return
         }
-        realtimeManifestId = requestedManifestId
-        let listener = FirebaseRealtimeSyncListener(modelContext: modelContext, activeClientManager: activeClientManager)
+        stopRealtimeSync()
+        guard let requested else { return }
+        markActivity()
+        realtimeSession = requested
+        let listener = FirebaseRealtimeSyncListener(modelContext: modelContext)
         realtimeListener = listener
         realtimeTask = Task { @MainActor in
-            await realtimeLoop(
-                modelContext: modelContext,
-                activeClientManager: activeClientManager,
-                listener: listener
-            )
+            await realtimeLoop(modelContext: modelContext, session: requested, listener: listener)
         }
     }
 
@@ -93,7 +89,7 @@ enum CloudSyncAutoSync {
         runGate.clearQueuedAutoRerun()
         realtimeListener?.stop()
         realtimeListener = nil
-        realtimeManifestId = nil
+        realtimeSession = nil
     }
 
     static func requestSyncSoon(modelContext: ModelContext, clientId: UUID?) {
@@ -113,7 +109,7 @@ enum CloudSyncAutoSync {
 
     private static func realtimeLoop(
         modelContext: ModelContext,
-        activeClientManager: ActiveClientManager,
+        session: CloudSyncRealtimeSession,
         listener: FirebaseRealtimeSyncListener
     ) async {
         do {
@@ -121,19 +117,18 @@ enum CloudSyncAutoSync {
         } catch {
             return
         }
-        guard !Task.isCancelled else { return }
-        _ = await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
-        guard !Task.isCancelled else { return }
-        if let binId = activeBinId(clientId: activeClientManager.currentClientId), !binId.isEmpty {
-            await listener.start(manifestId: binId)
-        }
-        while !Task.isCancelled {
+        guard ownsRealtimeSession(session) else { return }
+        _ = await syncIfEnabled(modelContext: modelContext, clientId: session.clientId)
+        guard ownsRealtimeSession(session) else { return }
+        await listener.start(session: session)
+        while ownsRealtimeSession(session) {
             do {
                 try await Task.sleep(for: pollInterval())
             } catch {
                 return
             }
-            _ = await syncIfEnabled(modelContext: modelContext, clientId: activeClientManager.currentClientId)
+            guard ownsRealtimeSession(session) else { return }
+            _ = await syncIfEnabled(modelContext: modelContext, clientId: session.clientId)
         }
     }
 
@@ -681,6 +676,23 @@ enum CloudSyncAutoSync {
 
     private static func activeBinId(clientId: UUID?) -> String? {
         CloudSyncProfileStore().activeManifestId(clientId: clientId)
+    }
+
+    private static func makeRealtimeSession(clientId: UUID?) -> CloudSyncRealtimeSession? {
+        guard let clientId, let manifestId = activeBinId(clientId: clientId) else { return nil }
+        return CloudSyncRealtimeSession(clientId: clientId, manifestId: manifestId)
+    }
+
+    static func shouldReuseRealtimeSession(
+        current: CloudSyncRealtimeSession?,
+        requested: CloudSyncRealtimeSession?,
+        hasTask: Bool
+    ) -> Bool {
+        hasTask && current == requested
+    }
+
+    private static func ownsRealtimeSession(_ session: CloudSyncRealtimeSession) -> Bool {
+        !Task.isCancelled && realtimeSession == session
     }
 
     private static func makeStackBackup(modelContext: ModelContext, clientId: UUID) throws -> Data {

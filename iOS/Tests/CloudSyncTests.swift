@@ -214,6 +214,34 @@ final class FirebaseRevisionTests: XCTestCase {
         }
         XCTAssertEqual(results, [false, false, false])
     }
+
+    func testRealtimeListenerRejectsStaleSessionCompletion() async {
+        let clientA = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let clientB = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let sessionA = CloudSyncRealtimeSession(clientId: clientA, manifestId: "shared")
+        let sessionB = CloudSyncRealtimeSession(clientId: clientB, manifestId: "shared")
+        let results = await MainActor.run {
+            [
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 3,
+                    expectedSession: sessionA, activeSession: sessionA, isCancelled: false
+                ),
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 4,
+                    expectedSession: sessionA, activeSession: sessionA, isCancelled: false
+                ),
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 3,
+                    expectedSession: sessionA, activeSession: sessionB, isCancelled: false
+                ),
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 3,
+                    expectedSession: sessionA, activeSession: sessionA, isCancelled: true
+                )
+            ]
+        }
+        XCTAssertEqual(results, [true, false, false, false])
+    }
 }
 
 final class CloudSyncCoordinatorRegressionTests: XCTestCase {
@@ -229,6 +257,18 @@ final class CloudSyncCoordinatorRegressionTests: XCTestCase {
         XCTAssertTrue(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 409, body: "")))
         XCTAssertTrue(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 412, body: "")))
         XCTAssertFalse(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 500, body: "")))
+    }
+
+    @MainActor
+    func testRealtimeSessionReuseRequiresSameProfileAndManifest() {
+        let clientA = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let clientB = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let sessionA = CloudSyncRealtimeSession(clientId: clientA, manifestId: "shared")
+        let sessionB = CloudSyncRealtimeSession(clientId: clientB, manifestId: "shared")
+
+        XCTAssertTrue(CloudSyncAutoSync.shouldReuseRealtimeSession(current: sessionA, requested: sessionA, hasTask: true))
+        XCTAssertFalse(CloudSyncAutoSync.shouldReuseRealtimeSession(current: sessionA, requested: sessionB, hasTask: true))
+        XCTAssertFalse(CloudSyncAutoSync.shouldReuseRealtimeSession(current: sessionA, requested: sessionA, hasTask: false))
     }
 
     @MainActor
