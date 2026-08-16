@@ -24,6 +24,10 @@ enum DebugReporter {
     private static let urlKey = "debugServerUrl"
     private static let runIdKey = "debugRunId"
     private static let allowedHosts: Set<String> = ["localhost", "127.0.0.1"]
+    private static let allowedFieldKeys: Set<String> = [
+        "safeMode", "pendingImport", "hasPendingImport", "lastStage", "elapsed",
+        "count", "status_code", "error_type", "phase"
+    ]
 
     static func report(_ name: String, fields: [String: String] = [:]) {
         let rawUrl = (UserDefaults.standard.string(forKey: urlKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -37,7 +41,8 @@ enum DebugReporter {
             "runId": runId,
             "name": name
         ]
-        if !fields.isEmpty { payload["fields"] = fields }
+        let safeFields = fields.filter { allowedFieldKeys.contains($0.key) }
+        if !safeFields.isEmpty { payload["fields"] = safeFields }
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: []) else { return }
         
         var request = URLRequest(url: url)
@@ -61,6 +66,7 @@ struct SupplementTrackerApp: App {
     
     init() {
         FirebaseBootstrap.configureIfNeeded()
+        DiagnosticsReporter.applyStoredConsent()
         UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
         Task { @MainActor in
             NotificationService.shared.registerNotificationActions()

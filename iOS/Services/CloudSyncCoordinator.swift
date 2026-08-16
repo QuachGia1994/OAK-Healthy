@@ -604,26 +604,17 @@ enum CloudSyncAutoSync {
         DebugReporter.report("cloud_sync_failure", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: error))
     }
 
-    static func telemetryFields(binId: String, clientId: UUID, error: Error?) -> [String: String] {
-        var fields: [String: String] = [
-            "binId": binId,
-            "clientId": clientId.uuidString,
-            "bin_id": binId,
-            "client_id": clientId.uuidString
-        ]
-
-        guard let error else { return fields }
-        let message = truncated(error.localizedDescription)
-        fields["error"] = message
-        fields["error_message"] = message
-        fields["error_type"] = errorType(error)
-
+    static func telemetryFields(
+        binId _: String,
+        clientId _: UUID,
+        error: Error?
+    ) -> [String: String] {
+        guard let error else { return [:] }
+        var fields = ["error_type": errorType(error)]
         if let cloudError = error as? CloudSyncError,
-           case let .serverError(statusCode, body) = cloudError {
+           case let .serverError(statusCode, _) = cloudError {
             fields["status_code"] = "\(statusCode)"
-            fields["server_body"] = truncated(body.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines))
         }
-
         return fields
     }
 
@@ -638,13 +629,6 @@ enum CloudSyncAutoSync {
         case .payloadCodec: return "payload_codec"
         case .manifestCodec: return "manifest_codec"
         }
-    }
-
-    private static func truncated(_ value: String, limit: Int = 240) -> String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count > limit else { return trimmed }
-        let end = trimmed.index(trimmed.startIndex, offsetBy: limit)
-        return String(trimmed[..<end])
     }
 
     private static func markActivity() {

@@ -447,6 +447,10 @@
     <string name="plan_unlock_cloud_sync">Unlock encrypted cloud sync with Pro</string>
     <string name="plan_advanced_cycles_required">Advanced cycle scheduling requires Pro or Coach.</string>
     <string name="plan_client_limit_reached">Your current plan allows one client. Upgrade to Coach for multi-client access.</string>
+    <string name="privacy_diagnostics_title">Privacy &amp; Diagnostics</string>
+    <string name="diagnostics_opt_in_title">Share anonymous diagnostics</string>
+    <string name="diagnostics_opt_in_body">Off by default. When enabled, OAK Healthy sends app usage events and crash diagnostics without client IDs, supplement names, doses, intake history, sync codes, keys, file paths, or raw server responses.</string>
+    <string name="health_disclaimer_body">OAK Healthy is a wellness and routine-tracking tool. It does not diagnose, treat, cure, or prevent disease and is not a substitute for professional medical advice.</string>
 
     <!-- Accessibility labels -->
     <string name="a11y_navigate_back">Go back</string>

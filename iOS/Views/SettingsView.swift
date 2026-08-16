@@ -11,6 +11,7 @@ public struct SettingsView: View {
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
+    @AppStorage("shareAnonymousDiagnostics") private var shareAnonymousDiagnostics: Bool = false
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
@@ -101,6 +102,7 @@ public struct SettingsView: View {
         List {
             clientManagementSection
             planAccessSection
+            privacyDiagnosticsSection
             syncCenterSection
             appHeaderSection
             themeSelectionSection
@@ -114,6 +116,25 @@ public struct SettingsView: View {
         .navigationTitle("settings_title".localized)
     }
     
+    @ViewBuilder
+    private var privacyDiagnosticsSection: some View {
+        Section {
+            Toggle("diagnostics_opt_in_title".localized, isOn: $shareAnonymousDiagnostics)
+                .onChange(of: shareAnonymousDiagnostics) { _, enabled in
+                    DiagnosticsReporter.setConsent(enabled)
+                }
+            Text("diagnostics_opt_in_body".localized)
+                .font(.footnote)
+                .oakSecondaryText()
+            Text("health_disclaimer_body".localized)
+                .font(.footnote)
+                .oakSecondaryText()
+        } header: {
+            Text("privacy_diagnostics_title".localized)
+        }
+        .listRowBackground(glassRowBackground)
+    }
+
     @ViewBuilder
     private var notificationsSection: some View {
         Section {

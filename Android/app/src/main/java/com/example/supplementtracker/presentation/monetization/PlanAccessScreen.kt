@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.R
 import com.example.supplementtracker.service.CommercialPlan
+import com.example.supplementtracker.service.DiagnosticsReporter
 import com.example.supplementtracker.service.EntitlementManager
 import com.example.supplementtracker.service.GooglePlayBillingService
 import com.example.supplementtracker.service.PlayBillingNotice
@@ -52,8 +53,12 @@ fun PlanAccessScreen(
 ) {
     val snapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
     val billingState by billingService.state.collectAsStateWithLifecycle()
-    val activity = LocalContext.current.findActivity()
-    LaunchedEffect(Unit) { billingService.refresh() }
+    val context = LocalContext.current
+    val activity = context.findActivity()
+    LaunchedEffect(Unit) {
+        DiagnosticsReporter.event(context, "plan_access_view", mapOf("plan" to snapshot.plan.name))
+        billingService.refresh()
+    }
     Scaffold(topBar = { PlanAccessTopBar(onBack) }) { padding ->
         PlanAccessContent(
             currentPlan = snapshot.plan,
@@ -148,6 +153,7 @@ private fun PurchaseRow(
     activity: Activity?,
     billingService: GooglePlayBillingService
 ) {
+    val context = LocalContext.current
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -156,7 +162,10 @@ private fun PurchaseRow(
             }
             Button(
                 enabled = activity != null && purchasingProductId == null,
-                onClick = { activity?.let { billingService.purchase(it, product.productId) } }
+                onClick = {
+                    DiagnosticsReporter.event(context, "billing_purchase_started")
+                    activity?.let { billingService.purchase(it, product.productId) }
+                }
             ) { Text(stringResource(R.string.billing_buy)) }
         }
     }
@@ -164,8 +173,15 @@ private fun PurchaseRow(
 
 @Composable
 private fun RestoreAndStatus(notice: PlayBillingNotice?, billingService: GooglePlayBillingService) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = billingService::restorePurchases, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = {
+                DiagnosticsReporter.event(context, "billing_restore_started")
+                billingService.restorePurchases()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text(stringResource(R.string.billing_restore))
         }
         notice?.let { Text(noticeText(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }

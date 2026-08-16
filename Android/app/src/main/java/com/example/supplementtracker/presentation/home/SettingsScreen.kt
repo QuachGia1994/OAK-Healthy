@@ -62,6 +62,7 @@ import com.example.supplementtracker.service.CommercialFeature
 import com.example.supplementtracker.service.CommercialPlan
 import com.example.supplementtracker.service.EntitlementManager
 import com.example.supplementtracker.service.EntitlementPolicy
+import com.example.supplementtracker.service.DiagnosticsReporter
 import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
@@ -131,6 +132,7 @@ fun SettingsScreen(
     var isEditClientDialogVisible by remember { mutableStateOf(false) }
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
+    var shareAnonymousDiagnostics by remember { mutableStateOf(DiagnosticsReporter.isEnabled(context)) }
     var isNotificationEnabledByUser by remember { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
     var hasNotificationPermission by remember { mutableStateOf(hasNotificationPermission(context)) }
 
@@ -323,6 +325,37 @@ fun SettingsScreen(
                         AppThemeSegmentedControl(
                             appTheme = appTheme,
                             onThemeChange = onThemeChange
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSection(title = stringResource(R.string.privacy_diagnostics_title)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.diagnostics_opt_in_title), color = primaryTextColor)
+                                Text(
+                                    stringResource(R.string.diagnostics_opt_in_body),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
+                                )
+                            }
+                            Switch(
+                                checked = shareAnonymousDiagnostics,
+                                onCheckedChange = { enabled ->
+                                    shareAnonymousDiagnostics = enabled
+                                    DiagnosticsReporter.setConsent(context, enabled)
+                                }
+                            )
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Text(
+                            stringResource(R.string.health_disclaimer_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryTextColor
                         )
                     }
                 }

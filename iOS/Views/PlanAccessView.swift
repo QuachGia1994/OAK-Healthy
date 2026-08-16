@@ -15,7 +15,13 @@ public struct PlanAccessView: View {
             purchaseSection
         }
         .navigationTitle("plan_access_title".localized)
-        .task { await billingService.refresh() }
+        .task {
+            DiagnosticsReporter.event(
+                "plan_access_view",
+                fields: ["plan": entitlementManager.snapshot.plan.rawValue]
+            )
+            await billingService.refresh()
+        }
     }
 
     private var currentPlanSection: some View {
@@ -71,6 +77,7 @@ public struct PlanAccessView: View {
                 purchaseRow(product)
             }
             Button("billing_restore".localized) {
+                DiagnosticsReporter.event("billing_restore_started")
                 Task { await billingService.restorePurchases() }
             }
             if let notice = billingService.notice {
@@ -91,6 +98,7 @@ public struct PlanAccessView: View {
             }
             Spacer()
             Button("billing_buy".localized) {
+                DiagnosticsReporter.event("billing_purchase_started")
                 Task { await billingService.purchase(productId: product.productId) }
             }
             .buttonStyle(.borderedProminent)

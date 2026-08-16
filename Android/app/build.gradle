@@ -6,6 +6,7 @@ plugins {
     id 'androidx.baselineprofile'
     id 'jacoco'
     id 'com.google.gms.google-services'
+    id 'com.google.firebase.crashlytics'
 }
 
 def properties = new Properties()
@@ -126,6 +127,8 @@ dependencies {
     implementation 'com.google.firebase:firebase-auth'
     implementation 'com.google.firebase:firebase-database'
     implementation 'com.google.firebase:firebase-appcheck-playintegrity'
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-crashlytics'
     debugImplementation 'com.google.firebase:firebase-appcheck-debug'
     
     // Navigation

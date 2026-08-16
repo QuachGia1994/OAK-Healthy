@@ -120,32 +120,29 @@ final class CloudSyncTelemetryTests: XCTestCase {
         XCTAssertEqual(interval, .seconds(30))
     }
 
-    func testTelemetryFields_includesServerErrorFields() async {
+    func testTelemetryFieldsExposeOnlyCoarseFailureMetadata() async {
         let clientId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
         let fields = await MainActor.run {
             CloudSyncAutoSync.telemetryFields(
-                binId: "bin",
+                binId: "sensitive-bin",
                 clientId: clientId,
-                error: CloudSyncError.serverError(statusCode: 500, body: " hi \n")
+                error: CloudSyncError.serverError(statusCode: 500, body: "sensitive server body")
             )
         }
         XCTAssertEqual(fields["status_code"], "500")
-        XCTAssertEqual(fields["server_body"], "hi")
-        XCTAssertEqual(fields["bin_id"], "bin")
-        XCTAssertEqual(fields["client_id"], clientId.uuidString)
+        XCTAssertEqual(fields["error_type"], "server_error")
+        XCTAssertNil(fields["server_body"])
+        XCTAssertNil(fields["bin_id"])
+        XCTAssertNil(fields["client_id"])
+        XCTAssertNil(fields["error"])
     }
-    
-    func testTelemetryFields_truncatesServerBody() async {
+
+    func testSuccessfulTelemetryContainsNoIdentifiers() async {
         let clientId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
-        let body = String(repeating: "a", count: 400)
         let fields = await MainActor.run {
-            CloudSyncAutoSync.telemetryFields(
-                binId: "bin",
-                clientId: clientId,
-                error: CloudSyncError.serverError(statusCode: 500, body: body)
-            )
+            CloudSyncAutoSync.telemetryFields(binId: "sensitive-bin", clientId: clientId, error: nil)
         }
-        XCTAssertEqual(fields["server_body"]?.count, 240)
+        XCTAssertTrue(fields.isEmpty)
     }
 }
 
