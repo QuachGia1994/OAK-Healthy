@@ -20,7 +20,7 @@ Before submission:
 2. Complete App Privacy for the app and include third-party SDK behavior.
 3. Review Health & Fitness / Other User Content declarations for the exact shipping behavior. User-entered supplement routines and intake history are health-related content even though OAK Healthy does not use HealthKit.
 4. If anonymous diagnostics are enabled by a user, disclose Analytics/Crashlytics data categories that Firebase actually collects for the configured SDKs and project.
-5. Do not declare tracking/advertising use for OAK Healthy diagnostics. The iOS target uses `FirebaseAnalyticsWithoutAdIdSupport` and custom events contain no health payload or user/client identifiers.
+5. Do not declare tracking/advertising use for OAK Healthy diagnostics unless the shipping SDK configuration changes. The Swift Package target adds `FirebaseAnalytics` but not the separate `FirebaseAnalyticsIdentitySupport` product, and OAK Healthy does not request ATT permission or set advertising/user identifiers in custom diagnostics.
 6. Confirm subscription products `oak_pro_monthly`, `oak_pro_annual`, `oak_coach_monthly`, and `oak_coach_annual` are attached to the submitted version as required.
 7. Keep the in-app wellness disclaimer visible and avoid medical efficacy claims in screenshots/metadata.
 
