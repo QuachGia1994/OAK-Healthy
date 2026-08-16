@@ -8,10 +8,13 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 object DiagnosticsPrivacyPolicy {
     private val allowedEvents = setOf(
         "plan_access_view",
+        "billing_products_loaded",
         "billing_purchase_started",
-        "billing_restore_started"
+        "billing_purchase_result",
+        "billing_restore_started",
+        "billing_restore_result"
     )
-    private val allowedKeys = setOf("plan", "billing_period", "source")
+    private val allowedKeys = setOf("plan", "billing_period", "source", "product_id", "result")
 
     fun sanitize(event: String, fields: Map<String, String>): Pair<String, Map<String, String>>? {
         if (event !in allowedEvents) return null
@@ -22,6 +25,24 @@ object DiagnosticsPrivacyPolicy {
 
     private fun sanitizeValue(value: String): String {
         return value.lowercase().replace(Regex("[^a-z0-9_-]"), "_").take(40)
+    }
+}
+
+object CommercialTelemetryFields {
+    fun product(productId: String, source: String): Map<String, String> {
+        val product = CommercialProductCatalog.products.firstOrNull { it.productId == productId }
+        val fields = mutableMapOf("product_id" to productId, "source" to source)
+        product?.let {
+            fields["plan"] = it.plan.name
+            fields["billing_period"] = it.billingPeriod.name
+        }
+        return fields
+    }
+
+    fun result(result: String, source: String, productId: String? = null): Map<String, String> {
+        val fields = productId?.let { product(it, source) }?.toMutableMap() ?: mutableMapOf("source" to source)
+        fields["result"] = result
+        return fields
     }
 }
 

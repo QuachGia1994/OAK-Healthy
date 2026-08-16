@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.R
 import com.example.supplementtracker.service.CommercialPlan
+import com.example.supplementtracker.service.CommercialTelemetryFields
 import com.example.supplementtracker.service.DiagnosticsReporter
 import com.example.supplementtracker.service.EntitlementManager
 import com.example.supplementtracker.service.GooglePlayBillingService
@@ -163,7 +164,11 @@ private fun PurchaseRow(
             Button(
                 enabled = activity != null && purchasingProductId == null,
                 onClick = {
-                    DiagnosticsReporter.event(context, "billing_purchase_started")
+                    DiagnosticsReporter.event(
+                        context,
+                        "billing_purchase_started",
+                        CommercialTelemetryFields.product(product.productId, "play_store")
+                    )
                     activity?.let { billingService.purchase(it, product.productId) }
                 }
             ) { Text(stringResource(R.string.billing_buy)) }
@@ -177,7 +182,11 @@ private fun RestoreAndStatus(notice: PlayBillingNotice?, billingService: GoogleP
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(
             onClick = {
-                DiagnosticsReporter.event(context, "billing_restore_started")
+                DiagnosticsReporter.event(
+                    context,
+                    "billing_restore_started",
+                    mapOf("source" to "play_store")
+                )
                 billingService.restorePurchases()
             },
             modifier = Modifier.fillMaxWidth()

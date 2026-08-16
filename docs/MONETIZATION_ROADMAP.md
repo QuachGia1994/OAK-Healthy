@@ -83,6 +83,34 @@ Changing these identifiers after launch requires store-side migration, so they a
 - Release checklist, rollback plan and support flow.
 - Launch first to supplement-heavy fitness/biohacker users and coaches.
 
+Repository implementation for P3.6 is complete when release preflight, Android CI, iOS CI, and the safe beta/internal release workflow are green. Real store validation continues in Phase 4 and must not be inferred from repository CI.
+
+## Phase 4 — Commercial Validation & Growth
+
+### P4.1 — Store & Beta Validation
+- Activate and verify all four stable products in App Store Connect and Google Play Console.
+- Execute platform-accurate subscription matrices: shared Free/paid/highest-plan/cancel/invalid/restore/expiry-refund-revocation/offline cases, iOS Sandbox billing-retry behavior, and Android auto-renew grace-period/account-hold/recovery behavior.
+- Record exact release candidate version/build/commit and an evidence reference for every passed case.
+- Validate release evidence with `scripts/commercial_gate.py`; no generated or assumed PASS results.
+
+### P4.2 — Offer & Conversion Strategy
+- Extend consented commercial telemetry through product load, checkout result, and restore result without health/user payloads.
+- Compare monthly/annual and Pro/Coach funnel performance using store-authoritative product IDs and aggregate metrics only.
+- Record an explicit per-store offer decision (`none`, introductory, trial, or discount) backed by beta evidence.
+- Never hard-code localized prices or advertise an offer that is not active in the store.
+
+### P4.3 — Production Launch
+- Require a release-specific commercial evidence file before any production upload.
+- Require public HTTPS privacy/support URLs, completed store declarations, release-candidate screenshots, rollback/support evidence, and staged-rollout plans.
+- Production version/build and evidence commit must match the tested `candidate_commit`; the promotion workflow itself may run from a later evidence/automation-only descendant commit.
+- Public launch is complete only when the intended build is available to the target audience in both selected stores.
+
+### P4.4 — Post-launch Monetization
+- Review consented aggregate funnel metrics plus store-console subscriber/renewal/cancellation/refund metrics weekly during initial rollout and monthly after stabilization.
+- Track checkout and restore reliability, active subscriber change, annual/Coach mix, churn/refund signals, and purchase-support load.
+- Use `scripts/commercial_metrics.py` for a vendor-neutral aggregate KPI snapshot; do not introduce a custom health-linked analytics identity.
+- Iterate pricing/offers without changing the four stable product identifiers unless a deliberate store-side migration is planned.
+
 ## Monetization safety rules
 
 1. Purchases and entitlements are store-authoritative; local storage is cache only.

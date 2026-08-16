@@ -8,27 +8,56 @@ on:
     inputs:
       ios_lane:
         type: choice
-        description: iOS lane
+        description: iOS target
         options:
+          - skip
           - beta
           - release
         default: beta
       android_track:
         type: choice
-        description: Play track
+        description: Play target track
         options:
+          - skip
           - internal
           - alpha
           - beta
           - production
         default: internal
+      android_source_track:
+        type: choice
+        description: Tested Play track to promote when target is production
+        options:
+          - internal
+          - alpha
+          - beta
+        default: internal
+      android_rollout_fraction:
+        type: choice
+        description: Initial Play production rollout fraction
+        options:
+          - "0.1"
+          - "0.25"
+          - "0.5"
+          - "1.0"
+        default: "0.1"
       confirm_production:
         type: boolean
         description: Confirm a production store upload
         default: false
       build_number:
         type: string
-        description: Optional monotonic store build number override
+        description: Optional monotonic store build number override; required for production
+        required: false
+        default: ""
+      candidate_commit:
+        type: string
+        description: Commit SHA used to build the tested store candidate; required for production
+        required: false
+        default: ""
+      commercial_evidence_path:
+        type: string
+        description: Release-specific P4 evidence JSON path; required for production
         required: false
         default: ""
 
@@ -39,8 +68,12 @@ concurrency:
 env:
   IOS_LANE: ${{ github.event.inputs.ios_lane || 'beta' }}
   ANDROID_TRACK: ${{ github.event.inputs.android_track || 'internal' }}
+  ANDROID_SOURCE_TRACK: ${{ github.event.inputs.android_source_track || 'internal' }}
+  ANDROID_ROLLOUT_FRACTION: ${{ github.event.inputs.android_rollout_fraction || '0.1' }}
   CONFIRM_PRODUCTION: ${{ github.event.inputs.confirm_production || 'false' }}
   STORE_BUILD_NUMBER: ${{ github.event.inputs.build_number || github.run_number }}
+  CANDIDATE_COMMIT: ${{ github.event.inputs.candidate_commit || '' }}
+  COMMERCIAL_EVIDENCE_PATH: ${{ github.event.inputs.commercial_evidence_path || '' }}
 
 jobs:
   prepare:
@@ -49,11 +82,15 @@ jobs:
     outputs:
       ios_store: ${{ steps.mode.outputs.ios_store }}
       android_store: ${{ steps.mode.outputs.android_store }}
+      candidate_version: ${{ steps.candidate.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+
+      - name: Commercial tooling tests
+        run: python3 -m unittest discover -s scripts/tests -p "test_*.py"
 
       - name: Release preflight
         run: python3 scripts/release_preflight.py
@@ -65,6 +102,41 @@ jobs:
             echo "Production upload requires workflow_dispatch confirm_production=true."
             exit 1
           fi
+
+      - name: Require tested candidate and commercial evidence for production
+        id: candidate
+        if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.ios_lane == 'release' || github.event.inputs.android_track == 'production') }}
+        shell: bash
+        run: |
+          if [ -z "${{ github.event.inputs.build_number }}" ]; then
+            echo "Production upload requires an explicit build_number matching the tested beta candidate."
+            exit 1
+          fi
+          if [ -z "${CANDIDATE_COMMIT}" ]; then
+            echo "Production upload requires candidate_commit from the tested beta binary."
+            exit 1
+          fi
+          if [ -z "${COMMERCIAL_EVIDENCE_PATH}" ]; then
+            echo "Production upload requires commercial_evidence_path."
+            exit 1
+          fi
+          git rev-parse --verify "${CANDIDATE_COMMIT}^{commit}" > /dev/null
+          if ! git merge-base --is-ancestor "${CANDIDATE_COMMIT}" "${GITHUB_SHA}"; then
+            echo "candidate_commit must be the current commit or an ancestor of the promotion workflow commit."
+            exit 1
+          fi
+          candidate_version="$(git show "${CANDIDATE_COMMIT}:iOS/project.yml" | awk '/MARKETING_VERSION:/ {gsub(/\"/, "", $2); print $2; exit}')"
+          if [ -z "${candidate_version}" ]; then
+            echo "Unable to resolve candidate marketing version from candidate_commit."
+            exit 1
+          fi
+          echo "version=${candidate_version}" >> "${GITHUB_OUTPUT}"
+          python3 scripts/commercial_gate.py \
+            --evidence "${COMMERCIAL_EVIDENCE_PATH}" \
+            --require production \
+            --expected-version "${candidate_version}" \
+            --expected-build "${STORE_BUILD_NUMBER}" \
+            --expected-commit "${CANDIDATE_COMMIT}"
 
       - name: Check required secrets (without failing)
         id: mode
@@ -82,19 +154,37 @@ jobs:
           GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           PLAY_BILLING_PUBLIC_KEY: ${{ secrets.PLAY_BILLING_PUBLIC_KEY }}
         run: |
-          ios_ok=1
-          for v in MATCH_GIT_URL MATCH_PASSWORD APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
-            if [ -z "${!v}" ]; then
-              ios_ok=0
+          ios_ok=0
+          if [ "${IOS_LANE}" != "skip" ]; then
+            ios_ok=1
+            for v in APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
+              if [ -z "${!v}" ]; then
+                ios_ok=0
+              fi
+            done
+            if [ "${IOS_LANE}" != "release" ]; then
+              for v in MATCH_GIT_URL MATCH_PASSWORD; do
+                if [ -z "${!v}" ]; then
+                  ios_ok=0
+                fi
+              done
             fi
-          done
+          fi
 
-          android_ok=1
-          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON PLAY_BILLING_PUBLIC_KEY; do
-            if [ -z "${!v}" ]; then
-              android_ok=0
+          android_ok=0
+          if [ "${ANDROID_TRACK}" != "skip" ]; then
+            android_ok=1
+            if [ "${ANDROID_TRACK}" = "production" ]; then
+              required_android=(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON)
+            else
+              required_android=(ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD GOOGLE_PLAY_SERVICE_ACCOUNT_JSON PLAY_BILLING_PUBLIC_KEY)
             fi
-          done
+            for v in "${required_android[@]}"; do
+              if [ -z "${!v}" ]; then
+                android_ok=0
+              fi
+            done
+          fi
 
           if [ "${ios_ok}" -eq 1 ]; then
             echo "ios_store=true" >> "${GITHUB_OUTPUT}"
@@ -116,7 +206,7 @@ jobs:
   ios_release:
     name: iOS Release
     needs: [prepare, quality]
-    if: ${{ needs.prepare.outputs.ios_store == 'true' }}
+    if: ${{ needs.prepare.outputs.ios_store == 'true' && github.event.inputs.ios_lane != 'skip' }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -168,6 +258,7 @@ jobs:
           IOS_APP_IDENTIFIER: ${{ secrets.IOS_APP_IDENTIFIER }}
           FASTLANE_SKIP_UPDATE_CHECK: "1"
           FASTLANE_DISABLE_COLORS: "1"
+          STORE_VERSION: ${{ needs.prepare.outputs.candidate_version }}
         run: |
           cd iOS
           bundle exec fastlane "${IOS_LANE}"
@@ -175,7 +266,7 @@ jobs:
   ios_release_skipped:
     name: iOS Release (Skipped - Missing Secrets)
     needs: [prepare, quality]
-    if: ${{ needs.prepare.outputs.ios_store != 'true' }}
+    if: ${{ github.event.inputs.ios_lane != 'skip' && needs.prepare.outputs.ios_store != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Print instructions
@@ -186,9 +277,9 @@ jobs:
           echo "To enable iOS store release, set secrets: MATCH_GIT_URL, MATCH_PASSWORD, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_CONTENT (and optionally MATCH_SSH_PRIVATE_KEY, IOS_APP_IDENTIFIER)."
 
   android_release:
-    name: Android Release
+    name: Android Test-track Release
     needs: [prepare, quality]
-    if: ${{ needs.prepare.outputs.android_store == 'true' }}
+    if: ${{ needs.prepare.outputs.android_store == 'true' && github.event.inputs.android_track != 'production' && github.event.inputs.android_track != 'skip' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -252,7 +343,7 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.phongqk.oakhealthy
           releaseFiles: Android/app/build/outputs/bundle/release/app-release.aab
-          track: ${{ env.ANDROID_TRACK }}
+          tracks: ${{ env.ANDROID_TRACK }}
 
       - name: Upload release log (on failure)
         if: ${{ failure() }}
@@ -262,10 +353,59 @@ jobs:
           path: Android/release-build.log
           if-no-files-found: warn
 
+  android_production_promotion:
+    name: Android Promote Tested Build
+    needs: [prepare, quality]
+    if: ${{ needs.prepare.outputs.android_store == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.android_track == 'production' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: iOS
+
+      - name: Promote tested Play release
+        shell: bash
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          BUNDLE_GEMFILE: ${{ github.workspace }}/iOS/Gemfile
+          FASTLANE_SKIP_UPDATE_CHECK: "1"
+          FASTLANE_DISABLE_COLORS: "1"
+        run: |
+          key_file="$(mktemp)"
+          trap 'rm -f "${key_file}"' EXIT
+          printf '%s' "${GOOGLE_PLAY_SERVICE_ACCOUNT_JSON}" > "${key_file}"
+          args=(
+            supply
+            --json_key "${key_file}"
+            --package_name com.phongqk.oakhealthy
+            --track "${ANDROID_SOURCE_TRACK}"
+            --track_promote_to production
+            --version_code "${STORE_BUILD_NUMBER}"
+            --skip_upload_metadata true
+            --skip_upload_changelogs true
+            --skip_upload_images true
+            --skip_upload_screenshots true
+          )
+          if [ "${ANDROID_ROLLOUT_FRACTION}" = "1.0" ]; then
+            args+=(--track_promote_release_status completed)
+          else
+            args+=(--track_promote_release_status inProgress --rollout "${ANDROID_ROLLOUT_FRACTION}")
+          fi
+          bundle exec fastlane "${args[@]}"
+
   android_release_skipped:
     name: Android Release (Skipped - Missing Secrets)
     needs: [prepare, quality]
-    if: ${{ needs.prepare.outputs.android_store != 'true' }}
+    if: ${{ github.event.inputs.android_track != 'skip' && needs.prepare.outputs.android_store != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Print instructions

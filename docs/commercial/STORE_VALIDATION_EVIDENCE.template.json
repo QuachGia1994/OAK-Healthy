@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "release_candidate": {
+    "version": "1.0.1",
+    "build": "REPLACE_WITH_TESTED_BUILD",
+    "commit": "REPLACE_WITH_TESTED_COMMIT_SHA"
+  },
+  "store_products": {
+    "ios": {
+      "oak_pro_monthly": {"status": "pending", "reference": ""},
+      "oak_pro_annual": {"status": "pending", "reference": ""},
+      "oak_coach_monthly": {"status": "pending", "reference": ""},
+      "oak_coach_annual": {"status": "pending", "reference": ""}
+    },
+    "android": {
+      "oak_pro_monthly": {"status": "pending", "reference": ""},
+      "oak_pro_annual": {"status": "pending", "reference": ""},
+      "oak_coach_monthly": {"status": "pending", "reference": ""},
+      "oak_coach_annual": {"status": "pending", "reference": ""}
+    }
+  },
+  "beta_validation": {
+    "ios": {
+      "no_purchase_free": {"status": "pending", "reference": ""},
+      "pro_monthly": {"status": "pending", "reference": ""},
+      "pro_annual": {"status": "pending", "reference": ""},
+      "coach_monthly": {"status": "pending", "reference": ""},
+      "coach_annual": {"status": "pending", "reference": ""},
+      "highest_plan_wins": {"status": "pending", "reference": ""},
+      "checkout_cancelled_no_grant": {"status": "pending", "reference": ""},
+      "invalid_unverified_no_grant": {"status": "pending", "reference": ""},
+      "restore_active_purchase": {"status": "pending", "reference": ""},
+      "expired_refunded_revoked_downgrade": {"status": "pending", "reference": ""},
+      "offline_no_fabricated_entitlement": {"status": "pending", "reference": ""},
+      "sandbox_billing_retry_store_state": {"status": "pending", "reference": ""}
+    },
+    "android": {
+      "no_purchase_free": {"status": "pending", "reference": ""},
+      "pro_monthly": {"status": "pending", "reference": ""},
+      "pro_annual": {"status": "pending", "reference": ""},
+      "coach_monthly": {"status": "pending", "reference": ""},
+      "coach_annual": {"status": "pending", "reference": ""},
+      "highest_plan_wins": {"status": "pending", "reference": ""},
+      "checkout_cancelled_no_grant": {"status": "pending", "reference": ""},
+      "invalid_unverified_no_grant": {"status": "pending", "reference": ""},
+      "restore_active_purchase": {"status": "pending", "reference": ""},
+      "expired_refunded_revoked_downgrade": {"status": "pending", "reference": ""},
+      "offline_no_fabricated_entitlement": {"status": "pending", "reference": ""},
+      "grace_period_retains_access": {"status": "pending", "reference": ""},
+      "account_hold_revokes_access": {"status": "pending", "reference": ""},
+      "account_hold_recovery_restores_access": {"status": "pending", "reference": ""}
+    }
+  },
+  "offer_strategy": {
+    "ios": {"mode": "none", "basis_reference": "REPLACE_WITH_BETA_METRICS_OR_DECISION_RECORD"},
+    "android": {"mode": "none", "basis_reference": "REPLACE_WITH_BETA_METRICS_OR_DECISION_RECORD"}
+  },
+  "public_urls": {
+    "privacy_policy": "https://REPLACE_ME/privacy",
+    "support": "https://REPLACE_ME/support"
+  },
+  "store_declarations": {
+    "app_store_privacy": {"status": "pending", "reference": ""},
+    "play_data_safety": {"status": "pending", "reference": ""},
+    "play_health_apps": {"status": "pending", "reference": ""}
+  },
+  "screenshots": {
+    "ios": {
+      "today_routine": {"status": "pending", "reference": ""},
+      "build_stack": {"status": "pending", "reference": ""},
+      "advanced_cycles": {"status": "pending", "reference": ""},
+      "adherence_history": {"status": "pending", "reference": ""},
+      "coach_profiles": {"status": "pending", "reference": ""},
+      "encrypted_sync": {"status": "pending", "reference": ""}
+    },
+    "android": {
+      "today_routine": {"status": "pending", "reference": ""},
+      "build_stack": {"status": "pending", "reference": ""},
+      "advanced_cycles": {"status": "pending", "reference": ""},
+      "adherence_history": {"status": "pending", "reference": ""},
+      "coach_profiles": {"status": "pending", "reference": ""},
+      "encrypted_sync": {"status": "pending", "reference": ""}
+    }
+  },
+  "rollback": {"status": "pending", "reference": ""},
+  "rollout": {
+    "ios": {"status": "pending", "reference": ""},
+    "android": {"status": "pending", "reference": ""}
+  },
+  "support": {"status": "pending", "reference": ""}
+}

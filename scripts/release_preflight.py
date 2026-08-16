@@ -95,6 +95,18 @@ def main() -> int:
         failures,
     )
     require(
+        (ROOT / "docs/COMMERCIAL_OPERATIONS.md").is_file()
+        and (ROOT / "docs/commercial/STORE_VALIDATION_EVIDENCE.template.json").is_file(),
+        "Commercial validation runbook and evidence template exist",
+        failures,
+    )
+    require(
+        (ROOT / "scripts/commercial_gate.py").is_file()
+        and (ROOT / "scripts/commercial_metrics.py").is_file(),
+        "Commercial evidence and KPI tooling exist",
+        failures,
+    )
+    require(
         "PLAY_BILLING_PUBLIC_KEY" in release_workflow,
         "Release workflow supplies Play billing verification key",
         failures,
@@ -115,6 +127,41 @@ def main() -> int:
         "confirm_production" in release_workflow
         and "Production upload requires workflow_dispatch" in release_workflow,
         "Production upload requires explicit confirmation",
+        failures,
+    )
+    require(
+        "commercial_evidence_path" in release_workflow
+        and "candidate_commit" in release_workflow
+        and "scripts/commercial_gate.py" in release_workflow
+        and "--require production" in release_workflow
+        and "--expected-version" in release_workflow
+        and "--expected-commit \"${CANDIDATE_COMMIT}\"" in release_workflow,
+        "Production upload requires P4 evidence tied to the tested candidate",
+        failures,
+    )
+    require(
+        release_workflow.count("- skip") >= 2
+        and "github.event.inputs.ios_lane != 'skip'" in release_workflow
+        and "github.event.inputs.android_track != 'skip'" in release_workflow,
+        "Release dispatch can explicitly skip either store target",
+        failures,
+    )
+    require(
+        "explicit build_number matching the tested beta candidate" in release_workflow,
+        "Production requires the tested beta build number",
+        failures,
+    )
+    require(
+        "track_promote_to production" in release_workflow
+        and "--version_code \"${STORE_BUILD_NUMBER}\"" in release_workflow,
+        "Android production promotes the tested Play build instead of rebuilding it",
+        failures,
+    )
+    require(
+        "skip_binary_upload: true" in read("iOS/fastlane/Fastfile")
+        and "app_version: app_version" in read("iOS/fastlane/Fastfile")
+        and "build_number: build_number" in read("iOS/fastlane/Fastfile"),
+        "iOS production selects the tested TestFlight version/build instead of rebuilding it",
         failures,
     )
     require(

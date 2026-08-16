@@ -8,6 +8,10 @@ versioning where practical.
 
 ### Added
 
+- Phase 4 commercial validation/growth gates: machine-checkable real-store evidence, production candidate matching, privacy-safe aggregate KPI reporting, and a P4.1–P4.4 operations runbook/templates.
+- Commercial funnel diagnostics now cover store product-load, purchase-result, and restore-result outcomes with allowlisted product/plan/period/store metadata only.
+- An explicit iOS SwiftData schema v1/migration-plan baseline plus a regression fixture that writes an existing unversioned store and reopens it through the versioned container without losing client, supplement, or intake data.
+- Android Room v2→v6 migration regression coverage and shared Android/iOS fixtures for legacy backup identity compatibility.
 - Beta/store release preflight, safe beta/internal defaults, explicit production confirmation, Play billing-key release wiring, launch checklist, listing copy, and signed iOS Crashlytics dSYM upload.
 - Privacy-first Firebase Analytics/Crashlytics diagnostics on Android and iOS with explicit opt-in, allowlisted commercial funnel events, health-data field scrubbing, in-app disclosure, and store privacy declaration guidance.
 - StoreKit 2 and Google Play Billing 9.1 subscription flows with store-localized pricing, purchase/restore handling, verified entitlement resolution, and fail-closed pending/unverified purchase behavior.
@@ -19,6 +23,8 @@ versioning where practical.
 
 ### Changed
 
+- Production store promotion now requires an explicit beta-tested candidate commit/version/build and release-specific P4 evidence; iOS reuses that TestFlight build and Android promotes that Play versionCode instead of rebuilding production binaries.
+- iOS production bootstrap now constructs its persistent `ModelContainer` from the versioned SwiftData schema and central migration plan.
 - Firebase payload and revision reads are now atomic snapshots.
 - Firebase writes now use compare-and-set transactions with monotonic revisions.
 - Android and iOS sync settings now separate pending Link Code input from the
@@ -32,6 +38,8 @@ versioning where practical.
 
 ### Fixed
 
+- Android Room v2→v3 now stages intake history before rebuilding the supplement table, preventing foreign-key cascades from deleting legacy history during migration.
+- Legacy v1 and ID-less backup payloads now derive the same deterministic supplement identity on Android and iOS, preventing cross-platform duplicate identities after import or sync.
 - iOS dose-time and supplement deletion now await notification cleanup before returning, and nil-client autosync requests no longer retain short-lived SwiftData contexts after teardown.
 - Android periodic cycle workers now use a WorkManager-compatible constructor.
 - Android backup imports now preserve interval/last-taken data and remap cross-profile ID collisions without breaking history links.

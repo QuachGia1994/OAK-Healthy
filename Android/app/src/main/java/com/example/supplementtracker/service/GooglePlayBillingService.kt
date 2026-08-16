@@ -92,6 +92,7 @@ class GooglePlayBillingService(
         if (!billingClient.isReady) {
             start()
             mutableState.update { it.copy(notice = PlayBillingNotice.STORE_UNAVAILABLE) }
+            reportRestoreResult("store_unavailable")
             return
         }
         queryPurchases(PlayBillingNotice.RESTORE_COMPLETED)
@@ -100,12 +101,14 @@ class GooglePlayBillingService(
     fun purchase(activity: Activity, productId: String) {
         val option = purchaseOptions[productId] ?: run {
             mutableState.update { it.copy(notice = PlayBillingNotice.STORE_UNAVAILABLE) }
+            reportPurchaseResult("store_unavailable", productId)
             return
         }
         mutableState.update { it.copy(purchasingProductId = productId, notice = null) }
         val result = billingClient.launchBillingFlow(activity, billingFlowParams(option))
         if (result.responseCode != BillingClient.BillingResponseCode.OK) {
             mutableState.update { it.copy(purchasingProductId = null, notice = PlayBillingNotice.STORE_UNAVAILABLE) }
+            reportPurchaseResult("store_unavailable", productId)
         }
     }
 
@@ -119,13 +122,16 @@ class GooglePlayBillingService(
     }
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
+        val attemptedProductId = mutableState.value.purchasingProductId
         when (result.responseCode) {
             BillingClient.BillingResponseCode.OK -> scope.launch { handlePurchaseUpdate(purchases.orEmpty()) }
-            BillingClient.BillingResponseCode.USER_CANCELED -> mutableState.update {
-                it.copy(purchasingProductId = null, notice = PlayBillingNotice.PURCHASE_CANCELLED)
+            BillingClient.BillingResponseCode.USER_CANCELED -> {
+                mutableState.update { it.copy(purchasingProductId = null, notice = PlayBillingNotice.PURCHASE_CANCELLED) }
+                reportPurchaseResult("cancelled", attemptedProductId)
             }
-            else -> mutableState.update {
-                it.copy(purchasingProductId = null, notice = PlayBillingNotice.STORE_UNAVAILABLE)
+            else -> {
+                mutableState.update { it.copy(purchasingProductId = null, notice = PlayBillingNotice.STORE_UNAVAILABLE) }
+                reportPurchaseResult("store_unavailable", attemptedProductId)
             }
         }
     }
@@ -152,6 +158,7 @@ class GooglePlayBillingService(
         billingClient.queryProductDetailsAsync(productQueryParams()) { result, queryResult ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 mutableState.update { it.copy(isLoading = false, notice = PlayBillingNotice.STORE_UNAVAILABLE) }
+                reportProductsLoaded("store_unavailable")
                 return@queryProductDetailsAsync
             }
             applyProductDetails(queryResult.productDetailsList)
@@ -182,6 +189,7 @@ class GooglePlayBillingService(
                 notice = if (states.isEmpty()) PlayBillingNotice.STORE_UNAVAILABLE else it.notice
             )
         }
+        reportProductsLoaded(if (states.isEmpty()) "empty" else "success")
     }
 
     private fun selectOffer(details: ProductDetails): ProductDetails.SubscriptionOfferDetails? {
@@ -202,19 +210,23 @@ class GooglePlayBillingService(
     }
 
     private suspend fun handlePurchaseUpdate(purchases: List<Purchase>) {
+        val attemptedProductId = mutableState.value.purchasingProductId
         val completed = purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
         val pending = purchases.any { it.purchaseState == Purchase.PurchaseState.PENDING }
         if (completed.isEmpty()) {
             val notice = if (pending) PlayBillingNotice.PURCHASE_PENDING else PlayBillingNotice.STORE_UNAVAILABLE
             mutableState.update { it.copy(purchasingProductId = null, notice = notice) }
+            reportPurchaseResult(if (pending) "pending" else "store_unavailable", attemptedProductId)
             return
         }
         val verified = completed.filter(::isVerifiedPurchase)
         if (verified.isEmpty()) {
-            reportVerificationFailure()
+            reportVerificationFailure(attemptedProductId)
             return
         }
         verified.forEach(::acknowledgeIfNeeded)
+        val productId = verified.firstNotNullOfOrNull { it.products.firstOrNull() } ?: attemptedProductId
+        reportPurchaseResult("success", productId)
         queryPurchases(PlayBillingNotice.PURCHASE_COMPLETED)
     }
 
@@ -223,6 +235,7 @@ class GooglePlayBillingService(
         billingClient.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 mutableState.update { it.copy(notice = PlayBillingNotice.STORE_UNAVAILABLE) }
+                if (successNotice == PlayBillingNotice.RESTORE_COMPLETED) reportRestoreResult("store_unavailable")
                 return@queryPurchasesAsync
             }
             applyOwnedPurchases(purchases, successNotice)
@@ -237,6 +250,9 @@ class GooglePlayBillingService(
         verified.forEach(::acknowledgeIfNeeded)
         val notice = verificationNotice(completed, verified) ?: successNotice
         mutableState.update { it.copy(purchasingProductId = null, notice = notice) }
+        if (successNotice == PlayBillingNotice.RESTORE_COMPLETED) {
+            reportRestoreResult(restoreResult(notice))
+        }
     }
 
     private fun isVerifiedPurchase(purchase: Purchase): Boolean {
@@ -258,13 +274,46 @@ class GooglePlayBillingService(
         }
     }
 
-    private fun reportVerificationFailure() {
+    private fun reportVerificationFailure(productId: String?) {
         val notice = if (verifier.isConfigured) {
             PlayBillingNotice.VERIFICATION_FAILED
         } else {
             PlayBillingNotice.VERIFICATION_NOT_CONFIGURED
         }
         mutableState.update { it.copy(purchasingProductId = null, notice = notice) }
+        val result = if (verifier.isConfigured) "verification_failed" else "verification_not_configured"
+        reportPurchaseResult(result, productId)
+    }
+
+    private fun restoreResult(notice: PlayBillingNotice?): String = when (notice) {
+        PlayBillingNotice.VERIFICATION_FAILED -> "verification_failed"
+        PlayBillingNotice.VERIFICATION_NOT_CONFIGURED -> "verification_not_configured"
+        PlayBillingNotice.RESTORE_COMPLETED -> "success"
+        else -> "success"
+    }
+
+    private fun reportProductsLoaded(result: String) {
+        DiagnosticsReporter.event(
+            appContext,
+            "billing_products_loaded",
+            CommercialTelemetryFields.result(result, "play_store")
+        )
+    }
+
+    private fun reportPurchaseResult(result: String, productId: String?) {
+        DiagnosticsReporter.event(
+            appContext,
+            "billing_purchase_result",
+            CommercialTelemetryFields.result(result, "play_store", productId)
+        )
+    }
+
+    private fun reportRestoreResult(result: String) {
+        DiagnosticsReporter.event(
+            appContext,
+            "billing_restore_result",
+            CommercialTelemetryFields.result(result, "play_store")
+        )
     }
 
     private fun acknowledgeIfNeeded(purchase: Purchase) {

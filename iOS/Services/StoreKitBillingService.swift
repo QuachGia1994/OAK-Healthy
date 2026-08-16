@@ -54,15 +54,17 @@ public final class StoreKitBillingService {
     public func purchase(productId: String) async {
         guard let product = storeProducts[productId] else {
             notice = .storeUnavailable
+            reportPurchaseResult("store_unavailable", productId: productId)
             return
         }
         purchasingProductId = productId
         defer { purchasingProductId = nil }
         do {
             let result = try await product.purchase()
-            await handlePurchaseResult(result)
+            await handlePurchaseResult(result, productId: productId)
         } catch {
             notice = .storeUnavailable
+            reportPurchaseResult("store_unavailable", productId: productId)
         }
     }
 
@@ -71,8 +73,10 @@ public final class StoreKitBillingService {
             try await AppStore.sync()
             await refreshEntitlements()
             notice = .restoreCompleted
+            reportRestoreResult("success")
         } catch {
             notice = .storeUnavailable
+            reportRestoreResult("store_unavailable")
         }
     }
 
@@ -86,11 +90,14 @@ public final class StoreKitBillingService {
             let loaded = try await Product.products(for: ids)
             storeProducts = Dictionary(uniqueKeysWithValues: loaded.map { ($0.id, $0) })
             products = loaded.sorted(by: catalogOrder).map(makeViewState)
+            let result = loaded.isEmpty ? "empty" : "success"
             if loaded.isEmpty { notice = .storeUnavailable }
+            reportProductsLoaded(result)
         } catch {
             storeProducts = [:]
             products = []
             notice = .storeUnavailable
+            reportProductsLoaded("store_unavailable")
         }
     }
 
@@ -108,22 +115,27 @@ public final class StoreKitBillingService {
         )
     }
 
-    private func handlePurchaseResult(_ result: Product.PurchaseResult) async {
+    private func handlePurchaseResult(_ result: Product.PurchaseResult, productId: String) async {
         switch result {
         case .success(let verification):
             guard case .verified(let transaction) = verification else {
                 notice = .verificationFailed
+                reportPurchaseResult("verification_failed", productId: productId)
                 return
             }
             await transaction.finish()
             await refreshEntitlements()
             notice = .purchaseCompleted
+            reportPurchaseResult("success", productId: productId)
         case .pending:
             notice = .purchasePending
+            reportPurchaseResult("pending", productId: productId)
         case .userCancelled:
             notice = .purchaseCancelled
+            reportPurchaseResult("cancelled", productId: productId)
         @unknown default:
             notice = .storeUnavailable
+            reportPurchaseResult("store_unavailable", productId: productId)
         }
     }
 
@@ -135,6 +147,27 @@ public final class StoreKitBillingService {
             productIds.append(transaction.productID)
         }
         entitlementManager.replaceFromStore(CommercialEntitlementResolver.resolve(productIds: productIds))
+    }
+
+    private func reportProductsLoaded(_ result: String) {
+        DiagnosticsReporter.event(
+            "billing_products_loaded",
+            fields: CommercialTelemetryFields.result(result, source: "app_store")
+        )
+    }
+
+    private func reportPurchaseResult(_ result: String, productId: String) {
+        DiagnosticsReporter.event(
+            "billing_purchase_result",
+            fields: CommercialTelemetryFields.result(result, source: "app_store", productId: productId)
+        )
+    }
+
+    private func reportRestoreResult(_ result: String) {
+        DiagnosticsReporter.event(
+            "billing_restore_result",
+            fields: CommercialTelemetryFields.result(result, source: "app_store")
+        )
     }
 
     private func startTransactionListener() {

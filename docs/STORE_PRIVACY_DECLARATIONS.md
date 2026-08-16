@@ -42,7 +42,7 @@ The source code must keep these rules true:
 
 - Collection default: OFF.
 - User can enable/disable anonymous diagnostics in Settings.
-- Allowed custom analytics events are limited to commercial funnel entry points.
+- Allowed custom analytics events are limited to commercial funnel entry points and normalized store outcomes (product load, purchase result, restore result).
 - No custom event field may contain client/profile identifiers, names, supplement names, doses, intake history/times, sync IDs/codes/keys, file paths, or raw server responses.
 - Cloud sync telemetry exposes only coarse error type/status code.
 - No user identifier is set in Firebase Analytics or Crashlytics.

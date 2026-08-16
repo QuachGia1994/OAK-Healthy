@@ -77,7 +77,10 @@ public struct PlanAccessView: View {
                 purchaseRow(product)
             }
             Button("billing_restore".localized) {
-                DiagnosticsReporter.event("billing_restore_started")
+                DiagnosticsReporter.event(
+                    "billing_restore_started",
+                    fields: ["source": "app_store"]
+                )
                 Task { await billingService.restorePurchases() }
             }
             if let notice = billingService.notice {
@@ -98,7 +101,10 @@ public struct PlanAccessView: View {
             }
             Spacer()
             Button("billing_buy".localized) {
-                DiagnosticsReporter.event("billing_purchase_started")
+                DiagnosticsReporter.event(
+                    "billing_purchase_started",
+                    fields: CommercialTelemetryFields.product(product.productId, source: "app_store")
+                )
                 Task { await billingService.purchase(productId: product.productId) }
             }
             .buttonStyle(.borderedProminent)

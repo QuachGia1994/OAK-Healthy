@@ -65,7 +65,7 @@ platform :ios do
     upload_to_testflight(api_key: api_key)
   end
 
-  desc "Upload build to App Store"
+  desc "Submit the already-tested TestFlight build to App Store review"
   lane :release do
     is_base64 = (ENV["APP_STORE_CONNECT_KEY_IS_BASE64"] || "false") == "true"
     api_key = app_store_connect_api_key(
@@ -74,27 +74,21 @@ platform :ios do
       key_content: ENV.fetch("APP_STORE_CONNECT_KEY_CONTENT"),
       is_key_content_base64: is_base64
     )
-    match(
-      type: "appstore",
-      api_key: api_key,
-      readonly: true
-    )
-    project_path = File.expand_path("../OAKHealthy.xcodeproj", __dir__)
-    apply_store_build_number(project_path)
-    gym(
-      project: project_path,
-      scheme: "OAKHealthy",
-      configuration: "Release",
-      clean: true,
-      destination: "generic/platform=iOS",
-      export_method: "app-store",
-      xcargs: "CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES"
-    )
+    build_number = ENV.fetch("STORE_BUILD_NUMBER").strip
+    app_version = ENV.fetch("STORE_VERSION").strip
+    UI.user_error!("STORE_BUILD_NUMBER must be a positive integer") unless build_number.match?(/\A[1-9]\d*\z/)
+    UI.user_error!("STORE_VERSION must be set for production promotion") if app_version.empty?
     upload_to_app_store(
       api_key: api_key,
-      submit_for_review: false,
+      app_version: app_version,
+      build_number: build_number,
+      skip_binary_upload: true,
+      submit_for_review: true,
+      automatic_release: false,
+      phased_release: true,
       skip_screenshots: true,
-      skip_metadata: true
+      skip_metadata: true,
+      force: true
     )
   end
 end

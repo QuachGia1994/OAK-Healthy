@@ -70,7 +70,10 @@ Run on fresh installs and after app relaunch:
 | Coach annual | Coach |
 | Pro + Coach both active | Coach |
 | User cancels checkout | No new entitlement |
-| Play purchase pending | No new entitlement until purchased |
+| iOS Sandbox billing retry | Follow verified StoreKit entitlement state; never fabricate a higher plan |
+| Play auto-renew grace period | Existing paid access remains while Play reports grace |
+| Play account hold | Paid access is unavailable/read-only; user data retained |
+| Play account-hold recovery | Original active plan is restored after Play reports recovery |
 | Unverified/invalid purchase | No paid entitlement |
 | Restore active purchase | Original active plan restored |
 | Expired/refunded/revoked entitlement | Downgrade after store refresh; user data retained |
@@ -100,11 +103,13 @@ For beta/internal validation, dispatch `.github/workflows/release.yml` with:
 
 If store secrets are missing, the workflow must still run release preflight and quality gates, then explicitly skip store upload jobs.
 
-For production, use `workflow_dispatch` only, choose the production target(s), and set `confirm_production=true`. Never use a tag as an implicit production approval. The same resolved store build number is injected into Android `versionCode` and the iOS bundle build number for that release run.
+For production, use `workflow_dispatch` only, set the non-target platform to `skip`, choose `release` and/or `production` only for the platform(s) being promoted, and set `confirm_production=true`. Provide the explicit `build_number` and `candidate_commit` used by the tested beta binary, plus `commercial_evidence_path` pointing to a completed release-specific evidence JSON derived from `docs/commercial/STORE_VALIDATION_EVIDENCE.template.json`. The candidate commit may be an ancestor of the workflow commit so evidence/runbook-only commits can be added after beta testing; the gate resolves the marketing version from that candidate and requires the evidence version/build/commit to match it. For Android production, also select the tested `android_source_track` and the initial `android_rollout_fraction`. Never use a tag as an implicit production approval.
+
+Production does not create a replacement binary: iOS submits the existing tested TestFlight build for review, while Android promotes the tested versionCode from its source test track to production. iOS is configured for phased release with automatic release disabled; Android rollout can start at 10%, 25%, 50%, or 100%.
 
 ## Listing and review material
 
-Use `docs/STORE_LISTING_COPY.md` as the source for initial store copy and screenshot captions. Before submission, replace placeholders with the published privacy/support URLs and capture screenshots from the exact release candidate.
+Use `docs/STORE_LISTING_COPY.md` as the source for initial store copy and screenshot captions. Before submission, replace placeholders with the published privacy/support URLs and capture all required screenshot states separately from the exact iOS and Android release candidates.
 
 Review notes should state that OAK Healthy is a wellness/routine tracker, not a medical device, explain how reviewers access subscription flows, and provide any sandbox/test account instructions requested by the store.
 
@@ -124,4 +129,6 @@ For purchase issues collect only non-health metadata: platform, app version/buil
 
 ## Definition of launch-ready
 
-Repository launch readiness is reached when preflight and all CI/release quality gates pass. Actual TestFlight/Play distribution additionally requires the account-side credentials/configuration above. Public launch is not complete until the stores report the intended build available to its target audience.
+Repository P3.6 readiness is reached when preflight and all CI/release quality gates pass. Actual TestFlight/Play distribution additionally requires the account-side credentials/configuration above. P4.1 requires real store-product and purchase-matrix evidence; P4.3 requires a completed production evidence file. Public launch is not complete until the stores report the intended build available to its target audience.
+
+Post-launch KPI handling is defined in `docs/COMMERCIAL_OPERATIONS.md`; use aggregate store/funnel data with `scripts/commercial_metrics.py` rather than exporting health-linked user-level analytics.

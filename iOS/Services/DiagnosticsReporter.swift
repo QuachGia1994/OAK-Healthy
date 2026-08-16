@@ -5,10 +5,13 @@ import Foundation
 public enum DiagnosticsPrivacyPolicy {
     private static let allowedEvents: Set<String> = [
         "plan_access_view",
+        "billing_products_loaded",
         "billing_purchase_started",
-        "billing_restore_started"
+        "billing_purchase_result",
+        "billing_restore_started",
+        "billing_restore_result"
     ]
-    private static let allowedKeys: Set<String> = ["plan", "billing_period", "source"]
+    private static let allowedKeys: Set<String> = ["plan", "billing_period", "source", "product_id", "result"]
 
     public static func sanitize(
         event: String,
@@ -27,6 +30,31 @@ public enum DiagnosticsPrivacyPolicy {
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789_-")
         let normalized = lowered.unicodeScalars.map { allowed.contains($0) ? Character(String($0)) : "_" }
         return String(normalized.prefix(40))
+    }
+}
+
+public enum CommercialTelemetryFields {
+    public static func product(_ productId: String, source: String) -> [String: String] {
+        var fields = ["product_id": productId, "source": source]
+        guard let product = CommercialProductCatalog.products.first(where: { $0.productId == productId }) else {
+            return fields
+        }
+        fields["plan"] = product.plan.rawValue
+        fields["billing_period"] = billingPeriod(product.billingPeriod)
+        return fields
+    }
+
+    public static func result(_ result: String, source: String, productId: String? = nil) -> [String: String] {
+        var fields = productId.map { product($0, source: source) } ?? ["source": source]
+        fields["result"] = result
+        return fields
+    }
+
+    private static func billingPeriod(_ period: BillingPeriod) -> String {
+        switch period {
+        case .monthly: return "monthly"
+        case .annual: return "annual"
+        }
     }
 }
 
