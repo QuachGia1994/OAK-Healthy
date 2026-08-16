@@ -95,13 +95,6 @@ jobs:
         run: |
           brew list xcodegen > /dev/null 2>&1 || brew install xcodegen
 
-      - name: Inject API Keys securely
-        env:
-          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
-        run: |
-          mkdir -p iOS
-          printf "JSONBIN_API_KEY = %s\n" "${JSONBIN_KEY:-}" > iOS/Secrets.xcconfig
-
       - name: Generate Xcode Project
         run: |
           cd iOS
@@ -158,13 +151,6 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
           brew list xcodegen > /dev/null 2>&1 || brew install xcodegen
-
-      - name: Inject API Keys securely
-        env:
-          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
-        run: |
-          mkdir -p iOS
-          printf "JSONBIN_API_KEY = %s\n" "$JSONBIN_KEY" > iOS/Secrets.xcconfig
 
       - name: Generate Xcode Project
         run: |
