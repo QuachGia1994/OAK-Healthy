@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
+import com.example.supplementtracker.service.ClientProfileMutationResult
 import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
@@ -128,6 +129,26 @@ fun SettingsScreen(
             return
         }
         if (stored != isNotificationEnabledByUser) isNotificationEnabledByUser = stored
+    }
+
+    fun handleClientMutation(
+        result: ClientProfileMutationResult,
+        onSuccess: () -> Unit
+    ) {
+        when (result) {
+            ClientProfileMutationResult.Success -> onSuccess()
+            ClientProfileMutationResult.DuplicateName -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.client_name_duplicate))
+            }
+            is ClientProfileMutationResult.Failure -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(
+                        R.string.client_mutation_failed_format,
+                        result.error.message ?: context.getString(R.string.error_unknown)
+                    )
+                )
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -243,9 +264,9 @@ fun SettingsScreen(
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(R.string.delete)) },
                                                 onClick = {
-                                                    val deletingActive = client.id == currentClientId
-                                                    homeViewModel.deleteClient(client)
-                                                    if (deletingActive) activeClientManager.setCurrentClientId(null)
+                                                    homeViewModel.deleteClient(client) { result ->
+                                                        handleClientMutation(result) {}
+                                                    }
                                                     isMenuExpanded = false
                                                 }
                                             )
@@ -628,9 +649,9 @@ fun SettingsScreen(
             onDismiss = { isAddClientDialogVisible = false },
             onConfirm = { name ->
                 val created = ClientProfile(id = UUID.randomUUID(), name = name, avatarColorArgb = 0)
-                homeViewModel.createClient(created)
-                activeClientManager.setCurrentClientId(created.id)
-                isAddClientDialogVisible = false
+                homeViewModel.createClient(created) { result ->
+                    handleClientMutation(result) { isAddClientDialogVisible = false }
+                }
             }
         )
     }
@@ -644,8 +665,9 @@ fun SettingsScreen(
                 confirmTitle = stringResource(R.string.save),
                 onDismiss = { isEditClientDialogVisible = false },
                 onConfirm = { name ->
-                    homeViewModel.updateClient(target.copy(name = name))
-                    isEditClientDialogVisible = false
+                    homeViewModel.updateClient(target.copy(name = name)) { result ->
+                        handleClientMutation(result) { isEditClientDialogVisible = false }
+                    }
                 }
             )
         }

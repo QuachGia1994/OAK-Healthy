@@ -438,6 +438,8 @@
     <string name="client_name_hint">Tên học viên</string>
     <string name="client_editor_body">Dùng tên ngắn, dễ nhận biết. Mỗi học viên có Stack và lịch sử riêng.</string>
     <string name="client_create_action">Tạo học viên</string>
+    <string name="client_name_duplicate">Đã có học viên dùng tên này.</string>
+    <string name="client_mutation_failed_format">Không thể lưu thay đổi học viên: %1$s</string>
     <string name="add_supplement_intro">Thiết lập lịch dùng rõ ràng trong ba phần ngắn.</string>
     <string name="supplement_details_title">Chất bổ sung</string>
     <string name="supplement_details_body">Nhập tên và liều dùng hàng ngày.</string>

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -42,6 +43,8 @@ import com.example.supplementtracker.service.CloudSyncLogStore
 import com.example.supplementtracker.service.CloudSyncProfileStore
 import com.example.supplementtracker.service.ActiveProfileNotificationPolicy
 import com.example.supplementtracker.service.FactoryResetEngine
+import com.example.supplementtracker.service.ClientProfileMutationEngine
+import com.example.supplementtracker.service.ClientProfileMutationResult
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -138,6 +141,15 @@ class HomeViewModel(
         clearActiveClient = { activeClientManager.setCurrentClientId(null) }
     )
     private val clientProfileUseCase = ClientProfileUseCase(repository)
+    private val clientProfileMutationEngine = ClientProfileMutationEngine(
+        createProfile = clientProfileUseCase::create,
+        updateProfile = clientProfileUseCase::update,
+        deleteProfile = clientProfileUseCase::delete,
+        loadClients = { repository.observeClients().first() },
+        currentClientId = { activeClientManager.currentClientId.value },
+        setCurrentClientId = activeClientManager::setCurrentClientId,
+        clearCloudLinks = cloudSyncProfileStore::clearLinks
+    )
     private val cloudHostEngine = CloudHostEngine(
         context = context,
         currentClientId = { activeClientManager.currentClientId.value },
@@ -612,23 +624,25 @@ class HomeViewModel(
         if (_hostedBinId.value.isNullOrBlank()) stopRealtimeListener()
     }
 
-    fun createClient(profile: ClientProfile) {
-        viewModelScope.launch {
-            clientProfileUseCase.create(profile)
-        }
+    fun createClient(
+        profile: ClientProfile,
+        onResult: (ClientProfileMutationResult) -> Unit = {}
+    ) {
+        viewModelScope.launch { onResult(clientProfileMutationEngine.create(profile)) }
     }
 
-    fun deleteClient(profile: ClientProfile) {
-        viewModelScope.launch {
-            clientProfileUseCase.delete(profile)
-            cloudSyncProfileStore.clearLinks(profile.id)
-        }
+    fun deleteClient(
+        profile: ClientProfile,
+        onResult: (ClientProfileMutationResult) -> Unit = {}
+    ) {
+        viewModelScope.launch { onResult(clientProfileMutationEngine.delete(profile)) }
     }
 
-    fun updateClient(profile: ClientProfile) {
-        viewModelScope.launch {
-            clientProfileUseCase.update(profile)
-        }
+    fun updateClient(
+        profile: ClientProfile,
+        onResult: (ClientProfileMutationResult) -> Unit = {}
+    ) {
+        viewModelScope.launch { onResult(clientProfileMutationEngine.update(profile)) }
     }
 
     private fun observeDayChanges() {

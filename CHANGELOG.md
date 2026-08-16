@@ -41,6 +41,7 @@ versioning where practical.
 - Notification scheduling and dose actions now stay isolated to the active profile on Android and iOS, including profile switches, reboot/time-change rescheduling, and stale notification actions.
 - Cloud host/link ownership is now scoped per profile on Android and iOS; legacy global links migrate once to the active profile, profile switches rebind realtime sync, and Android in-flight exports retain their captured profile.
 - iOS realtime cloud sync sessions now bind to both profile and manifest identity, reject stale generation completions, and cannot let an old listener clear or mark a newer profile session.
+- Android profile create/update/delete flows now commit persistence before changing active-profile or dialog state, preventing duplicate-name or database failures from creating phantom active clients.
 - Android alarm receivers now retain their broadcast lifetime while asynchronous reminder validation and rescheduling complete.
 - Cloud hosting now cleans up partial uploads, and iOS re-hosting keeps the previous host until the replacement is ready.
 

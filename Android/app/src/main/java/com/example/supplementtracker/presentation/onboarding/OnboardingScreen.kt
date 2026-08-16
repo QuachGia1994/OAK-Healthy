@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -80,6 +81,7 @@ import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
+import com.example.supplementtracker.service.ClientProfileMutationResult
 import java.util.UUID
 
 @Composable
@@ -239,9 +241,24 @@ fun OnboardingScreen(
             onDismiss = { isAddClientDialogVisible = false },
             onConfirm = { name ->
                 val profile = ClientProfile(id = UUID.randomUUID(), name = name, avatarColorArgb = 0)
-                homeViewModel.createClient(profile)
-                activeClientManager.setCurrentClientId(profile.id)
-                isAddClientDialogVisible = false
+                homeViewModel.createClient(profile) { result ->
+                    when (result) {
+                        ClientProfileMutationResult.Success -> isAddClientDialogVisible = false
+                        ClientProfileMutationResult.DuplicateName -> Toast.makeText(
+                            context,
+                            context.getString(R.string.client_name_duplicate),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        is ClientProfileMutationResult.Failure -> Toast.makeText(
+                            context,
+                            context.getString(
+                                R.string.client_mutation_failed_format,
+                                result.error.message ?: context.getString(R.string.error_unknown)
+                            ),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             }
         )
     }

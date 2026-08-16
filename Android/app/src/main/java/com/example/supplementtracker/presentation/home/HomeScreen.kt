@@ -71,6 +71,7 @@ import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
+import com.example.supplementtracker.service.ClientProfileMutationResult
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -246,9 +247,24 @@ fun HomeScreen(
             onDismiss = { isAddClientDialogVisible = false },
             onConfirm = { name ->
                 val profile = ClientProfile(id = UUID.randomUUID(), name = name, avatarColorArgb = 0)
-                viewModel.createClient(profile)
-                activeClientManager.setCurrentClientId(profile.id)
-                isAddClientDialogVisible = false
+                viewModel.createClient(profile) { result ->
+                    when (result) {
+                        ClientProfileMutationResult.Success -> isAddClientDialogVisible = false
+                        ClientProfileMutationResult.DuplicateName -> Toast.makeText(
+                            context,
+                            context.getString(R.string.client_name_duplicate),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        is ClientProfileMutationResult.Failure -> Toast.makeText(
+                            context,
+                            context.getString(
+                                R.string.client_mutation_failed_format,
+                                result.error.message ?: context.getString(R.string.error_unknown)
+                            ),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             }
         )
     }

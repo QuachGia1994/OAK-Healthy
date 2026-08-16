@@ -438,6 +438,8 @@
     <string name="client_name_hint">Client name</string>
     <string name="client_editor_body">Use a short, recognizable name. Each client keeps a separate supplement stack and history.</string>
     <string name="client_create_action">Create client</string>
+    <string name="client_name_duplicate">A client with this name already exists.</string>
+    <string name="client_mutation_failed_format">Could not save client changes: %1$s</string>
     <string name="add_supplement_intro">Build a clear schedule in three quick sections.</string>
     <string name="supplement_details_title">Supplement</string>
     <string name="supplement_details_body">Name it and add the daily dose.</string>
