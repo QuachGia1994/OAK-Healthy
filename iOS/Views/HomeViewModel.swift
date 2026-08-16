@@ -361,7 +361,7 @@ public final class HomeViewModel {
         timeString: String,
         context: ModelContext,
         notificationService: NotificationService
-    ) {
+    ) async {
         let remainingTimes = TimeStrings.removingTime(timeString, from: supplement.intakeTime)
         let previousIntakeTime = supplement.intakeTime
         let previousUpdatedAt = supplement.updatedAtEpochMs
@@ -376,7 +376,7 @@ public final class HomeViewModel {
             return
         }
         processSupplements(supplementsCache)
-        Task { await rescheduleAndSync(supplement, context: context, notificationService: notificationService) }
+        await rescheduleAndSync(supplement, context: context, notificationService: notificationService)
     }
 
     private func rescheduleAndSync(
@@ -393,7 +393,11 @@ public final class HomeViewModel {
     }
     
     /// Xóa thực phẩm bổ sung.
-    public func deleteSupplement(_ supplement: UserSupplement, context: ModelContext, notificationService: NotificationService) {
+    public func deleteSupplement(
+        _ supplement: UserSupplement,
+        context: ModelContext,
+        notificationService: NotificationService
+    ) async {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
         supplement.deletedAtEpochMs = now
         supplement.updatedAtEpochMs = now
@@ -405,11 +409,8 @@ public final class HomeViewModel {
         }
 
         removeSupplementFromCaches(supplement.id)
-        
-        Task {
-            await notificationService.cancelReminders(for: supplement)
-            CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
-        }
+        await notificationService.cancelReminders(for: supplement)
+        CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
     }
     
     private func removeSupplementFromCaches(_ supplementId: UUID) {

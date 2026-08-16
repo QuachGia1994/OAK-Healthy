@@ -327,7 +327,13 @@ public struct HomeView: View {
                                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
-                                        viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
+                                        Task {
+                                            await viewModel.deleteSupplement(
+                                                info.supplement,
+                                                context: modelContext,
+                                                notificationService: notificationService
+                                            )
+                                        }
                                     } label: {
                                         Label("delete".localized, systemImage: "trash")
                                     }
@@ -348,7 +354,13 @@ public struct HomeView: View {
                                     }
                                     
                                     Button(role: .destructive) {
-                                        viewModel.deleteSupplement(info.supplement, context: modelContext, notificationService: notificationService)
+                                        Task {
+                                            await viewModel.deleteSupplement(
+                                                info.supplement,
+                                                context: modelContext,
+                                                notificationService: notificationService
+                                            )
+                                        }
                                     } label: {
                                         Label("delete".localized, systemImage: "trash")
                                     }
@@ -418,12 +430,14 @@ public struct HomeView: View {
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
-                viewModel.deleteDoseTime(
-                    supplement,
-                    timeString: timeString,
-                    context: modelContext,
-                    notificationService: notificationService
-                )
+                Task {
+                    await viewModel.deleteDoseTime(
+                        supplement,
+                        timeString: timeString,
+                        context: modelContext,
+                        notificationService: notificationService
+                    )
+                }
             } label: {
                 Label("delete".localized, systemImage: "trash")
             }
@@ -436,12 +450,14 @@ public struct HomeView: View {
             }
             
             Button(role: .destructive) {
-                viewModel.deleteDoseTime(
-                    supplement,
-                    timeString: timeString,
-                    context: modelContext,
-                    notificationService: notificationService
-                )
+                Task {
+                    await viewModel.deleteDoseTime(
+                        supplement,
+                        timeString: timeString,
+                        context: modelContext,
+                        notificationService: notificationService
+                    )
+                }
             } label: {
                 Label("delete".localized, systemImage: "trash")
             }

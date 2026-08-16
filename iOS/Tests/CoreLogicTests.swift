@@ -47,7 +47,7 @@ final class TimeStringsTests: XCTestCase {
 
 @MainActor
 final class HomeDoseTimeDeletionTests: XCTestCase {
-    func testDeletingLastDoseTimeKeepsSupplement() throws {
+    func testDeletingLastDoseTimeKeepsSupplement() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let supplement = UserSupplement(
@@ -62,7 +62,7 @@ final class HomeDoseTimeDeletionTests: XCTestCase {
 
         let viewModel = HomeViewModel()
         viewModel.processSupplements([supplement])
-        viewModel.deleteDoseTime(
+        await viewModel.deleteDoseTime(
             supplement,
             timeString: "07:00",
             context: context,

@@ -93,6 +93,7 @@ enum CloudSyncAutoSync {
     }
 
     static func requestSyncSoon(modelContext: ModelContext, clientId: UUID?) {
+        guard let clientId else { return }
         markActivity()
         pendingSyncTask?.cancel()
         guard UIApplication.shared.applicationState == .active else { return }

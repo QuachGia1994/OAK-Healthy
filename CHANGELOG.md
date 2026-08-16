@@ -32,6 +32,7 @@ versioning where practical.
 
 ### Fixed
 
+- iOS dose-time and supplement deletion now await notification cleanup before returning, and nil-client autosync requests no longer retain short-lived SwiftData contexts after teardown.
 - Android periodic cycle workers now use a WorkManager-compatible constructor.
 - Android backup imports now preserve interval/last-taken data and remap cross-profile ID collisions without breaking history links.
 - Android background cloud sync now runs without constructing `HomeViewModel`, shares active-client/log persistence services, and retries engine-reported failures instead of silently treating them as success.
