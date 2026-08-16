@@ -5,9 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -18,22 +16,15 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.example.supplementtracker.data.local.SupplementDatabase
-import com.example.supplementtracker.data.repository.SupplementRepositoryImpl
-import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
-import com.example.supplementtracker.presentation.add_supplement.AddSupplementViewModel
 import com.example.supplementtracker.presentation.home.HomeViewModel
-import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakDarkColorScheme
 import com.example.supplementtracker.presentation.designsystem.OakLightColorScheme
 import com.example.supplementtracker.presentation.navigation.AppNavigation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.service.OakPrefs
-import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 
 import android.content.Intent
 import android.content.IntentFilter
@@ -49,9 +40,7 @@ import android.util.Log
 import com.example.supplementtracker.presentation.splash.SplashScreen
 import com.example.supplementtracker.security.AppIntegrity
 import com.example.supplementtracker.worker.CloudAutoSyncWork
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import androidx.appcompat.app.AppCompatDelegate
 
 class MainActivity : ComponentActivity() {
@@ -112,13 +101,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private data class AppDeps(
-        val homeViewModel: HomeViewModel,
-        val historyViewModel: HistoryViewModel,
-        val addSupplementViewModel: AddSupplementViewModel,
-        val activeClientManager: ActiveClientManager
-    )
-
     private fun applySavedNightMode(theme: AppTheme) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val uiModeManager = getSystemService(UiModeManager::class.java)
@@ -142,113 +124,107 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val prefs = OakPrefs.get(applicationContext)
-        val initialTheme = runCatching {
-            val raw = prefs.getString("appTheme", AppTheme.SYSTEM.name) ?: AppTheme.SYSTEM.name
-            AppTheme.valueOf(raw)
-        }.getOrDefault(AppTheme.SYSTEM)
+        val initialTheme = AppStartupPolicy.storedTheme(prefs.getString("appTheme", null))
         applySavedNightMode(initialTheme)
-
         installSplashScreen()
-
         super.onCreate(savedInstanceState)
-
         capturePendingIntakeAction(intent)
         restorePendingIntakeAction(savedInstanceState)
+        registerTimeZoneReceiver()
+        setContent { AppRoot(initialTheme, prefs) }
+    }
 
-        // Đăng ký TimeZoneChangeReceiver
+    private fun registerTimeZoneReceiver() {
         timeZoneReceiver = TimeZoneChangeReceiver {
             homeViewModel?.refreshNotificationSchedules()
         }
         registerReceiver(timeZoneReceiver, IntentFilter(Intent.ACTION_TIMEZONE_CHANGED))
+    }
 
-        setContent {
-            val integrityVerdict = remember { AppIntegrity.evaluate(applicationContext) }
-            if (!integrityVerdict.ok) {
-                MaterialTheme(colorScheme = lightColorScheme()) {
-                    Surface(color = MaterialTheme.colorScheme.background) {
-                        IntegrityBlockedScreen(onExit = { finish() })
-                    }
+    @Composable
+    private fun AppRoot(initialTheme: AppTheme, prefs: android.content.SharedPreferences) {
+        val integrityVerdict = remember { AppIntegrity.evaluate(applicationContext) }
+        if (!integrityVerdict.ok) {
+            MaterialTheme(colorScheme = lightColorScheme()) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    IntegrityBlockedScreen(onExit = { finish() })
                 }
-            } else {
-                var appTheme by rememberSaveable { mutableStateOf(initialTheme) }
-                val isDarkTheme = when (appTheme) {
-                    AppTheme.DARK -> true
-                    AppTheme.LIGHT -> false
-                    AppTheme.SYSTEM -> isSystemInDarkTheme()
+            }
+            return
+        }
+        HealthyApp(initialTheme, prefs)
+    }
+
+    @Composable
+    private fun HealthyApp(initialTheme: AppTheme, prefs: android.content.SharedPreferences) {
+        var appTheme by rememberSaveable { mutableStateOf(initialTheme) }
+        var dependencies by remember { mutableStateOf<AppDependencies?>(null) }
+        var initError by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(Unit) {
+            initializeAppDependencies()
+                .onSuccess { dependencies = it }
+                .onFailure { error ->
+                    Log.e("Startup", "Init failed", error)
+                    initError = error.message ?: "Unknown"
                 }
-
-                var deps by remember { mutableStateOf<AppDeps?>(null) }
-                var initError by remember { mutableStateOf<String?>(null) }
-
-                LaunchedEffect(Unit) {
-                    val minSplashMs = 1_350L
-                    val splashStartedAt = SystemClock.elapsedRealtime()
-                    try {
-                        val (repository, activeClientManager) = withContext(Dispatchers.IO) {
-                            val db = SupplementDatabase.getInstance(applicationContext)
-                            val repository = SupplementRepositoryImpl(db.supplementDao)
-                            val activeClientManager = ActiveClientManager(applicationContext, repository)
-                            repository to activeClientManager
-                        }
-
-                        val homeViewModel = HomeViewModel(
-                            context = applicationContext,
-                            repository = repository,
-                            activeClientManager = activeClientManager
-                        )
-                        val historyViewModel = HistoryViewModel(repository, activeClientManager)
-                        val addSupplementViewModel = AddSupplementViewModel(
-                            saveSupplementUseCase = SaveSupplementUseCase(repository),
-                            repository = repository,
-                            context = applicationContext,
-                            activeClientManager = activeClientManager
-                        )
-
-                        this@MainActivity.homeViewModel = homeViewModel
-                        homeViewModel.refreshNotificationSchedules()
-                        val prefs = OakPrefs.get(applicationContext)
-                        CloudAutoSyncWork.setEnabled(applicationContext, prefs.getBoolean("isAutoSyncEnabled", false))
-                        consumePendingIntakeActionIfPossible(homeViewModel)
-
-                        val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
-                        if (elapsed < minSplashMs) delay(minSplashMs - elapsed)
-                        deps = AppDeps(
-                            homeViewModel = homeViewModel,
-                            historyViewModel = historyViewModel,
-                            addSupplementViewModel = addSupplementViewModel,
-                            activeClientManager = activeClientManager
-                        )
-                    } catch (e: Exception) {
-                        Log.e("Startup", "Init failed", e)
-                        initError = e.message ?: "Unknown"
-                    }
-                }
-
-                MaterialTheme(colorScheme = if (isDarkTheme) OakDarkColorScheme else OakLightColorScheme) {
-                    OakBackground {
-                        val ready = deps
-                        if (initError != null) {
-                            Text(text = initError ?: "Unknown error")
-                        } else if (ready == null) {
-                            SplashScreen(autoFinish = false)
-                        } else {
-                            AppNavigation(
-                                homeViewModel = ready.homeViewModel,
-                                historyViewModel = ready.historyViewModel,
-                                addSupplementViewModel = ready.addSupplementViewModel,
-                                activeClientManager = ready.activeClientManager,
-                                appTheme = appTheme,
-                                onThemeChange = {
-                                    appTheme = it
-                                    prefs.edit().putString("appTheme", it.name).apply()
-                                    applySavedNightMode(it)
-                                }
-                            )
-                        }
-                    }
+        }
+        val darkTheme = resolveDarkTheme(appTheme)
+        MaterialTheme(colorScheme = if (darkTheme) OakDarkColorScheme else OakLightColorScheme) {
+            OakBackground {
+                StartupContent(dependencies, initError, appTheme) { newTheme ->
+                    appTheme = newTheme
+                    prefs.edit().putString("appTheme", newTheme.name).apply()
+                    applySavedNightMode(newTheme)
                 }
             }
         }
+    }
+
+    @Composable
+    private fun resolveDarkTheme(appTheme: AppTheme): Boolean = when (appTheme) {
+        AppTheme.DARK -> true
+        AppTheme.LIGHT -> false
+        AppTheme.SYSTEM -> isSystemInDarkTheme()
+    }
+
+    private suspend fun initializeAppDependencies(): Result<AppDependencies> = runCatching {
+        val splashStartedAt = SystemClock.elapsedRealtime()
+        val dependencies = AppDependenciesFactory(applicationContext).create()
+        homeViewModel = dependencies.homeViewModel
+        dependencies.homeViewModel.refreshNotificationSchedules()
+        val prefs = OakPrefs.get(applicationContext)
+        CloudAutoSyncWork.setEnabled(applicationContext, prefs.getBoolean("isAutoSyncEnabled", false))
+        consumePendingIntakeActionIfPossible(dependencies.homeViewModel)
+        val elapsed = SystemClock.elapsedRealtime() - splashStartedAt
+        val remainingDelay = AppStartupPolicy.remainingSplashDelay(elapsed)
+        if (remainingDelay > 0L) delay(remainingDelay)
+        dependencies
+    }
+
+    @Composable
+    private fun StartupContent(
+        dependencies: AppDependencies?,
+        initError: String?,
+        appTheme: AppTheme,
+        onThemeChange: (AppTheme) -> Unit
+    ) {
+        if (initError != null) {
+            Text(text = initError)
+            return
+        }
+        val ready = dependencies
+        if (ready == null) {
+            SplashScreen(autoFinish = false)
+            return
+        }
+        AppNavigation(
+            homeViewModel = ready.homeViewModel,
+            historyViewModel = ready.historyViewModel,
+            addSupplementViewModel = ready.addSupplementViewModel,
+            activeClientManager = ready.activeClientManager,
+            appTheme = appTheme,
+            onThemeChange = onThemeChange
+        )
     }
 
     @Composable
@@ -300,27 +276,22 @@ class MainActivity : ComponentActivity() {
     
     override fun onResume() {
         super.onResume()
-        val prefs = OakPrefs.get(applicationContext)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-            val stored = prefs.getBoolean("isNotificationEnabledByUser", false)
-            if (!granted && stored) prefs.edit().putBoolean("isNotificationEnabledByUser", false).apply()
-        }
+        reconcileNotificationPermissionPreference()
         homeViewModel?.refreshNotificationSchedules()
+    }
 
-        val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
-        if (!enabled) return
-        
-        val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
-        val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
-        val binId = if (hosted.isNotEmpty()) hosted else linked
-        if (binId.isEmpty()) return
-        
-        // We don't auto-download on resume to avoid annoying 404 errors if the bin is gone.
-        // Auto-sync is handled via periodic upload in HomeViewModel.
-        // Log.d("AutoSync", "☁️ Auto-Sync: Starting download...")
-        // homeViewModel.receiveData(binId)
+    private fun reconcileNotificationPermissionPreference() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val prefs = OakPrefs.get(applicationContext)
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+        val stored = prefs.getBoolean("isNotificationEnabledByUser", false)
+        val normalized = AppStartupPolicy.notificationPreferenceAfterPermissionCheck(stored, granted)
+        if (normalized != stored) {
+            prefs.edit().putBoolean("isNotificationEnabledByUser", normalized).apply()
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

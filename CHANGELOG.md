@@ -31,6 +31,7 @@ versioning where practical.
 - Android periodic cycle workers now use a WorkManager-compatible constructor.
 - Android backup imports now preserve interval/last-taken data and remap cross-profile ID collisions without breaking history links.
 - Android background cloud sync now runs without constructing `HomeViewModel`, shares active-client/log persistence services, and retries engine-reported failures instead of silently treating them as success.
+- Android startup now uses a dedicated dependency factory and testable theme/splash/notification policies; `MainActivity.onCreate` no longer owns database or ViewModel construction.
 - Android reminders fall back safely when exact-alarm access is unavailable and no longer re-enable an in-app notification opt-out.
 - Cross-platform sync now preserves newer deletion tombstones, keeps the revision returned by Android conflict retries, and avoids multi-client history truncation on iOS.
 - iOS manual and automatic cloud sync now share one serialized engine, including legacy single-bin fallback and stale-error cleanup.
