@@ -25,6 +25,7 @@ import com.example.supplementtracker.presentation.designsystem.OakLightColorSche
 import com.example.supplementtracker.presentation.navigation.AppNavigation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.service.OakPrefs
+import com.example.supplementtracker.service.GooglePlayBillingService
 
 import android.content.Intent
 import android.content.IntentFilter
@@ -46,6 +47,7 @@ import androidx.appcompat.app.AppCompatDelegate
 class MainActivity : ComponentActivity() {
     private var timeZoneReceiver: TimeZoneChangeReceiver? = null
     private var homeViewModel: HomeViewModel? = null
+    private var billingService: GooglePlayBillingService? = null
     private var pendingIntakeAction: PendingIntakeAction? = null
 
     enum class IntakeAction {
@@ -191,6 +193,8 @@ class MainActivity : ComponentActivity() {
         val splashStartedAt = SystemClock.elapsedRealtime()
         val dependencies = AppDependenciesFactory(applicationContext).create()
         homeViewModel = dependencies.homeViewModel
+        billingService = dependencies.billingService
+        dependencies.billingService.start()
         dependencies.homeViewModel.refreshNotificationSchedules()
         val prefs = OakPrefs.get(applicationContext)
         CloudAutoSyncWork.setEnabled(applicationContext, prefs.getBoolean("isAutoSyncEnabled", false))
@@ -223,6 +227,7 @@ class MainActivity : ComponentActivity() {
             addSupplementViewModel = ready.addSupplementViewModel,
             activeClientManager = ready.activeClientManager,
             entitlementManager = ready.entitlementManager,
+            billingService = ready.billingService,
             appTheme = appTheme,
             onThemeChange = onThemeChange
         )
@@ -250,6 +255,8 @@ class MainActivity : ComponentActivity() {
             runCatching { unregisterReceiver(receiver) }
         }
         timeZoneReceiver = null
+        billingService?.close()
+        billingService = null
         super.onDestroy()
     }
 
@@ -279,6 +286,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         reconcileNotificationPermissionPreference()
         homeViewModel?.refreshNotificationSchedules()
+        billingService?.start()
     }
 
     private fun reconcileNotificationPermissionPreference() {

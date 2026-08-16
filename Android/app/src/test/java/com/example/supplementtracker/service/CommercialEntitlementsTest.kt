@@ -50,6 +50,22 @@ class CommercialEntitlementsTest {
     }
 
     @Test
+    fun resolverFailsClosedForUnknownOrMissingProducts() {
+        assertEquals(EntitlementSnapshot.Free, CommercialEntitlementResolver.resolve(emptyList()))
+        assertEquals(EntitlementSnapshot.Free, CommercialEntitlementResolver.resolve(listOf("unknown")))
+    }
+
+    @Test
+    fun resolverChoosesHighestOwnedPlan() {
+        val resolved = CommercialEntitlementResolver.resolve(
+            listOf(CommercialProductCatalog.PRO_ANNUAL, CommercialProductCatalog.COACH_MONTHLY)
+        )
+
+        assertEquals(CommercialPlan.COACH, resolved.plan)
+        assertEquals(CommercialProductCatalog.COACH_MONTHLY, resolved.activeProductId)
+    }
+
+    @Test
     fun entitlementManagerFailsClosedToFree() {
         val manager = EntitlementManager()
 

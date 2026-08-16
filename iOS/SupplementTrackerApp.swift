@@ -88,6 +88,7 @@ struct SupplementTrackerApp: App {
 }
 
 private struct RootLaunchView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var selectedTab: Int
     let preferredColorScheme: ColorScheme?
     @Binding var isAppLaunched: Bool
@@ -114,6 +115,17 @@ private struct RootLaunchView: View {
                 }
                 .modelContainer(dependencies.modelContainer)
                 .environment(dependencies.entitlementManager)
+                .environment(dependencies.storeKitBillingService)
+                .task {
+                    await dependencies.storeKitBillingService.start()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    Task { await dependencies.storeKitBillingService.refresh() }
+                }
+                .onDisappear {
+                    dependencies.storeKitBillingService.stop()
+                }
                 .task {
                     DebugReporter.report("ui_task_start", fields: [
                         "safeMode": String(isSafeModeEnabled),
@@ -178,6 +190,7 @@ struct AppDependencyContainer {
     let activeClientManager: ActiveClientManager
     let notificationService: NotificationService
     let entitlementManager: EntitlementManager
+    let storeKitBillingService: StoreKitBillingService
 }
 
 private struct IntegrityBlockedView: View {
@@ -284,12 +297,15 @@ private struct SafeBootView: View {
             let remainingNs = UInt64((minSplashSeconds - elapsed) * 1_000_000_000)
             try? await Task.sleep(nanoseconds: remainingNs)
         }
+        let entitlementManager = EntitlementManager()
+        let storeKitBillingService = StoreKitBillingService(entitlementManager: entitlementManager)
         onReady(
             AppDependencyContainer(
                 modelContainer: container,
                 activeClientManager: manager,
                 notificationService: notificationService,
-                entitlementManager: EntitlementManager()
+                entitlementManager: entitlementManager,
+                storeKitBillingService: storeKitBillingService
             )
         )
         Task { @MainActor in

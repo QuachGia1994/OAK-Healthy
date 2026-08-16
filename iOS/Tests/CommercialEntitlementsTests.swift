@@ -39,6 +39,20 @@ final class CommercialEntitlementsTests: XCTestCase {
         )
     }
 
+    func testResolverFailsClosedForUnknownProducts() {
+        XCTAssertEqual(CommercialEntitlementResolver.resolve(productIds: []), .free)
+        XCTAssertEqual(CommercialEntitlementResolver.resolve(productIds: ["unknown"]), .free)
+    }
+
+    func testResolverChoosesHighestOwnedPlan() {
+        let resolved = CommercialEntitlementResolver.resolve(
+            productIds: [CommercialProductCatalog.proAnnual, CommercialProductCatalog.coachMonthly]
+        )
+
+        XCTAssertEqual(resolved.plan, .coach)
+        XCTAssertEqual(resolved.activeProductId, CommercialProductCatalog.coachMonthly)
+    }
+
     @MainActor
     func testEntitlementManagerFailsClosedToFree() {
         let manager = EntitlementManager()

@@ -57,6 +57,25 @@ public enum CommercialProductCatalog {
     ]
 }
 
+public enum CommercialEntitlementResolver {
+    public static func resolve(productIds: some Sequence<String>) -> EntitlementSnapshot {
+        let ids = Set(productIds)
+        let matches = CommercialProductCatalog.products.filter { ids.contains($0.productId) }
+        guard let highest = matches.max(by: { planRank($0.plan) < planRank($1.plan) }) else {
+            return .free
+        }
+        return EntitlementSnapshot(plan: highest.plan, activeProductId: highest.productId)
+    }
+
+    private static func planRank(_ plan: CommercialPlan) -> Int {
+        switch plan {
+        case .free: return 0
+        case .pro: return 1
+        case .coach: return 2
+        }
+    }
+}
+
 public enum EntitlementPolicy {
     private static let freeFeatures: Set<CommercialFeature> = [
         .basicTracking,

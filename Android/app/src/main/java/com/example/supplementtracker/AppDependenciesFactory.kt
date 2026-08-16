@@ -9,6 +9,7 @@ import com.example.supplementtracker.presentation.home.HistoryViewModel
 import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.GooglePlayBillingService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -17,7 +18,8 @@ internal data class AppDependencies(
     val historyViewModel: HistoryViewModel,
     val addSupplementViewModel: AddSupplementViewModel,
     val activeClientManager: ActiveClientManager,
-    val entitlementManager: EntitlementManager
+    val entitlementManager: EntitlementManager,
+    val billingService: GooglePlayBillingService
 )
 
 internal class AppDependenciesFactory(private val context: Context) {
@@ -35,12 +37,14 @@ internal class AppDependenciesFactory(private val context: Context) {
             context = context,
             activeClientManager = activeClientManager
         )
+        val entitlementManager = EntitlementManager()
         return AppDependencies(
             homeViewModel,
             historyViewModel,
             addViewModel,
             activeClientManager,
-            EntitlementManager()
+            entitlementManager,
+            GooglePlayBillingService(context, entitlementManager)
         )
     }
 }

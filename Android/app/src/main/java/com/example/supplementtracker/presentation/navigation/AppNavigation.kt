@@ -79,6 +79,7 @@ import com.example.supplementtracker.presentation.sync.SyncCenterScreen
 import com.example.supplementtracker.presentation.onboarding.OnboardingScreen
 import com.example.supplementtracker.presentation.monetization.PlanAccessScreen
 import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.GooglePlayBillingService
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -114,6 +115,7 @@ fun AppNavigation(
     addSupplementViewModel: AddSupplementViewModel,
     activeClientManager: ActiveClientManager,
     entitlementManager: EntitlementManager,
+    billingService: GooglePlayBillingService,
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
@@ -249,6 +251,7 @@ fun AppNavigation(
                 composable(Screen.PlanAccess.route) {
                     PlanAccessScreen(
                         entitlementManager = entitlementManager,
+                        billingService = billingService,
                         onBack = { navController.popBackStack() }
                     )
                 }

@@ -1,5 +1,8 @@
 package com.example.supplementtracker.presentation.monetization
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,9 +12,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,9 +27,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,44 +39,62 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.R
 import com.example.supplementtracker.service.CommercialPlan
 import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.GooglePlayBillingService
+import com.example.supplementtracker.service.PlayBillingNotice
+import com.example.supplementtracker.service.PlayStoreProduct
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlanAccessScreen(
     entitlementManager: EntitlementManager,
+    billingService: GooglePlayBillingService,
     onBack: () -> Unit
 ) {
     val snapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.plan_access_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.a11y_navigate_back)
-                        )
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        PlanAccessContent(snapshot.plan, Modifier.padding(padding))
+    val billingState by billingService.state.collectAsStateWithLifecycle()
+    val activity = LocalContext.current.findActivity()
+    LaunchedEffect(Unit) { billingService.refresh() }
+    Scaffold(topBar = { PlanAccessTopBar(onBack) }) { padding ->
+        PlanAccessContent(
+            currentPlan = snapshot.plan,
+            billingState = billingState,
+            activity = activity,
+            billingService = billingService,
+            modifier = Modifier.padding(padding)
+        )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlanAccessContent(currentPlan: CommercialPlan, modifier: Modifier = Modifier) {
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+private fun PlanAccessTopBar(onBack: () -> Unit) {
+    TopAppBar(
+        title = { Text(stringResource(R.string.plan_access_title)) },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_navigate_back))
+            }
+        }
+    )
+}
+
+@Composable
+private fun PlanAccessContent(
+    currentPlan: CommercialPlan,
+    billingState: com.example.supplementtracker.service.PlayBillingState,
+    activity: Activity?,
+    billingService: GooglePlayBillingService,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { CurrentPlanCard(currentPlan) }
         item { PlanCard(CommercialPlan.FREE, currentPlan) }
         item { PlanCard(CommercialPlan.PRO, currentPlan) }
         item { PlanCard(CommercialPlan.COACH, currentPlan) }
-        item { StoreConnectionNote() }
+        items(billingState.products, key = { it.productId }) { product ->
+            PurchaseRow(product, billingState.purchasingProductId, activity, billingService)
+        }
+        item { RestoreAndStatus(billingState.notice, billingService) }
     }
 }
 
@@ -101,11 +126,7 @@ private fun PlanHeader(plan: CommercialPlan, isCurrent: Boolean) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(planTitle(plan), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(
-                planSubtitle(plan),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(planSubtitle(plan), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (isCurrent) Text(stringResource(R.string.plan_access_current_badge), fontWeight = FontWeight.SemiBold)
     }
@@ -121,14 +142,53 @@ private fun FeatureRow(label: String) {
 }
 
 @Composable
-private fun StoreConnectionNote() {
-    Text(
-        text = stringResource(R.string.plan_access_store_note),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-    )
+private fun PurchaseRow(
+    product: PlayStoreProduct,
+    purchasingProductId: String?,
+    activity: Activity?,
+    billingService: GooglePlayBillingService
+) {
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(product.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(product.formattedPrice, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Button(
+                enabled = activity != null && purchasingProductId == null,
+                onClick = { activity?.let { billingService.purchase(it, product.productId) } }
+            ) { Text(stringResource(R.string.billing_buy)) }
+        }
+    }
 }
+
+@Composable
+private fun RestoreAndStatus(notice: PlayBillingNotice?, billingService: GooglePlayBillingService) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = billingService::restorePurchases, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.billing_restore))
+        }
+        notice?.let { Text(noticeText(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Text(
+            stringResource(R.string.billing_store_authoritative_note_play),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun noticeText(notice: PlayBillingNotice): String = stringResource(
+    when (notice) {
+        PlayBillingNotice.PURCHASE_COMPLETED -> R.string.billing_purchase_completed
+        PlayBillingNotice.PURCHASE_PENDING -> R.string.billing_purchase_pending
+        PlayBillingNotice.PURCHASE_CANCELLED -> R.string.billing_purchase_cancelled
+        PlayBillingNotice.RESTORE_COMPLETED -> R.string.billing_restore_completed
+        PlayBillingNotice.VERIFICATION_FAILED -> R.string.billing_verification_failed
+        PlayBillingNotice.VERIFICATION_NOT_CONFIGURED -> R.string.billing_verification_not_configured
+        PlayBillingNotice.STORE_UNAVAILABLE -> R.string.billing_store_unavailable_play
+    }
+)
 
 @Composable
 private fun planTitle(plan: CommercialPlan): String = stringResource(
@@ -167,4 +227,10 @@ private fun planFeatureLabels(plan: CommercialPlan): List<String> = when (plan) 
         stringResource(R.string.plan_feature_multi_client),
         stringResource(R.string.plan_feature_coach_reports)
     )
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

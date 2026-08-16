@@ -57,6 +57,20 @@ object CommercialProductCatalog {
     )
 }
 
+object CommercialEntitlementResolver {
+    fun resolve(productIds: Collection<String>): EntitlementSnapshot {
+        val matches = CommercialProductCatalog.products.filter { it.productId in productIds }
+        val highest = matches.maxByOrNull { planRank(it.plan) } ?: return EntitlementSnapshot.Free
+        return EntitlementSnapshot(highest.plan, highest.productId)
+    }
+
+    private fun planRank(plan: CommercialPlan): Int = when (plan) {
+        CommercialPlan.FREE -> 0
+        CommercialPlan.PRO -> 1
+        CommercialPlan.COACH -> 2
+    }
+}
+
 object EntitlementPolicy {
     private val freeFeatures = setOf(
         CommercialFeature.BASIC_TRACKING,

@@ -432,6 +432,16 @@
     <string name="plan_feature_all_pro">Everything in Pro</string>
     <string name="plan_feature_multi_client">Multi-client management</string>
     <string name="plan_feature_coach_reports">Coach reports</string>
+    <string name="billing_buy">Buy</string>
+    <string name="billing_restore">Restore purchases</string>
+    <string name="billing_purchase_completed">Purchase completed. Access updated.</string>
+    <string name="billing_purchase_pending">Purchase is pending. Access will unlock after payment completes.</string>
+    <string name="billing_purchase_cancelled">Purchase cancelled.</string>
+    <string name="billing_restore_completed">Purchases restored.</string>
+    <string name="billing_verification_failed">Purchase verification failed. Paid access was not granted.</string>
+    <string name="billing_verification_not_configured">Google Play purchase verification is not configured for this build.</string>
+    <string name="billing_store_unavailable_play">Google Play Billing is unavailable or subscriptions are not configured yet.</string>
+    <string name="billing_store_authoritative_note_play">Prices come from Google Play. Paid access requires a completed, verified Play purchase; local settings cannot unlock a paid plan.</string>
 
     <!-- Accessibility labels -->
     <string name="a11y_navigate_back">Go back</string>

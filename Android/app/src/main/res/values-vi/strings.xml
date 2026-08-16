@@ -432,6 +432,16 @@
     <string name="plan_feature_all_pro">Toàn bộ tính năng Pro</string>
     <string name="plan_feature_multi_client">Quản lý nhiều học viên</string>
     <string name="plan_feature_coach_reports">Báo cáo cho coach</string>
+    <string name="billing_buy">Mua</string>
+    <string name="billing_restore">Khôi phục giao dịch</string>
+    <string name="billing_purchase_completed">Mua gói thành công. Quyền truy cập đã cập nhật.</string>
+    <string name="billing_purchase_pending">Giao dịch đang chờ. Quyền truy cập sẽ mở sau khi thanh toán hoàn tất.</string>
+    <string name="billing_purchase_cancelled">Đã hủy giao dịch.</string>
+    <string name="billing_restore_completed">Đã khôi phục giao dịch.</string>
+    <string name="billing_verification_failed">Xác minh giao dịch thất bại. Quyền trả phí chưa được cấp.</string>
+    <string name="billing_verification_not_configured">Bản build này chưa cấu hình khóa xác minh giao dịch Google Play.</string>
+    <string name="billing_store_unavailable_play">Google Play Billing đang không khả dụng hoặc subscription chưa được cấu hình.</string>
+    <string name="billing_store_authoritative_note_play">Giá do Google Play cung cấp. Quyền trả phí chỉ mở sau giao dịch Play đã hoàn tất và xác minh; cài đặt cục bộ không thể mở gói trả phí.</string>
 
     <!-- Nhãn hỗ trợ tiếp cận -->
     <string name="a11y_navigate_back">Quay lại</string>
