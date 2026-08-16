@@ -36,14 +36,13 @@ import com.example.supplementtracker.service.CloudHostEngine
 import com.example.supplementtracker.service.CloudBackupEngine
 import com.example.supplementtracker.service.CloudSyncCrypto
 import com.example.supplementtracker.service.CloudSyncPayloadCodec
+import com.example.supplementtracker.service.CloudSyncLogStore
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import org.json.JSONArray
-import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -111,7 +110,7 @@ class HomeViewModel(
         setLoading = { _cloudSyncLoading.value = it },
         rescheduleNotifications = { rescheduleNotificationsNow() },
         disableAutoSync = { stopAutoSync() },
-        appendLog = { prefs, binId, phase, message -> appendCloudSyncLog(prefs, binId, phase, message) }
+        appendLog = CloudSyncLogStore::append
     )
     private val calculateHomeDashboardUseCase = CalculateHomeDashboardUseCase(calculateCycleUseCase)
     private val importBackupUseCase = ImportBackupUseCase(repository)
@@ -127,7 +126,7 @@ class HomeViewModel(
         buildFullBackupJson = { cloudBackupEngine.buildFullBackupJson() },
         updateUi = { updateCloudSyncUiStatus(it) },
         setLoading = { _cloudSyncLoading.value = it },
-        appendLog = { prefs, binId, phase, message -> appendCloudSyncLog(prefs, binId, phase, message) },
+        appendLog = CloudSyncLogStore::append,
         setMessage = { _dataTransferMessage.value = it }
     )
     private var realtimeListener: com.example.supplementtracker.service.FirebaseRealtimeSyncListener? = null
@@ -514,32 +513,6 @@ class HomeViewModel(
         }
     }
     
-    private fun appendCloudSyncLog(prefs: android.content.SharedPreferences, binId: String, phase: String, message: String) {
-        val id = binId.trim()
-        if (id.isEmpty()) return
-        val key = "cloudSyncLog_$id"
-        val existing = prefs.getString(key, null)
-        val array = runCatching { if (existing.isNullOrBlank()) JSONArray() else JSONArray(existing) }.getOrElse { JSONArray() }
-        val now = System.currentTimeMillis()
-        if (array.length() > 0) {
-            val last = runCatching { array.getJSONObject(array.length() - 1) }.getOrNull()
-            val lastPhase = last?.optString("phase").orEmpty()
-            val lastMsg = last?.optString("msg").orEmpty()
-            val lastTs = last?.optLong("ts") ?: 0L
-            if (lastPhase == phase && lastMsg == message && (now - lastTs) < 15_000L) return
-        }
-        val entry = JSONObject()
-            .put("ts", now)
-            .put("phase", phase)
-            .put("msg", message)
-        array.put(entry)
-        val keep = 30
-        val trimmed = JSONArray()
-        val start = (array.length() - keep).coerceAtLeast(0)
-        for (i in start until array.length()) trimmed.put(array.getJSONObject(i))
-        prefs.edit().putString(key, trimmed.toString()).apply()
-    }
-
     fun refreshNotificationSchedules() {
         viewModelScope.launch {
             rescheduleNotificationsNow()
@@ -560,10 +533,6 @@ class HomeViewModel(
         viewModelScope.launch {
             syncTwoWay(binId)
         }
-    }
-
-    suspend fun runSyncTwoWayNow(binId: String) {
-        syncTwoWay(binId)
     }
 
     fun createClient(profile: ClientProfile) {
