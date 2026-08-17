@@ -14,14 +14,21 @@ cross-platform reliability rather than by a fixed delivery date.
 - P11.2–P11.10 are implemented as the pre-store completion batch: corrected dark contrast, accessibility/touch targets, reduced-motion and responsive behavior, failure-safe Sync UX, denser History/Coach signals, progressive technical diagnostics, post-redesign render-cost cleanup and explicit synthetic presentation fixtures.
 - P11-CLOSE is defined by `scripts/p11_completion_gate.py`, the unified P8–P11 regression matrix and exact-SHA Android/iOS/Quality CI.
 
+## Current store activation
+
+- P12 repository activation is implemented: Android API 36/AGP 8.10.1/Gradle 8.11.1, Xcode 26 store tooling, explicit no-upload readiness mode, fail-closed credential checks, stable subscription catalog validation and P12 CI gates.
+- P12-CLOSE requires Android Build, iOS Build, Quality Gates and the Release readiness-only workflow to be green on the same candidate commit.
+
 ## Next
 
-- Keep P12 Store Activation deferred. Product work after P11 should be driven by device testing and user feedback rather than store enrollment.
+- STOP at the external store gate unless developer accounts are intentionally enabled. When enabled, run TestFlight/Sandbox + Play Internal and complete real P4.1 evidence before any production promotion.
+- After real store activation, the next engineering stage is production commerce hardening: Google Play server-side purchase-token verification/acknowledgement plus RTDN lifecycle processing.
 
-## Deferred
+## External gate
 
-- P12 Store Activation remains deferred until developer accounts are intentionally enabled.
-- Paid Apple/Google accounts, TestFlight/Play tracks, live subscriptions, P4 evidence and production rollout are outside the active roadmap.
+- Apple Developer Program / App Store Connect credentials are not fabricated by repository work.
+- Google Play Console enrollment, app signing/service account and billing credentials are not fabricated by repository work.
+- TestFlight/Play purchase evidence, live subscriptions and production rollout remain external execution until those accounts are enabled.
 
 Please use a feature request to propose a user problem. Roadmap items are not a
 promise of delivery and may change after security, platform, or user feedback.

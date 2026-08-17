@@ -57,6 +57,10 @@ Repository scaffolding for these stages remains intact and must not be replaced 
 - Coach and demo cards are responsive/accessibility-aware.
 - Debug builds expose a read-only synthetic demo preview for screenshots/UX review; it never writes synthetic records into user data.
 
+## P12 repository activation
+
+P12 repository activation is now implemented. The codebase and CI are prepared for 2026 store requirements, but no external store result is fabricated. Release readiness runs with store uploads disabled by default; a real upload requires explicit `execute_store_uploads=true` plus valid developer-account credentials.
+
 ## Resume-store gate
 
-When the owner decides to pay for developer accounts, resume at `P4.1-EXEC` using the existing commercial evidence template. Do not redesign the entitlement contract simply because distribution was deferred.
+When the owner decides to enable developer accounts, resume external execution at `P4.1-EXEC` using the existing commercial evidence template. First upload the P12-tested candidate to TestFlight/Sandbox and Play Internal, then record the real purchase/restore lifecycle matrix. Do not redesign the entitlement contract simply because distribution was deferred.

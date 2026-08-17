@@ -41,6 +41,10 @@ on:
           - "0.5"
           - "1.0"
         default: "0.1"
+      execute_store_uploads:
+        type: boolean
+        description: Actually upload to the selected stores; false runs readiness only
+        default: false
       confirm_production:
         type: boolean
         description: Confirm a production store upload
@@ -70,6 +74,7 @@ env:
   ANDROID_TRACK: ${{ github.event.inputs.android_track || 'internal' }}
   ANDROID_SOURCE_TRACK: ${{ github.event.inputs.android_source_track || 'internal' }}
   ANDROID_ROLLOUT_FRACTION: ${{ github.event.inputs.android_rollout_fraction || '0.1' }}
+  EXECUTE_STORE_UPLOADS: ${{ github.event.inputs.execute_store_uploads || 'false' }}
   CONFIRM_PRODUCTION: ${{ github.event.inputs.confirm_production || 'false' }}
   STORE_BUILD_NUMBER: ${{ github.event.inputs.build_number || github.run_number }}
   CANDIDATE_COMMIT: ${{ github.event.inputs.candidate_commit || '' }}
@@ -98,14 +103,14 @@ jobs:
       - name: Block unconfirmed production upload
         shell: bash
         run: |
-          if { [ "${IOS_LANE}" = "release" ] || [ "${ANDROID_TRACK}" = "production" ]; } && [ "${CONFIRM_PRODUCTION}" != "true" ]; then
+          if [ "${EXECUTE_STORE_UPLOADS}" = "true" ] && { [ "${IOS_LANE}" = "release" ] || [ "${ANDROID_TRACK}" = "production" ]; } && [ "${CONFIRM_PRODUCTION}" != "true" ]; then
             echo "Production upload requires workflow_dispatch confirm_production=true."
             exit 1
           fi
 
       - name: Require tested candidate and commercial evidence for production
         id: candidate
-        if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.ios_lane == 'release' || github.event.inputs.android_track == 'production') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.execute_store_uploads == 'true' && (github.event.inputs.ios_lane == 'release' || github.event.inputs.android_track == 'production') }}
         shell: bash
         run: |
           if [ -z "${{ github.event.inputs.build_number }}" ]; then
@@ -155,7 +160,7 @@ jobs:
           PLAY_BILLING_PUBLIC_KEY: ${{ secrets.PLAY_BILLING_PUBLIC_KEY }}
         run: |
           ios_ok=0
-          if [ "${IOS_LANE}" != "skip" ]; then
+          if [ "${EXECUTE_STORE_UPLOADS}" = "true" ] && [ "${IOS_LANE}" != "skip" ]; then
             ios_ok=1
             for v in APP_STORE_CONNECT_KEY_ID APP_STORE_CONNECT_ISSUER_ID APP_STORE_CONNECT_KEY_CONTENT; do
               if [ -z "${!v}" ]; then
@@ -172,7 +177,7 @@ jobs:
           fi
 
           android_ok=0
-          if [ "${ANDROID_TRACK}" != "skip" ]; then
+          if [ "${EXECUTE_STORE_UPLOADS}" = "true" ] && [ "${ANDROID_TRACK}" != "skip" ]; then
             android_ok=1
             if [ "${ANDROID_TRACK}" = "production" ]; then
               required_android=(GOOGLE_PLAY_SERVICE_ACCOUNT_JSON)
@@ -203,10 +208,22 @@ jobs:
     uses: ./.github/workflows/quality-gates.yml
     secrets: inherit
 
+  store_readiness_only:
+    name: Store Activation Readiness Only
+    needs: [prepare, quality]
+    if: ${{ github.event.inputs.execute_store_uploads != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm no-upload mode
+        run: |
+          echo "Store upload execution is disabled."
+          echo "Quality/preflight completed without contacting App Store Connect or Google Play."
+          echo "Set execute_store_uploads=true only after developer accounts and required secrets are configured."
+
   ios_release:
     name: iOS Release
     needs: [prepare, quality]
-    if: ${{ needs.prepare.outputs.ios_store == 'true' && github.event.inputs.ios_lane != 'skip' }}
+    if: ${{ github.event.inputs.execute_store_uploads == 'true' && needs.prepare.outputs.ios_store == 'true' && github.event.inputs.ios_lane != 'skip' }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -218,7 +235,7 @@ jobs:
       - name: Setup Xcode (pinned)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.4"
+          xcode-version: "26.4"
 
       - name: Install XcodeGen
         env:
@@ -263,23 +280,24 @@ jobs:
           cd iOS
           bundle exec fastlane "${IOS_LANE}"
 
-  ios_release_skipped:
-    name: iOS Release (Skipped - Missing Secrets)
+  ios_release_blocked:
+    name: iOS Release (Blocked - Missing Store Credentials)
     needs: [prepare, quality]
-    if: ${{ github.event.inputs.ios_lane != 'skip' && needs.prepare.outputs.ios_store != 'true' }}
+    if: ${{ github.event.inputs.execute_store_uploads == 'true' && github.event.inputs.ios_lane != 'skip' && needs.prepare.outputs.ios_store != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Print instructions
         shell: bash
         run: |
-          echo "Skipping iOS store release because required secrets are missing."
+          echo "iOS store execution was requested, but required credentials are missing."
           echo "This also requires an Apple Developer Program membership to ship to the App Store/TestFlight."
-          echo "To enable iOS store release, set secrets: MATCH_GIT_URL, MATCH_PASSWORD, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_CONTENT (and optionally MATCH_SSH_PRIVATE_KEY, IOS_APP_IDENTIFIER)."
+          echo "Required secrets: MATCH_GIT_URL, MATCH_PASSWORD, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_CONTENT (and optionally MATCH_SSH_PRIVATE_KEY, IOS_APP_IDENTIFIER)."
+          exit 1
 
   android_release:
     name: Android Test-track Release
     needs: [prepare, quality]
-    if: ${{ needs.prepare.outputs.android_store == 'true' && github.event.inputs.android_track != 'production' && github.event.inputs.android_track != 'skip' }}
+    if: ${{ github.event.inputs.execute_store_uploads == 'true' && needs.prepare.outputs.android_store == 'true' && github.event.inputs.android_track != 'production' && github.event.inputs.android_track != 'skip' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -356,7 +374,7 @@ jobs:
   android_production_promotion:
     name: Android Promote Tested Build
     needs: [prepare, quality]
-    if: ${{ needs.prepare.outputs.android_store == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.android_track == 'production' }}
+    if: ${{ github.event.inputs.execute_store_uploads == 'true' && needs.prepare.outputs.android_store == 'true' && github.event_name == 'workflow_dispatch' && github.event.inputs.android_track == 'production' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -402,15 +420,16 @@ jobs:
           fi
           bundle exec fastlane "${args[@]}"
 
-  android_release_skipped:
-    name: Android Release (Skipped - Missing Secrets)
+  android_release_blocked:
+    name: Android Release (Blocked - Missing Store Credentials)
     needs: [prepare, quality]
-    if: ${{ github.event.inputs.android_track != 'skip' && needs.prepare.outputs.android_store != 'true' }}
+    if: ${{ github.event.inputs.execute_store_uploads == 'true' && github.event.inputs.android_track != 'skip' && needs.prepare.outputs.android_store != 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Print instructions
         shell: bash
         run: |
-          echo "Skipping Android Play upload because required secrets are missing."
+          echo "Android store execution was requested, but required credentials are missing."
           echo "Publishing to Google Play requires a Play Console developer account."
-          echo "To enable Android store release, set secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, GOOGLE_PLAY_SERVICE_ACCOUNT_JSON, PLAY_BILLING_PUBLIC_KEY."
+          echo "Required secrets: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD, GOOGLE_PLAY_SERVICE_ACCOUNT_JSON, PLAY_BILLING_PUBLIC_KEY."
+          exit 1
