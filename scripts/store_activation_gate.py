@@ -21,6 +21,7 @@ def main() -> None:
     root_gradle = read("Android/build.gradle")
     wrapper = read("Android/gradle/wrapper/gradle-wrapper.properties")
     play = read("Android/app/src/main/java/com/example/supplementtracker/service/GooglePlayBillingService.kt")
+    integrity = read("Android/app/src/main/java/com/example/supplementtracker/security/AppIntegrity.kt")
     storekit = read("iOS/Services/StoreKitBillingService.swift")
     release = read(".github/workflows/release.yml")
     ios_build = read(".github/workflows/ios-build.yml")
@@ -40,6 +41,7 @@ def main() -> None:
     require("Blocked - Missing Store Credentials" in release and release.count("exit 1") >= 5, "Missing store credentials fail closed")
     require("purchaseOptions.clear()" in play, "Play offer map cannot retain stale store offers")
     require("Purchase.PurchaseState.PENDING" in play and "VERIFICATION_FAILED" in play, "Play pending/unverified purchases fail closed")
+    require(".signatures ?: return null" in integrity and "certs ?: return null" in integrity, "API 36 signing certificate reads fail closed on missing signatures")
     require("Transaction.currentEntitlements" in storekit and "case .verified" in storekit, "StoreKit entitlements require verified transactions")
     for product_id in PRODUCT_IDS:
         require(product_id in android_catalog and product_id in ios_catalog, f"Catalog parity: {product_id}")
