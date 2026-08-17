@@ -47,10 +47,16 @@ jobs:
       - name: Validate P10.3 security hardening
         run: python3 scripts/security_hardening_gate.py
 
-      - name: Run readiness unit tests
-        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate scripts.tests.test_coach_workspace_gate scripts.tests.test_activation_retention_gate scripts.tests.test_architecture_boundaries_gate scripts.tests.test_performance_battery_gate scripts.tests.test_security_hardening_gate scripts.tests.test_oak_regression scripts.tests.test_verify_xcode_test_run -q
+      - name: Validate P11.1 UX polish
+        run: python3 scripts/ux_polish_gate.py
 
-      - name: Run unified P10 regression matrix
+      - name: Validate editorial native redesign
+        run: python3 scripts/editorial_design_gate.py
+
+      - name: Run readiness unit tests
+        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate scripts.tests.test_coach_workspace_gate scripts.tests.test_activation_retention_gate scripts.tests.test_architecture_boundaries_gate scripts.tests.test_performance_battery_gate scripts.tests.test_security_hardening_gate scripts.tests.test_ux_polish_gate scripts.tests.test_editorial_design_gate scripts.tests.test_oak_regression scripts.tests.test_verify_xcode_test_run -q
+
+      - name: Run unified repository regression matrix
         run: python3 scripts/oak_regression.py
 
   ios:
