@@ -3,6 +3,7 @@ package com.example.supplementtracker.presentation.home
 import com.example.supplementtracker.presentation.designsystem.OakColors
 import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import android.content.Context
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box

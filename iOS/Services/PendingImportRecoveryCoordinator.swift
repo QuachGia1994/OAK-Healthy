@@ -38,8 +38,10 @@ struct PendingImportRecoveryCoordinator {
             )
             activeClientManager.setCurrentClientId(resolution.client.id)
             applyLink(linkedBinId, clientId: resolution.client.id)
-            guard !notificationsEnabled || await reschedule(clientId: resolution.client.id) else {
-                return .notificationsPending
+            if notificationsEnabled {
+                guard await reschedule(clientId: resolution.client.id) else {
+                    return .notificationsPending
+                }
             }
             return .applied
         } catch {
