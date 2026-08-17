@@ -37,7 +37,7 @@ versioning where practical.
 
 ### Changed
 
-- Android compile/target SDK moved to API 36 with AGP 8.10.1 and Gradle 8.11.1; iOS build/quality/store workflows now pin Xcode 26.4 so 2026 store submissions use current SDK tooling.
+- Android compile/target SDK moved to API 36 with AGP 8.10.1 and Gradle 8.11.1; iOS build/quality/store workflows now select the current stable Xcode and enforce an Xcode 26+ floor for 2026 store submissions.
 - Release workflow now runs readiness-only by default and requires `execute_store_uploads=true` before any App Store Connect or Google Play upload; requested execution with missing credentials fails instead of reporting a successful skip.
 - Dark-theme paper, secondary-text, outline and hairline tokens now use higher-contrast values on Android and iOS; Sync technical metrics are hidden behind progressive disclosure and iOS Sync log surfaces no longer use per-row blur material.
 - History now distinguishes loading, load failure, true empty and filtered no-match states with explicit retry/client-management actions; touched iOS History diagnostics expose only aggregate client presence and error type rather than raw client identity/error text.

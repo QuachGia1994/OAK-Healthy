@@ -6,7 +6,7 @@ P12 closes the repository-side store activation path without fabricating App Sto
 
 - Android app and baseline-profile modules compile/target API 36.
 - Android Gradle Plugin is 8.10.1 and Gradle is 8.11.1.
-- iOS build, quality and store-release workflows use Xcode 26.4 / iOS 26 SDK tooling.
+- iOS build, quality and store-release workflows select the current stable Xcode and enforce Xcode 26+ / iOS 26+ SDK tooling at runtime.
 
 ## P12.2 — Explicit execution boundary
 
