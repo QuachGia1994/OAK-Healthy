@@ -64,10 +64,18 @@ def main() -> int:
     require("com.android.tools.build:gradle:8.10.1" in android_root_gradle, "Android AGP supports API 36", failures)
     require("gradle-8.11.1-bin.zip" in android_wrapper, "Gradle wrapper matches API 36 toolchain", failures)
     require(
-        'xcode-version: "26.4"' in release_workflow
-        and 'xcode-version: "26.4"' in ios_build_workflow
-        and 'xcode-version: "26.4"' in quality_workflow,
-        "iOS CI/store workflows use Xcode 26 SDK tooling",
+        'xcode-version: "latest-stable"' in release_workflow
+        and 'xcode-version: "latest-stable"' in ios_build_workflow
+        and 'xcode-version: "latest-stable"' in quality_workflow
+        and "Require Xcode 26+" in release_workflow
+        and ios_build_workflow.count("Require Xcode 26+") >= 2
+        and "Require Xcode 26+" in quality_workflow,
+        "iOS CI/store workflows enforce current stable Xcode 26+",
+        failures,
+    )
+    require(
+        "16.4" not in release_workflow and "16.4" not in ios_build_workflow and "16.4" not in quality_workflow,
+        "No store-capable iOS workflow remains on Xcode 16",
         failures,
     )
 

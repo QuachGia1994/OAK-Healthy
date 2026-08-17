@@ -16,7 +16,7 @@ cross-platform reliability rather than by a fixed delivery date.
 
 ## Current store activation
 
-- P12 repository activation is implemented: Android API 36/AGP 8.10.1/Gradle 8.11.1, Xcode 26 store tooling, explicit no-upload readiness mode, fail-closed credential checks, stable subscription catalog validation and P12 CI gates.
+- P12 repository activation is implemented: Android API 36/AGP 8.10.1/Gradle 8.11.1, current-stable Xcode with an enforced Xcode 26+ floor, explicit no-upload readiness mode, fail-closed credential checks, stable subscription catalog validation and P12 CI gates.
 - P12-CLOSE requires Android Build, iOS Build, Quality Gates and the Release readiness-only workflow to be green on the same candidate commit.
 
 ## Next

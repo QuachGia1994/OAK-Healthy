@@ -83,10 +83,20 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Setup Xcode (pinned)
+      - name: Setup Xcode (current stable)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "26.4"
+          xcode-version: "latest-stable"
+
+      - name: Require Xcode 26+
+        shell: bash
+        run: |
+          version="$(xcodebuild -version | awk '/Xcode/ {print $2; exit}')"
+          major="${version%%.*}"
+          if [ -z "${major}" ] || [ "${major}" -lt 26 ]; then
+            echo "App Store activation requires Xcode 26 or later; found ${version:-unknown}."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         env:
@@ -145,10 +155,20 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Setup Xcode (pinned)
+      - name: Setup Xcode (current stable)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.4"
+          xcode-version: "latest-stable"
+
+      - name: Require Xcode 26+
+        shell: bash
+        run: |
+          version="$(xcodebuild -version | awk '/Xcode/ {print $2; exit}')"
+          major="${version%%.*}"
+          if [ -z "${major}" ] || [ "${major}" -lt 26 ]; then
+            echo "App Store activation requires Xcode 26 or later; found ${version:-unknown}."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         env:
