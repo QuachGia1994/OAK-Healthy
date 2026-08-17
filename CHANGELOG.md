@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- P10.2–P10.4 add bounded persistence/background-work budgets, AES-GCM tamper/security/privacy regressions, Firebase/backup/secret-scan contracts, and one `scripts/oak_regression.py` command for the full deterministic P8–P10 repository matrix.
 - P10.1 Architecture Decomposition adds typed sync status/log boundaries, injectable notification diagnostics, Coach source providers, iOS bootstrap/import/lifecycle coordinators, a current-state architecture map, and a repository boundary regression gate.
 - P9.5 Activation & Retention 2.0 adds cross-platform first-value milestones, actionable empty/recovery states, pressure-free recent-rhythm feedback, existing-user milestone reconciliation, and consent-gated aggregate activation telemetry restricted to milestone/state enums.
 - P9.4 Coach Workspace 3.0 adds client drill-down, same-client current-vs-previous 7/30/90-day comparisons, client filters, bounded local routine check-ins, renderer-neutral report documents, Android/iOS workspace tests, and a non-medical/local-only repository gate.
@@ -33,6 +34,7 @@ versioning where practical.
 
 ### Changed
 
+- History/Coach reads now use bounded date windows, sync dirty checks use existence-sized database queries, Android periodic fallback sync is 30 minutes, and iOS realtime fallback polling never runs faster than 30 seconds during recent activity.
 - Sync, notification, Safe Mode recovery, bootstrap and Coach repository access now have explicit service/domain owners instead of keeping raw persistence/platform orchestration inside large views and ViewModels; behavior and data schemas are unchanged.
 - Store execution is explicitly deferred until developer accounts are desired; repository commerce/store gates remain intact and do not block continued product development.
 - About/onboarding/recovery copy now consistently positions OAK Healthy as a wellness routine tracker for individuals and coaches without diagnosis/treatment claims.
@@ -79,6 +81,7 @@ versioning where practical.
 
 ### Security
 
+- Android/iOS AES-GCM sync now has explicit ciphertext-tamper regression coverage, and CI verifies Firebase auth/revision/payload rules, OS backup exclusions, platform key-storage contracts, diagnostics allowlists, plaintext-downgrade rejection, and strong committed-secret signatures.
 - Cloud/debug telemetry no longer emits client IDs, cloud link IDs, raw server responses, file paths, or raw error text; analytics and crash collection are disabled by default until the user opts in.
 - Malformed encryption envelopes now fail closed.
 - Firebase identifiers and encryption key IDs are validated before use.

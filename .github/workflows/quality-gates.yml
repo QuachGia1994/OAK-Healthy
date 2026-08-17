@@ -41,8 +41,17 @@ jobs:
       - name: Validate P10.1 architecture boundaries
         run: python3 scripts/architecture_boundaries_gate.py
 
+      - name: Validate P10.2 performance and battery budgets
+        run: python3 scripts/performance_battery_gate.py
+
+      - name: Validate P10.3 security hardening
+        run: python3 scripts/security_hardening_gate.py
+
       - name: Run readiness unit tests
-        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate scripts.tests.test_coach_workspace_gate scripts.tests.test_activation_retention_gate scripts.tests.test_architecture_boundaries_gate -q
+        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate scripts.tests.test_coach_workspace_gate scripts.tests.test_activation_retention_gate scripts.tests.test_architecture_boundaries_gate scripts.tests.test_performance_battery_gate scripts.tests.test_security_hardening_gate scripts.tests.test_oak_regression -q
+
+      - name: Run unified P10 regression matrix
+        run: python3 scripts/oak_regression.py
 
   ios:
     name: iOS Coverage >= 80%
