@@ -38,6 +38,7 @@ public struct LocalizationService: Sendable {
         "log_details": ("Log Details", "Chi tiết nhật ký"),
         "no_logs_yet": ("No logs yet.", "Chưa có nhật ký nào."),
         "today_intake_title": ("Today's Intake", "Cần uống hôm nay"),
+        "home_summary_recorded_format": ("of %d recorded", "trên %d đã ghi nhận"),
         "no_intake_today": ("No intake scheduled for today.", "Không có lịch uống hôm nay."),
         "home_no_overdue": ("No overdue items.", "Không có mốc nào quá hạn."),
         "add_client_to_start": ("Add a Client to start.", "Thêm một học viên để bắt đầu."),

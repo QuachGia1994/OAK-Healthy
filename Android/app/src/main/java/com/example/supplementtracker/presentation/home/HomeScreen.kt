@@ -69,6 +69,9 @@ import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.designsystem.OakTypography
 import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.OakRadius
+import com.example.supplementtracker.presentation.designsystem.OakSpacing
+import com.example.supplementtracker.presentation.designsystem.OakTypeScale
 import com.example.supplementtracker.presentation.designsystem.oakTouchTarget
 import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
 import com.example.supplementtracker.presentation.designsystem.rememberOakReduceMotion
@@ -499,20 +502,79 @@ private fun HomeDashboardHeader(
     hiddenCount: Int,
     onSelected: (HomeDoseFilter) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val total = counts.due + counts.missed + counts.taken + counts.skipped
+    val recorded = counts.taken + counts.skipped
+    val progress = if (total == 0) 0f else recorded.toFloat() / total.toFloat()
+    OakCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(OakRadius.Lg),
+        contentPadding = PaddingValues(OakSpacing.Xl)
+    ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SectionHeader(stringResource(R.string.today_intake_title), Modifier.weight(1f))
+            Text(
+                text = stringResource(R.string.today_intake_title),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontFamily = OakTypography.Display,
+                    fontSize = OakTypeScale.SectionTitle
+                ),
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
             StreakPill(days = streakDays)
         }
+        Spacer(modifier = Modifier.height(OakSpacing.Lg))
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
+            Text(
+                text = recorded.toString(),
+                style = MaterialTheme.typography.displaySmall.copy(
+                    fontFamily = OakTypography.Display,
+                    fontSize = OakTypeScale.HeroNumber
+                ),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = stringResource(R.string.home_summary_recorded_format, total),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(OakSpacing.Md))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(OakRadius.Pill)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+        Spacer(modifier = Modifier.height(OakSpacing.Lg))
         TodayStrip(counts = counts, selected = selected, onSelected = onSelected)
         if (counts.missed > 0) {
-            RecoveryCard(counts.missed) { onSelected(HomeDoseFilter.OVERDUE) }
+            HorizontalDivider(modifier = Modifier.padding(vertical = OakSpacing.Lg))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+                    Text(stringResource(R.string.recovery_title), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        stringResource(R.string.recovery_body_format, counts.missed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        stringResource(R.string.recovery_pressure_free_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                TextButton(onClick = { onSelected(HomeDoseFilter.OVERDUE) }) {
+                    Text(stringResource(R.string.recovery_review_action))
+                }
+            }
         }
         if (selected != HomeDoseFilter.ALL && hiddenCount > 0) {
             Text(
                 text = stringResource(R.string.home_filter_hint_format, hiddenCount),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = OakSpacing.Md)
             )
         }
     }
@@ -569,32 +631,6 @@ private fun ActivationMilestoneRow(milestone: ActivationMilestone, progress: Act
 }
 
 @Composable
-private fun RecoveryCard(missedCount: Int, onReview: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.recovery_title), fontWeight = FontWeight.SemiBold)
-                Text(
-                    stringResource(R.string.recovery_body_format, missedCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    stringResource(R.string.recovery_pressure_free_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            TextButton(onClick = onReview) { Text(stringResource(R.string.recovery_review_action)) }
-        }
-    }
-}
-
-@Composable
 private fun TodayStrip(
     counts: TodayCounts,
     selected: HomeDoseFilter,
@@ -602,112 +638,87 @@ private fun TodayStrip(
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val adaptive = rememberOakAdaptiveLayout()
+    val due = if (isDark) OakColors.DueSoonDark else OakColors.DueSoon
+    val missed = if (isDark) OakColors.MissedDark else OakColors.Missed
+    val taken = if (isDark) OakColors.TakenDark else OakColors.Taken
+    val skipped = if (isDark) OakColors.SkippedDark else OakColors.Skipped
+    val firstRow: @Composable RowScope.() -> Unit = {
+        TodayMetricButton(stringResource(R.string.home_status_due), counts.due, due, selected == HomeDoseFilter.DUE, Modifier.weight(1f)) {
+            onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
+        }
+        TodayMetricButton(stringResource(R.string.dose_status_missed), counts.missed, missed, selected == HomeDoseFilter.OVERDUE, Modifier.weight(1f)) {
+            onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
+        }
+    }
+    val secondRow: @Composable RowScope.() -> Unit = {
+        TodayMetricButton(stringResource(R.string.notif_action_taken), counts.taken, taken, selected == HomeDoseFilter.TAKEN, Modifier.weight(1f)) {
+            onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
+        }
+        TodayMetricButton(stringResource(R.string.notif_action_skip), counts.skipped, skipped, selected == HomeDoseFilter.SKIPPED, Modifier.weight(1f)) {
+            onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
+        }
+    }
     if (adaptive.stackMetrics) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            TodayStripButton(stringResource(R.string.home_status_due), counts.due, if (isDark) OakColors.DueSoonDark else OakColors.DueSoon, selected == HomeDoseFilter.DUE, Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm), content = firstRow)
+            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm), content = secondRow)
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm), modifier = Modifier.fillMaxWidth()) {
+            TodayMetricButton(stringResource(R.string.home_status_due), counts.due, due, selected == HomeDoseFilter.DUE, Modifier.weight(1f)) {
                 onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
             }
-            TodayStripButton(stringResource(R.string.dose_status_missed), counts.missed, if (isDark) OakColors.MissedDark else OakColors.Missed, selected == HomeDoseFilter.OVERDUE, Modifier.fillMaxWidth()) {
+            TodayMetricButton(stringResource(R.string.dose_status_missed), counts.missed, missed, selected == HomeDoseFilter.OVERDUE, Modifier.weight(1f)) {
                 onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
             }
-            TodayStripButton(stringResource(R.string.notif_action_taken), counts.taken, if (isDark) OakColors.TakenDark else OakColors.Taken, selected == HomeDoseFilter.TAKEN, Modifier.fillMaxWidth()) {
+            TodayMetricButton(stringResource(R.string.notif_action_taken), counts.taken, taken, selected == HomeDoseFilter.TAKEN, Modifier.weight(1f)) {
                 onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
             }
-            TodayStripButton(stringResource(R.string.notif_action_skip), counts.skipped, if (isDark) OakColors.SkippedDark else OakColors.Skipped, selected == HomeDoseFilter.SKIPPED, Modifier.fillMaxWidth()) {
+            TodayMetricButton(stringResource(R.string.notif_action_skip), counts.skipped, skipped, selected == HomeDoseFilter.SKIPPED, Modifier.weight(1f)) {
                 onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
             }
-        }
-        return
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            TodayStripButton(
-                title = stringResource(R.string.home_status_due),
-                count = counts.due,
-                tint = if (isDark) OakColors.DueSoonDark else OakColors.DueSoon,
-                selected = selected == HomeDoseFilter.DUE,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
-                }
-            )
-            TodayStripButton(
-                title = stringResource(R.string.dose_status_missed),
-                count = counts.missed,
-                tint = if (isDark) OakColors.MissedDark else OakColors.Missed,
-                selected = selected == HomeDoseFilter.OVERDUE,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
-                }
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            TodayStripButton(
-                title = stringResource(R.string.notif_action_taken),
-                count = counts.taken,
-                tint = if (isDark) OakColors.TakenDark else OakColors.Taken,
-                selected = selected == HomeDoseFilter.TAKEN,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
-                }
-            )
-            TodayStripButton(
-                title = stringResource(R.string.notif_action_skip),
-                count = counts.skipped,
-                tint = if (isDark) OakColors.SkippedDark else OakColors.Skipped,
-                selected = selected == HomeDoseFilter.SKIPPED,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
-                }
-            )
         }
     }
 }
 
 @Composable
-private fun TodayStripButton(
+private fun TodayMetricButton(
     title: String,
     count: Int,
     tint: Color,
     selected: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
- ) {
-    val textColor = MaterialTheme.colorScheme.onSurface
-    val containerColor = if (selected) tint.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface
-    Card(
-        onClick = onClick,
+) {
+    Column(
         modifier = modifier
+            .clip(RoundedCornerShape(OakRadius.Md))
+            .background(if (selected) tint.copy(alpha = 0.10f) else Color.Transparent)
+            .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) {}
             .oakTouchTarget()
-            .heightIn(min = 72.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, if (selected) tint.copy(alpha = 0.42f) else MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            .padding(horizontal = OakSpacing.Sm, vertical = OakSpacing.Md),
+        verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(modifier = Modifier.size(7.dp).background(tint, CircleShape))
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = textColor.copy(alpha = 0.76f),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = count.toString(),
-                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = OakTypography.Display),
-                color = tint,
-                fontWeight = FontWeight.SemiBold
+                overflow = TextOverflow.Ellipsis
             )
         }
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontFamily = OakTypography.Display,
+                fontSize = OakTypeScale.Metric
+            ),
+            color = tint,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 

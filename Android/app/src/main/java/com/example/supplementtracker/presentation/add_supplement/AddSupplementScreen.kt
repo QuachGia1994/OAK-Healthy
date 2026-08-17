@@ -71,7 +71,10 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.SupplementReference
 import com.example.supplementtracker.domain.util.TimeStrings
 import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakColors
+import com.example.supplementtracker.presentation.designsystem.OakRadius
+import com.example.supplementtracker.presentation.designsystem.OakSpacing
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -150,14 +153,12 @@ private fun AddSupplementContent(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        contentPadding = PaddingValues(horizontal = OakSpacing.Lg, vertical = OakSpacing.Md),
+        verticalArrangement = Arrangement.spacedBy(OakSpacing.Lg)
     ) {
         item("intro") { SupplementIntro() }
-        item("details") { DetailsSection(state, viewModel) }
-        item("timing") { TimingSection(state, viewModel) }
-        item("rhythm") { RhythmSection(state, viewModel) }
-        item("bottom-space") { Spacer(Modifier.height(12.dp)) }
+        item("form") { SupplementFormSurface(state, viewModel) }
+        item("bottom-space") { Spacer(Modifier.height(OakSpacing.Md)) }
     }
 }
 
@@ -184,8 +185,23 @@ private fun SupplementIntro() {
 }
 
 @Composable
+private fun SupplementFormSurface(state: AddSupplementState, viewModel: AddSupplementViewModel) {
+    OakCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(OakRadius.Lg),
+        contentPadding = PaddingValues(OakSpacing.Xl)
+    ) {
+        DetailsSection(state, viewModel)
+        HorizontalDivider(modifier = Modifier.padding(vertical = OakSpacing.Xl))
+        TimingSection(state, viewModel)
+        HorizontalDivider(modifier = Modifier.padding(vertical = OakSpacing.Xl))
+        RhythmSection(state, viewModel)
+    }
+}
+
+@Composable
 private fun DetailsSection(state: AddSupplementState, viewModel: AddSupplementViewModel) {
-    SupplementSectionCard(
+    SupplementSection(
         title = stringResource(R.string.supplement_details_title),
         subtitle = stringResource(R.string.supplement_details_body),
         icon = Icons.Default.AddCircle
@@ -242,7 +258,7 @@ private fun SuggestionRow(
 private fun TimingSection(state: AddSupplementState, viewModel: AddSupplementViewModel) {
     val context = LocalContext.current
     val formatter = remember { DateTimeFormatter.ofPattern("yyyy/MM/dd") }
-    SupplementSectionCard(
+    SupplementSection(
         title = stringResource(R.string.supplement_timing_title),
         subtitle = stringResource(R.string.supplement_timing_body),
         icon = Icons.Default.Schedule
@@ -303,7 +319,7 @@ private fun IntakeTimeChips(intakeTime: String, onRemove: (String) -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RhythmSection(state: AddSupplementState, viewModel: AddSupplementViewModel) {
-    SupplementSectionCard(
+    SupplementSection(
         title = stringResource(R.string.supplement_rhythm_title),
         subtitle = stringResource(R.string.supplement_rhythm_body),
         icon = Icons.Default.Tune
@@ -404,29 +420,31 @@ private fun NumberField(
 }
 
 @Composable
-private fun SupplementSectionCard(
+private fun SupplementSection(
     title: String,
     subtitle: String,
     icon: ImageVector,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-            contentColor = MaterialTheme.colorScheme.onSurface
-        )
-    ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                Column {
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(OakSpacing.Md)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Md), verticalAlignment = Alignment.Top) {
+            Surface(
+                shape = RoundedCornerShape(OakRadius.Sm),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+            ) {
+                Icon(
+                    icon,
+                    null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(OakSpacing.Sm).size(20.dp)
+                )
             }
-            content()
+            Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
+        content()
     }
 }
 

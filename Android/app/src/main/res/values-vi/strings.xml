@@ -106,6 +106,7 @@
     <string name="cycle_every_n_days_format">Cách %1$d ngày</string>
 
     <string name="today_intake_title">Cần uống hôm nay</string>
+    <string name="home_summary_recorded_format">trên %1$d đã ghi nhận</string>
     <string name="resting_title">Đang nghỉ</string>
     <string name="no_intake_today">Hôm nay bạn không có lịch uống nào.</string>
     <string name="rest_until">Nghỉ đến: %1$s</string>

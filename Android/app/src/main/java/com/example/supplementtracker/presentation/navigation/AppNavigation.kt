@@ -361,47 +361,46 @@ private fun OakBottomBar(
     overdueCount: Int,
     onTabSelected: (String) -> Unit
 ) {
-    val containerShape = RoundedCornerShape(28.dp)
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
     ) {
-        Surface(
-            modifier = Modifier
-                .widthIn(max = 420.dp)
-                .fillMaxWidth()
-                .shadow(4.dp, containerShape, clip = false),
-            shape = containerShape,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-            tonalElevation = 3.dp
-        ) {
-            NavigationBar(containerColor = Color.Transparent, tonalElevation = 0.dp) {
-                items.forEach { screen ->
-                    val selected = currentRoute == screen.route
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { if (!selected) onTabSelected(screen.route) },
-                        icon = {
-                            BadgedBox(
-                                badge = {
-                                    if (screen == Screen.Home && overdueCount > 0) {
-                                        Badge { Text(if (overdueCount > 99) "99+" else overdueCount.toString()) }
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Box(
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
+                contentAlignment = Alignment.Center
+            ) {
+                NavigationBar(
+                    modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+                    containerColor = Color.Transparent,
+                    tonalElevation = 0.dp
+                ) {
+                    items.forEach { screen ->
+                        val selected = currentRoute == screen.route
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = { if (!selected) onTabSelected(screen.route) },
+                            icon = {
+                                BadgedBox(
+                                    badge = {
+                                        if (screen == Screen.Home && overdueCount > 0) {
+                                            Badge { Text(if (overdueCount > 99) "99+" else overdueCount.toString()) }
+                                        }
                                     }
-                                }
-                            ) { screen.icon() }
-                        },
-                        label = { Text(stringResource(screen.titleRes), maxLines = 1) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ) { screen.icon() }
+                            },
+                            label = { Text(stringResource(screen.titleRes), maxLines = 1) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
-                    )
+                    }
                 }
             }
         }

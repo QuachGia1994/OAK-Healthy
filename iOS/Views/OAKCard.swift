@@ -1,22 +1,22 @@
 import SwiftUI
 
 enum OAKPalette {
-    static let accent = Color(red: 0.18, green: 0.36, blue: 0.27)
-    static let accentDark = Color(red: 0.61, green: 0.78, blue: 0.66)
+    static let accent = Color(red: 0.1216, green: 0.4196, blue: 0.3020)
+    static let accentDark = Color(red: 0.4902, green: 0.8275, blue: 0.6588)
 
-    static let paper = Color(red: 0.96, green: 0.94, blue: 0.90)
-    static let paperRaised = Color(red: 0.985, green: 0.973, blue: 0.945)
-    static let paperMuted = Color(red: 0.92, green: 0.89, blue: 0.84)
-    static let ink = Color(red: 0.11, green: 0.13, blue: 0.11)
-    static let inkMuted = Color(red: 0.37, green: 0.39, blue: 0.36)
-    static let hairline = Color(red: 0.84, green: 0.80, blue: 0.75)
+    static let paper = Color(red: 0.9647, green: 0.9686, blue: 0.9608)
+    static let paperRaised = Color.white
+    static let paperMuted = Color(red: 0.9333, green: 0.9451, blue: 0.9333)
+    static let ink = Color(red: 0.0667, green: 0.0824, blue: 0.0745)
+    static let inkMuted = Color(red: 0.3490, green: 0.3804, blue: 0.3608)
+    static let hairline = Color(red: 0.8627, green: 0.8863, blue: 0.8667)
 
-    static let paperDark = Color(red: 0.067, green: 0.09, blue: 0.074)
-    static let paperRaisedDark = Color(red: 0.102, green: 0.129, blue: 0.106)
-    static let paperMutedDark = Color(red: 0.141, green: 0.176, blue: 0.145)
-    static let inkDark = Color(red: 0.973, green: 0.953, blue: 0.914)
-    static let inkMutedDark = Color(red: 0.816, green: 0.835, blue: 0.796)
-    static let hairlineDark = Color(red: 0.337, green: 0.392, blue: 0.353)
+    static let paperDark = Color(red: 0.0431, green: 0.0588, blue: 0.0510)
+    static let paperRaisedDark = Color(red: 0.0667, green: 0.0902, blue: 0.0784)
+    static let paperMutedDark = Color(red: 0.0941, green: 0.1255, blue: 0.1098)
+    static let inkDark = Color(red: 0.9490, green: 0.9608, blue: 0.9529)
+    static let inkMutedDark = Color(red: 0.6667, green: 0.7098, blue: 0.6824)
+    static let hairlineDark = Color(red: 0.2510, green: 0.3137, blue: 0.2784)
 
     static let due = Color(red: 0.27, green: 0.42, blue: 0.55)
     static let missed = Color(red: 0.71, green: 0.28, blue: 0.25)

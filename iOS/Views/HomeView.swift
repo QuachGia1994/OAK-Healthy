@@ -4,6 +4,7 @@ import SwiftData
 /// Màn hình chính Dashboard trên iOS.
 public struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
@@ -82,7 +83,7 @@ public struct HomeView: View {
             }
             .navigationTitle("dashboard_title".localized)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(OAKPalette.background(for: colorScheme), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -278,27 +279,6 @@ public struct HomeView: View {
         }
     }
 
-    private func recoveryCard(missedCount: Int) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("recovery_title".localized)
-                    .font(.subheadline.weight(.semibold))
-                Text(String(format: "recovery_body_format".localized, missedCount))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("recovery_pressure_free_hint".localized)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("recovery_review_action".localized) { doseFilter = .overdue }
-                .buttonStyle(.bordered)
-        }
-        .padding(12)
-        .oakCardStyle(.glass, cornerRadius: 14)
-        .accessibilityElement(children: .combine)
-    }
-
     private func actionableEmptyRow(
         title: String,
         body: String,
@@ -321,22 +301,13 @@ public struct HomeView: View {
         let now = renderNow
         let overdue = cachedOverdue
         return VStack(spacing: 0) {
-            TodayHeaderView(
-                title: "today_intake_title".localized,
+            HomeSummaryPanel(
+                filter: $doseFilter,
+                counts: viewModel.cachedTodayCounts,
                 streakDays: viewModel.cachedStreakDays
             )
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-
-            HomeDoseFilterBar(filter: $doseFilter, counts: viewModel.cachedTodayCounts)
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-
-            if viewModel.cachedTodayCounts.missed > 0 {
-                recoveryCard(missedCount: viewModel.cachedTodayCounts.missed)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 10)
-            }
+            .padding(.horizontal, OAKSpacing.lg)
+            .padding(.top, OAKSpacing.md)
 
             if !activationProgress.firstValueReached {
                 firstValueCard
@@ -637,44 +608,94 @@ private enum HomeDoseFilter: String, CaseIterable, Identifiable {
     }
 }
 
-private struct HomeDoseFilterBar: View {
+private struct HomeSummaryPanel: View {
     @Binding var filter: HomeDoseFilter
     let counts: HomeViewModel.TodayCounts
+    let streakDays: Int
     @Environment(\.colorScheme) private var colorScheme
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    filterButton(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
-                    filterButton(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
-                    filterButton(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
-                    filterButton(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
-                }
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        filterButton(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
-                        filterButton(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
-                    }
-                    HStack(spacing: 8) {
-                        filterButton(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
-                        filterButton(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
-                    }
-                }
-            }
 
-            let other = max(0, totalCount - selectedCount)
-            if filter != .all, other > 0 {
-                Text(String.localizedStringWithFormat("home_filter_hint_format".localized, other))
-                    .font(.caption)
+    var body: some View {
+        VStack(alignment: .leading, spacing: OAKSpacing.lg) {
+            HStack(alignment: .center) {
+                Text("today_intake_title".localized)
+                    .font(.oakDisplay(size: OAKTypeScale.sectionTitle))
+                Spacer()
+                StreakChip(streakDays: streakDays)
+            }
+            HStack(alignment: .lastTextBaseline, spacing: OAKSpacing.sm) {
+                Text(recordedCount, format: .number)
+                    .font(.oakDisplay(size: OAKTypeScale.heroNumber))
+                    .monospacedDigit()
+                Text(String.localizedStringWithFormat("home_summary_recorded_format".localized, totalCount))
+                    .font(.subheadline)
                     .oakSecondaryText()
+            }
+            ProgressView(value: progress)
+                .tint(OAKPalette.taken(for: colorScheme))
+            metricGrid
+            recoveryContent
+            filterHint
+        }
+        .padding(OAKSpacing.xl)
+        .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
+    }
+
+    @ViewBuilder
+    private var metricGrid: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: OAKSpacing.sm) {
+                metric(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
+                metric(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
+                metric(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
+                metric(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
+            }
+            VStack(spacing: OAKSpacing.sm) {
+                HStack(spacing: OAKSpacing.sm) {
+                    metric(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
+                    metric(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
+                }
+                HStack(spacing: OAKSpacing.sm) {
+                    metric(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
+                    metric(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
+                }
             }
         }
     }
 
-    private var totalCount: Int {
-        counts.due + counts.missed + counts.taken + counts.skipped
+    @ViewBuilder
+    private var recoveryContent: some View {
+        if counts.missed > 0 {
+            Divider()
+            HStack(spacing: OAKSpacing.md) {
+                VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+                    Text("recovery_title".localized).font(.subheadline.weight(.semibold))
+                    Text(String.localizedStringWithFormat("recovery_body_format".localized, counts.missed))
+                        .font(.caption)
+                        .oakSecondaryText()
+                    Text("recovery_pressure_free_hint".localized)
+                        .font(.caption2)
+                        .oakSecondaryText()
+                }
+                Spacer(minLength: OAKSpacing.sm)
+                Button("recovery_review_action".localized) { filter = .overdue }
+                    .buttonStyle(.borderless)
+            }
+        }
     }
+
+    @ViewBuilder
+    private var filterHint: some View {
+        let other = max(0, totalCount - selectedCount)
+        if filter != .all, other > 0 {
+            Text(String.localizedStringWithFormat("home_filter_hint_format".localized, other))
+                .font(.caption)
+                .oakSecondaryText()
+        }
+    }
+
+    private var totalCount: Int { counts.due + counts.missed + counts.taken + counts.skipped }
+    private var recordedCount: Int { counts.taken + counts.skipped }
+    private var progress: Double { totalCount == 0 ? 0 : Double(recordedCount) / Double(totalCount) }
 
     private var selectedCount: Int {
         switch filter {
@@ -686,8 +707,8 @@ private struct HomeDoseFilterBar: View {
         }
     }
 
-    private func filterButton(_ item: HomeDoseFilter, count: Int, tint: Color) -> some View {
-        HomeFilterButton(
+    private func metric(_ item: HomeDoseFilter, count: Int, tint: Color) -> some View {
+        HomeMetricButton(
             title: item.title,
             count: count,
             tint: tint,
@@ -697,43 +718,40 @@ private struct HomeDoseFilterBar: View {
     }
 }
 
-private struct HomeFilterButton: View {
+private struct HomeMetricButton: View {
     let title: String
     let count: Int
     let tint: Color
     let isSelected: Bool
     let onTap: () -> Void
-    
+
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(.caption2.weight(.semibold))
-                    .oakSecondaryText()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+            VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+                HStack(spacing: 6) {
+                    Circle().fill(tint).frame(width: 7, height: 7)
+                    Text(title)
+                        .font(.caption2.weight(.medium))
+                        .oakSecondaryText()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
                 Text(count, format: .number)
-                    .font(.oakDisplay(size: 28))
+                    .font(.oakDisplay(size: OAKTypeScale.metric))
                     .foregroundStyle(tint)
                     .monospacedDigit()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 9)
+            .padding(.horizontal, OAKSpacing.sm)
+            .padding(.vertical, OAKSpacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isSelected ? tint.opacity(0.14) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                isSelected ? tint.opacity(0.10) : Color.clear,
+                in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous))
         }
         .buttonStyle(.plain)
         .oakTouchTarget()
-        .oakCardStyle(.paper, cornerRadius: 12, strokeOpacity: 0.12, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(isSelected ? tint.opacity(0.42) : .clear, lineWidth: 1)
-                .allowsHitTesting(false)
-        )
         .accessibilityLabel("\(title), \(count)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -748,20 +766,6 @@ private struct TimeSection: Identifiable {
     let time: String
     let supplements: [UserSupplement]
     var id: String { time }
-}
-
-private struct TodayHeaderView: View {
-    let title: String
-    let streakDays: Int
-    
-    var body: some View {
-        HStack(alignment: .center) {
-            Text(title)
-                .font(.oakDisplay(size: 24))
-            Spacer()
-            StreakChip(streakDays: streakDays)
-        }
-    }
 }
 
 private struct StreakChip: View {

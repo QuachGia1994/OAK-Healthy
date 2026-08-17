@@ -524,6 +524,7 @@ private struct SafeModeView: View {
 struct MainTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Binding var selectedTab: Int
@@ -574,8 +575,8 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .tint(OAKPalette.accent)
-        .toolbarBackground(.ultraThinMaterial, for: .tabBar)
+        .tint(colorScheme == .dark ? OAKPalette.accentDark : OAKPalette.accent)
+        .toolbarBackground(OAKPalette.surface(for: colorScheme), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0

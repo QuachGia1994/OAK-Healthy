@@ -70,13 +70,13 @@ def read(path: Path) -> str:
 
 
 def validate_dark_contrast(android_colors: str, ios_card: str) -> None:
-    for token in ("0xFF1A211B", "0xFFD0D5CB", "0xFF56645A", "0xFF9AA59C"):
+    for token in ("0xFF111714", "0xFFAAB5AE", "0xFF405047", "0xFF7DD3A8"):
         require(token in android_colors, f"Android dark contrast token missing: {token}")
-    for token in ("0.102", "0.816", "0.337"):
+    for token in ("0.0667", "0.6667", "0.2510", "0.4902"):
         require(token in ios_card, f"iOS dark contrast token missing: {token}")
-    require(contrast_ratio("D0D5CB", "1A211B") >= 4.5, "Dark secondary text contrast below 4.5:1")
-    require(contrast_ratio("F8F3E9", "111713") >= 7.0, "Dark primary text contrast below 7:1")
-    require(contrast_ratio("56645A", "1A211B") >= 2.0, "Dark hairline contrast below 2:1")
+    require(contrast_ratio("AAB5AE", "111714") >= 4.5, "Dark secondary text contrast below 4.5:1")
+    require(contrast_ratio("F2F5F3", "0B0F0D") >= 7.0, "Dark primary text contrast below 7:1")
+    require(contrast_ratio("405047", "111714") >= 2.0, "Dark hairline contrast below 2:1")
 
 
 def validate_interaction(android_interaction: str, android_home: str, ios_card: str, ios_home: str) -> None:

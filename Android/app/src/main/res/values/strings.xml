@@ -124,6 +124,7 @@
     <string name="cycle_every_n_days_format">Every %1$d day(s)</string>
 
     <string name="today_intake_title">Today\'s Intake</string>
+    <string name="home_summary_recorded_format">of %1$d recorded</string>
     <string name="resting_title">Resting</string>
     <string name="no_intake_today">No scheduled intakes today.</string>
     <string name="rest_until">Rest until: %1$s</string>

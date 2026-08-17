@@ -4,6 +4,7 @@ import SwiftUI
 /// Presents the add or edit supplement workflow.
 public struct AddSupplementView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(EntitlementManager.self) private var entitlementManager
     @State private var viewModel: AddSupplementViewModel
 
@@ -54,15 +55,21 @@ public struct AddSupplementView: View {
 
     private var formContent: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: OAKSpacing.lg) {
                 formIntro
-                detailsSection
-                timingSection
-                rhythmSection
+                VStack(alignment: .leading, spacing: OAKSpacing.xl) {
+                    detailsSection
+                    Divider()
+                    timingSection
+                    Divider()
+                    rhythmSection
+                }
+                .padding(OAKSpacing.xl)
+                .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 24)
+            .padding(.horizontal, OAKSpacing.lg)
+            .padding(.top, OAKSpacing.md)
+            .padding(.bottom, OAKSpacing.xl)
         }
         .scrollDismissesKeyboard(.interactively)
         .scrollIndicators(.hidden)
@@ -74,7 +81,7 @@ public struct AddSupplementView: View {
                 .font(.title2)
                 .foregroundStyle(.white)
                 .frame(width: 50, height: 50)
-                .background(OAKPalette.accent.gradient, in: RoundedRectangle(cornerRadius: 15))
+                .background(OAKPalette.accent, in: RoundedRectangle(cornerRadius: OAKRadius.md))
             VStack(alignment: .leading, spacing: 4) {
                 Text(navigationTitle)
                     .font(.title3.weight(.bold))
@@ -312,9 +319,9 @@ public struct AddSupplementView: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .disabled(isSaveDisabled)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
+        .padding(.horizontal, OAKSpacing.lg)
+        .padding(.vertical, OAKSpacing.md)
+        .background(OAKPalette.surface(for: colorScheme))
     }
 
     @ToolbarContentBuilder
@@ -414,21 +421,19 @@ private struct SupplementFormSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 11) {
+        VStack(alignment: .leading, spacing: OAKSpacing.md) {
+            HStack(alignment: .top, spacing: OAKSpacing.md) {
                 Image(systemName: systemImage)
                     .foregroundStyle(OAKPalette.accent)
-                    .frame(width: 28, height: 28)
-                    .background(OAKPalette.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
-                VStack(alignment: .leading, spacing: 2) {
+                    .frame(width: 32, height: 32)
+                    .background(OAKPalette.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: OAKRadius.sm))
+                VStack(alignment: .leading, spacing: OAKSpacing.xs) {
                     Text(title).font(.headline)
                     Text(subtitle).font(.caption).oakSecondaryText()
                 }
             }
             content
         }
-        .padding(18)
-        .oakCardStyle(.glass, cornerRadius: 22)
     }
 }
 

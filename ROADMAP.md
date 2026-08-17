@@ -19,10 +19,17 @@ cross-platform reliability rather than by a fixed delivery date.
 - P12 repository activation is implemented: Android API 36/AGP 8.10.1/Gradle 8.11.1, current-stable Xcode with an enforced Xcode 26+ floor, explicit no-upload readiness mode, fail-closed credential checks, stable subscription catalog validation and P12 CI gates.
 - P12-CLOSE requires Android Build, iOS Build, Quality Gates and the Release readiness-only workflow to be green on the same candidate commit.
 
+## Active design checkpoint
+
+- UI-R1 Health & Wellness redesign modernizes the shared token system, app shell, Home/Overview and Add/Edit tracking flow without changing health/business behavior.
+- UI-R1 closes only after Android Build, iOS Build and Quality Gates are green on the same candidate SHA.
+
 ## Next
 
-- STOP at the external store gate unless developer accounts are intentionally enabled. When enabled, run TestFlight/Sandbox + Play Internal and complete real P4.1 evidence before any production promotion.
-- After real store activation, the next engineering stage is production commerce hardening: Google Play server-side purchase-token verification/acknowledgement plus RTDN lifecycle processing.
+- UI-R2 — History & Trends Scanability: unify chart language, reduce card-per-record treatment, improve calendar/log scanning and preserve existing empty/loading/error recovery states.
+- UI-R3 — Detail / Stack / Coach density pass, followed by UI-R4 Settings & Onboarding information architecture and final motion review.
+- Store execution remains at the external gate unless developer accounts are intentionally enabled. When enabled, run TestFlight/Sandbox + Play Internal and complete real P4.1 evidence before any production promotion.
+- After real store activation, production commerce hardening remains the next commerce stage: Google Play server-side purchase-token verification/acknowledgement plus RTDN lifecycle processing.
 
 ## External gate
 

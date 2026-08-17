@@ -5,22 +5,22 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
 object OakColors {
-    val Accent = Color(0xFF2D5B45)
-    val AccentDark = Color(0xFF9BC6A8)
+    val Accent = Color(0xFF1F6B4D)
+    val AccentDark = Color(0xFF7DD3A8)
 
-    val Paper = Color(0xFFF5F0E6)
-    val PaperRaised = Color(0xFFFBF8F1)
-    val PaperMuted = Color(0xFFEAE3D6)
-    val Ink = Color(0xFF1D211C)
-    val InkMuted = Color(0xFF5E645C)
-    val Hairline = Color(0xFFD5CDBF)
+    val Paper = Color(0xFFF6F7F5)
+    val PaperRaised = Color(0xFFFFFFFF)
+    val PaperMuted = Color(0xFFEEF1EE)
+    val Ink = Color(0xFF111513)
+    val InkMuted = Color(0xFF59615C)
+    val Hairline = Color(0xFFDCE2DD)
 
-    val PaperDark = Color(0xFF111713)
-    val PaperRaisedDark = Color(0xFF1A211B)
-    val PaperMutedDark = Color(0xFF242D25)
-    val InkDark = Color(0xFFF8F3E9)
-    val InkMutedDark = Color(0xFFD0D5CB)
-    val HairlineDark = Color(0xFF56645A)
+    val PaperDark = Color(0xFF0B0F0D)
+    val PaperRaisedDark = Color(0xFF111714)
+    val PaperMutedDark = Color(0xFF18201C)
+    val InkDark = Color(0xFFF2F5F3)
+    val InkMutedDark = Color(0xFFAAB5AE)
+    val HairlineDark = Color(0xFF405047)
 
     val Taken = Accent
     val Skipped = Color(0xFF9A661F)
