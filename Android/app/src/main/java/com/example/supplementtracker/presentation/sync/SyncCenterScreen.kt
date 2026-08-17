@@ -588,6 +588,38 @@ fun SyncCenterScreen(
                                     color = secondaryTextColor
                                 )
                                 Text(
+                                    stringResource(R.string.sync_center_queue_format, status.queuedMutationCount),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
+                                )
+                                if (status.nextRetryEpochMs > System.currentTimeMillis()) {
+                                    Text(
+                                        stringResource(
+                                            R.string.sync_center_retry_after_format,
+                                            formatter.format(Instant.ofEpochMilli(status.nextRetryEpochMs))
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = secondaryTextColor
+                                    )
+                                }
+                                if (status.conflictRemoteWins + status.conflictLocalWins + status.conflictTieLocalWins > 0) {
+                                    Text(
+                                        stringResource(
+                                            R.string.sync_center_conflict_preview_format,
+                                            status.conflictRemoteWins,
+                                            status.conflictLocalWins,
+                                            status.conflictTieLocalWins
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = secondaryTextColor
+                                    )
+                                }
+                                Text(
+                                    stringResource(R.string.sync_center_journal_count_format, status.journalCount),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
+                                )
+                                Text(
                                     stringResource(
                                         R.string.sync_center_status_bytes_format,
                                         formatBytes(status.bytesDownloaded),

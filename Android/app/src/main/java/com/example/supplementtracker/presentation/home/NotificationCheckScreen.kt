@@ -435,7 +435,11 @@ private fun DiagnosticsCard(
             KeyValueRow(label = stringResource(R.string.notification_check_manufacturer_label), value = manufacturer)
             KeyValueRow(
                 label = stringResource(R.string.notification_check_power_save_label),
-                value = if (isPowerSaveMode) stringResource(R.string.status_on) else stringResource(R.string.status_off)
+                value = if (isPowerSaveMode) {
+                    stringResource(R.string.notification_check_enabled_on)
+                } else {
+                    stringResource(R.string.notification_check_enabled_off)
+                }
             )
             KeyValueRow(
                 label = stringResource(R.string.notification_reliability_health),

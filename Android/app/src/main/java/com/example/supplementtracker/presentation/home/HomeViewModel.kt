@@ -90,6 +90,12 @@ class HomeViewModel(
         val lastError: String?,
         val phase: CloudSyncPhase,
         val conflictRetryCount: Int,
+        val queuedMutationCount: Int,
+        val nextRetryEpochMs: Long,
+        val conflictRemoteWins: Int,
+        val conflictLocalWins: Int,
+        val conflictTieLocalWins: Int,
+        val journalCount: Int,
         val bytesDownloaded: Long,
         val bytesUploaded: Long,
         val pullMs: Long,
@@ -298,10 +304,11 @@ class HomeViewModel(
         _dataTransferMessage.value = null
     }
     
-    private suspend fun syncTwoWay(binId: String): Boolean = cloudSyncEngine.syncTwoWay(binId)
+    private suspend fun syncTwoWay(binId: String, force: Boolean = false): Boolean =
+        cloudSyncEngine.syncTwoWay(binId, force = force)
 
     fun syncNow(binId: String) {
-        viewModelScope.launch { syncTwoWay(binId) }
+        viewModelScope.launch { syncTwoWay(binId, force = true) }
     }
     
     fun refreshCloudSyncUi(binId: String) {
@@ -318,12 +325,15 @@ class HomeViewModel(
         val prefs = OakPrefs.get(context)
         val lastSync = prefs.getLong("cloudSyncLastSyncEpochMs_$id", 0L)
         val pending = cloudSyncEngine.hasLocalChangesSince(clientId, lastSync)
-        _cloudSyncUiStatus.value = buildCloudSyncUiStatus(prefs, id, lastSync, pending)
+        _cloudSyncUiStatus.value = buildCloudSyncUiStatus(
+            prefs, id, clientId.toString(), lastSync, pending
+        )
     }
 
     private fun buildCloudSyncUiStatus(
         prefs: android.content.SharedPreferences,
         id: String,
+        clientId: String,
         lastSync: Long,
         pending: Boolean
     ): CloudSyncUiStatus {
@@ -338,6 +348,12 @@ class HomeViewModel(
             lastError = prefs.getString("cloudSyncLastError_$id", null)?.trim()?.takeIf(String::isNotEmpty),
             phase = phase,
             conflictRetryCount = prefs.getInt("cloudSyncConflictRetryCount_$id", 0),
+            queuedMutationCount = com.example.supplementtracker.service.SyncMutationQueue(prefs).pending(clientId).size,
+            nextRetryEpochMs = prefs.getLong("cloudSyncNextRetryEpochMs_$id", 0L),
+            conflictRemoteWins = prefs.getInt("cloudSyncConflictRemoteWins_$id", 0),
+            conflictLocalWins = prefs.getInt("cloudSyncConflictLocalWins_$id", 0),
+            conflictTieLocalWins = prefs.getInt("cloudSyncConflictTieLocalWins_$id", 0),
+            journalCount = com.example.supplementtracker.service.SyncOperationJournalStore(prefs).count(id),
             bytesDownloaded = prefs.getLong("cloudSyncBytesDownloaded_$id", 0L),
             bytesUploaded = prefs.getLong("cloudSyncBytesUploaded_$id", 0L),
             pullMs = prefs.getLong("cloudSyncPullMs_$id", 0L),
@@ -693,7 +709,7 @@ class HomeViewModel(
         viewModelScope.launch {
             val clientId = activeClientManager.currentClientId.value ?: return@launch
             val id = binId.trim()
-            if (id.isEmpty() || !syncTwoWay(id)) return@launch
+            if (id.isEmpty() || !syncTwoWay(id, force = true)) return@launch
             if (activeClientManager.currentClientId.value != clientId) return@launch
             cloudSyncProfileStore.setLinkedBinId(clientId, id)
             _linkedBinId.value = id

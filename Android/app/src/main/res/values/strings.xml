@@ -264,6 +264,10 @@
     <string name="sync_center_status_last_attempt_format">Last attempt: %1$s</string>
     <string name="sync_center_status_pending_changes">Local changes pending upload</string>
     <string name="sync_center_status_no_pending_changes">No local pending changes</string>
+    <string name="sync_center_queue_format">Offline queue: %1$d dirty part(s)</string>
+    <string name="sync_center_retry_after_format">Auto retry after: %1$s</string>
+    <string name="sync_center_conflict_preview_format">Last conflict: remote newer %1$d • local kept %2$d • ties kept local %3$d</string>
+    <string name="sync_center_journal_count_format">Operation journal: %1$d entries</string>
     <string name="sync_center_status_bytes_format">Download: %1$s • Upload: %2$s</string>
     <string name="sync_center_status_timings_format">Pull %1$dms • Merge %2$dms • Push %3$dms • Total %4$dms</string>
     <string name="sync_center_status_last_error_format">Last error: %1$s</string>

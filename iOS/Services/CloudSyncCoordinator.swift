@@ -161,6 +161,12 @@ enum CloudSyncAutoSync {
     private static func performSyncIfEnabled(modelContext: ModelContext, clientId: UUID?) async -> Bool {
         guard UserDefaults.standard.bool(forKey: "isAutoSyncEnabled") else { return false }
         guard let clientId, let binId = activeBinId(clientId: clientId) else { return false }
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let retryState = SyncRetryStore.state(manifestId: binId)
+        guard SyncBackoffPolicy.canAttempt(retryState, nowEpochMs: nowMs) else {
+            recordBackoff(manifestId: binId, state: retryState, nowEpochMs: nowMs)
+            return false
+        }
         do {
             try await performSync(modelContext: modelContext, clientId: clientId, binId: binId)
             return true
@@ -181,6 +187,7 @@ enum CloudSyncAutoSync {
         do {
             resetSyncMetrics(ctx: ctx)
             markAttempt(ctx: ctx)
+            recordSyncStart(ctx: ctx)
             setPhase("pulling", ctx: ctx)
             guard let client = fetchClient(modelContext: modelContext, clientId: clientId) else {
                 throw CloudSyncError.invalidResponse
@@ -205,6 +212,7 @@ enum CloudSyncAutoSync {
         let lastErrorKey: String
         let localStackChanged: Bool
         let localHistoryChanged: Bool
+        let syncStartedEpochMs: Int64
     }
 
     private static func makeSyncContext(
@@ -220,6 +228,13 @@ enum CloudSyncAutoSync {
         let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: lastSyncKey))
         let localStackChanged = hasLocalStackChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
         let localHistoryChanged = hasLocalHistoryChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
+        let syncStartedEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
+        recordPendingMutations(
+            clientId: clientId,
+            stackDirty: localStackChanged,
+            historyDirty: localHistoryChanged,
+            epochMs: syncStartedEpochMs
+        )
         return SyncContext(
             id: id,
             clientId: clientId,
@@ -227,7 +242,8 @@ enum CloudSyncAutoSync {
             lastAttemptKey: lastAttemptKey,
             lastErrorKey: lastErrorKey,
             localStackChanged: localStackChanged,
-            localHistoryChanged: localHistoryChanged
+            localHistoryChanged: localHistoryChanged,
+            syncStartedEpochMs: syncStartedEpochMs
         )
     }
 
@@ -343,6 +359,26 @@ enum CloudSyncAutoSync {
         try await mergeRemotePartIfNeeded(backup, client: client, modelContext: modelContext)
     }
 
+    private static func previewAndMergeConflict(
+        _ data: Data,
+        client: ClientProfile,
+        modelContext: ModelContext
+    ) async throws {
+        guard let backup = try await decodeRemotePart(data) else { throw CloudSyncError.invalidResponse }
+        let preview = try SyncConflictAnalyzer.analyze(
+            backup: backup,
+            clientId: client.id,
+            context: modelContext
+        )
+        let manifestId = activeBinId(clientId: client.id) ?? ""
+        recordConflictPreview(manifestId: manifestId, preview: preview)
+        try await SupplementExportCodec.mergeBackupDataCooperatively(
+            backup,
+            client: client,
+            context: modelContext
+        )
+    }
+
     private static func shouldExitEarly(remoteChanged: Bool, localChanged: Bool) -> Bool {
         !remoteChanged && !localChanged
     }
@@ -455,7 +491,7 @@ enum CloudSyncAutoSync {
     ) async throws {
         let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: partId)
         guard let data = latest.data else { throw CloudSyncError.invalidResponse }
-        try await mergeRemoteDataIfNeeded(data, client: client, modelContext: modelContext)
+        try await previewAndMergeConflict(data, client: client, modelContext: modelContext)
         await CloudSyncManager.shared.commitRevision(latest.revision, binId: partId)
         try await upsertPart(binId: partId, payload: retryPayload())
     }
@@ -518,7 +554,7 @@ enum CloudSyncAutoSync {
         } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 412 || statusCode == 409 {
             let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
             guard let data = latest.data else { throw CloudSyncError.invalidResponse }
-            try await mergeRemoteDataIfNeeded(data, client: client, modelContext: modelContext)
+            try await previewAndMergeConflict(data, client: client, modelContext: modelContext)
             await CloudSyncManager.shared.commitRevision(latest.revision, binId: binId)
             try await upsertPart(binId: binId, payload: retryPayload())
         }
@@ -573,6 +609,16 @@ enum CloudSyncAutoSync {
         defaults.set(now, forKey: "oakLastSyncEpochMs")
         defaults.set(Int(startedAt.distance(to: Date()) * 1000), forKey: "cloudSyncTotalMs_\(ctx.id)")
         clearFailureState(binId: ctx.id)
+        SyncRetryStore.clear(manifestId: ctx.id)
+        SyncMutationQueueStore.clearSynced(
+            clientId: ctx.clientId,
+            parts: Set(SyncMutationPart.allCases),
+            syncStartedEpochMs: ctx.syncStartedEpochMs
+        )
+        SyncOperationJournalStore.append(
+            manifestId: ctx.id,
+            entry: SyncJournalEntry(epochMs: Int64(now), event: .success)
+        )
         setPhase("done", ctx: ctx)
         DebugReporter.report("cloud_sync_success", fields: telemetryFields(binId: ctx.id, clientId: ctx.clientId, error: nil))
     }
@@ -586,8 +632,19 @@ enum CloudSyncAutoSync {
     }
 
     private static func markFailure(ctx: SyncContext, error: Error) {
-        let nowMs = Double(Date().timeIntervalSince1970 * 1000)
+        let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let nowMs = Double(nowEpochMs)
         let message = error.localizedDescription
+        let retry = SyncRetryStore.recordFailure(manifestId: ctx.id, nowEpochMs: nowEpochMs)
+        SyncOperationJournalStore.append(
+            manifestId: ctx.id,
+            entry: SyncJournalEntry(
+                epochMs: nowEpochMs,
+                event: .failure,
+                retryCount: retry.failureCount,
+                nextRetryEpochMs: retry.nextRetryEpochMs
+            )
+        )
         UserDefaults.standard.set(nowMs, forKey: ctx.lastAttemptKey)
         UserDefaults.standard.set(message, forKey: ctx.lastErrorKey)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastFailureKey)
@@ -630,6 +687,65 @@ enum CloudSyncAutoSync {
         case .payloadCodec: return "payload_codec"
         case .manifestCodec: return "manifest_codec"
         }
+    }
+
+    private static func recordPendingMutations(
+        clientId: UUID,
+        stackDirty: Bool,
+        historyDirty: Bool,
+        epochMs: Int64
+    ) {
+        if stackDirty {
+            SyncMutationQueueStore.markDirty(clientId: clientId, part: .stack, nowEpochMs: epochMs)
+        }
+        if historyDirty {
+            SyncMutationQueueStore.markDirty(clientId: clientId, part: .history, nowEpochMs: epochMs)
+        }
+    }
+
+    private static func recordSyncStart(ctx: SyncContext) {
+        SyncOperationJournalStore.append(
+            manifestId: ctx.id,
+            entry: SyncJournalEntry(
+                epochMs: ctx.syncStartedEpochMs,
+                event: .start,
+                stackDirty: ctx.localStackChanged,
+                historyDirty: ctx.localHistoryChanged
+            )
+        )
+    }
+
+    private static func recordBackoff(manifestId: String, state: SyncRetryState, nowEpochMs: Int64) {
+        SyncOperationJournalStore.append(
+            manifestId: manifestId,
+            entry: SyncJournalEntry(
+                epochMs: nowEpochMs,
+                event: .backoff,
+                retryCount: state.failureCount,
+                nextRetryEpochMs: state.nextRetryEpochMs
+            )
+        )
+    }
+
+    private static func recordConflictPreview(manifestId: String, preview: SyncConflictPreview) {
+        guard !manifestId.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        let retryKey = "cloudSyncConflictRetryCount_\(manifestId)"
+        defaults.set(defaults.integer(forKey: retryKey) + 1, forKey: retryKey)
+        defaults.set(preview.remoteWins, forKey: "cloudSyncConflictRemoteWins_\(manifestId)")
+        defaults.set(preview.localWins, forKey: "cloudSyncConflictLocalWins_\(manifestId)")
+        defaults.set(preview.tieLocalWins, forKey: "cloudSyncConflictTieLocalWins_\(manifestId)")
+        defaults.set("retryingConflict", forKey: "cloudSyncPhase_\(manifestId)")
+        SyncOperationJournalStore.append(
+            manifestId: manifestId,
+            entry: SyncJournalEntry(
+                epochMs: Int64(Date().timeIntervalSince1970 * 1000),
+                event: .conflict,
+                remoteWins: preview.remoteWins,
+                localWins: preview.localWins,
+                tieLocalWins: preview.tieLocalWins
+            )
+        )
     }
 
     private static func markActivity() {

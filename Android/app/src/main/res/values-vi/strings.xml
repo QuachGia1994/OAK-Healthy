@@ -273,6 +273,10 @@
     <string name="sync_center_status_last_attempt_format">Lần thử gần nhất: %1$s</string>
     <string name="sync_center_status_pending_changes">Có thay đổi cục bộ chưa upload</string>
     <string name="sync_center_status_no_pending_changes">Không có thay đổi cục bộ</string>
+    <string name="sync_center_queue_format">Hàng đợi offline: %1$d phần đang chờ</string>
+    <string name="sync_center_retry_after_format">Tự thử lại sau: %1$s</string>
+    <string name="sync_center_conflict_preview_format">Xung đột gần nhất: remote mới hơn %1$d • giữ local %2$d • hòa giữ local %3$d</string>
+    <string name="sync_center_journal_count_format">Nhật ký vận hành: %1$d mục</string>
     <string name="sync_center_status_bytes_format">Download: %1$s • Upload: %2$s</string>
     <string name="sync_center_status_timings_format">Pull %1$dms • Merge %2$dms • Push %3$dms • Total %4$dms</string>
     <string name="sync_center_status_last_error_format">Lỗi lần trước: %1$s</string>

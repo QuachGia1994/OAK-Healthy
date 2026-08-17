@@ -175,6 +175,14 @@ public struct SyncCenterView: View {
                 let mergeMs = UserDefaults.standard.integer(forKey: mergeMsKey)
                 let pushMs = UserDefaults.standard.integer(forKey: pushMsKey)
                 let totalMs = UserDefaults.standard.integer(forKey: totalMsKey)
+                let queuedMutationCount = activeClientManager.currentClientId.map {
+                    SyncMutationQueueStore.pending(clientId: $0).count
+                } ?? 0
+                let nextRetryEpochMs = Int64(UserDefaults.standard.double(forKey: "cloudSyncNextRetryEpochMs_\(activeBinId)"))
+                let conflictRemoteWins = UserDefaults.standard.integer(forKey: "cloudSyncConflictRemoteWins_\(activeBinId)")
+                let conflictLocalWins = UserDefaults.standard.integer(forKey: "cloudSyncConflictLocalWins_\(activeBinId)")
+                let conflictTieLocalWins = UserDefaults.standard.integer(forKey: "cloudSyncConflictTieLocalWins_\(activeBinId)")
+                let journalCount = SyncOperationJournalStore.count(manifestId: activeBinId)
                 let hasPendingChanges = activeClientManager.currentClientId.map {
                     CloudSyncAutoSync.hasLocalChangesSince(
                         modelContext: modelContext,
@@ -247,6 +255,35 @@ public struct SyncCenterView: View {
                     )
                         .font(.caption)
                         .foregroundStyle(hasPendingChanges ? .orange : .secondary)
+                    Text(String(format: "sync_center_queue_format".localized, queuedMutationCount))
+                        .font(.caption)
+                        .oakSecondaryText()
+                    if nextRetryEpochMs > Int64(Date().timeIntervalSince1970 * 1000) {
+                        let retryDate = Date(timeIntervalSince1970: Double(nextRetryEpochMs) / 1000)
+                        Text(
+                            String(
+                                format: "sync_center_retry_after_format".localized,
+                                retryDate.formatted(date: .abbreviated, time: .shortened)
+                            )
+                        )
+                        .font(.caption)
+                        .oakSecondaryText()
+                    }
+                    if conflictRemoteWins + conflictLocalWins + conflictTieLocalWins > 0 {
+                        Text(
+                            String(
+                                format: "sync_center_conflict_preview_format".localized,
+                                conflictRemoteWins,
+                                conflictLocalWins,
+                                conflictTieLocalWins
+                            )
+                        )
+                        .font(.caption)
+                        .oakSecondaryText()
+                    }
+                    Text(String(format: "sync_center_journal_count_format".localized, journalCount))
+                        .font(.caption)
+                        .oakSecondaryText()
                     
                     if retryCount > 0 {
                         Text(String(format: "sync_center_conflict_retry_format".localized, retryCount))
