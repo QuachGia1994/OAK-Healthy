@@ -11,10 +11,10 @@ OAK Healthy là ứng dụng theo dõi lịch dùng thực phẩm bổ sung trê
 
 | Nền tảng | Artifact | Workflow đã kiểm tra | Định dạng |
 | --- | --- | --- | --- |
-| Android | [Tải OAKHealthy-Android-APK](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29646728542/artifacts/8430268832) | [Android Build #29646728542](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29646728542) | APK Debug `1.0.1` |
-| iOS | [Tải OAKHealthy-iOS-IPA](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29647622068/artifacts/8430535370) | [iOS Build #29647622068](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29647622068) | IPA unsigned `1.0.1` |
+| Android | [Tải OAKHealthy-Android-APK](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32078838454/artifacts/9304490922) | [Android Build #32078838454](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32078838454) | APK Debug `1.0.1` |
+| iOS | [Tải OAKHealthy-iOS-IPA](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32080937353/artifacts/9305174558) | [iOS Build #32080937353](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32080937353) | IPA unsigned `1.0.1` |
 
-Hai artifact được tạo ngày 18/07/2026, còn hạn đến 16/10/2026 (UTC) và có thể yêu cầu đăng nhập GitHub. APK dùng để debug/test; IPA chưa ký nên cần ký lại hoặc dùng quy trình sideload phù hợp, không thể cài trực tiếp như bản App Store. Nếu link hết hạn, mở workflow tương ứng và tải artifact từ lần chạy thành công mới nhất.
+Các artifact hiện tại được build từ baseline `3d4390718fe4a999ed097c0c44ceb3c699393360` ngày 17/08/2026 UTC (18/08 tại Việt Nam) và còn hạn đến 15/11/2026 UTC. Có thể cần đăng nhập GitHub để tải. APK dùng cho debug/test; IPA chưa ký nên cần ký lại hoặc dùng quy trình sideload phù hợp, không thể cài trực tiếp như bản App Store. Nếu artifact hết hạn, mở workflow tương ứng và tải artifact từ lần chạy thành công mới nhất. Quality Gates của baseline này: [#32078848328](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32078848328).
 
 ## Tính năng chính
 
@@ -83,7 +83,7 @@ Yêu cầu macOS, Xcode và Swift Package Manager. Dự án dùng `project.yml`/
 
 Các test sync bao gồm codec, manifest, Link Code validation, revision monotonic và fixture AES-GCM dùng chung cho Android/iOS.
 
-Build gần nhất đã vượt qua Android unit test, lint và APK assembly. iOS đã vượt qua `23` unit test, kiểm tra Keychain/AES-GCM, archive unsigned và đóng gói Firebase configuration. Các file debug symbol iOS có tại [OAKHealthy-iOS-dSYMs](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/29647622068/artifacts/8430535059).
+Baseline Stage B hiện tại đã vượt qua Android lint, unit tests/JaCoCo và APK assembly; iOS chạy trên Xcode 26+, vượt qua unit tests/coverage, archive unsigned và đóng gói Firebase configuration. Quality Gates cũng đã xanh trên cùng baseline. Các file debug symbol iOS mới nhất có tại [OAKHealthy-iOS-dSYMs](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32080937353/artifacts/9305173581).
 
 ## Quyền riêng tư
 
