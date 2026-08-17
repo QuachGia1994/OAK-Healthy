@@ -90,6 +90,23 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
+@Composable
+private fun SettingsBrandHeader(secondaryTextColor: Color) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OakLogoMark()
+        Text(
+            text = stringResource(R.string.settings_dedication),
+            style = MaterialTheme.typography.bodySmall,
+            fontStyle = FontStyle.Italic,
+            color = secondaryTextColor
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -216,24 +233,10 @@ fun SettingsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                item { SettingsBrandHeader(secondaryTextColor) }
+
                 item {
                     SettingsSection(title = stringResource(R.string.client_management)) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            OakLogoMark()
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = stringResource(R.string.settings_dedication),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontStyle = FontStyle.Italic,
-                                color = secondaryTextColor
-                            )
-                        }
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
                         if (clients.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.add_client_to_start),

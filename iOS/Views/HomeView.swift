@@ -241,7 +241,7 @@ public struct HomeView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(20)
-        .oakCardStyle(.glass, cornerRadius: 16)
+        .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
         .padding(.horizontal, 24)
         .accessibilityElement(children: .combine)
     }
@@ -268,7 +268,7 @@ public struct HomeView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(14)
-        .oakCardStyle(.glass, cornerRadius: 14)
+        .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
     }
 
     private func activationMilestoneRow(_ milestone: ActivationMilestone, key: String) -> some View {
@@ -291,7 +291,7 @@ public struct HomeView: View {
             Button(action, action: onAction).buttonStyle(.bordered)
         }
         .padding(12)
-        .oakCardStyle(.glass, cornerRadius: 14)
+        .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
@@ -374,7 +374,7 @@ public struct HomeView: View {
                                     .oakSecondaryText()
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(.ultraThinMaterial)
+                                    .background(OAKPalette.mutedSurface(for: colorScheme))
                                     .clipShape(Capsule())
                                 Spacer()
                             }
@@ -862,7 +862,7 @@ private struct ActiveSupplementRow: View {
             .accessibilityLabel(symbolAccessibilityLabel(for: status))
         }
         .padding()
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
+        .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(borderColor, lineWidth: borderWidth)
@@ -975,6 +975,7 @@ private struct ActiveSupplementRow: View {
 private struct UrgencyChip: View {
     let title: String
     let tint: Color
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         HStack(spacing: 6) {
@@ -987,7 +988,7 @@ private struct UrgencyChip: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
+        .background(OAKPalette.mutedSurface(for: colorScheme))
         .clipShape(Capsule())
     }
 }
@@ -1016,7 +1017,7 @@ private struct RestingSupplementRow: View {
                 .clipShape(Capsule())
         }
         .padding()
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.12, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
+        .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
     }
 }
 

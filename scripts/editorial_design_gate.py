@@ -79,7 +79,7 @@ def main() -> None:
     require("OakTypography.Display" in android_screens[1], "Android History display hierarchy missing")
     require("OakTypography.Display" in android_screens[2], "Android Stack display hierarchy missing")
     require("OakTypography.Display" in android_screens[4], "Android Coach display hierarchy missing")
-    require("OakCardVariant.Paper" in android_screens[3], "Android Settings paper grouping missing")
+    require("MaterialTheme.colorScheme.surface" in android_screens[3] and "outlineVariant" in android_screens[3], "Android Settings flat paper grouping missing")
     require("RoundedCornerShape(28.dp)" not in android_screens[5], "Android Sync reverted to oversized rounded card groups")
 
     for token in ["paper", "paperRaised", "paperMuted", "ink", "inkMuted", "hairline", "accent"]:

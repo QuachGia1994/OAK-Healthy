@@ -16,6 +16,7 @@ public struct NotificationDebugScreen: View {
     @State private var shadowErrorCount: Int = 0
     @State private var isRepairingShadow = false
     @State private var didAutoRepairShadow = false
+    @State private var isTechnicalDetailsVisible = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -41,45 +42,51 @@ public struct NotificationDebugScreen: View {
     private var listContent: some View {
         List {
             Section {
-                Text(diagnosisTitle)
-                    .font(.headline)
-                
-                Text(diagnosisHint)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                
-                LabeledContent("onboarding_permission_status".localized) { Text(authorizationStatusText) }
-                LabeledContent("notification_debug_enabled_user_label".localized) { Text(enabledText) }
-                LabeledContent("notification_debug_active_client_label".localized) { Text(activeClientText) }
-                LabeledContent("notification_debug_active_supplements_label".localized) { Text("\(activeSupplementCount)") }
-                LabeledContent("notification_debug_pending_os_label".localized) { Text("\(pendingEntries.count)") }
-                LabeledContent("notification_debug_shadow_label".localized) { Text("\(shadowEntries.count)") }
-                LabeledContent("notification_debug_pending_only_label".localized) { Text("\(pendingOnlyCount)") }
-                LabeledContent("notification_debug_shadow_only_label".localized) { Text("\(shadowOnlyCount)") }
-                LabeledContent("notification_debug_shadow_errors_label".localized) { Text("\(shadowErrorCount)") }
-                LabeledContent("notification_reliability_health".localized) { Text(reliabilityLevelText) }
-                LabeledContent("notification_reliability_mismatch".localized) { Text("\(reliabilityReport.mismatchCount)") }
-
-                if reliabilityReport.shouldOfferRepair {
-                    Button("notification_reliability_rebuild".localized) {
-                        Task { await rebuildSchedules() }
+                VStack(alignment: .leading, spacing: OAKSpacing.md) {
+                    Text(diagnosisTitle)
+                        .font(.oakDisplay(size: 24))
+                    Text(diagnosisHint)
+                        .font(.footnote)
+                        .oakSecondaryText()
+                    Divider()
+                    LabeledContent("onboarding_permission_status".localized) { Text(authorizationStatusText) }
+                    LabeledContent("notification_debug_enabled_user_label".localized) { Text(enabledText) }
+                    LabeledContent("notification_debug_active_client_label".localized) { Text(activeClientText) }
+                    LabeledContent("notification_debug_active_supplements_label".localized) { Text("\(activeSupplementCount)") }
+                    LabeledContent("notification_debug_pending_os_label".localized) { Text("\(pendingEntries.count)") }
+                    LabeledContent("notification_reliability_health".localized) { Text(reliabilityLevelText) }
+                    LabeledContent("notification_reliability_mismatch".localized) { Text("\(reliabilityReport.mismatchCount)") }
+                    if reliabilityReport.shouldOfferRepair {
+                        Button("notification_reliability_rebuild".localized) { Task { await rebuildSchedules() } }
+                            .disabled(isRepairingShadow)
                     }
-                    .disabled(isRepairingShadow)
-                }
-                
-                if shouldShowRepairShadow {
-                    Button("notification_debug_repair_shadow".localized) {
-                        Task { await repairShadow() }
+                    if shouldShowRepairShadow {
+                        Button("notification_debug_repair_shadow".localized) { Task { await repairShadow() } }
+                            .disabled(isRepairingShadow)
                     }
-                    .disabled(isRepairingShadow)
                 }
+                .padding(OAKSpacing.lg)
+                .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
             
-            Section("notification_debug_diagnostics_section".localized) {
-                Text(diagnosticsText)
-                    .font(.system(.footnote, design: .monospaced))
-                    .textSelection(.enabled)
-                    .foregroundStyle(.secondary)
+            Section {
+                DisclosureGroup(
+                    "notification_debug_diagnostics_section".localized,
+                    isExpanded: $isTechnicalDetailsVisible
+                ) {
+                    VStack(alignment: .leading, spacing: OAKSpacing.sm) {
+                        LabeledContent("notification_debug_shadow_label".localized) { Text("\(shadowEntries.count)") }
+                        LabeledContent("notification_debug_pending_only_label".localized) { Text("\(pendingOnlyCount)") }
+                        LabeledContent("notification_debug_shadow_only_label".localized) { Text("\(shadowOnlyCount)") }
+                        LabeledContent("notification_debug_shadow_errors_label".localized) { Text("\(shadowErrorCount)") }
+                        Text(diagnosticsText)
+                            .font(.system(.footnote, design: .monospaced))
+                            .textSelection(.enabled)
+                            .oakSecondaryText()
+                    }
+                }
             }
             
             if groupedItems.isEmpty {
@@ -96,6 +103,7 @@ public struct NotificationDebugScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .listSectionSpacing(20)
         .refreshable {
             await refresh()
         }

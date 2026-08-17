@@ -101,19 +101,20 @@ public struct SettingsView: View {
     
     private var settingsList: some View {
         List {
+            appHeaderSection
             clientManagementSection
             planAccessSection
-            privacyDiagnosticsSection
-            syncCenterSection
-            appHeaderSection
-            themeSelectionSection
             notificationsSection
+            themeSelectionSection
+            syncCenterSection
             dataToolsSection
+            privacyDiagnosticsSection
             aboutSection
             copyrightSection
             factoryResetSection
         }
         .scrollContentBackground(.hidden)
+        .listSectionSpacing(20)
         .navigationTitle("settings_title".localized)
     }
     
@@ -133,7 +134,7 @@ public struct SettingsView: View {
         } header: {
             Text("privacy_diagnostics_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
 
     private var lastReminderRebuildText: String {
@@ -185,7 +186,7 @@ public struct SettingsView: View {
         } header: {
             Text("settings_notifications_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     @ViewBuilder
@@ -214,7 +215,7 @@ public struct SettingsView: View {
         } header: {
             Text("data_tools".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
 
     @ViewBuilder
@@ -234,7 +235,7 @@ public struct SettingsView: View {
         } header: {
             Text("multi_device_sync_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     @ViewBuilder
@@ -276,7 +277,7 @@ public struct SettingsView: View {
         } header: {
             Text("client_management".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     private var permittedClients: [ClientProfile] {
@@ -324,7 +325,7 @@ public struct SettingsView: View {
         } header: {
             Text("plan_access_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
 
     @ViewBuilder
@@ -343,9 +344,10 @@ public struct SettingsView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 12)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+            .background(
+                OAKPalette.mutedSurface(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+            )
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -365,7 +367,7 @@ public struct SettingsView: View {
         } header: {
             Text("appearance_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     @ViewBuilder
@@ -377,7 +379,7 @@ public struct SettingsView: View {
         } header: {
             Text("about_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     @ViewBuilder
@@ -398,7 +400,7 @@ public struct SettingsView: View {
         } header: {
             Text("copyright_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
 
     @ViewBuilder
@@ -408,7 +410,7 @@ public struct SettingsView: View {
                 isShowingFactoryResetConfirm = true
             }
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
         .confirmationDialog(
             "wipe_data_warning".localized,
             isPresented: $isShowingFactoryResetConfirm,
@@ -431,8 +433,8 @@ public struct SettingsView: View {
         }
     }
 
-    private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
+    private var settingsRowBackground: some View {
+        OAKPalette.surface(for: colorScheme)
     }
 
     private var preferredColorScheme: ColorScheme? {

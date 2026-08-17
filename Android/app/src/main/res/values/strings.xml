@@ -472,6 +472,7 @@
     <string name="plan_feature_all_pro">Everything in Pro</string>
     <string name="plan_feature_multi_client">Multi-client management</string>
     <string name="plan_feature_coach_reports">Coach reports</string>
+    <string name="billing_store_products">Subscriptions</string>
     <string name="billing_buy">Buy</string>
     <string name="billing_restore">Restore purchases</string>
     <string name="billing_purchase_completed">Purchase completed. Access updated.</string>

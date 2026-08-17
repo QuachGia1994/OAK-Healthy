@@ -1,6 +1,7 @@
 package com.example.supplementtracker.presentation.coach
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,8 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -21,6 +22,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -32,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -51,6 +54,8 @@ import com.example.supplementtracker.service.CoachTrendPoint
 import com.example.supplementtracker.service.CoachWorkspaceBuilder
 import com.example.supplementtracker.service.OakPrefs
 import com.example.supplementtracker.presentation.designsystem.OakFeedbackCard
+import com.example.supplementtracker.presentation.designsystem.OakRadius
+import com.example.supplementtracker.presentation.designsystem.OakSpacing
 import com.example.supplementtracker.presentation.designsystem.OakTypography
 import java.text.DateFormat
 import java.util.Date
@@ -168,7 +173,6 @@ private fun ReadyState(
     LazyColumn(modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { WindowSelector(windowDays, onWindowSelected) }
         item { CoachSummaryCard(summary) }
-        item { CoachTrendCard(summary.trend) }
         if (detail != null) item { CoachClientDetailCard(detail) { selectedClientId = null } }
         item { ClientReportControls(query, sort, filter, { query = it }, { sort = it }, { filter = it }) }
         if (clients.isEmpty()) item { EmptyCoachCard() }
@@ -196,16 +200,31 @@ private fun WindowSelector(selected: Int, onSelected: (Int) -> Unit) {
 
 @Composable
 private fun CoachSummaryCard(summary: CoachOverviewSummary) {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.coach_report_window_format, summary.windowDays), fontWeight = FontWeight.SemiBold)
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = OakSpacing.Lg),
+        shape = RoundedCornerShape(OakRadius.Lg),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(Modifier.padding(OakSpacing.Xl), verticalArrangement = Arrangement.spacedBy(OakSpacing.Lg)) {
+            Text(
+                stringResource(R.string.coach_report_window_format, summary.windowDays),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                overallCompletionText(summary),
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = OakTypography.Display),
+                fontWeight = FontWeight.SemiBold
+            )
             CoachSummaryMetrics(summary)
             Text(
                 stringResource(R.string.coach_attention_count_format, summary.needsCheckInCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary
             )
-            Text(overallCompletionText(summary), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            CoachTrendCard(summary.trend)
         }
     }
 }
@@ -241,11 +260,9 @@ private fun overallCompletionText(summary: CoachOverviewSummary): String {
 
 @Composable
 private fun CoachTrendCard(trend: List<CoachTrendPoint>) {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(stringResource(R.string.coach_trend_title), fontWeight = FontWeight.SemiBold)
-            trend.takeLast(6).forEach { point -> TrendRow(point) }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
+        Text(stringResource(R.string.coach_trend_title), fontWeight = FontWeight.SemiBold)
+        trend.takeLast(6).forEach { point -> TrendRow(point) }
     }
 }
 
@@ -355,8 +372,13 @@ private fun CoachClientDetailCard(detail: CoachClientDetail, onClose: () -> Unit
     val report = remember(detail, entries) {
         CoachWorkspaceBuilder.reportDocument(detail, entries, System.currentTimeMillis())
     }
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = OakSpacing.Lg),
+        shape = RoundedCornerShape(OakRadius.Lg),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(Modifier.padding(OakSpacing.Xl), verticalArrangement = Arrangement.spacedBy(OakSpacing.Md)) {
             DetailHeader(detail, onClose)
             DetailComparison(detail)
             CoachTrendCard(detail.trend)
@@ -447,19 +469,25 @@ private fun feelingText(feeling: CoachRoutineFeeling): String = when (feeling) {
 
 @Composable
 private fun CoachClientCard(client: CoachClientSummary, onOpen: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = OakSpacing.Lg)
             .clickable(onClick = onOpen).semantics(mergeDescendants = true) {}
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(vertical = OakSpacing.Md), verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(client.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                if (client.needsCheckIn) Text(stringResource(R.string.coach_check_in_badge))
+                if (client.needsCheckIn) {
+                    Text(
+                        stringResource(R.string.coach_check_in_badge),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             Text(completionText(client), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(activityText(client), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.coach_open_detail), style = MaterialTheme.typography.labelMedium)
+            Text(activityText(client), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

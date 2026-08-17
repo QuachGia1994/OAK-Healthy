@@ -124,6 +124,7 @@ fun SyncCenterScreen(
     var isStatusBinIdVisible by remember { mutableStateOf(false) }
     var isManifestPartsVisible by remember { mutableStateOf(false) }
     var isStatusDiagnosticsVisible by remember { mutableStateOf(false) }
+    var isLogsVisible by remember { mutableStateOf(false) }
 
     val activeBinId = remember(hostedBinId, linkedBinId) {
         val hosted = hostedBinId.orEmpty().trim()
@@ -337,29 +338,21 @@ fun SyncCenterScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item(key = "tabs") {
-                    OakCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Paper,
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        elevation = 0.dp
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        divider = {}
                     ) {
-                        TabRow(
-                            selectedTabIndex = selectedTab,
-                            containerColor = Color.Transparent,
-                            divider = {}
-                        ) {
-                            Tab(
-                                selected = selectedTab == 0,
-                                onClick = { selectedTab = 0 },
-                                text = { Text(stringResource(R.string.sync_center_tab_host), color = primaryTextColor) }
-                            )
-                            Tab(
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 },
-                                text = { Text(stringResource(R.string.sync_center_tab_link), color = primaryTextColor) }
-                            )
-                        }
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text(stringResource(R.string.sync_center_tab_host), color = primaryTextColor) }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text(stringResource(R.string.sync_center_tab_link), color = primaryTextColor) }
+                        )
                     }
                 }
 
@@ -854,7 +847,23 @@ fun SyncCenterScreen(
 
                 item(key = "logs_title") {
                     if (activeBinId.isNotBlank()) {
-                        Text(stringResource(R.string.sync_center_logs_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.sync_center_logs_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = primaryTextColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { isLogsVisible = !isLogsVisible }) {
+                                Text(
+                                    stringResource(
+                                        if (isLogsVisible) R.string.sync_center_diagnostics_hide
+                                        else R.string.sync_center_diagnostics_show
+                                    )
+                                )
+                            }
+                        }
+                        if (isLogsVisible) {
                         Spacer(modifier = Modifier.height(6.dp))
                         OutlinedTextField(
                             value = logQuery,
@@ -932,27 +941,28 @@ fun SyncCenterScreen(
                                 Text(stringResource(R.string.sync_center_action_clear), color = MaterialTheme.colorScheme.error)
                             }
                         }
+                        }
                     }
                 }
 
-                items(items = logs, key = { "${it.epochMs}-${it.phase}" }) { item ->
-                    OakCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Paper,
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(12.dp),
-                        elevation = 0.dp
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val time = if (item.epochMs > 0L) formatter.format(Instant.ofEpochMilli(item.epochMs)) else ""
-                            val phaseText = when (item.phase.uppercase()) {
-                                "ERROR" -> stringResource(R.string.sync_center_filter_error)
-                                "HOST" -> stringResource(R.string.sync_center_filter_host)
-                                "DONE" -> stringResource(R.string.sync_center_filter_done)
-                                else -> item.phase
+                if (isLogsVisible) {
+                    items(items = logs, key = { "${it.epochMs}-${it.phase}" }) { item ->
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                val time = if (item.epochMs > 0L) formatter.format(Instant.ofEpochMilli(item.epochMs)) else ""
+                                val phaseText = when (item.phase.uppercase()) {
+                                    "ERROR" -> stringResource(R.string.sync_center_filter_error)
+                                    "HOST" -> stringResource(R.string.sync_center_filter_host)
+                                    "DONE" -> stringResource(R.string.sync_center_filter_done)
+                                    else -> item.phase
+                                }
+                                Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
+                                Text(item.message, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             }
-                            Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
-                            Text(item.message, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }

@@ -31,7 +31,7 @@ public struct OnboardingView: View {
     
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
+            VStack(spacing: OAKSpacing.lg) {
                 OnboardingHero(step: step)
                 ScrollView {
                     VStack(spacing: 14) {
@@ -48,7 +48,9 @@ public struct OnboardingView: View {
                 }
                 footer
             }
-            .padding(16)
+            .padding(OAKSpacing.lg)
+            .frame(maxWidth: 680)
+            .frame(maxWidth: .infinity)
             .navigationTitle("onboarding_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $isShowingAddClient) {
@@ -414,10 +416,7 @@ private struct OnboardingHero: View {
             case .done: return "onboarding_step_done_title".localized
             }
         }()
-        VStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.title2)
-                .foregroundStyle(.tint)
+        VStack(spacing: OAKSpacing.sm) {
             OnboardingProgress(step: step)
         }
         .frame(maxWidth: .infinity)
@@ -452,9 +451,9 @@ private struct OnboardingProgress: View {
 
 private extension View {
     func onboardingCard() -> some View {
-        return padding(14)
+        padding(OAKSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .oakCardStyle(.glass, cornerRadius: 16)
+            .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
     }
 }
 

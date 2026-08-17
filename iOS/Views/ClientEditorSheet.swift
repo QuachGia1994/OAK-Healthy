@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ClientEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isNameFocused: Bool
     @State private var name: String
     @State private var selectedDetent: PresentationDetent = .medium
@@ -52,8 +53,8 @@ struct ClientEditorSheet: View {
                         .foregroundStyle(.secondary)
                     nameField
                 }
-                .padding(18)
-                .oakCardStyle(.glass, cornerRadius: 22)
+                .padding(OAKSpacing.lg)
+                .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
             }
             .padding(20)
             .frame(maxHeight: .infinity, alignment: .top)
@@ -68,18 +69,20 @@ struct ClientEditorSheet: View {
             .submitLabel(.done)
             .onSubmit(save)
             .onChange(of: name) { _, value in limitName(value) }
-            .padding(14)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .padding(OAKSpacing.md)
+            .background(
+                OAKPalette.mutedSurface(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+            )
     }
 
     private var profilePreview: some View {
         VStack(spacing: 10) {
             Text(profileInitial)
                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-                .frame(width: 76, height: 76)
-                .background(profileGradient, in: Circle())
-                .shadow(color: OAKPalette.accent.opacity(0.24), radius: 18, y: 8)
+                .foregroundStyle(OAKPalette.background(for: colorScheme))
+                .frame(width: 72, height: 72)
+                .background(OAKPalette.taken(for: colorScheme), in: Circle())
             Text(displayName)
                 .font(.title3.weight(.semibold))
                 .lineLimit(1)
@@ -97,9 +100,9 @@ struct ClientEditorSheet: View {
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
         .disabled(trimmedName.isEmpty)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
+        .padding(.horizontal, OAKSpacing.xl)
+        .padding(.vertical, OAKSpacing.md)
+        .background(OAKPalette.surface(for: colorScheme))
     }
 
     @ToolbarContentBuilder
@@ -107,14 +110,6 @@ struct ClientEditorSheet: View {
         ToolbarItem(placement: .cancellationAction) {
             Button("cancel".localized) { dismiss() }
         }
-    }
-
-    private var profileGradient: LinearGradient {
-        LinearGradient(
-            colors: [OAKPalette.heroStart, OAKPalette.heroEnd],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
     }
 
     private var trimmedName: String {

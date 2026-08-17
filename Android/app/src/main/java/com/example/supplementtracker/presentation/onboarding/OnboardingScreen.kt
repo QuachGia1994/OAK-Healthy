@@ -99,7 +99,7 @@ fun OnboardingScreen(
     val clients by activeClientManager.clients.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val backgroundBrush = oakBackgroundBrush()
-    val cardShape = remember { RoundedCornerShape(28.dp) }
+    val cardShape = remember { RoundedCornerShape(18.dp) }
 
     var step by remember { mutableStateOf(OnboardingStep.CLIENT) }
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
@@ -165,12 +165,6 @@ fun OnboardingScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.AutoAwesome,
-                    contentDescription = stringResource(R.string.a11y_oak_logo),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(44.dp)
-                )
                 OnboardingProgress(step = step)
             }
 
@@ -188,7 +182,7 @@ fun OnboardingScreen(
                         onSelectClient = { activeClientManager.setCurrentClientId(it) },
                         onAddClient = { isAddClientDialogVisible = true }
                     )
-                    OnboardingStep.NOTIFICATIONS -> NotificationsStep(
+                    OnboardingStep.REMINDERS -> ReminderSetupStep(
                         checked = isNotificationsEnabledByUser,
                         hasPermission = hasNotificationPermission,
                         onCheckedChange = { checked ->
@@ -207,12 +201,9 @@ fun OnboardingScreen(
                             homeViewModel.refreshNotificationSchedules()
                             refreshPermissionState()
                         },
-                        onOpenAppSettings = { openAppSettings(context) }
-                    )
-                    OnboardingStep.EXACT_ALARM -> ExactAlarmStep(onOpenExactAlarm = { openExactAlarmSettings(context) })
-                    OnboardingStep.BATTERY -> BatteryStep(
-                        onRequestDisableOptimization = { requestIgnoreBatteryOptimizations(context) },
-                        onOpenAppSettings = { openAppSettings(context) }
+                        onOpenAppSettings = { openAppSettings(context) },
+                        onOpenExactAlarm = { openExactAlarmSettings(context) },
+                        onRequestDisableOptimization = { requestIgnoreBatteryOptimizations(context) }
                     )
                     OnboardingStep.DONE -> DoneStep()
                 }
@@ -349,6 +340,24 @@ private fun ClientStep(
 }
 
 @Composable
+private fun ReminderSetupStep(
+    checked: Boolean,
+    hasPermission: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onOpenAppSettings: () -> Unit,
+    onOpenExactAlarm: () -> Unit,
+    onRequestDisableOptimization: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        NotificationsStep(checked, hasPermission, onCheckedChange, onOpenAppSettings)
+        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        ExactAlarmStep(onOpenExactAlarm)
+        androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        BatteryStep(onRequestDisableOptimization, onOpenAppSettings)
+    }
+}
+
+@Composable
 private fun NotificationsStep(
     checked: Boolean,
     hasPermission: Boolean,
@@ -429,41 +438,29 @@ private fun DoneStep() {
 
 private enum class OnboardingStep {
     CLIENT,
-    NOTIFICATIONS,
-    EXACT_ALARM,
-    BATTERY,
+    REMINDERS,
     DONE;
 
-    fun next(): OnboardingStep {
-        return when (this) {
-            CLIENT -> NOTIFICATIONS
-            NOTIFICATIONS -> EXACT_ALARM
-            EXACT_ALARM -> BATTERY
-            BATTERY -> DONE
-            DONE -> DONE
-        }
+    fun next(): OnboardingStep = when (this) {
+        CLIENT -> REMINDERS
+        REMINDERS -> DONE
+        DONE -> DONE
     }
 
-    fun previous(): OnboardingStep {
-        return when (this) {
-            CLIENT -> CLIENT
-            NOTIFICATIONS -> CLIENT
-            EXACT_ALARM -> NOTIFICATIONS
-            BATTERY -> EXACT_ALARM
-            DONE -> BATTERY
-        }
+    fun previous(): OnboardingStep = when (this) {
+        CLIENT -> CLIENT
+        REMINDERS -> CLIENT
+        DONE -> REMINDERS
     }
 }
 
 @Composable
 private fun OnboardingProgress(step: OnboardingStep) {
-    val total = 5
+    val total = 3
     val index = when (step) {
         OnboardingStep.CLIENT -> 0
-        OnboardingStep.NOTIFICATIONS -> 1
-        OnboardingStep.EXACT_ALARM -> 2
-        OnboardingStep.BATTERY -> 3
-        OnboardingStep.DONE -> 4
+        OnboardingStep.REMINDERS -> 1
+        OnboardingStep.DONE -> 2
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -479,9 +476,7 @@ private fun OnboardingProgress(step: OnboardingStep) {
         }
         val title = when (step) {
             OnboardingStep.CLIENT -> stringResource(R.string.onboarding_step_client_title)
-            OnboardingStep.NOTIFICATIONS -> stringResource(R.string.onboarding_step_notifications_title)
-            OnboardingStep.EXACT_ALARM -> stringResource(R.string.onboarding_step_exact_alarm_title)
-            OnboardingStep.BATTERY -> stringResource(R.string.onboarding_step_battery_title)
+            OnboardingStep.REMINDERS -> stringResource(R.string.onboarding_step_notifications_title)
             OnboardingStep.DONE -> stringResource(R.string.onboarding_step_done_title)
         }
         Text(

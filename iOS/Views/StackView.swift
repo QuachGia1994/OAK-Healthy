@@ -3,6 +3,7 @@ import SwiftData
 
 public struct StackView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
@@ -42,7 +43,7 @@ public struct StackView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
 
-                        HStack(spacing: 12) {
+                        HStack(spacing: 0) {
                             Button {
                                 selectedDestination = .syncCenter
                             } label: {
@@ -52,7 +53,7 @@ public struct StackView: View {
                                 )
                             }
                             .buttonStyle(.plain)
-
+                            Divider()
                             Button {
                                 selectedDestination = .userGuide
                             } label: {
@@ -63,6 +64,10 @@ public struct StackView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        .background(
+                            OAKPalette.mutedSurface(for: colorScheme),
+                            in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+                        )
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
@@ -70,7 +75,7 @@ public struct StackView: View {
                     
                     Section {
                         if displayedSupplements.isEmpty {
-                            StackEmptyState()
+                            StackEmptyState(onAdd: { isShowingAddSheet = true })
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
@@ -84,8 +89,8 @@ public struct StackView: View {
                                 )
                                 .equatable()
                                 .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                .listRowSeparator(.visible)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button {
                                         editingSupplement = supplement
@@ -111,7 +116,7 @@ public struct StackView: View {
                 .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always))
                 .navigationTitle("my_list_title".localized)
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                .toolbarBackground(OAKPalette.background(for: colorScheme), for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
@@ -330,11 +335,10 @@ private struct StackSupplementRow: View, Equatable {
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(isOffCycle ? Color.secondary.opacity(0.35) : OAKPalette.taken(for: colorScheme))
-                .frame(width: 4, height: 44)
-            VStack(alignment: .leading, spacing: 5) {
+        let accent = isOffCycle ? Color.secondary.opacity(0.55) : OAKPalette.taken(for: colorScheme)
+        HStack(spacing: OAKSpacing.md) {
+            Circle().fill(accent).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: OAKSpacing.xs) {
                 Text(name)
                     .font(.headline)
                     .foregroundStyle(isOffCycle ? Color.secondary : Color.primary)
@@ -344,12 +348,11 @@ private struct StackSupplementRow: View, Equatable {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Image(systemName: isOffCycle ? "moon.zzz.fill" : "bolt.heart.fill")
-                .foregroundStyle(isOffCycle ? Color.secondary : OAKPalette.taken(for: colorScheme))
+            Image(systemName: isOffCycle ? "moon.zzz.fill" : "checkmark.circle.fill")
+                .foregroundStyle(accent)
                 .accessibilityHidden(true)
         }
-        .padding(16)
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
+        .padding(.vertical, OAKSpacing.md)
         .accessibilityElement(children: .combine)
     }
 
@@ -406,7 +409,7 @@ private struct StackQuickAction: View {
     let systemImage: String
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: OAKSpacing.sm) {
             Image(systemName: systemImage)
                 .foregroundStyle(OAKPalette.accent)
             Text(title)
@@ -416,24 +419,21 @@ private struct StackQuickAction: View {
                 .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .padding(.horizontal, OAKSpacing.md)
+        .oakTouchTarget()
         .frame(maxWidth: .infinity)
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0.05, shadowRadius: 7, shadowY: 3)
     }
 }
 
 private struct StackEmptyState: View {
+    let onAdd: () -> Void
+
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "leaf.circle.fill")
-                .font(.system(size: 34))
-                .foregroundStyle(OAKPalette.accent)
-            Text("no_supplements_yet".localized)
-                .font(.subheadline.weight(.semibold))
-                .oakSecondaryText()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.04, shadowRadius: 7, shadowY: 3)
+        OAKFeedbackView(
+            title: "no_supplements_yet".localized,
+            message: "add_supplement".localized,
+            actionTitle: "add_supplement".localized,
+            action: onAdd
+        )
     }
 }

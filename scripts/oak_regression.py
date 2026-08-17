@@ -43,7 +43,7 @@ def main() -> int:
     except subprocess.CalledProcessError as error:
         print(f"OAK regression matrix failed: {error.cmd}")
         return error.returncode or 1
-    print("OAK regression matrix passed: P8-P12-CLOSE plus UI-R1/UI-R2 repository contracts and unit gates are green.")
+    print("OAK regression matrix passed: P8-P12-CLOSE plus UI-R1/UI-R2 and Stage A complete-product UI contracts are green.")
     return 0
 
 

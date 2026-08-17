@@ -59,14 +59,15 @@ internal fun SettingsSection(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        OakCard(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            variant = OakCardVariant.Paper,
             shape = RoundedCornerShape(14.dp),
-            contentPadding = PaddingValues(14.dp),
-            elevation = 0.dp,
-            content = content
-        )
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            tonalElevation = 0.dp
+        ) {
+            Column(modifier = Modifier.padding(14.dp), content = content)
+        }
     }
 }
 
@@ -164,7 +165,7 @@ internal fun AppearanceCard(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
 
@@ -195,9 +196,8 @@ internal fun AppThemeSegmentedControl(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val outerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFFF2F2F7)
-    val selectedColor = if (isDark) Color.White.copy(alpha = 0.22f) else Color.White
+    val outerColor = MaterialTheme.colorScheme.surfaceVariant
+    val selectedColor = MaterialTheme.colorScheme.surface
 
     val items = listOf(
         Triple(stringResource(R.string.appearance_light), AppTheme.LIGHT, appTheme == AppTheme.LIGHT),
@@ -227,7 +227,7 @@ internal fun AppThemeSegmentedControl(
                     Text(
                         text = label,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isDark) Color.White else Color(0xFF111111)
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -266,7 +266,7 @@ internal fun getCycleSummary(
 
 @Composable
 internal fun InfoCard(title: String, content: String, isOffCycle: Boolean = false) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
     val alpha = if (isOffCycle) 0.55f else 1f
 
@@ -301,7 +301,7 @@ internal fun ExpandableInfoCard(
     expanded: Boolean,
     onToggle: () -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
@@ -349,9 +349,9 @@ internal fun InfoCardNavigationRow(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
-    val subtitleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    val subtitleColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Card(
         modifier = Modifier
@@ -387,7 +387,7 @@ internal fun ClientManagementCard(
     onEdit: (ClientProfile) -> Unit,
     onDelete: (ClientProfile) -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
@@ -474,7 +474,7 @@ internal fun ClientManagementCard(
 
 @Composable
 internal fun LogoCard() {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(

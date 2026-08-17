@@ -472,6 +472,7 @@
     <string name="plan_feature_all_pro">Toàn bộ tính năng Pro</string>
     <string name="plan_feature_multi_client">Quản lý nhiều học viên</string>
     <string name="plan_feature_coach_reports">Báo cáo cho coach</string>
+    <string name="billing_store_products">Gói đăng ký</string>
     <string name="billing_buy">Mua</string>
     <string name="billing_restore">Khôi phục giao dịch</string>
     <string name="billing_purchase_completed">Mua gói thành công. Quyền truy cập đã cập nhật.</string>

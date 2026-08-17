@@ -18,10 +18,10 @@ struct CoachClientDetailView: View {
         List {
             windowSection
             comparisonSection(detail)
-            trendSection(detail)
             checkInSection(checkIns)
             reportSection(report)
         }
+        .listSectionSpacing(20)
         .id(checkInVersion)
         .navigationTitle(client.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -39,23 +39,35 @@ struct CoachClientDetailView: View {
     }
 
     private func comparisonSection(_ detail: CoachClientDetail) -> some View {
-        Section("coach_detail_comparison_title".localized) {
-            Text(periodText("coach_current_period_format", stats: detail.current))
-            Text(periodText("coach_previous_period_format", stats: detail.previous))
-            Text(deltaText(detail.completionDeltaPoints)).foregroundStyle(.secondary)
-        }
-    }
-
-    private func trendSection(_ detail: CoachClientDetail) -> some View {
-        Section("coach_trend_title".localized) {
-            ForEach(detail.trend.suffix(6)) { point in
-                HStack {
-                    Text(point.bucketStart.formatted(date: .numeric, time: .omitted))
-                    Spacer()
-                    Text(point.completionPercent.map { "\($0)%" } ?? "—").fontWeight(.semibold)
+        Section {
+            VStack(alignment: .leading, spacing: OAKSpacing.md) {
+                Text("coach_detail_comparison_title".localized)
+                    .font(.subheadline.weight(.semibold))
+                Text(periodText("coach_current_period_format", stats: detail.current))
+                    .font(.oakDisplay(size: 26))
+                Text(periodText("coach_previous_period_format", stats: detail.previous))
+                    .font(.subheadline)
+                    .oakSecondaryText()
+                Text(deltaText(detail.completionDeltaPoints))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(OAKPalette.accent)
+                Divider()
+                Text("coach_trend_title".localized)
+                    .font(.subheadline.weight(.semibold))
+                ForEach(detail.trend.suffix(6)) { point in
+                    HStack {
+                        Text(point.bucketStart.formatted(date: .numeric, time: .omitted))
+                        Spacer()
+                        Text(point.completionPercent.map { "\($0)%" } ?? "—")
+                            .fontWeight(.semibold)
+                    }
+                    .font(.caption)
                 }
-                .font(.caption)
             }
+            .padding(OAKSpacing.xl)
+            .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 

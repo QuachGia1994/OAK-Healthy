@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- Stage A Complete Product UI Redesign unifies Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode across Android/iOS, with progressive technical disclosure and a single cross-platform presentation contract.
 - UI-R2 History & Trends Scanability adds cross-platform completion-ring/trend hierarchy, visible result/day counts, unified activity-chart styling, compact search/segmented filters, and continuous date-grouped History timelines without per-record cards.
 - UI-R1 Health & Wellness redesign adds cross-platform spacing/radius/type-scale tokens, a flat navigation shell, a single progress-led Home insight surface, a continuous Add/Edit Supplement form surface, and an automated presentation contract/QA matrix.
 - P12 Store Activation adds Android API 36/Xcode 26 store toolchain readiness, explicit no-upload versus execute-store workflow modes, fail-closed missing-credential jobs, stable catalog/store activation gates, and a non-fabricated external-account runbook.
@@ -39,6 +40,7 @@ versioning where practical.
 
 ### Changed
 
+- Stage A removes remaining glass/material fragmentation from core iOS flows, consolidates Android onboarding to Client → Reminders → Done while preserving exact-alarm/battery actions, replaces card-per-supplement/client/alarm/log patterns with continuous rows, and reorganizes paywall/sync/recovery hierarchy without changing health/business logic.
 - History now prioritizes completion/trend over raw intake totals, uses the same wellness accent language for 7/30-day trends and 7-day activity, replaces glass/material search treatments, and renders log records as continuous divider rows grouped by date.
 - Home no longer fragments Due/Missed/Taken/Skipped into four standalone metric cards; both platforms now place semantic metrics and overdue recovery inside one primary daily progress surface. Add/Edit Supplement now uses one divided form surface instead of a separate card for Details, Timing and Rhythm.
 - Android/iOS wellness colors now use a quieter neutral background/raised-surface system with stronger dark-mode contrast and a restrained green accent; bottom navigation no longer uses floating glass/material treatment.

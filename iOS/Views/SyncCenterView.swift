@@ -29,6 +29,7 @@ public struct SyncCenterView: View {
     @State private var syncPhase: SyncPhase = .idle
     @State private var isManifestPartsVisible: Bool = false
     @State private var isStatusDiagnosticsVisible: Bool = false
+    @State private var isLogsVisible: Bool = false
     
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
@@ -62,6 +63,7 @@ public struct SyncCenterView: View {
                 logsSection
             }
             .scrollContentBackground(.hidden)
+            .listSectionSpacing(20)
         }
         .navigationTitle("sync_center_title".localized)
         .navigationBarTitleDisplayMode(.inline)
@@ -151,7 +153,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_onboarding_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
     @ViewBuilder
@@ -400,7 +402,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_status_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
     @ViewBuilder
@@ -461,7 +463,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_device_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
     @ViewBuilder
@@ -698,7 +700,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_security_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
     @ViewBuilder
@@ -709,65 +711,71 @@ public struct SyncCenterView: View {
                     .font(.caption)
                     .oakSecondaryText()
             } else {
-                TextField("sync_center_logs_search_placeholder".localized, text: $logQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                
-                Picker("sync_center_logs_phase".localized, selection: $logPhaseFilter) {
-                    Text("sync_center_logs_phase_all".localized).tag("ALL")
-                    ForEach(availableLogPhases, id: \.self) { phase in
-                        Text(CloudSyncLogEntry.displayText(for: phase)).tag(phase)
+                Button {
+                    isLogsVisible.toggle()
+                } label: {
+                    HStack {
+                        Text("sync_center_logs_header".localized)
+                        Spacer()
+                        Image(systemName: isLogsVisible ? "chevron.up" : "chevron.down")
                     }
                 }
-                .pickerStyle(.menu)
-                .font(.caption)
-                
-                HStack {
-                    ShareLink(item: prettyLogText) {
-                        Text("sync_center_logs_export".localized)
-                    }
-                    .font(.caption)
-                    .buttonStyle(.borderless)
-                    
-                    Spacer()
-                    Button(role: .destructive) { isShowingClearLogConfirm = true } label: {
-                        Text("sync_center_logs_clear".localized)
-                    }
-                    .confirmationDialog(
-                        "sync_center_clear_log_confirm".localized,
-                        isPresented: $isShowingClearLogConfirm,
-                        titleVisibility: .visible
-                    ) {
-                        Button("sync_center_clear_log_action".localized, role: .destructive) {
-                            clearLogs()
+                .buttonStyle(.plain)
+                .oakTouchTarget()
+                if isLogsVisible {
+                    logControls
+                    if filteredLogEntries.isEmpty {
+                        Text("sync_center_no_logs".localized)
+                            .font(.caption)
+                            .oakSecondaryText()
+                    } else {
+                        ForEach(filteredLogEntries) { entry in
+                            VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+                                Text(entry.title).font(.caption).oakSecondaryText()
+                                Text(entry.message).font(.caption)
+                            }
+                            .padding(.vertical, OAKSpacing.xs)
                         }
-                        Button("cancel".localized, role: .cancel) {}
-                    }
-                    .buttonStyle(.borderless)
-                }
-                
-                if filteredLogEntries.isEmpty {
-                    Text("sync_center_no_logs".localized)
-                        .font(.caption)
-                        .oakSecondaryText()
-                } else {
-                    ForEach(filteredLogEntries) { entry in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.title)
-                                .font(.caption)
-                                .oakSecondaryText()
-                            Text(entry.message)
-                                .font(.caption)
-                        }
-                        .padding(.vertical, 2)
                     }
                 }
             }
-        } header: {
-            Text("sync_center_logs_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
+    }
+
+    private var logControls: some View {
+        VStack(alignment: .leading, spacing: OAKSpacing.sm) {
+            TextField("sync_center_logs_search_placeholder".localized, text: $logQuery)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Picker("sync_center_logs_phase".localized, selection: $logPhaseFilter) {
+                Text("sync_center_logs_phase_all".localized).tag("ALL")
+                ForEach(availableLogPhases, id: \.self) { phase in
+                    Text(CloudSyncLogEntry.displayText(for: phase)).tag(phase)
+                }
+            }
+            .pickerStyle(.menu)
+            .font(.caption)
+            HStack {
+                ShareLink(item: prettyLogText) { Text("sync_center_logs_export".localized) }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                Spacer()
+                Button(role: .destructive) { isShowingClearLogConfirm = true } label: {
+                    Text("sync_center_logs_clear".localized)
+                }
+                .confirmationDialog(
+                    "sync_center_clear_log_confirm".localized,
+                    isPresented: $isShowingClearLogConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("sync_center_clear_log_action".localized, role: .destructive) { clearLogs() }
+                    Button("cancel".localized, role: .cancel) {}
+                }
+                .buttonStyle(.borderless)
+            }
+        }
     }
     
     private var availableLogPhases: [String] {
@@ -799,7 +807,7 @@ public struct SyncCenterView: View {
 
     private var hasActiveCloudLink: Bool { !activeBinId.isEmpty }
 
-    private var glassRowBackground: some View {
+    private var syncRowBackground: some View {
         OAKPalette.surface(for: colorScheme)
     }
     

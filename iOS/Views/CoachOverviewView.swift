@@ -17,7 +17,6 @@ public struct CoachOverviewView: View {
             if entitlementManager.canUse(.coachReports) {
                 windowSection
                 summarySection(report)
-                trendSection(report)
                 clientControls
                 clientSection(report)
             } else {
@@ -25,6 +24,7 @@ public struct CoachOverviewView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .listSectionSpacing(20)
         .background { Color.clear.oakBackground() }
         .navigationTitle("coach_overview_title".localized)
         .searchable(text: $searchText, prompt: Text("coach_search_clients".localized))
@@ -59,20 +59,38 @@ public struct CoachOverviewView: View {
 
     private func summarySection(_ report: CoachOverviewSummary) -> some View {
         Section {
-            OAKResponsiveMetricLayout { metrics(report) }
-            Text(
-                String.localizedStringWithFormat(
-                    "coach_attention_count_format".localized,
-                    report.needsCheckInCount
+            VStack(alignment: .leading, spacing: OAKSpacing.lg) {
+                Text(String(format: "coach_report_window_format".localized, report.windowDays))
+                    .font(.caption.weight(.semibold))
+                    .oakSecondaryText()
+                Text(overallCompletionText(report))
+                    .font(.oakDisplay(size: 30))
+                OAKResponsiveMetricLayout { metrics(report) }
+                Text(
+                    String.localizedStringWithFormat(
+                        "coach_attention_count_format".localized,
+                        report.needsCheckInCount
+                    )
                 )
-            )
-            .font(.caption)
-            .foregroundStyle(OAKPalette.accent)
-            Text(overallCompletionText(report))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        } header: {
-            Text(String(format: "coach_report_window_format".localized, report.windowDays))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(OAKPalette.accent)
+                Divider()
+                Text("coach_trend_title".localized)
+                    .font(.subheadline.weight(.semibold))
+                ForEach(report.trend.suffix(6)) { point in
+                    HStack {
+                        Text(point.bucketStart.formatted(date: .numeric, time: .omitted))
+                        Spacer()
+                        Text(point.completionPercent.map { "\($0)%" } ?? "—")
+                            .fontWeight(.semibold)
+                    }
+                    .font(.caption)
+                }
+            }
+            .padding(OAKSpacing.xl)
+            .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
         }
     }
 
@@ -83,20 +101,6 @@ public struct CoachOverviewView: View {
         metric("coach_metric_active".localized, value: report.activeClients)
         Spacer(minLength: 8)
         metric("coach_metric_check_in".localized, value: report.needsCheckInCount)
-    }
-
-    private func trendSection(_ report: CoachOverviewSummary) -> some View {
-        Section("coach_trend_title".localized) {
-            ForEach(report.trend.suffix(6)) { point in
-                HStack {
-                    Text(point.bucketStart.formatted(date: .numeric, time: .omitted))
-                    Spacer()
-                    Text(point.completionPercent.map { "\($0)%" } ?? "—")
-                        .fontWeight(.semibold)
-                }
-                .font(.caption)
-            }
-        }
     }
 
     private var clientControls: some View {

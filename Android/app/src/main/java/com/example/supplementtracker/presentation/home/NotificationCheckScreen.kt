@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,14 +25,16 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Medication
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Spa
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -55,6 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.designsystem.OakRadius
+import com.example.supplementtracker.presentation.designsystem.OakSpacing
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.supplementtracker.service.AndroidNotificationDiagnosticsSource
@@ -334,10 +339,13 @@ private fun NotificationCheckContent(
 
 @Composable
 private fun EmptyNotificationCard() {
-    ElevatedCard {
+    Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(OakRadius.Md),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
         Text(
             text = stringResource(R.string.notification_check_empty),
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(OakSpacing.Lg),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -397,9 +405,14 @@ private fun DiagnosticsCard(
             else -> OakColors.Warning
     }
     val chipTextColor = Color.White
+    var isTechnicalDetailsVisible by rememberSaveable { mutableStateOf(false) }
 
-    ElevatedCard {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(OakRadius.Lg),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.padding(OakSpacing.Xl), verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = diagnosisTitle,
@@ -442,14 +455,24 @@ private fun DiagnosticsCard(
                 label = stringResource(R.string.notification_reliability_stale),
                 value = reliabilityReport.staleEntryCount.toString()
             )
-            Text(stringResource(R.string.notification_check_diagnostics_label), style = MaterialTheme.typography.titleSmall)
-            SelectionContainer {
+            TextButton(onClick = { isTechnicalDetailsVisible = !isTechnicalDetailsVisible }) {
                 Text(
-                    text = diagnosticsText,
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    stringResource(
+                        if (isTechnicalDetailsVisible) R.string.sync_center_diagnostics_hide
+                        else R.string.sync_center_diagnostics_show
+                    )
                 )
+            }
+            if (isTechnicalDetailsVisible) {
+                Text(stringResource(R.string.notification_check_diagnostics_label), style = MaterialTheme.typography.titleSmall)
+                SelectionContainer {
+                    Text(
+                        text = diagnosticsText,
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -483,9 +506,9 @@ private fun KeyValueRow(label: String, value: String) {
 @Composable
 private fun AlarmCard(item: ScheduledAlarmInfo, timeFormatter: DateTimeFormatter) {
     val time = Instant.ofEpochMilli(item.scheduledAtMillis).atZone(ZoneId.systemDefault()).toLocalDateTime()
-    ElevatedCard {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = OakSpacing.Md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
@@ -493,17 +516,19 @@ private fun AlarmCard(item: ScheduledAlarmInfo, timeFormatter: DateTimeFormatter
                 contentDescription = item.title,
                 tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.size(12.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Spacer(modifier = Modifier.size(OakSpacing.Md))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
                 Text(text = item.title, style = MaterialTheme.typography.titleMedium)
                 Text(
                     text = stringResource(R.string.notification_check_dose_format, item.dose),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(text = item.cycleText, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = item.cycleText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(text = time.format(timeFormatter), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            Text(text = time.format(timeFormatter), fontWeight = FontWeight.SemiBold)
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

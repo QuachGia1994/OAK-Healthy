@@ -1,6 +1,6 @@
 # OAK Healthy — Health & Wellness UI System
 
-Status: UI-R2 implementation checkpoint
+Status: Stage A complete-product UI checkpoint
 
 ## Direction
 
@@ -98,7 +98,25 @@ Implemented:
 - visible record count and per-day counts improve scan speed without altering filtering or persistence logic;
 - iOS History navigation and search no longer use blur material; Android segmented controls no longer depend on translucent white styling.
 
-Deferred to later stages:
-- detail/Coach/Stack density pass;
-- Settings information architecture;
-- onboarding polish and final cross-screen motion review.
+## Stage A — Complete Product UI Redesign
+
+Implemented across Android and iOS:
+- Stack uses one routine overview, compact Sync/Guide actions, actionable empty state, and continuous supplement rows instead of card-per-item treatment;
+- Coach combines completion, client/attention metrics and trend into one workspace insight, while client lists and detail comparisons use continuous/flat hierarchy;
+- Settings separates branding from client management, reduces oversized containers, uses solid token surfaces and consistent section spacing;
+- onboarding is a three-step flow on both platforms; Android keeps notification permission, exact-alarm and battery reliability actions inside one Reminders step;
+- client/profile editing removes material blur, decorative gradients and oversized sheet decoration;
+- Plan Access uses current-plan hero + one comparison surface + one store purchase surface rather than a card for every plan/product;
+- Sync Center keeps health/recovery first and moves operation logs, IDs, keys and diagnostics behind progressive disclosure;
+- notification reliability presents one readable health summary; raw diagnostics are hidden by default and scheduled reminders use continuous rows;
+- Safe Boot/Safe Mode share the wellness background and paper surfaces; destructive recovery remains explicit while debug tools stay collapsed by default;
+- legacy glass/material treatments left in high-frequency Home helper surfaces were removed so core screens share one visual language.
+
+No Stage A presentation change alters dose persistence, cycles, reminder scheduling semantics, backup/import behavior, sync conflict policy, commercial verification or entitlement decisions.
+
+Deferred to Stage B only:
+- final cross-screen visual consistency sweep;
+- device/large-text/accessibility stress matrix;
+- final motion/reduced-motion review;
+- render/performance audit and dead presentation-token cleanup;
+- screenshot/demo presentation pack and final UI release-candidate gate.

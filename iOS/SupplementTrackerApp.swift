@@ -218,16 +218,8 @@ private struct SafeBootView: View {
     
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: colorScheme == .dark
-                    ? [Color(red: 0.03, green: 0.12, blue: 0.14), Color(red: 0.05, green: 0.27, blue: 0.26)]
-                    : [Color(red: 0.94, green: 0.99, blue: 0.97), Color(red: 0.86, green: 0.95, blue: 0.92)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 18) {
+            Color.clear.oakBackground()
+            VStack(spacing: OAKSpacing.lg) {
                 OAKLoadingLogoView()
                     .frame(height: 260)
                 if let message = errorMessage {
@@ -251,7 +243,7 @@ private struct SafeBootView: View {
                     .buttonStyle(.bordered)
                 } else {
                     ProgressView()
-                        .tint(colorScheme == .dark ? .white : .black)
+                        .tint(OAKPalette.taken(for: colorScheme))
                 }
             }
         }
@@ -334,67 +326,59 @@ private struct SafeModeView: View {
     @State private var pendingImportMessage: String?
     @State private var pendingImportPreview: OAKBackupPreview?
     @State private var isApplyingImport: Bool = false
+    @State private var isDebugToolsVisible: Bool = false
     let activeClientManager: ActiveClientManager
     
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    if hasPendingImport {
-                        if let pendingImportMessage {
-                            Text(pendingImportMessage)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        if isApplyingImport {
-                            ProgressView()
-                        }
-                        Button(
-                            pendingImportPreview == nil
-                                ? "safe_mode_preview_button".localized
-                                : "safe_mode_confirm_apply_button".localized
-                        ) {
-                            Task {
-                                if pendingImportPreview == nil {
-                                    await previewPendingImport()
-                                } else {
-                                    await applyPendingImport()
+                    VStack(alignment: .leading, spacing: OAKSpacing.md) {
+                        Text("safe_mode_header".localized)
+                            .font(.oakDisplay(size: 26))
+                        if hasPendingImport {
+                            if let pendingImportMessage {
+                                Text(pendingImportMessage).font(.footnote).oakSecondaryText()
+                            }
+                            if isApplyingImport { ProgressView() }
+                            Button(
+                                pendingImportPreview == nil
+                                    ? "safe_mode_preview_button".localized
+                                    : "safe_mode_confirm_apply_button".localized
+                            ) {
+                                Task {
+                                    if pendingImportPreview == nil { await previewPendingImport() }
+                                    else { await applyPendingImport() }
                                 }
                             }
+                            .disabled(isApplyingImport || pendingImportPreview?.canRestore == false)
+                            .buttonStyle(.borderedProminent)
+                            Button("safe_mode_discard_button".localized) { discardPendingImport() }
+                                .disabled(isApplyingImport)
+                                .buttonStyle(.bordered)
                         }
-                        .disabled(isApplyingImport || pendingImportPreview?.canRestore == false)
-                        .buttonStyle(.borderedProminent)
-                        Button("safe_mode_discard_button".localized) {
-                            discardPendingImport()
-                        }
-                        .disabled(isApplyingImport)
-                        .buttonStyle(.bordered)
+                        Divider()
+                        Toggle("safe_mode_auto_sync_toggle".localized, isOn: $isAutoSyncEnabled)
+                        Button("safe_mode_exit_button".localized) { exitSafeMode() }
                     }
-                    Toggle("safe_mode_auto_sync_toggle".localized, isOn: $isAutoSyncEnabled)
-                    Button("safe_mode_exit_button".localized) {
-                        DebugReporter.report("safe_mode_exit_tap", fields: [
-                            "pendingImport": String(hasPendingImport)
-                        ])
-                        UserDefaults.standard.removeObject(forKey: BootKeys.stage)
-                        UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
-                        isSafeModeEnabled = false
-                    }
-                } header: {
-                    Text("safe_mode_header".localized)
+                    .padding(OAKSpacing.xl)
+                    .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
-                
                 Section {
-                    TextField("debug_server_url_placeholder".localized, text: $debugServerUrl)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .textFieldStyle(.roundedBorder)
-                    Button("debug_send_test_event".localized) {
-                        DebugReporter.report("debug_test_event")
+                    DisclosureGroup("debug_section_title".localized, isExpanded: $isDebugToolsVisible) {
+                        TextField("debug_server_url_placeholder".localized, text: $debugServerUrl)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .textFieldStyle(.roundedBorder)
+                        Button("debug_send_test_event".localized) { DebugReporter.report("debug_test_event") }
                     }
-                } header: {
-                    Text("debug_section_title".localized)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .listSectionSpacing(20)
+            .background { Color.clear.oakBackground() }
             .navigationTitle("safe_mode_title".localized)
         }
         .task {
@@ -411,6 +395,15 @@ private struct SafeModeView: View {
     
     private var hasPendingImport: Bool {
         !pendingImportFilePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func exitSafeMode() {
+        DebugReporter.report("safe_mode_exit_tap", fields: [
+            "pendingImport": String(hasPendingImport)
+        ])
+        UserDefaults.standard.removeObject(forKey: BootKeys.stage)
+        UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
+        isSafeModeEnabled = false
     }
     
     @MainActor

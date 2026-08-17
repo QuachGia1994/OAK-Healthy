@@ -1,8 +1,7 @@
 package com.example.supplementtracker.presentation.home
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,25 +26,25 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,10 +59,14 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
-import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakColors
+import com.example.supplementtracker.presentation.designsystem.OakFeedbackCard
+import com.example.supplementtracker.presentation.designsystem.OakRadius
+import com.example.supplementtracker.presentation.designsystem.OakSpacing
+import com.example.supplementtracker.presentation.designsystem.OakTypeScale
 import com.example.supplementtracker.presentation.designsystem.OakTypography
 import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
+import com.example.supplementtracker.presentation.designsystem.oakTouchTarget
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import java.util.Locale
 
@@ -85,9 +88,7 @@ fun MyStackListScreen(
     val stackItems = remember(supplements, currentDay) {
         buildStackItems(supplements, currentDay, calculateCycleUseCase)
     }
-    val filteredItems = remember(stackItems, searchText) {
-        filterStackItems(stackItems, searchText)
-    }
+    val filteredItems = remember(stackItems, searchText) { filterStackItems(stackItems, searchText) }
     val restingCount = remember(stackItems) { stackItems.count { it.cycleStatus == CycleStatus.OFF } }
     val listState = rememberLazyListState()
 
@@ -95,79 +96,92 @@ fun MyStackListScreen(
         Scaffold(
             containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    title = { Text(stringResource(R.string.my_list_title)) },
-                    actions = {
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Default.Settings, stringResource(R.string.a11y_settings))
-                        }
-                    }
-                )
-            },
+            topBar = { StackTopBar(onOpenSettings) },
             floatingActionButton = {
                 FloatingActionButton(onClick = onNavigateToAdd) {
                     Icon(Icons.Default.Add, stringResource(R.string.a11y_add_supplement))
                 }
             }
         ) { padding ->
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 112.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item(key = "overview", contentType = "overview") {
-                    StackOverviewCard(
-                        totalCount = supplements.size,
-                        activeCount = (supplements.size - restingCount).coerceAtLeast(0),
-                        restingCount = restingCount
-                    )
-                }
-                item(key = "quick_actions", contentType = "quick_actions") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StackQuickAction(
-                            title = stringResource(R.string.sync_center_title),
-                            icon = Icons.Default.Sync,
-                            modifier = Modifier.weight(1f),
-                            onClick = onNavigateToSyncCenter
-                        )
-                        StackQuickAction(
-                            title = stringResource(R.string.settings_guide_title),
-                            icon = Icons.AutoMirrored.Filled.HelpOutline,
-                            modifier = Modifier.weight(1f),
-                            onClick = onNavigateToUserGuide
-                        )
-                    }
-                }
-                item(key = "search", contentType = "search") {
-                    StackSearchField(searchText = searchText, onSearchTextChange = { searchText = it })
-                }
-                item(key = "list_title", contentType = "title") {
-                    Text(
-                        text = stringResource(R.string.manage_stack),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
-                }
-                if (filteredItems.isEmpty()) {
-                    item(key = "empty", contentType = "empty") { StackEmptyState() }
-                } else {
-                    items(filteredItems, key = { it.supplement.id }, contentType = { "supplement" }) { item ->
-                        StackSupplementCard(
-                            title = item.title,
-                            summary = getCycleSummary(item.supplement, item.cycleStatus),
-                            isOffCycle = item.cycleStatus == CycleStatus.OFF
-                        )
-                    }
-                }
+            StackContent(
+                items = filteredItems,
+                totalCount = supplements.size,
+                restingCount = restingCount,
+                searchText = searchText,
+                onSearchTextChange = { searchText = it },
+                onNavigateToSyncCenter = onNavigateToSyncCenter,
+                onNavigateToUserGuide = onNavigateToUserGuide,
+                onNavigateToAdd = onNavigateToAdd,
+                modifier = Modifier.padding(padding),
+                listState = listState
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StackTopBar(onOpenSettings: () -> Unit) {
+    TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+        title = { Text(stringResource(R.string.my_list_title)) },
+        actions = {
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Default.Settings, stringResource(R.string.a11y_settings))
+            }
+        }
+    )
+}
+
+@Composable
+private fun StackContent(
+    items: List<StackSupplementItem>,
+    totalCount: Int,
+    restingCount: Int,
+    searchText: String,
+    onSearchTextChange: (String) -> Unit,
+    onNavigateToSyncCenter: () -> Unit,
+    onNavigateToUserGuide: () -> Unit,
+    onNavigateToAdd: () -> Unit,
+    modifier: Modifier,
+    listState: androidx.compose.foundation.lazy.LazyListState
+) {
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = OakSpacing.Lg,
+            top = OakSpacing.Sm,
+            end = OakSpacing.Lg,
+            bottom = 112.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(OakSpacing.Section)
+    ) {
+        item(key = "overview") {
+            StackOverviewSurface(totalCount, (totalCount - restingCount).coerceAtLeast(0), restingCount)
+        }
+        item(key = "actions") {
+            StackActionStrip(onNavigateToSyncCenter, onNavigateToUserGuide)
+        }
+        item(key = "search") {
+            StackSearchField(searchText, onSearchTextChange)
+        }
+        item(key = "list_title") {
+            Text(
+                text = stringResource(R.string.manage_stack),
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = OakTypeScale.SectionTitle),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (items.isEmpty()) {
+            item(key = "empty") { StackEmptyState(onNavigateToAdd) }
+        } else {
+            items(items, key = { it.supplement.id }) { item ->
+                StackSupplementRow(
+                    title = item.title,
+                    summary = getCycleSummary(item.supplement, item.cycleStatus),
+                    isOffCycle = item.cycleStatus == CycleStatus.OFF
+                )
             }
         }
     }
@@ -202,83 +216,87 @@ private fun filterStackItems(
 }
 
 @Composable
-private fun StackOverviewCard(totalCount: Int, activeCount: Int, restingCount: Int) {
-    val shape = RoundedCornerShape(16.dp)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, shape)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+private fun StackOverviewSurface(totalCount: Int, activeCount: Int, restingCount: Int) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(OakRadius.Lg),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Text(
-            text = stringResource(R.string.my_list_title),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = totalCount.toString(),
-            style = MaterialTheme.typography.displayMedium.copy(fontFamily = OakTypography.Display),
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            StackMetric(stringResource(R.string.cycle_status_on), activeCount)
-            StackMetric(stringResource(R.string.cycle_status_off), restingCount)
+        Column(
+            modifier = Modifier.padding(OakSpacing.Xl),
+            verticalArrangement = Arrangement.spacedBy(OakSpacing.Md)
+        ) {
+            Text(
+                text = stringResource(R.string.my_list_title),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = totalCount.toString(),
+                style = MaterialTheme.typography.displayMedium.copy(fontFamily = OakTypography.Display),
+                fontWeight = FontWeight.SemiBold
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Xxl)) {
+                StackMetric(stringResource(R.string.cycle_status_on), activeCount)
+                StackMetric(stringResource(R.string.cycle_status_off), restingCount)
+            }
         }
     }
 }
 
 @Composable
 private fun StackMetric(title: String, value: Int) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
         Text(
-            text = value.toString(),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
+            value.toString(),
+            fontFamily = OakTypography.Display,
+            fontSize = OakTypeScale.Metric,
+            fontWeight = FontWeight.SemiBold
         )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
-        )
+        Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun StackQuickAction(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+private fun StackActionStrip(onSync: () -> Unit, onGuide: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(OakRadius.Md),
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Text(
-                title,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+        Row(modifier = Modifier.fillMaxWidth()) {
+            StackActionRow(
+                title = stringResource(R.string.sync_center_title),
+                icon = Icons.Default.Sync,
+                modifier = Modifier.weight(1f),
+                onClick = onSync
+            )
+            Box(Modifier.width(1.dp).height(48.dp).background(MaterialTheme.colorScheme.outlineVariant))
+            StackActionRow(
+                title = stringResource(R.string.settings_guide_title),
+                icon = Icons.AutoMirrored.Filled.HelpOutline,
+                modifier = Modifier.weight(1f),
+                onClick = onGuide
             )
         }
+    }
+}
+
+@Composable
+private fun StackActionRow(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = modifier.clickable(onClick = onClick).oakTouchTarget().padding(horizontal = OakSpacing.Md),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Text(title, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -291,30 +309,29 @@ private fun StackSearchField(searchText: String, onSearchTextChange: (String) ->
         placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
         leadingIcon = { Icon(Icons.Default.Search, stringResource(R.string.a11y_search)) },
         singleLine = true,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(OakRadius.Md),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.68f),
-            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent
         )
     )
 }
 
 @Composable
-private fun StackSupplementCard(title: String, summary: String, isOffCycle: Boolean) {
+private fun StackSupplementRow(title: String, summary: String, isOffCycle: Boolean) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val accent = if (isOffCycle) OakColors.Neutral else if (isDark) OakColors.TakenDark else OakColors.Taken
-    OakCard(
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-        accent = accent,
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(width = 4.dp, height = 46.dp).background(accent, RoundedCornerShape(2.dp)))
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+    Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = OakSpacing.Md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(8.dp).background(accent, RoundedCornerShape(OakRadius.Pill)))
+            Spacer(Modifier.width(OakSpacing.Md))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(
                     summary,
                     style = MaterialTheme.typography.bodySmall,
@@ -325,30 +342,21 @@ private fun StackSupplementCard(title: String, summary: String, isOffCycle: Bool
             }
             Icon(
                 if (isOffCycle) Icons.Default.Schedule else Icons.Default.CheckCircle,
-                contentDescription = stringResource(if (isOffCycle) R.string.cycle_status_off else R.string.cycle_status_on),
-                tint = accent
+                stringResource(if (isOffCycle) R.string.cycle_status_off else R.string.cycle_status_on),
+                tint = accent,
+                modifier = Modifier.size(22.dp)
             )
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
 @Composable
-private fun StackEmptyState() {
-    OakCard(
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(
-                text = stringResource(R.string.no_supplements_yet),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+private fun StackEmptyState(onAdd: () -> Unit) {
+    OakFeedbackCard(
+        title = stringResource(R.string.no_supplements_yet),
+        body = stringResource(R.string.add_supplement_intro),
+        actionLabel = stringResource(R.string.add_supplement_title),
+        onAction = onAdd
+    )
 }
