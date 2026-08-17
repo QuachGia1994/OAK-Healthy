@@ -56,6 +56,8 @@ def validate_motion(data: dict[str, str]) -> None:
 
 
 def validate_adaptive_layout(data: dict[str, str]) -> None:
+    require("import androidx.compose.ui.unit.dp" in data["android_demo"], "Android Demo Preview dp import missing")
+    require("import androidx.compose.foundation.layout.Box" in data["android_plan"], "Android Plan Access Box import missing")
     for key in ("android_stack", "android_settings", "android_coach", "android_plan"):
         require("rememberOakAdaptiveLayout" in data[key], f"Android adaptive layout missing from {key}")
     require("adaptive.stackMetrics" in data["android_stack"], "Android Stack large-text fallback missing")
