@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- UI-R1 Health & Wellness redesign adds cross-platform spacing/radius/type-scale tokens, a flat navigation shell, a single progress-led Home insight surface, a continuous Add/Edit Supplement form surface, and an automated presentation contract/QA matrix.
 - P12 Store Activation adds Android API 36/Xcode 26 store toolchain readiness, explicit no-upload versus execute-store workflow modes, fail-closed missing-credential jobs, stable catalog/store activation gates, and a non-fabricated external-account runbook.
 - P11.2–P11.10 and P11-CLOSE add cross-platform accessibility/touch-target policies, responsive metric layouts, reduced-motion behavior, failure-safe Sync recovery copy, progressive technical diagnostics, denser History/Coach signals, a synthetic-only presentation pack, and a pre-store completion gate/QA matrix.
 - P11.1 UX Polish 4.0 adds shared Android/iOS feedback surfaces, explicit History load-error/true-empty/no-match recovery states, Coach locked/empty/error feedback, EN/VI parity, and a repository UX contract/QA matrix.
@@ -37,6 +38,8 @@ versioning where practical.
 
 ### Changed
 
+- Home no longer fragments Due/Missed/Taken/Skipped into four standalone metric cards; both platforms now place semantic metrics and overdue recovery inside one primary daily progress surface. Add/Edit Supplement now uses one divided form surface instead of a separate card for Details, Timing and Rhythm.
+- Android/iOS wellness colors now use a quieter neutral background/raised-surface system with stronger dark-mode contrast and a restrained green accent; bottom navigation no longer uses floating glass/material treatment.
 - Android compile/target SDK moved to API 36 with AGP 8.10.1 and Gradle 8.11.1; iOS build/quality/store workflows now select the current stable Xcode and enforce an Xcode 26+ floor for 2026 store submissions.
 - Release workflow now runs readiness-only by default and requires `execute_store_uploads=true` before any App Store Connect or Google Play upload; requested execution with missing credentials fails instead of reporting a successful skip.
 - Dark-theme paper, secondary-text, outline and hairline tokens now use higher-contrast values on Android and iOS; Sync technical metrics are hidden behind progressive disclosure and iOS Sync log surfaces no longer use per-row blur material.
