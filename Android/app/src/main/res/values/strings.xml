@@ -175,6 +175,10 @@
     <string name="history_not_available">N/A</string>
     <string name="history_search_placeholder">Search supplements</string>
     <string name="history_filter_all">All</string>
+    <string name="history_completion_title">Completion</string>
+    <string name="history_metric_recorded">Recorded</string>
+    <string name="history_metric_late">Late</string>
+    <string name="history_results_count_format">%1$d records</string>
     <string name="intake_frequency_last_7">Intake Frequency (Last 7 days)</string>
     <string name="insights_title">Insights (7/30 days)</string>
     <string name="insights_total_title">TOTAL INTAKES</string>

@@ -1,6 +1,6 @@
 # OAK Healthy — Health & Wellness UI System
 
-Status: UI-R1 implementation checkpoint
+Status: UI-R2 implementation checkpoint
 
 ## Direction
 
@@ -87,8 +87,18 @@ Implemented:
 - dark theme palette updated for stronger neutral contrast;
 - existing dose, recurrence, reminder, entitlement and persistence logic left unchanged.
 
-Deferred to UI-R2 and later:
-- History/Trends scanability and chart unification;
+## UI-R2 checkpoint
+
+Implemented:
+- History completion percentage promoted to the dominant 7/30-day visual signal;
+- total recorded and late counts moved to supporting metrics around the completion ring;
+- trend line and 7-day activity chart now share the OAK wellness accent/semantic status language;
+- History search/filter controls use muted token surfaces rather than glass/material containers;
+- log history changed from card-per-record to continuous date-grouped rows with hairline dividers and compact status cues;
+- visible record count and per-day counts improve scan speed without altering filtering or persistence logic;
+- iOS History navigation and search no longer use blur material; Android segmented controls no longer depend on translucent white styling.
+
+Deferred to later stages:
 - detail/Coach/Stack density pass;
 - Settings information architecture;
 - onboarding polish and final cross-screen motion review.

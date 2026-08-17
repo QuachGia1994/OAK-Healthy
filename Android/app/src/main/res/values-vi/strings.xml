@@ -157,6 +157,10 @@
     <string name="history_not_available">N/A</string>
     <string name="history_search_placeholder">Tìm theo tên chất</string>
     <string name="history_filter_all">Tất cả</string>
+    <string name="history_completion_title">Hoàn thành</string>
+    <string name="history_metric_recorded">Đã ghi nhận</string>
+    <string name="history_metric_late">Trễ</string>
+    <string name="history_results_count_format">%1$d ghi nhận</string>
     <string name="intake_frequency_last_7">Tần suất uống (7 ngày qua)</string>
     <string name="insights_title">Gợi ý (7/30 ngày)</string>
     <string name="insights_total_title">TỔNG LƯỢT UỐNG</string>

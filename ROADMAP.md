@@ -21,13 +21,14 @@ cross-platform reliability rather than by a fixed delivery date.
 
 ## Active design checkpoint
 
-- UI-R1 Health & Wellness redesign modernizes the shared token system, app shell, Home/Overview and Add/Edit tracking flow without changing health/business behavior.
-- UI-R1 closes only after Android Build, iOS Build and Quality Gates are green on the same candidate SHA.
+- UI-R1 Health & Wellness foundation is closed on green baseline `5b3789c`: shared tokens, flat shell, progress-led Home and continuous tracking form are aligned cross-platform.
+- UI-R2 History & Trends Scanability promotes completion/trend as the primary History signal, unifies chart styling, removes card-per-record logs and preserves existing filter/recovery behavior.
+- UI-R2 closes only after Android Build, iOS Build and Quality Gates are green on the same candidate SHA.
 
 ## Next
 
-- UI-R2 — History & Trends Scanability: unify chart language, reduce card-per-record treatment, improve calendar/log scanning and preserve existing empty/loading/error recovery states.
-- UI-R3 — Detail / Stack / Coach density pass, followed by UI-R4 Settings & Onboarding information architecture and final motion review.
+- UI-R3 — Detail / Stack / Coach density pass: reduce repeated containers, strengthen action hierarchy and reuse the same wellness tokens across high-information surfaces.
+- UI-R4 — Settings & Onboarding information architecture plus final motion/consistency review.
 - Store execution remains at the external gate unless developer accounts are intentionally enabled. When enabled, run TestFlight/Sandbox + Play Internal and complete real P4.1 evidence before any production promotion.
 - After real store activation, production commerce hardening remains the next commerce stage: Google Play server-side purchase-token verification/acknowledgement plus RTDN lifecycle processing.
 
