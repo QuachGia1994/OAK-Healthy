@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- Stage B Final UI/UX Release Candidate adds compact/large-text fallbacks for Stack/Coach/Settings/Plan Access, finite reduced-motion launch branding, deterministic screenshot/demo documentation, dead presentation-token cleanup, and a dedicated cross-platform RC gate wired into Quality Gates and the unified regression matrix.
 - Stage A Complete Product UI Redesign unifies Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode across Android/iOS, with progressive technical disclosure and a single cross-platform presentation contract.
 - UI-R2 History & Trends Scanability adds cross-platform completion-ring/trend hierarchy, visible result/day counts, unified activity-chart styling, compact search/segmented filters, and continuous date-grouped History timelines without per-record cards.
 - UI-R1 Health & Wellness redesign adds cross-platform spacing/radius/type-scale tokens, a flat navigation shell, a single progress-led Home insight surface, a continuous Add/Edit Supplement form surface, and an automated presentation contract/QA matrix.
@@ -40,6 +41,7 @@ versioning where practical.
 
 ### Changed
 
+- Stage B removes decorative infinite launch animation and obsolete glass/elevation/hero/chart/badge presentation tokens, makes synthetic Demo Preview follow the same continuous-row wellness hierarchy as production UI, and preserves all health/business behavior while closing the redesign program.
 - Stage A removes remaining glass/material fragmentation from core iOS flows, consolidates Android onboarding to Client → Reminders → Done while preserving exact-alarm/battery actions, replaces card-per-supplement/client/alarm/log patterns with continuous rows, and reorganizes paywall/sync/recovery hierarchy without changing health/business logic.
 - History now prioritizes completion/trend over raw intake totals, uses the same wellness accent language for 7/30-day trends and 7-day activity, replaces glass/material search treatments, and renders log records as continuous divider rows grouped by date.
 - Home no longer fragments Due/Missed/Taken/Skipped into four standalone metric cards; both platforms now place semantic metrics and overdue recovery inside one primary daily progress surface. Add/Edit Supplement now uses one divided form surface instead of a separate card for Details, Timing and Rhythm.

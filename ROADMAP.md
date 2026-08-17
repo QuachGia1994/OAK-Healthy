@@ -23,12 +23,13 @@ cross-platform reliability rather than by a fixed delivery date.
 
 - UI-R1 Health & Wellness foundation is closed on green baseline `5b3789c`: shared tokens, flat shell, progress-led Home and continuous tracking form are aligned cross-platform.
 - UI-R2 History & Trends Scanability is closed on green baseline `1325897`: completion/trend hierarchy, unified chart styling and continuous History rows are aligned cross-platform.
-- Stage A Complete Product UI Redesign is locally complete: Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode now share the same wellness hierarchy without changing health/business behavior.
-- Stage A closes only after Android Build, iOS Build and Quality Gates are green on the same pushed candidate SHA.
+- Stage A Complete Product UI Redesign is closed on green baseline `736e495`: Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode share the same wellness hierarchy without changing health/business behavior.
+- Stage B Final UI/UX Release Candidate is locally complete: cross-screen consistency, compact/large-text fallbacks, finite/reduced launch motion, dead presentation cleanup and the synthetic screenshot/demo pack are locked by `scripts/stage_b_ui_rc_gate.py`.
+- Stage B closes only after Android Build, iOS Build and Quality Gates are green on the same pushed candidate SHA.
 
 ## Next
 
-- Stage B — Final UI/UX Release Candidate: one final cross-screen consistency, accessibility/device stress, motion, render/performance, dead-style cleanup and screenshot-ready pass. No further small UI stages are planned.
+- No further small UI redesign stages are planned after Stage B. Continue only with bug fixes/regressions or explicitly requested product work.
 - Store execution remains at the external gate unless developer accounts are intentionally enabled. When enabled, run TestFlight/Sandbox + Play Internal and complete real P4.1 evidence before any production promotion.
 - After real store activation, production commerce hardening remains the next commerce stage: Google Play server-side purchase-token verification/acknowledgement plus RTDN lifecycle processing.
 

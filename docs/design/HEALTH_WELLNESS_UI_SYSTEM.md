@@ -1,6 +1,6 @@
 # OAK Healthy — Health & Wellness UI System
 
-Status: Stage A complete-product UI checkpoint
+Status: Stage B final UI/UX release-candidate checkpoint
 
 ## Direction
 
@@ -114,9 +114,15 @@ Implemented across Android and iOS:
 
 No Stage A presentation change alters dose persistence, cycles, reminder scheduling semantics, backup/import behavior, sync conflict policy, commercial verification or entitlement decisions.
 
-Deferred to Stage B only:
-- final cross-screen visual consistency sweep;
-- device/large-text/accessibility stress matrix;
-- final motion/reduced-motion review;
-- render/performance audit and dead presentation-token cleanup;
-- screenshot/demo presentation pack and final UI release-candidate gate.
+## Stage B — Final UI/UX Release Candidate
+
+Completed locally:
+- compact/large-text fallbacks now cover Stage A Stack actions/metrics, Coach chip groups, Settings theme selection and Plan Access purchase/header layouts;
+- iOS Stack/Settings/Plan Access and synthetic Demo Preview use Dynamic Type-aware vertical fallbacks;
+- Android splash now uses the product palette, one finite progress transition and a static reduced-motion path; iOS launch branding no longer repeats forever;
+- Android expandable Settings content is state-driven without decorative reveal animation;
+- legacy Glass card variants, dead elevation/hero/chart/badge/insight presentation tokens and stale navigation animation imports are removed;
+- Android/iOS synthetic Demo Preview uses fixed fixtures and the same primary-surface + continuous-row hierarchy as production UI;
+- `docs/qa/UI_RELEASE_CANDIDATE_MATRIX.md`, `docs/design/UI_SCREENSHOT_PACK.md` and `scripts/stage_b_ui_rc_gate.py` lock the final presentation contract.
+
+No further small UI redesign stages are planned after Stage B. Future presentation changes should be bug fixes, evidence-driven product work or explicitly requested redesigns.
