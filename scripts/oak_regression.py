@@ -18,6 +18,8 @@ GATES = (
     "scripts/architecture_boundaries_gate.py",
     "scripts/performance_battery_gate.py",
     "scripts/security_hardening_gate.py",
+    "scripts/ux_polish_gate.py",
+    "scripts/editorial_design_gate.py",
     "scripts/release_preflight.py",
 )
 
@@ -38,7 +40,7 @@ def main() -> int:
     except subprocess.CalledProcessError as error:
         print(f"OAK regression matrix failed: {error.cmd}")
         return error.returncode or 1
-    print("OAK regression matrix passed: P8-P10 repository contracts and unit gates are green.")
+    print("OAK regression matrix passed: P8-P11 repository contracts and unit gates are green.")
     return 0
 
 

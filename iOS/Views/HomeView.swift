@@ -701,7 +701,7 @@ private struct HomeFilterButton: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
                 Text(count, format: .number)
-                    .font(.title3.bold())
+                    .font(.oakDisplay(size: 28))
                     .foregroundStyle(tint)
                     .monospacedDigit()
             }
@@ -715,10 +715,10 @@ private struct HomeFilterButton: View {
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
-        .oakCardStyle(.glass, cornerRadius: 14, strokeOpacity: isSelected ? 0 : 0.14, shadowOpacity: 0.05, shadowRadius: 7, shadowY: 3)
+        .oakCardStyle(.paper, cornerRadius: 12, strokeOpacity: 0.12, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(isSelected ? tint.opacity(0.72) : .clear, lineWidth: 1.25)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isSelected ? tint.opacity(0.42) : .clear, lineWidth: 1)
                 .allowsHitTesting(false)
         )
         .accessibilityLabel("\(title), \(count)")
@@ -744,8 +744,7 @@ private struct TodayHeaderView: View {
     var body: some View {
         HStack(alignment: .center) {
             Text(title)
-                .font(.title3)
-                .fontWeight(.bold)
+                .font(.oakDisplay(size: 24))
             Spacer()
             StreakChip(streakDays: streakDays)
         }
@@ -754,24 +753,19 @@ private struct TodayHeaderView: View {
 
 private struct StreakChip: View {
     let streakDays: Int
-    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "leaf.fill")
-                .font(.caption)
-                .foregroundStyle(OAKPalette.taken(for: colorScheme))
-            Text(streakDays > 0
-                 ? String.localizedStringWithFormat("home_rhythm_days_format".localized, streakDays)
-                 : "home_rhythm_fresh_start".localized)
-                .font(.caption)
-                .oakSecondaryText()
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(OAKPalette.taken(for: colorScheme).opacity(0.10))
-        .overlay(Capsule().stroke(OAKPalette.taken(for: colorScheme).opacity(0.28), lineWidth: 1))
-        .clipShape(Capsule())
+        Text(streakDays > 0
+             ? String.localizedStringWithFormat("home_rhythm_days_format".localized, streakDays)
+             : "home_rhythm_fresh_start".localized)
+            .font(.caption)
+            .oakSecondaryText()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(.secondary.opacity(0.20), lineWidth: 0.75)
+            )
     }
 }
 

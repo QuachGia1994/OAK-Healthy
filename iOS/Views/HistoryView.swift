@@ -15,6 +15,9 @@ public struct HistoryView: View {
     @State private var filter: HistoryFilter = .all
     @State private var rebuildTask: Task<Void, Never>? = nil
     @State private var isShowingSettingsSheet: Bool = false
+    @State private var isLoadingHistory: Bool = true
+    @State private var historyLoadFailed: Bool = false
+    @State private var reloadVersion: Int = 0
     
     public let activeClientManager: ActiveClientManager
     
@@ -88,23 +91,23 @@ public struct HistoryView: View {
                             HistoryFilterBar(searchText: $searchText, filter: $filter)
                                 .padding(.top, 8)
                             
-                            if recordsCount == 0 {
-                                VStack(spacing: 10) {
-                                    Image(systemName: "clock")
-                                        .font(.title2)
-                                        .oakSecondaryText()
-                                    Text("no_logs_yet".localized)
-                                        .font(.subheadline.weight(.semibold))
-                                        .oakSecondaryText()
-                                        .multilineTextAlignment(.center)
-                                    Text("history_search_placeholder".localized)
-                                        .font(.caption)
-                                        .oakSecondaryText()
-                                        .multilineTextAlignment(.center)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 24)
-                                .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.04, shadowRadius: 7, shadowY: 3)
+                            if activeClientManager.currentClientId == nil {
+                                OAKFeedbackView(
+                                    title: "client_management".localized,
+                                    message: "add_client_to_start".localized,
+                                    actionTitle: "settings_title".localized,
+                                    action: { isShowingSettingsSheet = true }
+                                )
+                            } else if recordsCount == 0 {
+                                OAKFeedbackView(
+                                    title: "history_empty_title".localized,
+                                    message: "history_empty_body".localized
+                                )
+                            } else if sections.isEmpty {
+                                OAKFeedbackView(
+                                    title: "history_no_matches_title".localized,
+                                    message: "history_no_matches_body".localized
+                                )
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 12) {
                                     ForEach(sections) { section in
@@ -131,6 +134,20 @@ public struct HistoryView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 96)
                 }
+                .opacity(isLoadingHistory || historyLoadFailed ? 0 : 1)
+                .overlay {
+                    if isLoadingHistory {
+                        ProgressView()
+                    } else if historyLoadFailed {
+                        OAKFeedbackView(
+                            title: "history_load_failed_title".localized,
+                            message: "history_load_failed_body".localized,
+                            actionTitle: "retry".localized,
+                            action: { reloadVersion += 1 }
+                        )
+                        .padding(24)
+                    }
+                }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -154,10 +171,13 @@ public struct HistoryView: View {
             .task(id: ReloadKey(
                 clientId: activeClientManager.currentClientId,
                 syncEpochMs: lastSyncEpochMs,
-                plan: entitlementManager.snapshot.plan
+                plan: entitlementManager.snapshot.plan,
+                reloadVersion: reloadVersion
             )) {
+                isLoadingHistory = true
+                historyLoadFailed = false
                 DebugReporter.report("history_task_start", fields: [
-                    "clientId": activeClientManager.currentClientId?.uuidString ?? ""
+                    "has_client": String(activeClientManager.currentClientId != nil)
                 ])
                 await reload()
             }
@@ -177,34 +197,41 @@ public struct HistoryView: View {
     private func reload() async {
         guard let clientId = activeClientManager.currentClientId else {
             clearHistoryState()
+            isLoadingHistory = false
+            historyLoadFailed = false
             DebugReporter.report("history_reload_no_client")
             return
         }
-        DebugReporter.report("history_reload_start", fields: [
-            "clientId": clientId.uuidString
-        ])
+        DebugReporter.report("history_reload_start", fields: ["has_client": "true"])
         do {
-            let cutoff = Calendar.current.date(
-                byAdding: .day,
-                value: -(entitlementManager.historyDays - 1),
-                to: .now
-            ) ?? .now
-            let records = try ClientScopedStore.recentHistoryRecords(
-                modelContext: modelContext,
-                clientId: clientId,
-                cutoff: cutoff,
-                limit: 5_000
-            )
+            let records = try fetchRecentHistory(clientId: clientId)
             applyHistory(records)
-            DebugReporter.report("history_reload_success", fields: [
-                "count": String(records.count)
-            ])
+            isLoadingHistory = false
+            historyLoadFailed = false
+            DebugReporter.report("history_reload_success")
         } catch {
             clearHistoryState()
+            isLoadingHistory = false
+            historyLoadFailed = true
             DebugReporter.report("history_reload_failed", fields: [
-                "error": String(describing: error)
+                "error_type": String(describing: type(of: error))
             ])
         }
+    }
+
+    @MainActor
+    private func fetchRecentHistory(clientId: UUID) throws -> [IntakeRecord] {
+        let cutoff = Calendar.current.date(
+            byAdding: .day,
+            value: -(entitlementManager.historyDays - 1),
+            to: .now
+        ) ?? .now
+        return try ClientScopedStore.recentHistoryRecords(
+            modelContext: modelContext,
+            clientId: clientId,
+            cutoff: cutoff,
+            limit: 5_000
+        )
     }
 
     private func applyHistory(_ records: [IntakeRecord]) {
@@ -256,6 +283,7 @@ public struct HistoryView: View {
         let clientId: UUID?
         let syncEpochMs: Double
         let plan: CommercialPlan
+        let reloadVersion: Int
     }
 }
 
@@ -289,81 +317,77 @@ private struct InsightsTrendCard: View {
         let lateCount = summary?.lateCount ?? 0
 
         VStack(alignment: .leading, spacing: 12) {
-                ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(
-                        LinearGradient(
-                            colors: [OAKPalette.heroStart, OAKPalette.heroEnd],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
                     Text("insights_total_title".localized)
                         .font(.subheadline.weight(.semibold))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        Spacer()
-                        Button {
-                            guard summary != nil else { return }
-                            isDetailsPresented = true
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.white.opacity(summary == nil ? 0.35 : 0.70))
-                        }
-                        .buttonStyle(.plain)
+                        .oakSecondaryText()
+                    Spacer()
+                    Button {
+                        guard summary != nil else { return }
+                        isDetailsPresented = true
+                    } label: {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary.opacity(summary == nil ? 0.35 : 0.85))
                     }
-
-                    Text(formattedNumber(total))
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .minimumScaleFactor(0.6)
-
-                    HStack(spacing: 12) {
-                        InsightsChip(text: String.localizedStringWithFormat("insights_completion_chip_format".localized, completion))
-                        InsightsChip(text: String.localizedStringWithFormat("insights_late_chip_format".localized, lateCount), tint: Color.red.opacity(0.35))
-                    }
-
-                    Chart {
-                        ForEach(trend) { point in
-                            LineMark(
-                                x: .value("chart_axis_day".localized, point.date, unit: .day),
-                                y: .value("taken".localized, point.takenCount)
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(Color.white)
-                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                        }
-                        ForEach(trend) { point in
-                            LineMark(
-                                x: .value("chart_axis_day".localized, point.date, unit: .day),
-                                y: .value("dose_status_skipped".localized, point.skippedCount)
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(OAKPalette.skipped(for: colorScheme))
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        }
-                    }
-                    .chartXAxis(.hidden)
-                    .chartYAxis(.hidden)
-                    .chartLegend(.hidden)
-                    .frame(height: 110)
-                    .padding(.top, 4)
-
-                    Picker("", selection: $window) {
-                        ForEach(InsightsWindow.allCases, id: \.self) { item in
-                            Text(item.title).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .tint(.white.opacity(0.8))
+                    .buttonStyle(.plain)
                 }
-                .padding(16)
+
+                Text(formattedNumber(total))
+                    .font(.oakDisplay(size: 52))
+                    .foregroundStyle(.primary)
+                    .minimumScaleFactor(0.6)
+
+                HStack(spacing: 12) {
+                    InsightsChip(
+                        text: String.localizedStringWithFormat("insights_completion_chip_format".localized, completion),
+                        tint: OAKPalette.accent.opacity(0.10),
+                        content: OAKPalette.accent
+                    )
+                    InsightsChip(
+                        text: String.localizedStringWithFormat("insights_late_chip_format".localized, lateCount),
+                        tint: OAKPalette.skipped(for: colorScheme).opacity(0.12),
+                        content: OAKPalette.skipped(for: colorScheme)
+                    )
+                }
+
+                Chart {
+                    ForEach(trend) { point in
+                        LineMark(
+                            x: .value("chart_axis_day".localized, point.date, unit: .day),
+                            y: .value("taken".localized, point.takenCount)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(OAKPalette.accent)
+                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                    }
+                    ForEach(trend) { point in
+                        LineMark(
+                            x: .value("chart_axis_day".localized, point.date, unit: .day),
+                            y: .value("dose_status_skipped".localized, point.skippedCount)
+                        )
+                        .interpolationMethod(.catmullRom)
+                        .foregroundStyle(OAKPalette.skipped(for: colorScheme))
+                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    }
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .chartLegend(.hidden)
+                .frame(height: 110)
+                .padding(.top, 4)
+
+                Picker("", selection: $window) {
+                    ForEach(InsightsWindow.allCases, id: \.self) { item in
+                        Text(item.title).tag(item)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .tint(OAKPalette.accent)
             }
+            .padding(18)
             .frame(maxWidth: .infinity)
-            .shadow(color: OAKPalette.heroEnd.opacity(0.22), radius: 16, x: 0, y: 9)
+            .oakCardStyle(.paper, cornerRadius: 16)
         }
         .sheet(isPresented: $isDetailsPresented) {
             InsightsDetailsView(summary: summary)
@@ -377,13 +401,13 @@ private struct InsightsTrendCard: View {
 
 private struct InsightsChip: View {
     let text: String
-    var tint: Color = Color.black.opacity(0.25)
+    let tint: Color
+    let content: Color
 
     var body: some View {
         Text(text)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .foregroundStyle(.white)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(content)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(tint, in: Capsule())

@@ -50,6 +50,8 @@ import com.example.supplementtracker.service.CoachRoutineFeeling
 import com.example.supplementtracker.service.CoachTrendPoint
 import com.example.supplementtracker.service.CoachWorkspaceBuilder
 import com.example.supplementtracker.service.OakPrefs
+import com.example.supplementtracker.presentation.designsystem.OakFeedbackCard
+import com.example.supplementtracker.presentation.designsystem.OakTypography
 import java.text.DateFormat
 import java.util.Date
 
@@ -125,18 +127,25 @@ private fun LoadingState(modifier: Modifier) {
 
 @Composable
 private fun LockedState(onOpenPlans: () -> Unit, modifier: Modifier) {
-    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.coach_overview_locked_title), style = MaterialTheme.typography.titleLarge)
-        Text(stringResource(R.string.coach_overview_locked_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = onOpenPlans) { Text(stringResource(R.string.plan_access_manage)) }
+    Column(modifier.fillMaxSize().padding(24.dp)) {
+        OakFeedbackCard(
+            title = stringResource(R.string.coach_overview_locked_title),
+            body = stringResource(R.string.coach_overview_locked_body),
+            actionLabel = stringResource(R.string.plan_access_manage),
+            onAction = onOpenPlans
+        )
     }
 }
 
 @Composable
 private fun ErrorState(onRetry: () -> Unit, modifier: Modifier) {
-    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.coach_overview_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = onRetry) { Text(stringResource(R.string.coach_retry)) }
+    Column(modifier.fillMaxSize().padding(24.dp)) {
+        OakFeedbackCard(
+            title = stringResource(R.string.coach_load_failed_title),
+            body = stringResource(R.string.coach_overview_error),
+            actionLabel = stringResource(R.string.retry),
+            onAction = onRetry
+        )
     }
 }
 
@@ -312,16 +321,22 @@ private fun matchesCoachFilter(client: CoachClientSummary, filter: CoachFilter):
 @Composable
 private fun SummaryMetric(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            value,
+            style = MaterialTheme.typography.headlineMedium.copy(fontFamily = OakTypography.Display),
+            fontWeight = FontWeight.SemiBold
+        )
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun EmptyCoachCard() {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Text(stringResource(R.string.coach_overview_empty), modifier = Modifier.padding(16.dp))
-    }
+    OakFeedbackCard(
+        title = stringResource(R.string.coach_empty_title),
+        body = stringResource(R.string.coach_overview_empty),
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
 }
 
 @Composable

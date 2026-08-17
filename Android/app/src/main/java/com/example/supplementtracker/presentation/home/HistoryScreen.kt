@@ -4,6 +4,7 @@ import com.example.supplementtracker.presentation.designsystem.OakColors
 import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -27,7 +28,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -46,6 +46,8 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.repository.IntakeRecord
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.designsystem.OakFeedbackCard
+import com.example.supplementtracker.presentation.designsystem.OakTypography
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -94,14 +96,16 @@ fun HistoryScreen(
                 when (val state = uiState) {
                     is HistoryUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     is HistoryUiState.Success -> HistoryContent(state, onNavigateToPlanAccess)
+                    is HistoryUiState.Error -> HistoryLoadError(viewModel::retryHistory)
                     is HistoryUiState.NoClient -> {
-                        Text(
-                            text = stringResource(R.string.add_client_to_start),
+                        OakFeedbackCard(
+                            title = stringResource(R.string.client_management),
+                            body = stringResource(R.string.add_client_to_start),
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .padding(horizontal = 24.dp),
-                            textAlign = TextAlign.Center,
-                            color = secondaryTextColor
+                            actionLabel = stringResource(R.string.settings_title),
+                            onAction = onNavigateToSettings
                         )
                     }
                 }
@@ -138,6 +142,7 @@ private fun HistoryContent(
         }
     }
 
+    val hasAnyRecords = state.sections.any { it.records.isNotEmpty() }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -179,7 +184,7 @@ private fun HistoryContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp),
-                    variant = OakCardVariant.Glass,
+                    variant = OakCardVariant.Paper,
                     shape = shape,
                 contentPadding = PaddingValues(0.dp),
                 elevation = 2.dp
@@ -233,13 +238,13 @@ private fun HistoryContent(
                     ) {
                         Icon(Icons.Default.Search, contentDescription = stringResource(R.string.a11y_search), tint = muted)
                         Text(
-                            stringResource(R.string.no_logs_yet),
+                            stringResource(if (hasAnyRecords) R.string.history_no_matches_title else R.string.history_empty_title),
                             color = muted,
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.titleSmall
                         )
                         Text(
-                            stringResource(R.string.history_search_placeholder),
+                            stringResource(if (hasAnyRecords) R.string.history_no_matches_body else R.string.history_empty_body),
                             color = muted,
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodySmall
@@ -285,6 +290,18 @@ private fun HistoryContent(
 }
 
 @Composable
+private fun HistoryLoadError(onRetry: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        OakFeedbackCard(
+            title = stringResource(R.string.history_load_failed_title),
+            body = stringResource(R.string.history_load_failed_body),
+            actionLabel = stringResource(R.string.retry),
+            onAction = onRetry
+        )
+    }
+}
+
+@Composable
 private fun InsightsTrendCard(
     trend7: List<InsightsTrendPoint>,
     trend30: List<InsightsTrendPoint>,
@@ -307,21 +324,20 @@ private fun InsightsTrendCard(
             fontWeight = FontWeight.Bold,
             color = primaryTextColor
         )
+        val insightShape = RoundedCornerShape(16.dp)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(listOf(OakColors.InsightCardStart, OakColors.InsightCardEnd)),
-                    RoundedCornerShape(24.dp)
-                )
-                .padding(16.dp)
+                .background(MaterialTheme.colorScheme.surface, insightShape)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, insightShape)
+                .padding(18.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = stringResource(R.string.insights_total_title),
                         style = MaterialTheme.typography.labelLarge,
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(
@@ -331,32 +347,35 @@ private fun InsightsTrendCard(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = stringResource(R.string.a11y_more_options),
-                            tint = Color.White.copy(alpha = if (summary != null) 0.75f else 0.35f)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (summary != null) 0.9f else 0.4f)
                         )
                     }
                 }
                 Text(
                     text = NumberFormat.getInstance().format(total),
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    fontSize = 52.sp,
+                    fontFamily = OakTypography.Display,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     InsightsChip(
                         text = stringResource(R.string.insights_completion_chip_format, completion),
-                        background = Color.Black.copy(alpha = 0.25f)
+                        background = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                        content = MaterialTheme.colorScheme.primary
                     )
                     InsightsChip(
                         text = stringResource(R.string.insights_late_chip_format, late),
-                        background = OakColors.SkippedBg.copy(alpha = 0.35f)
+                        background = OakColors.Skipped.copy(alpha = 0.12f),
+                        content = OakColors.Skipped
                     )
                 }
                 TrendLineChart(
                     points = trend,
-                    takenColor = Color.White,
-                    skippedColor = OakColors.SkippedDark,
+                    takenColor = MaterialTheme.colorScheme.primary,
+                    skippedColor = OakColors.Skipped,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(110.dp)
@@ -369,7 +388,7 @@ private fun InsightsTrendCard(
                 if (summary == null) {
                     Text(
                         text = stringResource(R.string.insights_no_data),
-                        color = Color.White.copy(alpha = 0.80f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -385,12 +404,12 @@ private fun InsightsTrendCard(
 }
 
 @Composable
-private fun InsightsChip(text: String, background: Color) {
+private fun InsightsChip(text: String, background: Color, content: Color) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
-        color = Color.White,
+        color = content,
         modifier = Modifier
             .background(background, RoundedCornerShape(99.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp)

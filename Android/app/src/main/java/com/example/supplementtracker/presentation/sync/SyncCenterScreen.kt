@@ -337,10 +337,10 @@ fun SyncCenterScreen(
                 item(key = "tabs") {
                     OakCard(
                         modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
+                        variant = OakCardVariant.Paper,
+                        shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(0.dp),
-                        elevation = 1.dp
+                        elevation = 0.dp
                     ) {
                         TabRow(
                             selectedTabIndex = selectedTab,
@@ -364,10 +364,10 @@ fun SyncCenterScreen(
                 item(key = "setup") {
                     OakCard(
                         modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
+                        variant = OakCardVariant.Paper,
+                        shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(16.dp),
-                        elevation = 2.dp
+                        elevation = 0.dp
                     ) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             if (selectedTab == 0) {
@@ -534,10 +534,10 @@ fun SyncCenterScreen(
                         val lastAttemptText = if (status.lastAttemptEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastAttemptEpochMs)) else notYet
                         OakCard(
                             modifier = Modifier.fillMaxWidth(),
-                            variant = OakCardVariant.Glass,
-                            shape = RoundedCornerShape(28.dp),
+                            variant = OakCardVariant.Paper,
+                            shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(16.dp),
-                            elevation = 2.dp
+                            elevation = 0.dp
                         ) {
                             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(stringResource(R.string.sync_center_status_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
@@ -713,10 +713,10 @@ fun SyncCenterScreen(
                 item(key = "encryption") {
                     OakCard(
                         modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
+                        variant = OakCardVariant.Paper,
+                        shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(16.dp),
-                        elevation = 2.dp
+                        elevation = 0.dp
                     ) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
@@ -917,10 +917,10 @@ fun SyncCenterScreen(
                 items(items = logs, key = { "${it.epochMs}-${it.phase}" }) { item ->
                     OakCard(
                         modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
+                        variant = OakCardVariant.Paper,
+                        shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(12.dp),
-                        elevation = 1.dp
+                        elevation = 0.dp
                     ) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             val time = if (item.epochMs > 0L) formatter.format(Instant.ofEpochMilli(item.epochMs)) else ""

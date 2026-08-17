@@ -24,6 +24,8 @@ public struct CoachOverviewView: View {
                 lockedSection
             }
         }
+        .scrollContentBackground(.hidden)
+        .background { Color.clear.oakBackground() }
         .navigationTitle("coach_overview_title".localized)
         .searchable(text: $searchText, prompt: Text("coach_search_clients".localized))
     }
@@ -115,7 +117,10 @@ public struct CoachOverviewView: View {
         let visible = visibleClients(report.clients)
         Section("client_management".localized) {
             if visible.isEmpty {
-                Text("coach_overview_empty".localized).foregroundStyle(.secondary)
+                OAKFeedbackView(
+                    title: "coach_empty_title".localized,
+                    message: "coach_overview_empty".localized
+                )
             } else {
                 ForEach(visible) { client in
                     if let profile = clients.first(where: { $0.id == client.clientId }) {
@@ -159,17 +164,22 @@ public struct CoachOverviewView: View {
 
     private var lockedSection: some View {
         Section {
-            Text("coach_overview_locked_body".localized).foregroundStyle(.secondary)
+            OAKFeedbackView(
+                title: "coach_overview_locked_title".localized,
+                message: "coach_overview_locked_body".localized
+            )
             NavigationLink("plan_access_manage".localized) { PlanAccessView() }
-        } header: {
-            Text("coach_overview_locked_title".localized)
         }
     }
 
     private func metric(_ title: String, value: Int) -> some View {
         VStack(spacing: 4) {
-            Text("\(value)").font(.title2.bold())
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text("\(value)")
+                .font(.oakDisplay(size: 34))
+                .monospacedDigit()
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)

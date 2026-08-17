@@ -195,6 +195,13 @@
     <string name="insights_item_bullet_format">• %1$s (%2$d)</string>
     <string name="log_details">Log Details</string>
     <string name="no_logs_yet">No logs yet.</string>
+    <string name="history_empty_title">No history yet</string>
+    <string name="history_empty_body">Routine actions you record will appear here.</string>
+    <string name="history_no_matches_title">No matching history</string>
+    <string name="history_no_matches_body">Try a different search or filter.</string>
+    <string name="history_load_failed_title">History could not be loaded</string>
+    <string name="history_load_failed_body">Your local data was not changed. Try loading it again.</string>
+    <string name="retry">Retry</string>
     <string name="taken">Taken</string>
 
     <string name="notification_channel_name">Supplement reminders</string>
@@ -531,6 +538,8 @@
     <string name="coach_overview_last_7_days">Last 7 days</string>
     <string name="coach_overview_empty">No clients yet. Add clients to build a coach overview.</string>
     <string name="coach_overview_error">Coach summary could not be loaded. Your local data was not changed.</string>
+    <string name="coach_load_failed_title">Coach overview could not be loaded</string>
+    <string name="coach_empty_title">No clients to show yet</string>
     <string name="coach_retry">Retry</string>
     <string name="coach_metric_clients">Clients</string>
     <string name="coach_metric_active">Active</string>

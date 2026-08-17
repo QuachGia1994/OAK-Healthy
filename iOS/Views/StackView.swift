@@ -363,30 +363,22 @@ private struct StackOverviewCard: View {
     let restingCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Label("my_list_title".localized, systemImage: "square.stack.3d.up.fill")
+        VStack(alignment: .leading, spacing: 14) {
+            Text("my_list_title".localized)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.86))
+                .oakSecondaryText()
             Text(totalCount, format: .number)
-                .font(.system(size: 44, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .font(.oakDisplay(size: 52))
+                .foregroundStyle(.primary)
                 .monospacedDigit()
-            HStack(spacing: 10) {
+            HStack(spacing: 28) {
                 StackMetric(title: "cycle_status_on".localized, value: max(0, totalCount - restingCount))
                 StackMetric(title: "cycle_status_off".localized, value: restingCount)
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [OAKPalette.heroStart, OAKPalette.heroEnd],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-        )
-        .shadow(color: OAKPalette.heroEnd.opacity(0.22), radius: 16, x: 0, y: 9)
+        .oakCardStyle(.paper, cornerRadius: 16)
         .accessibilityElement(children: .combine)
     }
 }
@@ -396,15 +388,16 @@ private struct StackMetric: View {
     let value: Int
 
     var body: some View {
-        HStack(spacing: 7) {
-            Text(value, format: .number).fontWeight(.bold).monospacedDigit()
-            Text(title).lineLimit(1).minimumScaleFactor(0.75)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value, format: .number)
+                .font(.title3.weight(.semibold))
+                .monospacedDigit()
+            Text(title)
+                .font(.caption)
+                .oakSecondaryText()
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
-        .font(.caption)
-        .foregroundStyle(.white)
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .background(.white.opacity(0.14), in: Capsule())
     }
 }
 

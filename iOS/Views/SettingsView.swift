@@ -145,18 +145,14 @@ public struct SettingsView: View {
     @ViewBuilder
     private var notificationsSection: some View {
         Section {
-            HStack {
-                Text("onboarding_permission_status".localized)
-                Spacer()
-                Text(notificationPermissionText)
-                    .oakSecondaryText()
-            }
-            HStack {
-                Text("reliability_last_rebuild".localized)
-                Spacer()
-                Text(lastReminderRebuildText)
-                    .oakSecondaryText()
-            }
+            SettingsValueRow(
+                title: "onboarding_permission_status".localized,
+                value: notificationPermissionText
+            )
+            SettingsValueRow(
+                title: "reliability_last_rebuild".localized,
+                value: lastReminderRebuildText
+            )
             
             Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
                 .onChange(of: isNotificationEnabledByUser) {
@@ -659,6 +655,24 @@ private struct MyStackListView: View {
         }
         .scrollContentBackground(.hidden)
         .navigationTitle(title)
+    }
+}
+
+private struct SettingsValueRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+            Text(value)
+                .oakSecondaryText()
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .multilineTextAlignment(.trailing)
+        }
     }
 }
 

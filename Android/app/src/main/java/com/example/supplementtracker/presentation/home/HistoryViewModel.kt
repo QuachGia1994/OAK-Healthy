@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -50,6 +52,7 @@ data class HistoryChartData(
 sealed class HistoryUiState {
     data object Loading : HistoryUiState()
     data object NoClient : HistoryUiState()
+    data object Error : HistoryUiState()
     data class Success(
         val chartData: List<HistoryChartData>,
         val sections: List<HistorySection>,
@@ -111,22 +114,33 @@ class HistoryViewModel(
     private val mutableCoachWindowDays = MutableStateFlow(7)
     val coachWindowDays: StateFlow<Int> = mutableCoachWindowDays.asStateFlow()
     private var coachSource: CoachWorkspaceSource? = null
+    private val historyRefreshVersion = MutableStateFlow(0)
 
     val uiState: StateFlow<HistoryUiState> = combine(
         activeClientManager.currentClientId,
-        entitlementManager.snapshot
-    ) { clientId, entitlement -> clientId to entitlement.plan }
-        .flatMapLatest { (clientId, plan) ->
-            val id = clientId?.toString() ?: return@flatMapLatest flowOf(HistoryUiState.NoClient)
-            val (startEpochMs, endEpochMs) = historyBounds(plan)
-            repository.getRecordsByDateRange(id, startEpochMs, endEpochMs)
-                .mapLatest { records -> withContext(Dispatchers.Default) { processHistory(records, plan) } }
-        }
+        entitlementManager.snapshot,
+        historyRefreshVersion
+    ) { clientId, entitlement, _ -> clientId to entitlement.plan }
+        .flatMapLatest { (clientId, plan) -> historyFlow(clientId?.toString(), plan) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = HistoryUiState.Loading
         )
+
+    fun retryHistory() {
+        historyRefreshVersion.update { it + 1 }
+    }
+
+    private fun historyFlow(clientId: String?, plan: CommercialPlan) = clientId?.let { id ->
+        val (startEpochMs, endEpochMs) = historyBounds(plan)
+        repository.getRecordsByDateRange(id, startEpochMs, endEpochMs)
+            .mapLatest { records -> withContext(Dispatchers.Default) { processHistory(records, plan) } }
+            .catch { error ->
+                if (error is CancellationException) throw error
+                emit(HistoryUiState.Error)
+            }
+    } ?: flowOf(HistoryUiState.NoClient)
 
     fun refreshCoachOverview() {
         if (!entitlementManager.canUse(CommercialFeature.COACH_REPORTS)) {

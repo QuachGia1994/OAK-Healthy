@@ -47,14 +47,13 @@ internal fun SettingsSection(
     title: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title != null) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = primaryTextColor,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -62,10 +61,10 @@ internal fun SettingsSection(
 
         OakCard(
             modifier = Modifier.fillMaxWidth(),
-            variant = OakCardVariant.Glass,
-            shape = RoundedCornerShape(28.dp),
-            contentPadding = PaddingValues(16.dp),
-            elevation = 2.dp,
+            variant = OakCardVariant.Paper,
+            shape = RoundedCornerShape(14.dp),
+            contentPadding = PaddingValues(14.dp),
+            elevation = 0.dp,
             content = content
         )
     }
@@ -86,7 +85,7 @@ internal fun StepChip(label: String, done: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .background(
-                color = if (done) Color(0x3322C55E) else MaterialTheme.colorScheme.surfaceVariant,
+                color = if (done) OakColors.Done.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(999.dp)
             )
             .padding(horizontal = 10.dp, vertical = 6.dp)

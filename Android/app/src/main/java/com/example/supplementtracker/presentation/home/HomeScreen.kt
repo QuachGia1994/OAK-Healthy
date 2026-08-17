@@ -67,6 +67,7 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.service.UpdateService
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.designsystem.OakTypography
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
@@ -648,20 +649,17 @@ private fun TodayStripButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
  ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val textColor = if (isDark) Color.White else OakColors.TextPrimary
-    val containerColor = if (selected) tint.copy(alpha = if (isDark) 0.24f else 0.14f) else {
-        if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.68f)
-    }
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val containerColor = if (selected) tint.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface
     Card(
         onClick = onClick,
         modifier = modifier
             .semantics(mergeDescendants = true) {}
-            .heightIn(min = 76.dp),
-        shape = RoundedCornerShape(18.dp),
+            .heightIn(min = 72.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, if (selected) tint.copy(alpha = 0.72f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 3.dp else 1.dp)
+        border = BorderStroke(1.dp, if (selected) tint.copy(alpha = 0.42f) else MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -677,9 +675,9 @@ private fun TodayStripButton(
             )
             Text(
                 text = count.toString(),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = OakTypography.Display),
                 color = tint,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -689,8 +687,8 @@ private fun TodayStripButton(
 private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.titleLarge.copy(fontFamily = OakTypography.Display),
+        fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = modifier.padding(vertical = 6.dp)
     )
@@ -698,16 +696,11 @@ private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun TimeGroupHeader(time: String) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
     Text(
         text = time,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .padding(top = 10.dp)
-            .background(base, RoundedCornerShape(18.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+        modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
     )
 }
 
@@ -733,12 +726,10 @@ private fun todayCounts(items: List<SupplementUiItem>, nowEpochMs: Long = System
 
 @Composable
 private fun StreakPill(days: Int) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
     Box(
         modifier = Modifier
-            .background(base, RoundedCornerShape(18.dp))
-            .border(1.dp, OakColors.StreakBorder.copy(alpha = 0.30f), RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Text(
@@ -748,7 +739,7 @@ private fun StreakPill(days: Int) {
                 stringResource(R.string.home_rhythm_fresh_start)
             },
             style = MaterialTheme.typography.labelLarge,
-            color = if (isDark) Color.White else OakColors.TextPrimary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -797,9 +788,9 @@ private fun GlassCard(
 ) {
     OakCard(
         modifier = modifier,
-        variant = OakCardVariant.Glass,
+        variant = OakCardVariant.Paper,
         accent = accent,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(14.dp),
         contentPadding = contentPadding,
         content = content
     )

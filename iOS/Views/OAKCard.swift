@@ -1,18 +1,41 @@
 import SwiftUI
 
 enum OAKPalette {
-    static let accent = Color(red: 0.06, green: 0.43, blue: 0.46)
-    static let due = Color(red: 0.08, green: 0.40, blue: 0.75)
-    static let missed = Color(red: 0.78, green: 0.21, blue: 0.22)
-    static let taken = Color(red: 0.14, green: 0.48, blue: 0.29)
-    static let skipped = Color(red: 0.71, green: 0.33, blue: 0.04)
-    static let dueDark = Color(red: 0.39, green: 0.71, blue: 0.96)
-    static let missedDark = Color(red: 0.94, green: 0.60, blue: 0.60)
-    static let takenDark = Color(red: 0.51, green: 0.78, blue: 0.52)
-    static let skippedDark = Color(red: 1.00, green: 0.72, blue: 0.30)
-    static let heroStart = Color(red: 0.04, green: 0.47, blue: 0.54)
-    static let heroEnd = Color(red: 0.05, green: 0.30, blue: 0.48)
+    static let accent = Color(red: 0.18, green: 0.36, blue: 0.27)
+    static let accentDark = Color(red: 0.61, green: 0.78, blue: 0.66)
 
+    static let paper = Color(red: 0.96, green: 0.94, blue: 0.90)
+    static let paperRaised = Color(red: 0.985, green: 0.973, blue: 0.945)
+    static let paperMuted = Color(red: 0.92, green: 0.89, blue: 0.84)
+    static let ink = Color(red: 0.11, green: 0.13, blue: 0.11)
+    static let inkMuted = Color(red: 0.37, green: 0.39, blue: 0.36)
+    static let hairline = Color(red: 0.84, green: 0.80, blue: 0.75)
+
+    static let paperDark = Color(red: 0.067, green: 0.09, blue: 0.074)
+    static let paperRaisedDark = Color(red: 0.09, green: 0.12, blue: 0.094)
+    static let paperMutedDark = Color(red: 0.125, green: 0.16, blue: 0.125)
+    static let inkDark = Color(red: 0.96, green: 0.94, blue: 0.90)
+    static let inkMutedDark = Color(red: 0.73, green: 0.74, blue: 0.70)
+    static let hairlineDark = Color(red: 0.21, green: 0.26, blue: 0.22)
+
+    static let due = Color(red: 0.27, green: 0.42, blue: 0.55)
+    static let missed = Color(red: 0.71, green: 0.28, blue: 0.25)
+    static let taken = accent
+    static let skipped = Color(red: 0.60, green: 0.40, blue: 0.12)
+    static let dueDark = Color(red: 0.57, green: 0.68, blue: 0.78)
+    static let missedDark = Color(red: 0.89, green: 0.55, blue: 0.51)
+    static let takenDark = accentDark
+    static let skippedDark = Color(red: 0.82, green: 0.64, blue: 0.37)
+
+    static let heroStart = Color(red: 0.16, green: 0.30, blue: 0.22)
+    static let heroEnd = heroStart
+
+    static func background(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? paperDark : paper }
+    static func surface(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? paperRaisedDark : paperRaised }
+    static func mutedSurface(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? paperMutedDark : paperMuted }
+    static func primaryText(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? inkDark : ink }
+    static func secondaryText(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? inkMutedDark : inkMuted }
+    static func divider(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? hairlineDark : hairline }
     static func due(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? dueDark : due }
     static func missed(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? missedDark : missed }
     static func taken(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? takenDark : taken }
@@ -20,6 +43,7 @@ enum OAKPalette {
 }
 
 enum OAKCardVariant: Sendable {
+    case paper
     case glass
 }
 
@@ -27,7 +51,7 @@ private struct OAKSecondaryTextModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        content.foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.78) : Color.secondary)
+        content.foregroundStyle(OAKPalette.secondaryText(for: colorScheme))
     }
 }
 
@@ -35,7 +59,29 @@ private struct OAKTertiaryTextModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        content.foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.64) : Color.secondary.opacity(0.78))
+        content.foregroundStyle(OAKPalette.secondaryText(for: colorScheme).opacity(0.78))
+    }
+}
+
+private struct OAKCardStyleModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    let cornerRadius: CGFloat
+    let strokeOpacity: Double
+    let shadowOpacity: Double
+    let shadowRadius: CGFloat
+    let shadowY: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: min(cornerRadius, 16), style: .continuous)
+        content
+            .background(shape.fill(OAKPalette.surface(for: colorScheme)))
+            .overlay(shape.stroke(OAKPalette.divider(for: colorScheme).opacity(max(0.55, strokeOpacity)), lineWidth: 0.75))
+            .shadow(
+                color: .black.opacity(min(shadowOpacity, 0.035)),
+                radius: min(shadowRadius, 6),
+                x: 0,
+                y: min(shadowY, 3)
+            )
     }
 }
 
@@ -47,35 +93,24 @@ extension View {
     func oakTertiaryText() -> some View {
         modifier(OAKTertiaryTextModifier())
     }
-}
 
-extension View {
     func oakCardStyle(
-        _ variant: OAKCardVariant = .glass,
-        cornerRadius: CGFloat = 16,
-        strokeOpacity: Double = 0.18,
-        shadowOpacity: Double = 0.10,
-        shadowRadius: CGFloat = 12,
-        shadowY: CGFloat = 6
+        _ variant: OAKCardVariant = .paper,
+        cornerRadius: CGFloat = 14,
+        strokeOpacity: Double = 0.12,
+        shadowOpacity: Double = 0,
+        shadowRadius: CGFloat = 0,
+        shadowY: CGFloat = 0
     ) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        switch variant {
-        case .glass:
-            return background {
-                shape
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        LinearGradient(
-                            colors: [.white.opacity(0.12), OAKPalette.accent.opacity(0.035)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .clipShape(shape)
-                    )
-            }
-                .overlay(shape.stroke(Color.secondary.opacity(strokeOpacity), lineWidth: 0.75))
-                .shadow(color: .black.opacity(shadowOpacity), radius: shadowRadius, x: 0, y: shadowY)
-        }
+        modifier(
+            OAKCardStyleModifier(
+                cornerRadius: cornerRadius,
+                strokeOpacity: strokeOpacity,
+                shadowOpacity: shadowOpacity,
+                shadowRadius: shadowRadius,
+                shadowY: shadowY
+            )
+        )
     }
 }
 
@@ -83,38 +118,18 @@ struct OAKBackgroundModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        content
-            .background(
-                ZStack {
-                    LinearGradient(
-                        colors: backgroundColors,
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    Circle()
-                        .fill(OAKPalette.due.opacity(colorScheme == .dark ? 0.10 : 0.08))
-                        .frame(width: 320, height: 320)
-                        .blur(radius: 72)
-                        .offset(x: 150, y: -260)
-                    Circle()
-                        .fill(OAKPalette.taken.opacity(colorScheme == .dark ? 0.08 : 0.07))
-                        .frame(width: 280, height: 280)
-                        .blur(radius: 78)
-                        .offset(x: -170, y: 300)
-                }
-                .ignoresSafeArea()
-            )
-    }
-
-    private var backgroundColors: [Color] {
-        colorScheme == .dark
-            ? [Color(red: 0.03, green: 0.09, blue: 0.10), Color(red: 0.02, green: 0.05, blue: 0.06)]
-            : [Color(red: 0.95, green: 0.98, blue: 0.97), Color(red: 0.92, green: 0.96, blue: 0.97)]
+        content.background(OAKPalette.background(for: colorScheme).ignoresSafeArea())
     }
 }
 
 extension View {
     func oakBackground() -> some View {
         modifier(OAKBackgroundModifier())
+    }
+}
+
+extension Font {
+    static func oakDisplay(size: CGFloat, weight: Font.Weight = .semibold) -> Font {
+        .system(size: size, weight: weight, design: .serif)
     }
 }

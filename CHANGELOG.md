@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- P11.1 UX Polish 4.0 adds shared Android/iOS feedback surfaces, explicit History load-error/true-empty/no-match recovery states, Coach locked/empty/error feedback, EN/VI parity, and a repository UX contract/QA matrix.
 - P10.2–P10.4 add bounded persistence/background-work budgets, AES-GCM tamper/security/privacy regressions, Firebase/backup/secret-scan contracts, and one `scripts/oak_regression.py` command for the full deterministic P8–P10 repository matrix.
 - P10.1 Architecture Decomposition adds typed sync status/log boundaries, injectable notification diagnostics, Coach source providers, iOS bootstrap/import/lifecycle coordinators, a current-state architecture map, and a repository boundary regression gate.
 - P9.5 Activation & Retention 2.0 adds cross-platform first-value milestones, actionable empty/recovery states, pressure-free recent-rhythm feedback, existing-user milestone reconciliation, and consent-gated aggregate activation telemetry restricted to milestone/state enums.
@@ -34,6 +35,8 @@ versioning where practical.
 
 ### Changed
 
+- History now distinguishes loading, load failure, true empty and filtered no-match states with explicit retry/client-management actions; touched iOS History diagnostics expose only aggregate client presence and error type rather than raw client identity/error text.
+- iOS Settings status rows now mirror Android long-label protection by giving labels flexible width while keeping trailing status/timestamp values single-line and right aligned.
 - History/Coach reads now use bounded date windows, sync dirty checks use existence-sized database queries, Android periodic fallback sync is 30 minutes, and iOS realtime fallback polling never runs faster than 30 seconds during recent activity.
 - Sync, notification, Safe Mode recovery, bootstrap and Coach repository access now have explicit service/domain owners instead of keeping raw persistence/platform orchestration inside large views and ViewModels; behavior and data schemas are unchanged.
 - Store execution is explicitly deferred until developer accounts are desired; repository commerce/store gates remain intact and do not block continued product development.

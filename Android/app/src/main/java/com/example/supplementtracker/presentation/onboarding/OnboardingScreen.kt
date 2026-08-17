@@ -176,7 +176,7 @@ fun OnboardingScreen(
 
             OakCard(
                 modifier = Modifier.fillMaxWidth(),
-                variant = OakCardVariant.Glass,
+                variant = OakCardVariant.Paper,
                 shape = cardShape,
                 contentPadding = PaddingValues(16.dp),
                 elevation = 2.dp

@@ -2,6 +2,7 @@ package com.example.supplementtracker.presentation.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +37,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
@@ -63,6 +62,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakColors
+import com.example.supplementtracker.presentation.designsystem.OakTypography
 import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import java.util.Locale
@@ -203,26 +203,27 @@ private fun filterStackItems(
 
 @Composable
 private fun StackOverviewCard(totalCount: Int, activeCount: Int, restingCount: Int) {
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Brush.linearGradient(listOf(OakColors.InsightCardStart, OakColors.InsightCardEnd)), shape)
+            .background(MaterialTheme.colorScheme.surface, shape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
             text = stringResource(R.string.my_list_title),
             style = MaterialTheme.typography.labelLarge,
-            color = Color.White.copy(alpha = 0.86f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = totalCount.toString(),
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
+            style = MaterialTheme.typography.displayMedium.copy(fontFamily = OakTypography.Display),
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             StackMetric(stringResource(R.string.cycle_status_on), activeCount)
             StackMetric(stringResource(R.string.cycle_status_off), restingCount)
         }
@@ -231,12 +232,17 @@ private fun StackOverviewCard(totalCount: Int, activeCount: Int, restingCount: I
 
 @Composable
 private fun StackMetric(title: String, value: Int) {
-    Surface(color = Color.White.copy(alpha = 0.14f), shape = RoundedCornerShape(99.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
-            text = "$value  $title",
+            text = value.toString(),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = title,
             style = MaterialTheme.typography.labelMedium,
-            color = Color.White,
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
         )
     }
@@ -252,12 +258,12 @@ private fun StackQuickAction(
     Card(
         onClick = onClick,
         modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+            containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -302,7 +308,7 @@ private fun StackSupplementCard(title: String, summary: String, isOffCycle: Bool
     OakCard(
         modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         accent = accent,
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(width = 4.dp, height = 46.dp).background(accent, RoundedCornerShape(2.dp)))
@@ -330,7 +336,7 @@ private fun StackSupplementCard(title: String, summary: String, isOffCycle: Bool
 private fun StackEmptyState() {
     OakCard(
         modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(14.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
