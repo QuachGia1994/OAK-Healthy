@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- P9.2 Reminder Reliability 3.0 adds automatic Android/iOS schedule reconciliation, lifecycle/time-change recovery, platform diagnostics, and a fail-closed repository gate that forbids intake-history mutation from recovery paths.
 - P9.1 Data Recovery 2.0 adds detailed no-write import previews, duplicate/orphan collision gates, pre-restore snapshots with rollback, Android↔iOS fixtures, and complete supported-schema/database migration matrices.
 - P7.1–P8 reliability/maturity work: cross-platform reminder health and repair paths, 7/30/90-day Coach reports, typed sync recovery states, semantic backup integrity manifests, adaptive report/demo layouts, synthetic QA scenarios, and a repository product-readiness CI gate.
 - New Android/iOS backup fixtures assert the same canonical SHA-256 digest and reject payload changes before import persistence mutation.

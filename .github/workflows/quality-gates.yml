@@ -26,8 +26,11 @@ jobs:
       - name: Validate P9.1 data recovery matrix
         run: python3 scripts/data_recovery_gate.py
 
+      - name: Validate P9.2 reminder reliability
+        run: python3 scripts/reminder_reliability_gate.py
+
       - name: Run readiness unit tests
-        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate -q
+        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate -q
 
   ios:
     name: iOS Coverage >= 80%

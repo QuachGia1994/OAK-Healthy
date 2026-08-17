@@ -68,6 +68,7 @@ import com.example.supplementtracker.service.NotificationDebugStore
 import com.example.supplementtracker.service.NotificationReliabilityEvaluator
 import com.example.supplementtracker.service.NotificationReliabilityInput
 import com.example.supplementtracker.service.NotificationReliabilityLevel
+import com.example.supplementtracker.service.NotificationPlatformDiagnosticsProvider
 import com.example.supplementtracker.service.NotificationSchedulerImpl
 import com.example.supplementtracker.service.ScheduledAlarmInfo
 import java.time.Instant
@@ -111,6 +112,8 @@ fun NotificationCheckScreen(
     var hasNotificationPermission by rememberSaveable { mutableStateOf(checkNotificationPermission(context)) }
     var canScheduleExactAlarms by rememberSaveable { mutableStateOf(canScheduleExactAlarms(context)) }
     var isIgnoringBatteryOptimizations by rememberSaveable { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+    var manufacturer by rememberSaveable { mutableStateOf(Build.MANUFACTURER.trim().ifEmpty { "Unknown" }) }
+    var isPowerSaveMode by rememberSaveable { mutableStateOf(false) }
 
     val activeSupplementCount by remember(uiState, currentClientId) {
         derivedStateOf {
@@ -201,7 +204,11 @@ fun NotificationCheckScreen(
         isNotificationEnabledByUser = prefs.getBoolean("isNotificationEnabledByUser", false)
         hasNotificationPermission = checkNotificationPermission(context)
         canScheduleExactAlarms = canScheduleExactAlarms(context)
-        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(context)
+        val platform = NotificationPlatformDiagnosticsProvider.read(context)
+        isIgnoringBatteryOptimizations = platform.batteryOptimizationIgnored
+        canScheduleExactAlarms = platform.exactAlarmAvailable
+        manufacturer = platform.manufacturer
+        isPowerSaveMode = platform.powerSaveMode
     }
     LaunchedEffect(Unit) { reload() }
 
@@ -217,6 +224,8 @@ fun NotificationCheckScreen(
             activeSupplementCount = activeSupplementCount,
             canScheduleExactAlarms = canScheduleExactAlarms,
             isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+            manufacturer = manufacturer,
+            isPowerSaveMode = isPowerSaveMode,
             scheduledCount = upcoming.size,
             reliabilityReport = reliabilityReport,
             grouped = grouped,
@@ -275,6 +284,8 @@ private fun NotificationCheckContent(
     activeSupplementCount: Int,
     canScheduleExactAlarms: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
+    manufacturer: String,
+    isPowerSaveMode: Boolean,
     scheduledCount: Int,
     reliabilityReport: com.example.supplementtracker.service.NotificationReliabilityReport,
     grouped: List<NotificationDayGroup>,
@@ -300,6 +311,8 @@ private fun NotificationCheckContent(
                 activeSupplementCount = activeSupplementCount,
                 canScheduleExactAlarms = canScheduleExactAlarms,
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                manufacturer = manufacturer,
+                isPowerSaveMode = isPowerSaveMode,
                 scheduledCount = scheduledCount,
                 reliabilityReport = reliabilityReport
             )
@@ -352,6 +365,8 @@ private fun DiagnosticsCard(
     activeSupplementCount: Int,
     canScheduleExactAlarms: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
+    manufacturer: String,
+    isPowerSaveMode: Boolean,
     scheduledCount: Int,
     reliabilityReport: com.example.supplementtracker.service.NotificationReliabilityReport
 ) {
@@ -380,7 +395,9 @@ private fun DiagnosticsCard(
         "enabledByUser=$enabledText",
         "activeClient=${if (activeClientId == null) "no" else "yes"}",
         "activeSupplements=$activeSupplementCount",
-        "scheduledCount=$scheduledCount"
+        "scheduledCount=$scheduledCount",
+        "manufacturer=$manufacturer",
+        "powerSaveMode=$isPowerSaveMode"
     ).joinToString("\n")
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -415,6 +432,11 @@ private fun DiagnosticsCard(
             KeyValueRow(label = stringResource(R.string.notification_check_active_client_label), value = activeClientText)
             KeyValueRow(label = stringResource(R.string.notification_check_active_supplements_label), value = activeSupplementCount.toString())
             KeyValueRow(label = stringResource(R.string.notification_check_scheduled_count_label), value = scheduledCount.toString())
+            KeyValueRow(label = stringResource(R.string.notification_check_manufacturer_label), value = manufacturer)
+            KeyValueRow(
+                label = stringResource(R.string.notification_check_power_save_label),
+                value = if (isPowerSaveMode) stringResource(R.string.status_on) else stringResource(R.string.status_off)
+            )
             KeyValueRow(
                 label = stringResource(R.string.notification_reliability_health),
                 value = reliabilityLevelText(reliabilityReport.level)

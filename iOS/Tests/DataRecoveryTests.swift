@@ -91,11 +91,11 @@ final class DataRecoveryTests: XCTestCase {
     }
 
     private func supplement(
-        id: String = supplementId,
+        id: String? = nil,
         name: String = "Magnesium"
     ) -> OAKBackupSupplement {
         OAKBackupSupplement(
-            id: id,
+            id: id ?? supplementId,
             name: name,
             dailyDose: "200 mg",
             intakeTime: "21:00",

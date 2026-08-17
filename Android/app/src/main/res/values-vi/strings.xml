@@ -366,6 +366,8 @@
     <string name="notification_check_active_client_label">Học viên đang chọn</string>
     <string name="notification_check_active_supplements_label">Số chất đang dùng</string>
     <string name="notification_check_scheduled_count_label">Đã lên lịch (Debug)</string>
+    <string name="notification_check_manufacturer_label">Nhà sản xuất thiết bị</string>
+    <string name="notification_check_power_save_label">Chế độ tiết kiệm pin hệ thống</string>
     <string name="notification_check_exact_alarms_label">Exact alarms</string>
     <string name="notification_check_battery_opt_label">Tối ưu pin</string>
     <string name="notification_check_diagnostics_label">Chẩn đoán</string>

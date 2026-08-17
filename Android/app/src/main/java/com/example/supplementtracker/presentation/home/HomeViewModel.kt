@@ -49,6 +49,7 @@ import com.example.supplementtracker.service.ClientProfileMutationEngine
 import com.example.supplementtracker.service.ClientProfileMutationResult
 import com.example.supplementtracker.service.CommercialFeature
 import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.NotificationRecoveryAction
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -222,6 +223,7 @@ class HomeViewModel(
     init {
         observeDayChanges()
         observeActiveClientChanges()
+        viewModelScope.launch { autoReconcileNotificationSchedules() }
     }
 
     private fun observeActiveClientChanges() {
@@ -673,6 +675,15 @@ class HomeViewModel(
 
     private suspend fun rescheduleNotificationsNow() {
         notificationScheduleEngine.rescheduleAll()
+        recordNotificationRebuild()
+    }
+
+    private suspend fun autoReconcileNotificationSchedules() {
+        val decision = notificationScheduleEngine.reconcileIfNeeded()
+        if (decision.action == NotificationRecoveryAction.REBUILD) recordNotificationRebuild()
+    }
+
+    private fun recordNotificationRebuild() {
         val rebuiltAt = System.currentTimeMillis()
         OakPrefs.get(context).edit().putLong("oakLastNotificationRebuildEpochMs", rebuiltAt).apply()
         _lastNotificationRebuildEpochMs.value = rebuiltAt

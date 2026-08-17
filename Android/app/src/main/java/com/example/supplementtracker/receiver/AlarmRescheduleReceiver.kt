@@ -7,6 +7,7 @@ import com.example.supplementtracker.data.local.SupplementDatabase
 import com.example.supplementtracker.data.repository.SupplementRepositoryImpl
 import com.example.supplementtracker.service.ActiveClientStore
 import com.example.supplementtracker.service.NotificationScheduleEngine
+import com.example.supplementtracker.service.OakPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,14 +25,14 @@ class AlarmRescheduleReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                reschedule(context.applicationContext)
+                reschedule(context.applicationContext, action)
             } finally {
                 pendingResult.finish()
             }
         }
     }
 
-    private suspend fun reschedule(appContext: Context) {
+    private suspend fun reschedule(appContext: Context, trigger: String) {
         val database = SupplementDatabase.getInstance(appContext)
         val repository = SupplementRepositoryImpl(database.supplementDao)
         val activeClientStore = ActiveClientStore(appContext)
@@ -40,5 +41,9 @@ class AlarmRescheduleReceiver : BroadcastReceiver() {
             repository,
             activeClientStore::currentClientId
         ).rescheduleAll()
+        OakPrefs.get(appContext).edit()
+            .putLong("oakLastNotificationRebuildEpochMs", System.currentTimeMillis())
+            .putString("oakLastNotificationRecoveryTrigger", trigger)
+            .apply()
     }
 }

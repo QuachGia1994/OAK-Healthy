@@ -107,16 +107,17 @@ public struct NotificationDebugScreen: View {
         let settings = await center.notificationSettings()
         let pending = await NotificationService.shared.pendingRequestSnapshots()
         let shadowRaw = await NotificationService.shared.shadowScheduledTimes()
-        let parsedPending = NotificationDebugEntry.parseMany(pending)
+        var parsedPending = NotificationDebugEntry.parseMany(pending)
         var parsedShadow = NotificationDebugEntry.parseMany(shadowRaw)
-        let supplementCount = fetchActiveSupplementCount(clientId: activeClientManager.currentClientId)
+        let supplements = fetchActiveSupplements(clientId: activeClientManager.currentClientId)
+        let supplementCount = supplements.count
         var (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
         
         if shouldAutoRepairShadow(settings: settings, pendingOnly: pendingOnly, shadowOnly: shadowOnly, errorCount: errorCount) {
             didAutoRepairShadow = true
-            await NotificationService.shared.rebuildShadowFromPendingRequests()
-            let shadowRaw2 = await NotificationService.shared.shadowScheduledTimes()
-            parsedShadow = NotificationDebugEntry.parseMany(shadowRaw2)
+            _ = await NotificationService.shared.reconcileSchedulesIfNeeded(supplements: supplements)
+            parsedPending = NotificationDebugEntry.parseMany(await NotificationService.shared.pendingRequestSnapshots())
+            parsedShadow = NotificationDebugEntry.parseMany(await NotificationService.shared.shadowScheduledTimes())
             (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
         }
         
@@ -210,16 +211,12 @@ public struct NotificationDebugScreen: View {
     }
     
     @MainActor
-    private func fetchActiveSupplementCount(clientId: UUID?) -> Int {
-        guard let clientId else { return 0 }
-        do {
-            return try ClientScopedStore.activeSupplements(
-                modelContext: modelContext,
-                clientId: clientId
-            ).count
-        } catch {
-            return 0
-        }
+    private func fetchActiveSupplements(clientId: UUID?) -> [UserSupplement] {
+        guard let clientId else { return [] }
+        return (try? ClientScopedStore.activeSupplements(
+            modelContext: modelContext,
+            clientId: clientId
+        )) ?? []
     }
     
     private func entryKey(_ entry: NotificationDebugEntry) -> String {

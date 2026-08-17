@@ -314,10 +314,6 @@ private struct SafeBootView: View {
                 storeKitBillingService: storeKitBillingService
             )
         )
-        Task { @MainActor in
-            guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
-            await notificationService.rebuildShadowFromPendingRequests()
-        }
         DebugReporter.report("bootstrap_ready")
     }
     
@@ -716,9 +712,16 @@ struct MainTabView: View {
             handleAutoSync(phase: newPhase)
             guard newPhase == .active else { return }
             Task { @MainActor in
+                await reconcileNotificationSchedules()
                 await replayPendingDoseAction()
                 await refreshHomeBadgeCount()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+            Task { @MainActor in await reconcileNotificationSchedules(environmentChanged: true) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSSystemClockDidChange)) { _ in
+            Task { @MainActor in await reconcileNotificationSchedules(environmentChanged: true) }
         }
         .onChange(of: activeClientManager.currentClientId, initial: false) { _, _ in
             guard !enforceClientAccess() else { return }
@@ -790,8 +793,25 @@ struct MainTabView: View {
             )
             await notificationService.replaceAllSchedules(supplements: supplements)
         } catch {
-            DebugReporter.report("auto_reschedule_fetch_failed", fields: ["error": error.localizedDescription])
-            return
+            DebugReporter.report("auto_reschedule_fetch_failed", fields: ["error_type": "supplement_fetch"])
+        }
+    }
+
+    @MainActor
+    private func reconcileNotificationSchedules(environmentChanged: Bool = false) async {
+        guard isNotificationEnabledByUser else { return }
+        guard let clientId = activeClientManager.currentClientId else { return }
+        do {
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            _ = await notificationService.reconcileSchedulesIfNeeded(
+                supplements: supplements,
+                forceEnvironmentChanged: environmentChanged
+            )
+        } catch {
+            DebugReporter.report("auto_reconcile_fetch_failed", fields: ["error_type": "supplement_fetch"])
         }
     }
 

@@ -357,6 +357,8 @@
     <string name="notification_check_active_client_label">Active client</string>
     <string name="notification_check_active_supplements_label">Active supplements</string>
     <string name="notification_check_scheduled_count_label">Scheduled (Debug)</string>
+    <string name="notification_check_manufacturer_label">Device manufacturer</string>
+    <string name="notification_check_power_save_label">System power saver</string>
     <string name="notification_check_exact_alarms_label">Exact alarms</string>
     <string name="notification_check_battery_opt_label">Battery optimization</string>
     <string name="notification_check_diagnostics_label">Diagnostics</string>
