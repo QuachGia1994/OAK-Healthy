@@ -15,6 +15,7 @@ FILES = {
     "ios_crypto": ROOT / "iOS/Services/CloudSyncCrypto.swift",
     "android_diag": ROOT / "Android/app/src/main/java/com/example/supplementtracker/service/DiagnosticsReporter.kt",
     "ios_diag": ROOT / "iOS/Services/DiagnosticsReporter.swift",
+    "ios_notification_diag": ROOT / "iOS/Views/NotificationDebugView.swift",
     "android_crypto_test": ROOT / "Android/app/src/test/java/com/example/supplementtracker/service/CloudSyncCryptoInteropTest.kt",
     "ios_crypto_test": ROOT / "iOS/Tests/CloudSyncTests.swift",
 }
@@ -63,6 +64,9 @@ def validate_diagnostics() -> None:
         require(key not in combined, f"Sensitive diagnostics field is allowlisted: {key}")
     require("activation_milestone" in combined, "Activation telemetry allowlist unexpectedly missing")
     require("milestone" in combined and "state" in combined, "Activation telemetry must remain aggregate-only")
+    notification_diag = read("ios_notification_diag")
+    require("activeClientManager.currentClientId?.uuidString" not in notification_diag,
+            "iOS notification diagnostics must not expose raw client identity")
 
 
 def validate_tamper_tests() -> None:

@@ -18,6 +18,10 @@ class SecurityHardeningGateTests(unittest.TestCase):
         for key in gate.SENSITIVE_ANALYTICS_KEYS:
             self.assertNotIn(key, combined)
 
+    def test_notification_diagnostics_do_not_expose_client_uuid(self) -> None:
+        notification_diag = gate.read("ios_notification_diag")
+        self.assertNotIn("activeClientManager.currentClientId?.uuidString", notification_diag)
+
     def test_crypto_tamper_regressions_exist_on_both_platforms(self) -> None:
         self.assertIn("rejectsTamperedCiphertext", gate.read("android_crypto_test"))
         self.assertIn("testRejectsTamperedCiphertext", gate.read("ios_crypto_test"))

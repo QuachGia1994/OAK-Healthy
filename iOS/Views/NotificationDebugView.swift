@@ -250,7 +250,7 @@ public struct NotificationDebugScreen: View {
         [
             "permission=\(authorizationStatusText)",
             "enabledByUser=\(enabledText)",
-            "activeClient=\(activeClientManager.currentClientId?.uuidString ?? "nil")",
+            "activeClient=\(activeClientManager.currentClientId == nil ? "no" : "yes")",
             "activeSupplements=\(activeSupplementCount)",
             "pendingCount=\(pendingEntries.count)",
             "shadowCount=\(shadowEntries.count)",
