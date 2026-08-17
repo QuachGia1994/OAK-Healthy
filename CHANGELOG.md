@@ -8,6 +8,8 @@ versioning where practical.
 
 ### Added
 
+- P9.5 Activation & Retention 2.0 adds cross-platform first-value milestones, actionable empty/recovery states, pressure-free recent-rhythm feedback, existing-user milestone reconciliation, and consent-gated aggregate activation telemetry restricted to milestone/state enums.
+- P9.4 Coach Workspace 3.0 adds client drill-down, same-client current-vs-previous 7/30/90-day comparisons, client filters, bounded local routine check-ins, renderer-neutral report documents, Android/iOS workspace tests, and a non-medical/local-only repository gate.
 - P9.3 Sync Engine 2.0 adds durable dirty-part queues, sanitized operation journals, deterministic conflict previews, exponential retry/backoff state, and cross-platform local-first regression gates.
 - P9.2 Reminder Reliability 3.0 adds automatic Android/iOS schedule reconciliation, lifecycle/time-change recovery, platform diagnostics, and a fail-closed repository gate that forbids intake-history mutation from recovery paths.
 - P9.1 Data Recovery 2.0 adds detailed no-write import previews, duplicate/orphan collision gates, pre-restore snapshots with rollback, Android↔iOS fixtures, and complete supported-schema/database migration matrices.
@@ -47,6 +49,7 @@ versioning where practical.
 
 ### Fixed
 
+- Android Settings rows now reserve flexible width for long labels and keep trailing values on one line, preventing the latest reminder rebuild timestamp from collapsing into a narrow vertical column.
 - Android sync tombstones now compare the remote effective timestamp against both local update and deletion timestamps, so an older remote deletion cannot erase a newer local edit; equal-timestamp conflicts keep local state on both platforms.
 - Backup restore no longer silently drops orphan or high-volume history; future schemas and incomplete recurrence payloads now fail closed, and Safe Mode requires a stable preview before applying downloaded data.
 - P7/P8 Android backup identity compatibility now stays within the enforced core function-length gate.

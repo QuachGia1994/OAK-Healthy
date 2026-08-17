@@ -32,8 +32,14 @@ jobs:
       - name: Validate P9.3 sync engine
         run: python3 scripts/sync_engine_gate.py
 
+      - name: Validate P9.4 coach workspace
+        run: python3 scripts/coach_workspace_gate.py
+
+      - name: Validate P9.5 activation and retention
+        run: python3 scripts/activation_retention_gate.py
+
       - name: Run readiness unit tests
-        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate -q
+        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate scripts.tests.test_coach_workspace_gate scripts.tests.test_activation_retention_gate -q
 
   ios:
     name: iOS Coverage >= 80%
