@@ -228,12 +228,10 @@ enum CloudSyncAutoSync {
         let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: lastSyncKey))
         let localStackChanged = hasLocalStackChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
         let localHistoryChanged = hasLocalHistoryChangesSince(modelContext: modelContext, clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
-        let syncStartedEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
-        recordPendingMutations(
+        let syncStartedEpochMs = recordPendingMutations(
             clientId: clientId,
             stackDirty: localStackChanged,
-            historyDirty: localHistoryChanged,
-            epochMs: syncStartedEpochMs
+            historyDirty: localHistoryChanged
         )
         return SyncContext(
             id: id,
@@ -692,15 +690,16 @@ enum CloudSyncAutoSync {
     private static func recordPendingMutations(
         clientId: UUID,
         stackDirty: Bool,
-        historyDirty: Bool,
-        epochMs: Int64
-    ) {
+        historyDirty: Bool
+    ) -> Int64 {
+        let epochMs = Int64(Date().timeIntervalSince1970 * 1000)
         if stackDirty {
             SyncMutationQueueStore.markDirty(clientId: clientId, part: .stack, nowEpochMs: epochMs)
         }
         if historyDirty {
             SyncMutationQueueStore.markDirty(clientId: clientId, part: .history, nowEpochMs: epochMs)
         }
+        return epochMs
     }
 
     private static func recordSyncStart(ctx: SyncContext) {
