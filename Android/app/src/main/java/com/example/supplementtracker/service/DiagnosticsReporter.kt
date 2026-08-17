@@ -12,12 +12,16 @@ object DiagnosticsPrivacyPolicy {
         "billing_purchase_started",
         "billing_purchase_result",
         "billing_restore_started",
-        "billing_restore_result"
+        "billing_restore_result",
+        "activation_milestone"
     )
-    private val allowedKeys = setOf("plan", "billing_period", "source", "product_id", "result")
+    private val commercialKeys = setOf("plan", "billing_period", "source", "product_id", "result")
+    private val allowedKeysByEvent = allowedEvents.associateWith { event ->
+        if (event == "activation_milestone") setOf("milestone", "state") else commercialKeys
+    }
 
     fun sanitize(event: String, fields: Map<String, String>): Pair<String, Map<String, String>>? {
-        if (event !in allowedEvents) return null
+        val allowedKeys = allowedKeysByEvent[event] ?: return null
         val safeFields = fields.filterKeys { it in allowedKeys }
             .mapValues { (_, value) -> sanitizeValue(value) }
         return event to safeFields

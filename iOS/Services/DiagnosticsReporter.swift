@@ -9,15 +9,21 @@ public enum DiagnosticsPrivacyPolicy {
         "billing_purchase_started",
         "billing_purchase_result",
         "billing_restore_started",
-        "billing_restore_result"
+        "billing_restore_result",
+        "activation_milestone"
     ]
-    private static let allowedKeys: Set<String> = ["plan", "billing_period", "source", "product_id", "result"]
+    private static let commercialKeys: Set<String> = ["plan", "billing_period", "source", "product_id", "result"]
+    private static let allowedKeysByEvent: [String: Set<String>] = Dictionary(
+        uniqueKeysWithValues: allowedEvents.map { event in
+            (event, event == "activation_milestone" ? Set(["milestone", "state"]) : commercialKeys)
+        }
+    )
 
     public static func sanitize(
         event: String,
         fields: [String: String]
     ) -> (String, [String: String])? {
-        guard allowedEvents.contains(event) else { return nil }
+        guard let allowedKeys = allowedKeysByEvent[event] else { return nil }
         let safeFields = fields.reduce(into: [String: String]()) { result, item in
             guard allowedKeys.contains(item.key) else { return }
             result[item.key] = sanitizeValue(item.value)

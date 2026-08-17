@@ -73,6 +73,9 @@ import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.service.ClientProfileMutationResult
 import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.ActivationMilestone
+import com.example.supplementtracker.service.ActivationProgress
+import com.example.supplementtracker.service.ActivationRetentionStore
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -105,6 +108,8 @@ fun HomeScreen(
     var isClientMenuExpanded by remember { mutableStateOf(false) }
     var isAddClientDialogVisible by remember { mutableStateOf(false) }
     val dateHeaderFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd MMMM") }
+    val activationStore = remember(context) { ActivationRetentionStore(context.applicationContext) }
+    var activationProgress by remember { mutableStateOf(activationStore.progress()) }
 
     LaunchedEffect(Unit) {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -217,14 +222,32 @@ fun HomeScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 when (val state = uiState) {
                     is HomeUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    is HomeUiState.Success -> HomeContent(
-                        state = state,
-                        currentDay = currentDay,
-                        onToggleIntake = viewModel::toggleIntake,
-                        onDeleteDose = viewModel::deleteDoseTime,
-                        onDeleteSupplement = viewModel::deleteItem,
-                        onEdit = onNavigateToEdit
-                    )
+                    is HomeUiState.Success -> {
+                        LaunchedEffect(
+                            currentClientId,
+                            state.activeSupplements,
+                            state.restingSupplements,
+                            state.hasAnyIntakeRecord
+                        ) {
+                            val hasRoutine = state.activeSupplements.isNotEmpty() || state.restingSupplements.isNotEmpty()
+                            activationProgress = activationStore.reconcile(
+                                clientReady = currentClientId != null,
+                                routineReady = hasRoutine,
+                                firstAction = state.hasAnyIntakeRecord,
+                                reminderReady = false
+                            )
+                        }
+                        HomeContent(
+                            state = state,
+                            currentDay = currentDay,
+                            activationProgress = activationProgress,
+                            onAddRoutine = onNavigateToAdd,
+                            onToggleIntake = viewModel::toggleIntake,
+                            onDeleteDose = viewModel::deleteDoseTime,
+                            onDeleteSupplement = viewModel::deleteItem,
+                            onEdit = onNavigateToEdit
+                        )
+                    }
                     is HomeUiState.NoClient -> {
                         Column(
                             modifier = Modifier
@@ -286,6 +309,8 @@ fun HomeScreen(
 private fun HomeContent(
     state: HomeUiState.Success,
     currentDay: LocalDate,
+    activationProgress: ActivationProgress,
+    onAddRoutine: () -> Unit,
     onToggleIntake: (String, String, DoseAction) -> Unit,
     onDeleteDose: (UserSupplement, String) -> Unit,
     onDeleteSupplement: (UserSupplement) -> Unit,
@@ -322,12 +347,33 @@ private fun HomeContent(
                 onSelected = { filter = it }
             )
         }
+
+        if (!activationProgress.firstValueReached) {
+            item(key = "activation_first_value", contentType = "activation") {
+                FirstValueCard(
+                    progress = activationProgress,
+                    onAddRoutine = onAddRoutine,
+                    onReviewToday = { filter = HomeDoseFilter.ALL }
+                )
+            }
+        }
         
         if (state.activeSupplements.isEmpty()) {
             item(
                 key = "today_empty",
                 contentType = "empty"
-            ) { EmptyStateMessage(stringResource(R.string.no_intake_today)) }
+            ) {
+                if (state.restingSupplements.isEmpty()) {
+                    ActionableEmptyState(
+                        title = stringResource(R.string.activation_no_routine_title),
+                        body = stringResource(R.string.activation_no_routine_body),
+                        action = stringResource(R.string.activation_add_routine_action),
+                        onAction = onAddRoutine
+                    )
+                } else {
+                    EmptyStateMessage(stringResource(R.string.activation_rest_day_body))
+                }
+            }
         }
 
         if (filter == HomeDoseFilter.ALL && missedItems.isNotEmpty()) {
@@ -351,7 +397,12 @@ private fun HomeContent(
         if (filter == HomeDoseFilter.OVERDUE) {
             if (missedItems.isEmpty()) {
                 item(key = "overdue_empty", contentType = "empty") {
-                    EmptyStateMessage(stringResource(R.string.no_overdue_today))
+                    ActionableEmptyState(
+                        title = stringResource(R.string.no_overdue_today),
+                        body = stringResource(R.string.activation_no_overdue_body),
+                        action = stringResource(R.string.activation_show_all_action),
+                        onAction = { filter = HomeDoseFilter.ALL }
+                    )
                 }
             }
             items(
@@ -458,6 +509,56 @@ private fun HomeDashboardHeader(
 }
 
 @Composable
+private fun FirstValueCard(
+    progress: ActivationProgress,
+    onAddRoutine: () -> Unit,
+    onReviewToday: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.activation_first_value_title), fontWeight = FontWeight.SemiBold)
+            Text(
+                stringResource(R.string.activation_progress_format, progress.coreCompletedCount, 3),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            ActivationMilestoneRow(ActivationMilestone.CLIENT_READY, progress)
+            ActivationMilestoneRow(ActivationMilestone.ROUTINE_READY, progress)
+            ActivationMilestoneRow(ActivationMilestone.FIRST_ACTION, progress)
+            when (progress.nextCoreMilestone) {
+                ActivationMilestone.ROUTINE_READY -> Button(onClick = onAddRoutine) {
+                    Text(stringResource(R.string.activation_add_routine_action))
+                }
+                ActivationMilestone.FIRST_ACTION -> OutlinedButton(onClick = onReviewToday) {
+                    Text(stringResource(R.string.activation_review_today_action))
+                }
+                else -> Unit
+            }
+            Text(
+                stringResource(R.string.activation_pressure_free_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActivationMilestoneRow(milestone: ActivationMilestone, progress: ActivationProgress) {
+    val done = milestone in progress.completed
+    val label = when (milestone) {
+        ActivationMilestone.CLIENT_READY -> stringResource(R.string.activation_milestone_client)
+        ActivationMilestone.ROUTINE_READY -> stringResource(R.string.activation_milestone_routine)
+        ActivationMilestone.FIRST_ACTION -> stringResource(R.string.activation_milestone_first_action)
+        ActivationMilestone.REMINDER_READY -> stringResource(R.string.activation_milestone_reminder)
+    }
+    Text(
+        text = stringResource(if (done) R.string.activation_milestone_done_format else R.string.activation_milestone_pending_format, label),
+        style = MaterialTheme.typography.bodyMedium
+    )
+}
+
+@Composable
 private fun RecoveryCard(missedCount: Int, onReview: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -469,6 +570,11 @@ private fun RecoveryCard(missedCount: Int, onReview: () -> Unit) {
                 Text(stringResource(R.string.recovery_title), fontWeight = FontWeight.SemiBold)
                 Text(
                     stringResource(R.string.recovery_body_format, missedCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    stringResource(R.string.recovery_pressure_free_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -636,7 +742,11 @@ private fun StreakPill(days: Int) {
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Text(
-            text = stringResource(R.string.home_streak_format, days),
+            text = if (days > 0) {
+                stringResource(R.string.home_rhythm_days_format, days)
+            } else {
+                stringResource(R.string.home_rhythm_fresh_start)
+            },
             style = MaterialTheme.typography.labelLarge,
             color = if (isDark) Color.White else OakColors.TextPrimary,
             maxLines = 1,
@@ -1023,6 +1133,22 @@ private fun RestingSupplementCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ActionableEmptyState(
+    title: String,
+    body: String,
+    action: String,
+    onAction: () -> Unit
+) {
+    OakCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = onAction) { Text(action) }
         }
     }
 }

@@ -93,6 +93,9 @@ fun OnboardingScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val prefs = remember { OakPrefs.get(context) }
+    val activationStore = remember {
+        com.example.supplementtracker.service.ActivationRetentionStore(context.applicationContext)
+    }
     val clients by activeClientManager.clients.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val backgroundBrush = oakBackgroundBrush()
@@ -111,6 +114,15 @@ fun OnboardingScreen(
         val stored = prefs.getBoolean("isNotificationEnabledByUser", false)
         val next = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) stored && hasNotificationPermission else stored
         if (next != isNotificationsEnabledByUser) isNotificationsEnabledByUser = next
+        if (next && hasNotificationPermission) {
+            activationStore.mark(com.example.supplementtracker.service.ActivationMilestone.REMINDER_READY)
+        }
+    }
+
+    LaunchedEffect(currentClientId) {
+        if (currentClientId != null) {
+            activationStore.mark(com.example.supplementtracker.service.ActivationMilestone.CLIENT_READY)
+        }
     }
 
     LaunchedEffect(Unit) {

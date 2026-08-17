@@ -122,6 +122,7 @@ public final class AddSupplementViewModel {
         do {
             let result = try persistSupplement()
             try await syncNotifications(for: result.supplement, wasEditing: result.wasEditing)
+            if !result.wasEditing { ActivationRetentionStore.mark(.routineReady) }
             CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: result.supplement.client?.id)
             return result.supplement
         } catch let failure as SaveFailure {

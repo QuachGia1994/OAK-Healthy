@@ -63,6 +63,7 @@ public struct OnboardingView: View {
                         try modelContext.save()
                         clientMessage = nil
                         activeClientManager.setCurrentClientId(created.id)
+                        ActivationRetentionStore.mark(.clientReady)
                     } catch {
                         modelContext.delete(created)
                         clientMessage = error.localizedDescription
@@ -76,9 +77,13 @@ public struct OnboardingView: View {
             Task { await refreshAuthorizationState() }
         }
         .task {
-            guard activeClientManager.currentClientId == nil else { return }
+            if activeClientManager.currentClientId != nil {
+                ActivationRetentionStore.mark(.clientReady)
+                return
+            }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
+            ActivationRetentionStore.mark(.clientReady)
         }
         .task {
             await refreshAuthorizationState()
@@ -324,6 +329,9 @@ public struct OnboardingView: View {
         await MainActor.run {
             authorizationStatus = settings.authorizationStatus
             if authorizationStatus == .denied { isNotificationEnabledByUser = false }
+            if isSystemNotificationGranted && isNotificationEnabledByUser {
+                ActivationRetentionStore.mark(.reminderReady)
+            }
             let ack = readEpochMs(forKey: "oakLastTestNotificationAckEpochMs")
             if ack != lastTestAckEpochMs { lastTestAckEpochMs = ack }
         }

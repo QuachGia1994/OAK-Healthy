@@ -34,7 +34,8 @@ class CalculateHomeDashboardUseCase(
     data class Result(
         val activeDoses: Map<String, List<ActiveDose>>,
         val restingSupplements: List<RestingSupplement>,
-        val streakDays: Int
+        val streakDays: Int,
+        val hasAnyIntakeRecord: Boolean
     )
 
     private val intakeTimesCache = ConcurrentHashMap<String, List<String>>()
@@ -48,12 +49,13 @@ class CalculateHomeDashboardUseCase(
     ): Result {
         val recordIndex = buildRecordIndex(records)
         val liveSupplements = supplements.filter { it.deletedAtEpochMs == null && !isExpired(it, today) }
-        if (liveSupplements.isEmpty()) return Result(emptyMap(), emptyList(), 0)
+        val hasAnyRecord = records.isNotEmpty() || liveSupplements.any { it.lastTakenLocalDate != null }
+        if (liveSupplements.isEmpty()) return Result(emptyMap(), emptyList(), 0, hasAnyRecord)
 
         val streakDays = computeStreakDays(today, liveSupplements, recordIndex.hasRecordByDose, zoneId)
         val activeDoses = buildActiveDoses(liveSupplements, today, nowEpochMs, recordIndex.statusByDose, zoneId)
         val resting = buildRestingList(liveSupplements, today)
-        return Result(activeDoses, resting, streakDays)
+        return Result(activeDoses, resting, streakDays, hasAnyRecord)
     }
 
     fun isExpired(supplement: UserSupplement, today: LocalDate): Boolean =

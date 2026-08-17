@@ -163,6 +163,7 @@ public final class HomeViewModel {
             supplement: supplement
         )
         guard persistMark(newRecord, supplement: supplement, action: action, ctx: ctx, context: context) else { return }
+        ActivationRetentionStore.mark(.firstAction)
         applyMarkToCaches(ctx: ctx, action: action)
         scheduleMarkSideEffects(
             supplement: supplement,

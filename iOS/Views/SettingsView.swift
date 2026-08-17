@@ -531,6 +531,7 @@ public struct SettingsView: View {
             await NotificationService.shared.replaceAllSchedules(
                 supplements: try activeSupplements()
             )
+            ActivationRetentionStore.mark(.reminderReady)
         } catch {
             isNotificationEnabledByUser = false
             showError(message: error.localizedDescription)
@@ -557,6 +558,8 @@ public struct SettingsView: View {
         let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
         if !authorized, isNotificationEnabledByUser {
             isNotificationEnabledByUser = false
+        } else if authorized, isNotificationEnabledByUser {
+            ActivationRetentionStore.mark(.reminderReady)
         }
     }
     

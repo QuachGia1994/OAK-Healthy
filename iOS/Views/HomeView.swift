@@ -18,6 +18,7 @@ public struct HomeView: View {
     @State private var renderNow: Date = .now
     @State private var cachedOverdue: [OverdueItem] = []
     @State private var cachedTimeSections: [TimeSection] = []
+    @State private var activationProgress = ActivationRetentionStore.progress()
     @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
     @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     
@@ -162,12 +163,14 @@ public struct HomeView: View {
                 pruneExpiredSupplementsIfNeeded()
                 viewModel.processSupplements(supplementsForActiveClient)
                 homeOverdueCount = viewModel.cachedTodayCounts.missed
+                refreshActivationProgress()
                 rebuildVisible(now: .now)
             }
             .task(id: ReloadKey(clientId: activeClientManager.currentClientId, syncEpochMs: lastSyncEpochMs)) {
                 pruneExpiredSupplementsIfNeeded()
                 viewModel.processSupplements(supplementsForActiveClient)
                 homeOverdueCount = viewModel.cachedTodayCounts.missed
+                refreshActivationProgress()
                 rebuildVisible(now: .now)
             }
             .onChange(of: doseFilter) {
@@ -242,6 +245,39 @@ public struct HomeView: View {
         .accessibilityElement(children: .combine)
     }
 
+    private var firstValueCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("activation_first_value_title".localized)
+                .font(.subheadline.weight(.semibold))
+            Text(String(format: "activation_progress_format".localized, activationProgress.coreCompletedCount, 3))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            activationMilestoneRow(.clientReady, key: "activation_milestone_client")
+            activationMilestoneRow(.routineReady, key: "activation_milestone_routine")
+            activationMilestoneRow(.firstAction, key: "activation_milestone_first_action")
+            if activationProgress.nextCoreMilestone == .routineReady {
+                Button("activation_add_routine_action".localized) { isShowingAddSheet = true }
+                    .buttonStyle(.borderedProminent)
+            } else if activationProgress.nextCoreMilestone == .firstAction {
+                Button("activation_review_today_action".localized) { doseFilter = .all }
+                    .buttonStyle(.bordered)
+            }
+            Text("activation_pressure_free_hint".localized)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .oakCardStyle(.glass, cornerRadius: 14)
+    }
+
+    private func activationMilestoneRow(_ milestone: ActivationMilestone, key: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: activationProgress.completed.contains(milestone) ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(activationProgress.completed.contains(milestone) ? Color.accentColor : Color.secondary)
+            Text(key.localized).font(.subheadline)
+        }
+    }
+
     private func recoveryCard(missedCount: Int) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -249,6 +285,9 @@ public struct HomeView: View {
                     .font(.subheadline.weight(.semibold))
                 Text(String(format: "recovery_body_format".localized, missedCount))
                     .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("recovery_pressure_free_hint".localized)
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -258,6 +297,24 @@ public struct HomeView: View {
         .padding(12)
         .oakCardStyle(.glass, cornerRadius: 14)
         .accessibilityElement(children: .combine)
+    }
+
+    private func actionableEmptyRow(
+        title: String,
+        body: String,
+        action: String,
+        onAction: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.subheadline.weight(.semibold))
+            Text(body).font(.caption).foregroundStyle(.secondary)
+            Button(action, action: onAction).buttonStyle(.bordered)
+        }
+        .padding(12)
+        .oakCardStyle(.glass, cornerRadius: 14)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
     }
 
     private func dashboardView(bottomPadding: CGFloat) -> some View {
@@ -281,23 +338,37 @@ public struct HomeView: View {
                     .padding(.top, 10)
             }
 
+            if !activationProgress.firstValueReached {
+                firstValueCard
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+            }
+
             List {
                 if viewModel.activeSupplements.isEmpty {
-                    Text("no_intake_today".localized)
-                        .oakSecondaryText()
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                    if supplementsForActiveClient.isEmpty {
+                        actionableEmptyRow(
+                            title: "activation_no_routine_title".localized,
+                            body: "activation_no_routine_body".localized,
+                            action: "activation_add_routine_action".localized
+                        ) { isShowingAddSheet = true }
+                    } else {
+                        Text("activation_rest_day_body".localized)
+                            .oakSecondaryText()
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                    }
                 }
                 
                 if doseFilter == .overdue {
                     Section {
                         if overdue.isEmpty {
-                            Text("home_no_overdue".localized)
-                                .oakSecondaryText()
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                            actionableEmptyRow(
+                                title: "home_no_overdue".localized,
+                                body: "activation_no_overdue_body".localized,
+                                action: "activation_show_all_action".localized
+                            ) { doseFilter = .all }
                         } else {
                             ForEach(overdue) { item in
                                 activeRow(supplement: item.supplement, timeString: item.timeString, now: now)
@@ -499,6 +570,19 @@ public struct HomeView: View {
         return items
     }
     
+    private func refreshActivationProgress() {
+        let localSupplements = supplementsForActiveClient
+        let hasAction = localSupplements.contains { supplement in
+            supplement.lastTakenLocalDate != nil || !supplement.intakeRecords.isEmpty
+        }
+        activationProgress = ActivationRetentionStore.reconcile(
+            clientReady: activeClientManager.currentClientId != nil,
+            routineReady: !localSupplements.isEmpty,
+            firstAction: hasAction,
+            reminderReady: false
+        )
+    }
+
     private func rebuildVisible(now: Date) {
         renderNow = now
         cachedOverdue = overdueItems(now: now)
@@ -674,17 +758,19 @@ private struct StreakChip: View {
     
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "flame.fill")
+            Image(systemName: "leaf.fill")
                 .font(.caption)
-                .foregroundStyle(OAKPalette.skipped(for: colorScheme))
-            Text(String.localizedStringWithFormat("home_streak_format".localized, streakDays))
+                .foregroundStyle(OAKPalette.taken(for: colorScheme))
+            Text(streakDays > 0
+                 ? String.localizedStringWithFormat("home_rhythm_days_format".localized, streakDays)
+                 : "home_rhythm_fresh_start".localized)
                 .font(.caption)
                 .oakSecondaryText()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(OAKPalette.skipped(for: colorScheme).opacity(0.10))
-        .overlay(Capsule().stroke(OAKPalette.skipped(for: colorScheme).opacity(0.28), lineWidth: 1))
+        .background(OAKPalette.taken(for: colorScheme).opacity(0.10))
+        .overlay(Capsule().stroke(OAKPalette.taken(for: colorScheme).opacity(0.28), lineWidth: 1))
         .clipShape(Capsule())
     }
 }

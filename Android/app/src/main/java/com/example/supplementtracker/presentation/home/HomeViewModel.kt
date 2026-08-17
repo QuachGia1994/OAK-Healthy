@@ -399,7 +399,12 @@ class HomeViewModel(
         val restingList = result.restingSupplements.map {
             RestingSupplementInfo(it.supplement, it.daysRemaining)
         }
-        return HomeUiState.Success(activeItems, restingList, result.streakDays)
+        return HomeUiState.Success(
+            activeItems,
+            restingList,
+            result.streakDays,
+            result.hasAnyIntakeRecord
+        )
     }
 
     private fun isExpired(supplement: UserSupplement, today: LocalDate): Boolean =
@@ -463,6 +468,8 @@ class HomeViewModel(
                 DoseAction.SKIPPED -> RecordDoseUseCase.Action.SKIPPED
             }
         )
+        com.example.supplementtracker.service.ActivationRetentionStore(context)
+            .mark(com.example.supplementtracker.service.ActivationMilestone.FIRST_ACTION)
         rescheduleNotificationsNow()
         activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it) }
     }

@@ -290,8 +290,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun reconcileNotificationPermissionPreference() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         val prefs = OakPrefs.get(applicationContext)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (prefs.getBoolean("isNotificationEnabledByUser", false)) markReminderReady()
+            return
+        }
         val granted = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.POST_NOTIFICATIONS
@@ -301,6 +304,12 @@ class MainActivity : ComponentActivity() {
         if (normalized != stored) {
             prefs.edit().putBoolean("isNotificationEnabledByUser", normalized).apply()
         }
+        if (normalized) markReminderReady()
+    }
+
+    private fun markReminderReady() {
+        com.example.supplementtracker.service.ActivationRetentionStore(applicationContext)
+            .mark(com.example.supplementtracker.service.ActivationMilestone.REMINDER_READY)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -309,6 +318,7 @@ class MainActivity : ComponentActivity() {
         val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
         val prefs = OakPrefs.get(applicationContext)
         prefs.edit().putBoolean("isNotificationEnabledByUser", granted).apply()
+        if (granted) markReminderReady()
         homeViewModel?.refreshNotificationSchedules()
     }
 

@@ -173,6 +173,17 @@ class HistoryViewModel(
         )
     }
 
+    fun coachClientDetail(clientId: java.util.UUID): com.example.supplementtracker.service.CoachClientDetail? {
+        val source = coachSource ?: return null
+        val client = source.clients.firstOrNull { it.id == clientId } ?: return null
+        return com.example.supplementtracker.service.CoachWorkspaceBuilder.buildDetail(
+            client = client,
+            records = source.records[clientId].orEmpty(),
+            nowEpochMs = System.currentTimeMillis(),
+            windowDays = mutableCoachWindowDays.value
+        )
+    }
+
     private fun processHistory(records: List<IntakeRecord>, plan: CommercialPlan): HistoryUiState {
         val zoneId = ZoneId.systemDefault()
         val today = LocalDate.now(zoneId)

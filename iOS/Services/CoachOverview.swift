@@ -31,7 +31,7 @@ public struct CoachClientSummary: Equatable, Identifiable {
     public let needsCheckIn: Bool
 }
 
-public struct CoachTrendPoint: Equatable, Identifiable {
+public struct CoachTrendPoint: Equatable, Identifiable, Sendable {
     public var id: Date { bucketStart }
     public let bucketStart: Date
     public let takenCount: Int

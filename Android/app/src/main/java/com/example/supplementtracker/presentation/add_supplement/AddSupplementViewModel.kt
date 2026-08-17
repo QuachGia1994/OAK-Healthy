@@ -317,6 +317,8 @@ class AddSupplementViewModel(
                 )
                 if (currentState.editingSupplementId == null) {
                     saveSupplementUseCase(supplement)
+                    com.example.supplementtracker.service.ActivationRetentionStore(context)
+                        .mark(com.example.supplementtracker.service.ActivationMilestone.ROUTINE_READY)
                 } else {
                     repository.updateSupplement(supplement)
                 }

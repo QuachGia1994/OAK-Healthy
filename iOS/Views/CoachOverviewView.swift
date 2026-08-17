@@ -7,6 +7,7 @@ public struct CoachOverviewView: View {
     @State private var selectedWindowDays = 7
     @State private var searchText = ""
     @State private var sort: CoachReportSort = .attention
+    @State private var filter: CoachReportFilter = .all
 
     public init() {}
 
@@ -99,6 +100,13 @@ public struct CoachOverviewView: View {
                 Text("coach_sort_completion".localized).tag(CoachReportSort.completion)
             }
             .pickerStyle(.menu)
+            Picker("coach_filter_title".localized, selection: $filter) {
+                Text("coach_filter_all".localized).tag(CoachReportFilter.all)
+                Text("coach_filter_check_in".localized).tag(CoachReportFilter.checkIn)
+                Text("coach_filter_active".localized).tag(CoachReportFilter.active)
+                Text("coach_filter_inactive".localized).tag(CoachReportFilter.inactive)
+            }
+            .pickerStyle(.menu)
         }
     }
 
@@ -109,15 +117,24 @@ public struct CoachOverviewView: View {
             if visible.isEmpty {
                 Text("coach_overview_empty".localized).foregroundStyle(.secondary)
             } else {
-                ForEach(visible) { client in clientRow(client) }
+                ForEach(visible) { client in
+                    if let profile = clients.first(where: { $0.id == client.clientId }) {
+                        NavigationLink {
+                            CoachClientDetailView(client: profile)
+                        } label: {
+                            clientRow(client)
+                        }
+                    }
+                }
             }
         }
     }
 
     private func visibleClients(_ clients: [CoachClientSummary]) -> [CoachClientSummary] {
-        let filtered = clients.filter {
+        let searched = clients.filter {
             searchText.isEmpty || $0.name.localizedCaseInsensitiveContains(searchText)
         }
+        let filtered = searched.filter(matchesFilter)
         switch sort {
         case .attention:
             return filtered.sorted { left, right in
@@ -128,6 +145,15 @@ public struct CoachOverviewView: View {
             return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         case .completion:
             return filtered.sorted { ($0.completionPercent ?? -1) > ($1.completionPercent ?? -1) }
+        }
+    }
+
+    private func matchesFilter(_ client: CoachClientSummary) -> Bool {
+        switch filter {
+        case .all: return true
+        case .checkIn: return client.needsCheckIn
+        case .active: return client.takenCount + client.skippedCount > 0
+        case .inactive: return client.takenCount + client.skippedCount == 0
         }
     }
 
@@ -187,4 +213,11 @@ private enum CoachReportSort: Hashable {
     case attention
     case name
     case completion
+}
+
+private enum CoachReportFilter: Hashable {
+    case all
+    case checkIn
+    case active
+    case inactive
 }
