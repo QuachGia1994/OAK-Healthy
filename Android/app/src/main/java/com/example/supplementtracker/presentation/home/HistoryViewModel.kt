@@ -118,7 +118,8 @@ class HistoryViewModel(
     ) { clientId, entitlement -> clientId to entitlement.plan }
         .flatMapLatest { (clientId, plan) ->
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HistoryUiState.NoClient)
-            repository.observeAllRecordsByClient(id)
+            val (startEpochMs, endEpochMs) = historyBounds(plan)
+            repository.getRecordsByDateRange(id, startEpochMs, endEpochMs)
                 .mapLatest { records -> withContext(Dispatchers.Default) { processHistory(records, plan) } }
         }
         .stateIn(
@@ -172,6 +173,15 @@ class HistoryViewModel(
             nowEpochMs = System.currentTimeMillis(),
             windowDays = mutableCoachWindowDays.value
         )
+    }
+
+    private fun historyBounds(plan: CommercialPlan): Pair<Long, Long> {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val start = today.minusDays(EntitlementPolicy.historyDays(plan) - 1)
+            .atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
+        return start to end
     }
 
     private fun processHistory(records: List<IntakeRecord>, plan: CommercialPlan): HistoryUiState {

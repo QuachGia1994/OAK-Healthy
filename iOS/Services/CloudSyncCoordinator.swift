@@ -768,10 +768,9 @@ enum CloudSyncAutoSync {
         let lastActivity = lastActivityEpoch ?? UserDefaults.standard.double(forKey: lastActivityKey)
         let activityElapsed = lastActivity > 0 ? (now - lastActivity) : 10_000
 
-        if activityElapsed < 20 { return .seconds(5) }
-        if activityElapsed < 2 * 60 { return .seconds(30) }
+        if activityElapsed < 2 * 60 { return .seconds(PerformanceBudgets.realtimeActivePollSeconds) }
         if activityElapsed < 10 * 60 { return .seconds(120) }
-        return .seconds(600)
+        return .seconds(PerformanceBudgets.realtimeIdlePollSeconds)
     }
 
     private static func activeBinId(clientId: UUID?) -> String? {
@@ -823,7 +822,7 @@ enum CloudSyncAutoSync {
             modelContext: modelContext,
             clientId: clientId,
             cutoff: cutoff,
-            limit: 5_000
+            limit: PerformanceBudgets.syncHistoryLimit
         )
     }
 }

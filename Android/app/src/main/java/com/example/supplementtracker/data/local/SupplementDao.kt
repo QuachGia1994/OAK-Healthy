@@ -43,6 +43,18 @@ interface SupplementDao {
     @Query("SELECT * FROM supplements WHERE clientId = :clientId ORDER BY name ASC")
     suspend fun getSupplementsByClientForSync(clientId: String): List<SupplementEntity>
 
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM supplements
+            WHERE clientId = :clientId
+            AND (updatedAtEpochMs > :sinceEpochMs OR COALESCE(deletedAtEpochMs, 0) > :sinceEpochMs)
+            LIMIT 1
+        )
+        """
+    )
+    suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean
+
     // --- Intake Records ---
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -163,6 +175,19 @@ interface SupplementDao {
         """
     )
     suspend fun getAllRecordsByClientForSync(clientId: String): List<IntakeRecordEntity>
+
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM intake_records r
+            INNER JOIN supplements s ON s.id = r.supplementId
+            WHERE s.clientId = :clientId
+            AND r.updatedAtEpochMs > :sinceEpochMs
+            LIMIT 1
+        )
+        """
+    )
+    suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean
 
     @Query(
         """

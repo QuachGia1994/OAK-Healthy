@@ -33,6 +33,12 @@ interface SupplementRepository {
     suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord>
     suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement>
     suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord>
+    suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean =
+        getAllSupplementsForSync(clientId).any {
+            maxOf(it.updatedAtEpochMs, it.deletedAtEpochMs ?: 0L) > sinceEpochMs
+        }
+    suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean =
+        getAllRecordsForSync(clientId).any { it.updatedAtEpochMs > sinceEpochMs }
     suspend fun deleteAllSupplementsByClient(clientId: String)
     suspend fun deleteAllIntakeRecordsByClient(clientId: String)
     suspend fun importBackupAtomic(

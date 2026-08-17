@@ -129,6 +129,17 @@ final class SupplementMergeRegressionTests: XCTestCase {
 }
 
 final class CloudSyncTelemetryTests: XCTestCase {
+    func testFreshActivityFallbackDoesNotPollFasterThanThirtySeconds() async {
+        let interval = await MainActor.run {
+            CloudSyncAutoSync.pollInterval(
+                nowEpoch: 1_000,
+                lastFailureEpoch: 0,
+                lastActivityEpoch: 999
+            )
+        }
+        XCTAssertEqual(interval, .seconds(30))
+    }
+
     func testPollIntervalBacksOffAfterUserActivityIsStale() async {
         let interval = await MainActor.run {
             CloudSyncAutoSync.pollInterval(
@@ -341,6 +352,14 @@ final class CloudSyncCryptoInteropTests: XCTestCase {
         let legacy = "AAECAwQFBgcICQoLPCC5eq7H+DnkL+Puw4YIQPXnpUmVBOFtPs/RqbLwTBZTYsL5"
         let output = try CloudSyncCrypto.decryptIfNeeded(envelope(ciphertext: legacy))
         XCTAssertEqual(String(data: output, encoding: .utf8), "{\"oak\":\"interop-v1\"}")
+    }
+
+    func testRejectsTamperedCiphertext() throws {
+        _ = try CloudSyncKeyManager.importKey(exported: exportedKey)
+        var bytes = try XCTUnwrap(Data(base64Encoded: ciphertext))
+        bytes[bytes.index(before: bytes.endIndex)] ^= 0x01
+        let tampered = bytes.base64EncodedString()
+        XCTAssertThrowsError(try CloudSyncCrypto.decryptIfNeeded(envelope(ciphertext: tampered)))
     }
 
     func testRejectsInvalidKeyIdentifiers() {

@@ -209,6 +209,12 @@ class SupplementRepositoryImpl(
         }
     }
 
+    override suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean =
+        withContext(Dispatchers.IO) { dao.hasSupplementChangesSince(clientId, sinceEpochMs) }
+
+    override suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean =
+        withContext(Dispatchers.IO) { dao.hasHistoryChangesSince(clientId, sinceEpochMs) }
+
     override suspend fun deleteAllSupplementsByClient(clientId: String) = withContext(Dispatchers.IO) {
         dao.deleteAllSupplementsByClient(clientId)
     }

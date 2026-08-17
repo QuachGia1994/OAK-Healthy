@@ -1042,16 +1042,12 @@ class CloudSyncEngine(
 
     private suspend fun hasLocalStackChangesSince(clientId: java.util.UUID, lastSyncEpochMs: Long): Boolean {
         if (lastSyncEpochMs <= 0L) return true
-        val clientIdString = clientId.toString()
-        val supplements = repository.getAllSupplementsForSync(clientIdString)
-        return supplements.any { maxOf(it.updatedAtEpochMs, it.deletedAtEpochMs ?: 0L) > lastSyncEpochMs }
+        return repository.hasSupplementChangesSince(clientId.toString(), lastSyncEpochMs)
     }
 
     private suspend fun hasLocalHistoryChangesSince(clientId: java.util.UUID, lastSyncEpochMs: Long): Boolean {
         if (lastSyncEpochMs <= 0L) return true
-        val clientIdString = clientId.toString()
-        val records = repository.getAllRecordsForSync(clientIdString)
-        return records.any { it.updatedAtEpochMs > lastSyncEpochMs }
+        return repository.hasHistoryChangesSince(clientId.toString(), lastSyncEpochMs)
     }
 
     private suspend fun previewRemoteConflict(
