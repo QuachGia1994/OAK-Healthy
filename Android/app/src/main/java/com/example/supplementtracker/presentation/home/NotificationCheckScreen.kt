@@ -2,14 +2,7 @@ package com.example.supplementtracker.presentation.home
 
 import com.example.supplementtracker.presentation.designsystem.OakColors
 import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
-import android.app.AlarmManager
-import android.content.Context.MODE_PRIVATE
-import com.example.supplementtracker.service.OakPrefs
 import android.content.Context
-import android.os.Build
-import android.os.PowerManager
-import android.Manifest
-import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,13 +56,11 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.supplementtracker.service.NotificationAlarmAudit
-import com.example.supplementtracker.service.NotificationDebugStore
+import com.example.supplementtracker.service.AndroidNotificationDiagnosticsSource
+import com.example.supplementtracker.service.NotificationDiagnosticsSource
 import com.example.supplementtracker.service.NotificationReliabilityEvaluator
 import com.example.supplementtracker.service.NotificationReliabilityInput
 import com.example.supplementtracker.service.NotificationReliabilityLevel
-import com.example.supplementtracker.service.NotificationPlatformDiagnosticsProvider
-import com.example.supplementtracker.service.NotificationSchedulerImpl
 import com.example.supplementtracker.service.ScheduledAlarmInfo
 import java.time.Instant
 import java.time.LocalDate
@@ -98,22 +89,28 @@ private enum class NotificationDiagnosis {
 fun NotificationCheckScreen(
     homeViewModel: HomeViewModel,
     activeClientManager: ActiveClientManager,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    diagnosticsSourceFactory: (Context) -> NotificationDiagnosticsSource = {
+        AndroidNotificationDiagnosticsSource(it.applicationContext)
+    }
 ) {
     val context = LocalContext.current
-    val prefs = remember { OakPrefs.get(context) }
+    val diagnosticsSource = remember(context, diagnosticsSourceFactory) {
+        diagnosticsSourceFactory(context)
+    }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
 
-    var upcoming by remember { mutableStateOf(emptyList<ScheduledAlarmInfo>()) }
-    var alarmAudit by remember { mutableStateOf(NotificationAlarmAudit(0, 0, 0)) }
-    var isNotificationEnabledByUser by rememberSaveable { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
-    var hasNotificationPermission by rememberSaveable { mutableStateOf(checkNotificationPermission(context)) }
-    var canScheduleExactAlarms by rememberSaveable { mutableStateOf(canScheduleExactAlarms(context)) }
-    var isIgnoringBatteryOptimizations by rememberSaveable { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
-    var manufacturer by rememberSaveable { mutableStateOf(Build.MANUFACTURER.trim().ifEmpty { "Unknown" }) }
-    var isPowerSaveMode by rememberSaveable { mutableStateOf(false) }
+    var diagnostics by remember { mutableStateOf(diagnosticsSource.read()) }
+    val upcoming = diagnostics.upcoming
+    val alarmAudit = diagnostics.alarmAudit
+    val isNotificationEnabledByUser = diagnostics.enabledByUser
+    val hasNotificationPermission = diagnostics.permissionGranted
+    val canScheduleExactAlarms = diagnostics.platform.exactAlarmAvailable
+    val isIgnoringBatteryOptimizations = diagnostics.platform.batteryOptimizationIgnored
+    val manufacturer = diagnostics.platform.manufacturer
+    val isPowerSaveMode = diagnostics.platform.powerSaveMode
 
     val activeSupplementCount by remember(uiState, currentClientId) {
         derivedStateOf {
@@ -138,7 +135,7 @@ fun NotificationCheckScreen(
         upcoming
     ) {
         derivedStateOf {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission) return@derivedStateOf NotificationDiagnosis.DENIED
+            if (!hasNotificationPermission) return@derivedStateOf NotificationDiagnosis.DENIED
             if (!isNotificationEnabledByUser) return@derivedStateOf NotificationDiagnosis.OFF
             if (currentClientId == null) return@derivedStateOf NotificationDiagnosis.NO_ACTIVE_CLIENT
             if (activeSupplementCount == 0) return@derivedStateOf NotificationDiagnosis.NO_SUPPLEMENTS
@@ -199,16 +196,7 @@ fun NotificationCheckScreen(
     val timeFormatter = remember { DateTimeFormatter.ofPattern("H:mm") }
 
     val reload: () -> Unit = {
-        upcoming = NotificationDebugStore.getUpcoming(context)
-        alarmAudit = NotificationSchedulerImpl(context).auditDebugEntries()
-        isNotificationEnabledByUser = prefs.getBoolean("isNotificationEnabledByUser", false)
-        hasNotificationPermission = checkNotificationPermission(context)
-        canScheduleExactAlarms = canScheduleExactAlarms(context)
-        val platform = NotificationPlatformDiagnosticsProvider.read(context)
-        isIgnoringBatteryOptimizations = platform.batteryOptimizationIgnored
-        canScheduleExactAlarms = platform.exactAlarmAvailable
-        manufacturer = platform.manufacturer
-        isPowerSaveMode = platform.powerSaveMode
+        diagnostics = diagnosticsSource.read()
     }
     LaunchedEffect(Unit) { reload() }
 
@@ -491,21 +479,6 @@ private fun KeyValueRow(label: String, value: String) {
     }
 }
 
-private fun canScheduleExactAlarms(context: Context): Boolean {
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) alarmManager.canScheduleExactAlarms() else true
-}
-
-private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
-    val packageName = context.packageName
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        powerManager.isIgnoringBatteryOptimizations(packageName)
-    } else {
-        true
-    }
-}
-
 @Composable
 private fun AlarmCard(item: ScheduledAlarmInfo, timeFormatter: DateTimeFormatter) {
     val time = Instant.ofEpochMilli(item.scheduledAtMillis).atZone(ZoneId.systemDefault()).toLocalDateTime()
@@ -548,9 +521,4 @@ private fun iconForName(name: String): ImageVector {
     if (n.contains("creatine")) return Icons.Default.FitnessCenter
     if (n.contains("caffeine")) return Icons.Default.Bolt
     return Icons.Default.Science
-}
-
-private fun checkNotificationPermission(context: Context): Boolean {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-    return context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 }

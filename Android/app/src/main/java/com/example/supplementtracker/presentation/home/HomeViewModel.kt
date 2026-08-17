@@ -43,6 +43,9 @@ import com.example.supplementtracker.service.CloudSyncCrypto
 import com.example.supplementtracker.service.CloudSyncPayloadCodec
 import com.example.supplementtracker.service.CloudSyncLogStore
 import com.example.supplementtracker.service.CloudSyncProfileStore
+import com.example.supplementtracker.service.CloudSyncStatusReader
+import com.example.supplementtracker.service.CloudSyncStatusSnapshot
+import com.example.supplementtracker.service.CloudSyncStatusSource
 import com.example.supplementtracker.service.ActiveProfileNotificationPolicy
 import com.example.supplementtracker.service.FactoryResetEngine
 import com.example.supplementtracker.service.ClientProfileMutationEngine
@@ -67,7 +70,8 @@ class HomeViewModel(
     private val repository: com.example.supplementtracker.domain.repository.SupplementRepository,
     private val activeClientManager: ActiveClientManager,
     private val entitlementManager: EntitlementManager,
-    private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
+    private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase(),
+    private val cloudSyncStatusSource: CloudSyncStatusSource = CloudSyncStatusReader(OakPrefs.get(context))
 ) : ViewModel() {
     private val _today = MutableStateFlow(LocalDate.now())
     val currentDay: StateFlow<LocalDate> = _today
@@ -322,44 +326,38 @@ class HomeViewModel(
             _cloudSyncUiStatus.value = null
             return
         }
-        val prefs = OakPrefs.get(context)
-        val lastSync = prefs.getLong("cloudSyncLastSyncEpochMs_$id", 0L)
-        val pending = cloudSyncEngine.hasLocalChangesSince(clientId, lastSync)
-        _cloudSyncUiStatus.value = buildCloudSyncUiStatus(
-            prefs, id, clientId.toString(), lastSync, pending
-        )
+        val snapshot = cloudSyncStatusSource.read(id, clientId.toString())
+        val pending = cloudSyncEngine.hasLocalChangesSince(clientId, snapshot.lastSyncEpochMs)
+        _cloudSyncUiStatus.value = buildCloudSyncUiStatus(id, snapshot, pending)
     }
 
     private fun buildCloudSyncUiStatus(
-        prefs: android.content.SharedPreferences,
         id: String,
-        clientId: String,
-        lastSync: Long,
+        snapshot: CloudSyncStatusSnapshot,
         pending: Boolean
     ): CloudSyncUiStatus {
-        val phase = runCatching {
-            CloudSyncPhase.valueOf(prefs.getString("cloudSyncPhase_$id", "").orEmpty())
-        }.getOrDefault(CloudSyncPhase.IDLE)
+        val phase = runCatching { CloudSyncPhase.valueOf(snapshot.phaseName) }
+            .getOrDefault(CloudSyncPhase.IDLE)
         return CloudSyncUiStatus(
             binId = id,
-            lastSyncEpochMs = lastSync,
-            lastAttemptEpochMs = prefs.getLong("cloudSyncLastAttemptEpochMs_$id", 0L),
+            lastSyncEpochMs = snapshot.lastSyncEpochMs,
+            lastAttemptEpochMs = snapshot.lastAttemptEpochMs,
             hasPendingChanges = pending,
-            lastError = prefs.getString("cloudSyncLastError_$id", null)?.trim()?.takeIf(String::isNotEmpty),
+            lastError = snapshot.lastError,
             phase = phase,
-            conflictRetryCount = prefs.getInt("cloudSyncConflictRetryCount_$id", 0),
-            queuedMutationCount = com.example.supplementtracker.service.SyncMutationQueue(prefs).pending(clientId).size,
-            nextRetryEpochMs = prefs.getLong("cloudSyncNextRetryEpochMs_$id", 0L),
-            conflictRemoteWins = prefs.getInt("cloudSyncConflictRemoteWins_$id", 0),
-            conflictLocalWins = prefs.getInt("cloudSyncConflictLocalWins_$id", 0),
-            conflictTieLocalWins = prefs.getInt("cloudSyncConflictTieLocalWins_$id", 0),
-            journalCount = com.example.supplementtracker.service.SyncOperationJournalStore(prefs).count(id),
-            bytesDownloaded = prefs.getLong("cloudSyncBytesDownloaded_$id", 0L),
-            bytesUploaded = prefs.getLong("cloudSyncBytesUploaded_$id", 0L),
-            pullMs = prefs.getLong("cloudSyncPullMs_$id", 0L),
-            mergeMs = prefs.getLong("cloudSyncMergeMs_$id", 0L),
-            pushMs = prefs.getLong("cloudSyncPushMs_$id", 0L),
-            totalMs = prefs.getLong("cloudSyncTotalMs_$id", 0L)
+            conflictRetryCount = snapshot.conflictRetryCount,
+            queuedMutationCount = snapshot.queuedMutationCount,
+            nextRetryEpochMs = snapshot.nextRetryEpochMs,
+            conflictRemoteWins = snapshot.conflictRemoteWins,
+            conflictLocalWins = snapshot.conflictLocalWins,
+            conflictTieLocalWins = snapshot.conflictTieLocalWins,
+            journalCount = snapshot.journalCount,
+            bytesDownloaded = snapshot.bytesDownloaded,
+            bytesUploaded = snapshot.bytesUploaded,
+            pullMs = snapshot.pullMs,
+            mergeMs = snapshot.mergeMs,
+            pushMs = snapshot.pushMs,
+            totalMs = snapshot.totalMs
         )
     }
     

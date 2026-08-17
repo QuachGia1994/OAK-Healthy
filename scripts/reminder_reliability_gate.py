@@ -50,6 +50,7 @@ def validate_repository() -> None:
     android_vm = _read("Android/app/src/main/java/com/example/supplementtracker/presentation/home/HomeViewModel.kt")
     ios_policy = _read("iOS/Services/NotificationRecovery.swift")
     ios_service = _read("iOS/Services/NotificationService.swift")
+    ios_lifecycle = _read("iOS/Services/NotificationScheduleLifecycleCoordinator.swift")
     ios_app = _read("iOS/SupplementTrackerApp.swift")
 
     for action in (
@@ -68,7 +69,8 @@ def validate_repository() -> None:
     _require(ios_service, "futureIdentifiers", "iOS stale-shadow protection")
     _require(ios_app, ".NSSystemTimeZoneDidChange", "iOS timezone recovery")
     _require(ios_app, ".NSSystemClockDidChange", "iOS clock recovery")
-    _require(ios_app, "await reconcileNotificationSchedules()", "iOS foreground recovery")
+    _require(ios_app, "notificationLifecycle.reconcileIfEnabled", "iOS foreground recovery")
+    _require(ios_lifecycle, "reconcileSchedulesIfNeeded", "iOS lifecycle recovery boundary")
 
     android_recovery = _function_slice(
         android_vm,
@@ -76,9 +78,9 @@ def validate_repository() -> None:
         "private fun recordNotificationRebuild()",
     )
     ios_recovery = _function_slice(
-        ios_app,
-        "private func reconcileNotificationSchedules(environmentChanged: Bool = false)",
-        "private func refreshHomeBadgeCount()",
+        ios_lifecycle,
+        "func reconcileIfEnabled(",
+        "private func activeSupplements",
     )
     ios_service_entry = _function_slice(
         ios_service,

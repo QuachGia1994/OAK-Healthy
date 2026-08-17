@@ -7,6 +7,8 @@ import android.content.Context
 import android.os.PersistableBundle
 import com.example.supplementtracker.service.OakPrefs
 import com.example.supplementtracker.service.FirebaseRevision
+import com.example.supplementtracker.service.CloudSyncLogEntry
+import com.example.supplementtracker.service.CloudSyncLogStore
 import com.example.supplementtracker.service.SyncHealthEvaluator
 import com.example.supplementtracker.service.SyncHealthInput
 import com.example.supplementtracker.service.SyncHealthLevel
@@ -73,7 +75,6 @@ import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.home.HomeViewModel
-import org.json.JSONArray
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -164,21 +165,7 @@ fun SyncCenterScreen(
 
     val exportedKey = homeViewModel.exportCloudEncryptionKey().orEmpty()
     val logsRaw = remember(activeBinId, uiStatus?.lastAttemptEpochMs, uiStatus?.lastError, logsVersion) {
-        if (activeBinId.isBlank()) return@remember emptyList<CloudSyncLogUiItem>()
-        val raw = prefs.getString("cloudSyncLog_${activeBinId.trim()}", "[]").orEmpty()
-        val array = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
-        val out = ArrayList<CloudSyncLogUiItem>(array.length())
-        for (i in 0 until array.length()) {
-            val obj = array.optJSONObject(i) ?: continue
-            out.add(
-                CloudSyncLogUiItem(
-                    ts = obj.optLong("ts", 0L),
-                    phase = obj.optString("phase", "").orEmpty(),
-                    msg = obj.optString("msg", "").orEmpty()
-                )
-            )
-        }
-        out.asReversed()
+        CloudSyncLogStore.read(prefs, activeBinId)
     }
     val logs = remember(logsRaw, logPhaseFilter, logQuery) {
         val q = logQuery.trim()
@@ -186,7 +173,7 @@ fun SyncCenterScreen(
             val phaseOk = logPhaseFilter == "ALL" || item.phase.equals(logPhaseFilter, ignoreCase = true)
             if (!phaseOk) return@filter false
             if (q.isEmpty()) return@filter true
-            item.phase.contains(q, ignoreCase = true) || item.msg.contains(q, ignoreCase = true)
+            item.phase.contains(q, ignoreCase = true) || item.message.contains(q, ignoreCase = true)
         }
     }
 
@@ -289,7 +276,7 @@ fun SyncCenterScreen(
                         onClick = {
                             val id = activeBinId.trim()
                             if (id.isNotEmpty()) {
-                                prefs.edit().remove("cloudSyncLog_$id").apply()
+                                CloudSyncLogStore.clear(prefs, id)
                                 logsVersion += 1
                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_log_cleared), Toast.LENGTH_SHORT).show()
                             }
@@ -312,8 +299,7 @@ fun SyncCenterScreen(
                         onClick = {
                             val id = activeBinId.trim()
                             if (id.isNotEmpty()) {
-                                val raw = prefs.getString("cloudSyncLog_$id", "[]").orEmpty()
-                                val pretty = formatLogPretty(raw, formatter)
+                                val pretty = formatLogPretty(CloudSyncLogStore.read(prefs, id), formatter)
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncLog", pretty))
                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_log_copied), Toast.LENGTH_SHORT).show()
@@ -928,7 +914,7 @@ fun SyncCenterScreen(
                     }
                 }
 
-                items(items = logs, key = { it.ts }) { item ->
+                items(items = logs, key = { "${it.epochMs}-${it.phase}" }) { item ->
                     OakCard(
                         modifier = Modifier.fillMaxWidth(),
                         variant = OakCardVariant.Glass,
@@ -937,7 +923,7 @@ fun SyncCenterScreen(
                         elevation = 1.dp
                     ) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val time = if (item.ts > 0L) formatter.format(Instant.ofEpochMilli(item.ts)) else ""
+                            val time = if (item.epochMs > 0L) formatter.format(Instant.ofEpochMilli(item.epochMs)) else ""
                             val phaseText = when (item.phase.uppercase()) {
                                 "ERROR" -> stringResource(R.string.sync_center_filter_error)
                                 "HOST" -> stringResource(R.string.sync_center_filter_host)
@@ -945,7 +931,7 @@ fun SyncCenterScreen(
                                 else -> item.phase
                             }
                             Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
-                            Text(item.msg, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            Text(item.message, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -990,12 +976,6 @@ private fun syncRecoveryHint(action: SyncRecoveryAction): String = when (action)
     SyncRecoveryAction.CHECK_LINK -> stringResource(R.string.sync_health_hint_check_link)
 }
 
-private data class CloudSyncLogUiItem(
-    val ts: Long,
-    val phase: String,
-    val msg: String
-)
-
 private fun copySensitiveText(context: Context, label: String, value: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText(label, value)
@@ -1005,19 +985,14 @@ private fun copySensitiveText(context: Context, label: String, value: String) {
     clipboard.setPrimaryClip(clip)
 }
 
-private fun formatLogPretty(raw: String, formatter: DateTimeFormatter): String {
-    val array = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
-    if (array.length() <= 0) return raw
-    val out = ArrayList<String>(array.length())
-    for (i in 0 until array.length()) {
-        val obj = array.optJSONObject(i) ?: continue
-        val ts = obj.optLong("ts", 0L)
-        val phase = obj.optString("phase", "").orEmpty()
-        val msg = obj.optString("msg", "").orEmpty()
-        val whenText = if (ts > 0L) formatter.format(Instant.ofEpochMilli(ts)) else ""
-        out.add(listOf(whenText, phase, msg).filter { it.isNotBlank() }.joinToString(" • "))
+private fun formatLogPretty(entries: List<CloudSyncLogEntry>, formatter: DateTimeFormatter): String {
+    if (entries.isEmpty()) return "[]"
+    return entries.asReversed().joinToString("\n") { item ->
+        val whenText = if (item.epochMs > 0L) formatter.format(Instant.ofEpochMilli(item.epochMs)) else ""
+        listOf(whenText, item.phase, item.message)
+            .filter(String::isNotBlank)
+            .joinToString(" • ")
     }
-    return out.joinToString("\n")
 }
 
 @Composable

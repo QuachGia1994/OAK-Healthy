@@ -22,7 +22,9 @@ import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.service.CoachClientSnapshot
 import com.example.supplementtracker.service.CoachOverviewBuilder
 import com.example.supplementtracker.service.CoachOverviewSummary
-import com.example.supplementtracker.service.CoachRecordSnapshot
+import com.example.supplementtracker.service.CoachWorkspaceSource
+import com.example.supplementtracker.service.CoachWorkspaceSourceProvider
+import com.example.supplementtracker.service.RepositoryCoachWorkspaceSourceProvider
 import com.example.supplementtracker.service.CommercialFeature
 import com.example.supplementtracker.service.CommercialPlan
 import com.example.supplementtracker.service.EntitlementManager
@@ -101,18 +103,14 @@ sealed class CoachOverviewUiState {
 class HistoryViewModel(
     private val repository: SupplementRepository,
     private val activeClientManager: ActiveClientManager,
-    private val entitlementManager: EntitlementManager
+    private val entitlementManager: EntitlementManager,
+    private val coachSourceProvider: CoachWorkspaceSourceProvider = RepositoryCoachWorkspaceSourceProvider(repository)
 ) : ViewModel() {
-    private data class CoachSource(
-        val clients: List<CoachClientSnapshot>,
-        val records: Map<java.util.UUID, List<CoachRecordSnapshot>>
-    )
-
     private val mutableCoachOverview = MutableStateFlow<CoachOverviewUiState>(CoachOverviewUiState.Idle)
     val coachOverview: StateFlow<CoachOverviewUiState> = mutableCoachOverview.asStateFlow()
     private val mutableCoachWindowDays = MutableStateFlow(7)
     val coachWindowDays: StateFlow<Int> = mutableCoachWindowDays.asStateFlow()
-    private var coachSource: CoachSource? = null
+    private var coachSource: CoachWorkspaceSource? = null
 
     val uiState: StateFlow<HistoryUiState> = combine(
         activeClientManager.currentClientId,
@@ -137,7 +135,7 @@ class HistoryViewModel(
         viewModelScope.launch {
             mutableCoachOverview.value = CoachOverviewUiState.Loading
             try {
-                coachSource = loadCoachSource()
+                coachSource = coachSourceProvider.load()
                 mutableCoachOverview.value = CoachOverviewUiState.Ready(buildCoachOverview())
             } catch (error: CancellationException) {
                 throw error
@@ -154,17 +152,9 @@ class HistoryViewModel(
         mutableCoachOverview.value = CoachOverviewUiState.Ready(buildCoachOverview(source))
     }
 
-    private suspend fun loadCoachSource(): CoachSource {
-        val clients = repository.observeClients().first()
-        val records = clients.associate { client ->
-            client.id to repository.getAllRecordsByClient(client.id.toString()).map {
-                CoachRecordSnapshot(epochMs = it.date, status = it.status)
-            }
-        }
-        return CoachSource(clients.map { CoachClientSnapshot(it.id, it.name) }, records)
-    }
-
-    private fun buildCoachOverview(source: CoachSource = coachSource ?: CoachSource(emptyList(), emptyMap())): CoachOverviewSummary {
+    private fun buildCoachOverview(
+        source: CoachWorkspaceSource = coachSource ?: CoachWorkspaceSource(emptyList(), emptyMap())
+    ): CoachOverviewSummary {
         return CoachOverviewBuilder.build(
             clients = source.clients,
             recordsByClient = source.records,

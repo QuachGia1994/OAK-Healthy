@@ -191,14 +191,6 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @u
     }
 }
 
-struct AppDependencyContainer {
-    let modelContainer: ModelContainer
-    let activeClientManager: ActiveClientManager
-    let notificationService: NotificationService
-    let entitlementManager: EntitlementManager
-    let storeKitBillingService: StoreKitBillingService
-}
-
 private struct IntegrityBlockedView: View {
     var body: some View {
         NavigationStack {
@@ -272,110 +264,33 @@ private struct SafeBootView: View {
     
     @MainActor
     private func bootstrap() async {
-        let minSplashSeconds = 1.35
         let splashStartedAt = Date()
         attemptCrashRecoveryIfNeeded()
+        markBootStage(BootKeys.bootStarted)
         DebugReporter.report("bootstrap_start")
-        UserDefaults.standard.set(BootKeys.bootStarted, forKey: BootKeys.stage)
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
-        let schema = Schema(versionedSchema: OAKSchemaV1.self)
-        guard let container = makeModelContainer(schema: schema) else {
+        do {
+            let dependencies = try AppBootstrapper().makeDependencies {
+                markBootStage(BootKeys.containerReady)
+                DebugReporter.report("bootstrap_container_ready")
+            }
+            await waitForMinimumSplash(startedAt: splashStartedAt)
+            onReady(dependencies)
+            DebugReporter.report("bootstrap_ready")
+        } catch {
             errorMessage = "bootstrap_init_failed_message".localized
-            DebugReporter.report("bootstrap_container_failed")
-            return
+            DebugReporter.report("bootstrap_container_failed", fields: ["error_type": "bootstrap"])
         }
-        UserDefaults.standard.set(BootKeys.containerReady, forKey: BootKeys.stage)
+    }
+
+    private func markBootStage(_ stage: String) {
+        UserDefaults.standard.set(stage, forKey: BootKeys.stage)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: BootKeys.timestampEpoch)
-        DebugReporter.report("bootstrap_container_ready")
-        
-        let manager = ActiveClientManager()
-        manager.loadFromStorage()
-        validateActiveClient(manager: manager, container: container)
-        DebugReporter.report("bootstrap_active_client_loaded", fields: [
-            "currentClientId": manager.currentClientId?.uuidString ?? ""
-        ])
-        
-        let notificationService = NotificationService.shared
-        UNUserNotificationCenter.current().delegate = NotificationDelegate.shared
-        notificationService.registerNotificationActions()
-        let elapsed = Date().timeIntervalSince(splashStartedAt)
-        if elapsed < minSplashSeconds {
-            let remainingNs = UInt64((minSplashSeconds - elapsed) * 1_000_000_000)
-            try? await Task.sleep(nanoseconds: remainingNs)
-        }
-        let entitlementManager = EntitlementManager()
-        let storeKitBillingService = StoreKitBillingService(entitlementManager: entitlementManager)
-        onReady(
-            AppDependencyContainer(
-                modelContainer: container,
-                activeClientManager: manager,
-                notificationService: notificationService,
-                entitlementManager: entitlementManager,
-                storeKitBillingService: storeKitBillingService
-            )
-        )
-        DebugReporter.report("bootstrap_ready")
     }
-    
-    @MainActor
-    private func makeModelContainer(schema: Schema) -> ModelContainer? {
-        guard let storeURL = persistentStoreURL() else {
-            return try? ModelContainer(for: schema, migrationPlan: OAKSchemaMigrationPlan.self)
-        }
-        let configuration = ModelConfiguration(schema: schema, url: storeURL)
-        
-        do {
-            return try ModelContainer(
-                for: schema,
-                migrationPlan: OAKSchemaMigrationPlan.self,
-                configurations: [configuration]
-            )
-        } catch {
-            DebugReporter.report("swiftdata_init_failed", fields: [
-                "storeURL": storeURL.path,
-                "error": String(describing: error)
-            ])
-            return nil
-        }
-    }
-    
-    @MainActor
-    private func persistentStoreURL() -> URL? {
-        do {
-            let base = try FileManager.default.url(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask,
-                appropriateFor: nil,
-                create: true
-            )
-            return base.appendingPathComponent("OAKHealthy.store")
-        } catch {
-            DebugReporter.report("appsupport_dir_failed", fields: [
-                "error": String(describing: error)
-            ])
-            return nil
-        }
-    }
-    
-    @MainActor
-    private func resetPersistentStore(at url: URL) {
-        let fileManager = FileManager.default
-        let candidates = [url, URL(fileURLWithPath: url.path + "-shm"), URL(fileURLWithPath: url.path + "-wal")]
-        for file in candidates {
-            guard fileManager.fileExists(atPath: file.path) else { continue }
-            try? fileManager.removeItem(at: file)
-        }
-    }
-    
-    @MainActor
-    private func validateActiveClient(manager: ActiveClientManager, container: ModelContainer) {
-        guard let stored = manager.currentClientId else { return }
-        let context = ModelContext(container)
-        let clients = (try? context.fetch(FetchDescriptor<ClientProfile>())) ?? []
-        guard clients.contains(where: { $0.id == stored }) else {
-            manager.setCurrentClientId(clients.first?.id)
-            return
-        }
+
+    private func waitForMinimumSplash(startedAt: Date) async {
+        let remaining = max(0, 1.35 - Date().timeIntervalSince(startedAt))
+        guard remaining > 0 else { return }
+        try? await Task.sleep(for: .seconds(remaining))
     }
     
     @MainActor
@@ -398,8 +313,7 @@ private struct SafeBootView: View {
     
     @MainActor
     private func recoverByWipingStore() {
-        guard let url = persistentStoreURL() else { return }
-        resetPersistentStore(at: url)
+        AppBootstrapper.resetPersistentStore()
         UserDefaults.standard.removeObject(forKey: "activeClientId")
         UserDefaults.standard.removeObject(forKey: BootKeys.stage)
         UserDefaults.standard.removeObject(forKey: BootKeys.timestampEpoch)
@@ -525,38 +439,45 @@ private struct SafeModeView: View {
         guard !isApplyingImport, let approved = pendingImportPreview, approved.canRestore else { return }
         guard let url = pendingImportURL() else { return }
         DebugReporter.report("safe_mode_apply_start")
-        var createdClient: ClientProfile?
+        isApplyingImport = true
+        defer { isApplyingImport = false }
         do {
-            isApplyingImport = true
-            defer { isApplyingImport = false }
             let data = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: url) }.value
-            let current = try SupplementExportCodec.previewBackup(data)
-            guard current == approved else {
-                pendingImportPreview = current
-                pendingImportMessage = "safe_mode_preview_changed".localized
-                return
-            }
-            let resolution = try createImportClient()
-            let client = resolution.client
-            createdClient = resolution.created ? client : nil
-            try SupplementExportCodec.importBackup(data: data, client: client, context: modelContext)
-            activeClientManager.setCurrentClientId(client.id)
-            applyPendingImportLink(clientId: client.id)
-            if UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser"),
-               !(await rescheduleImportedNotifications(clientId: client.id)) {
-                return
-            }
+            let result = try await importCoordinator.apply(
+                data: data,
+                approvedPreview: approved,
+                clientName: pendingImportClientName,
+                linkedBinId: pendingImportLinkedBinId,
+                notificationsEnabled: UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser")
+            )
+            handleImportResult(result, url: url)
+        } catch {
+            pendingImportMessage = String(format: "safe_mode_apply_failed_format".localized, error.localizedDescription)
+            DebugReporter.report("safe_mode_apply_failed")
+        }
+    }
+
+    private var importCoordinator: PendingImportRecoveryCoordinator {
+        PendingImportRecoveryCoordinator(
+            modelContext: modelContext,
+            activeClientManager: activeClientManager,
+            entitlementManager: entitlementManager,
+            notificationService: NotificationService.shared
+        )
+    }
+
+    private func handleImportResult(_ result: PendingImportApplyResult, url: URL) {
+        switch result {
+        case .previewChanged(let current):
+            pendingImportPreview = current
+            pendingImportMessage = "safe_mode_preview_changed".localized
+        case .notificationsPending:
+            return
+        case .applied:
             clearPendingImport(at: url)
             pendingImportPreview = nil
             pendingImportMessage = "safe_mode_apply_success_message".localized
             DebugReporter.report("safe_mode_apply_success")
-        } catch {
-            if let createdClient {
-                modelContext.delete(createdClient)
-                try? modelContext.save()
-            }
-            pendingImportMessage = String(format: "safe_mode_apply_failed_format".localized, error.localizedDescription)
-            DebugReporter.report("safe_mode_apply_failed")
         }
     }
 
@@ -570,49 +491,6 @@ private struct SafeModeView: View {
             preview.duplicateHistoryCount,
             preview.orphanHistoryCount
         )
-    }
-    
-    private func applyPendingImportLink(clientId: UUID) {
-        let linked = pendingImportLinkedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !linked.isEmpty else { return }
-        CloudSyncProfileStore().setLinkedBinId(linked, clientId: clientId)
-    }
-
-    @MainActor
-    private func rescheduleImportedNotifications(clientId: UUID) async -> Bool {
-        do {
-            try await NotificationService.shared.requestAuthorization()
-            let supplements = try ClientScopedStore.activeSupplements(
-                modelContext: modelContext,
-                clientId: clientId
-            )
-            await NotificationService.shared.replaceAllSchedules(supplements: supplements)
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    @MainActor
-    private func createImportClient() throws -> (client: ClientProfile, created: Bool) {
-        let storedName = pendingImportClientName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalized = storedName.lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let existing = try modelContext.fetch(FetchDescriptor<ClientProfile>())
-        if !normalized.isEmpty,
-           let matched = existing.first(where: {
-               $0.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) == normalized
-           }) {
-            return (matched, false)
-        }
-        if let limit = entitlementManager.maxClients, existing.count >= limit {
-            throw SafeModeAccessError.clientLimitReached
-        }
-        let name = storedName.isEmpty ? "imported_client_default_name".localized : storedName
-        let client = ClientProfile(id: UUID(), name: name)
-        modelContext.insert(client)
-        try modelContext.save()
-        return (client, true)
     }
     
     @MainActor
@@ -643,14 +521,6 @@ private struct SafeModeView: View {
     }
 }
 
-private enum SafeModeAccessError: LocalizedError {
-    case clientLimitReached
-
-    var errorDescription: String? {
-        "plan_client_limit_reached".localized
-    }
-}
-
 struct MainTabView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
@@ -665,6 +535,14 @@ struct MainTabView: View {
     @AppStorage("oakHomeOverdueCount") private var homeOverdueCount: Int = 0
     @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     @State private var badgeViewModel = HomeViewModel()
+
+    private var notificationLifecycle: NotificationScheduleLifecycleCoordinator {
+        NotificationScheduleLifecycleCoordinator(
+            modelContext: modelContext,
+            activeClientManager: activeClientManager,
+            notificationService: notificationService
+        )
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -712,22 +590,30 @@ struct MainTabView: View {
             handleAutoSync(phase: newPhase)
             guard newPhase == .active else { return }
             Task { @MainActor in
-                await reconcileNotificationSchedules()
+                await notificationLifecycle.reconcileIfEnabled(isNotificationEnabledByUser)
                 await replayPendingDoseAction()
                 await refreshHomeBadgeCount()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
-            Task { @MainActor in await reconcileNotificationSchedules(environmentChanged: true) }
+            Task { @MainActor in
+                await notificationLifecycle.reconcileIfEnabled(
+                    isNotificationEnabledByUser, environmentChanged: true
+                )
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSSystemClockDidChange)) { _ in
-            Task { @MainActor in await reconcileNotificationSchedules(environmentChanged: true) }
+            Task { @MainActor in
+                await notificationLifecycle.reconcileIfEnabled(
+                    isNotificationEnabledByUser, environmentChanged: true
+                )
+            }
         }
         .onChange(of: activeClientManager.currentClientId, initial: false) { _, _ in
             guard !enforceClientAccess() else { return }
             handleAutoSync(phase: scenePhase)
             Task { @MainActor in
-                await rescheduleNotificationsIfEnabled()
+                await notificationLifecycle.rescheduleIfEnabled(isNotificationEnabledByUser)
                 await refreshHomeBadgeCount()
             }
         }
@@ -779,42 +665,6 @@ struct MainTabView: View {
         return true
     }
     
-    @MainActor
-    private func rescheduleNotificationsIfEnabled() async {
-        guard isNotificationEnabledByUser else { return }
-        guard let clientId = activeClientManager.currentClientId else {
-            await notificationService.clearAllPendingNotifications()
-            return
-        }
-        do {
-            let supplements = try ClientScopedStore.activeSupplements(
-                modelContext: modelContext,
-                clientId: clientId
-            )
-            await notificationService.replaceAllSchedules(supplements: supplements)
-        } catch {
-            DebugReporter.report("auto_reschedule_fetch_failed", fields: ["error_type": "supplement_fetch"])
-        }
-    }
-
-    @MainActor
-    private func reconcileNotificationSchedules(environmentChanged: Bool = false) async {
-        guard isNotificationEnabledByUser else { return }
-        guard let clientId = activeClientManager.currentClientId else { return }
-        do {
-            let supplements = try ClientScopedStore.activeSupplements(
-                modelContext: modelContext,
-                clientId: clientId
-            )
-            _ = await notificationService.reconcileSchedulesIfNeeded(
-                supplements: supplements,
-                forceEnvironmentChanged: environmentChanged
-            )
-        } catch {
-            DebugReporter.report("auto_reconcile_fetch_failed", fields: ["error_type": "supplement_fetch"])
-        }
-    }
-
     @MainActor
     private func refreshHomeBadgeCount() async {
         guard let clientId = activeClientManager.currentClientId else {

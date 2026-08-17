@@ -87,7 +87,7 @@ public struct SyncCenterView: View {
             DebugReporter.report("sync_center_task_load_logs", fields: [
                 "hasLink": String(!activeBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             ])
-            logEntries = loadLogEntries(binId: activeBinId)
+            logEntries = CloudSyncLogStore.load(manifestId: activeBinId)
             let trimmed = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             guard isAutoSyncEnabled else { return }
@@ -156,42 +156,28 @@ public struct SyncCenterView: View {
     private var statusSection: some View {
         Section {
             if !activeBinId.isEmpty {
-                let lastSyncKey = "cloudSyncLastSyncEpochMs_\(activeBinId)"
-                let lastAttemptKey = "cloudSyncLastAttemptEpochMs_\(activeBinId)"
-                let retryKey = "cloudSyncConflictRetryCount_\(activeBinId)"
-                let bytesDownKey = "cloudSyncBytesDownloaded_\(activeBinId)"
-                let bytesUpKey = "cloudSyncBytesUploaded_\(activeBinId)"
-                let pullMsKey = "cloudSyncPullMs_\(activeBinId)"
-                let mergeMsKey = "cloudSyncMergeMs_\(activeBinId)"
-                let pushMsKey = "cloudSyncPushMs_\(activeBinId)"
-                let totalMsKey = "cloudSyncTotalMs_\(activeBinId)"
-                let lastErrorKey = "cloudSyncLastError_\(activeBinId)"
-                let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: lastSyncKey))
-                let lastAttemptEpochMs = Int64(UserDefaults.standard.double(forKey: lastAttemptKey))
-                let retryCount = UserDefaults.standard.integer(forKey: retryKey)
-                let bytesDown = UserDefaults.standard.integer(forKey: bytesDownKey)
-                let bytesUp = UserDefaults.standard.integer(forKey: bytesUpKey)
-                let pullMs = UserDefaults.standard.integer(forKey: pullMsKey)
-                let mergeMs = UserDefaults.standard.integer(forKey: mergeMsKey)
-                let pushMs = UserDefaults.standard.integer(forKey: pushMsKey)
-                let totalMs = UserDefaults.standard.integer(forKey: totalMsKey)
-                let queuedMutationCount = activeClientManager.currentClientId.map {
-                    SyncMutationQueueStore.pending(clientId: $0).count
-                } ?? 0
-                let nextRetryEpochMs = Int64(UserDefaults.standard.double(forKey: "cloudSyncNextRetryEpochMs_\(activeBinId)"))
-                let conflictRemoteWins = UserDefaults.standard.integer(forKey: "cloudSyncConflictRemoteWins_\(activeBinId)")
-                let conflictLocalWins = UserDefaults.standard.integer(forKey: "cloudSyncConflictLocalWins_\(activeBinId)")
-                let conflictTieLocalWins = UserDefaults.standard.integer(forKey: "cloudSyncConflictTieLocalWins_\(activeBinId)")
-                let journalCount = SyncOperationJournalStore.count(manifestId: activeBinId)
-                let hasPendingChanges = activeClientManager.currentClientId.map {
-                    CloudSyncAutoSync.hasLocalChangesSince(
-                        modelContext: modelContext,
-                        clientId: $0,
-                        lastSyncEpochMs: lastSyncEpochMs
-                    )
-                } ?? false
-                let lastError = (UserDefaults.standard.string(forKey: lastErrorKey) ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let status = SyncCenterStatusReader.read(
+                    manifestId: activeBinId,
+                    clientId: activeClientManager.currentClientId,
+                    modelContext: modelContext
+                )
+                let lastSyncEpochMs = status.lastSyncEpochMs
+                let lastAttemptEpochMs = status.lastAttemptEpochMs
+                let retryCount = status.conflict.retryCount
+                let bytesDown = status.transfer.bytesDownloaded
+                let bytesUp = status.transfer.bytesUploaded
+                let pullMs = status.transfer.pullMs
+                let mergeMs = status.transfer.mergeMs
+                let pushMs = status.transfer.pushMs
+                let totalMs = status.transfer.totalMs
+                let queuedMutationCount = status.queuedMutationCount
+                let nextRetryEpochMs = status.nextRetryEpochMs
+                let conflictRemoteWins = status.conflict.remoteWins
+                let conflictLocalWins = status.conflict.localWins
+                let conflictTieLocalWins = status.conflict.tieLocalWins
+                let journalCount = status.journalCount
+                let hasPendingChanges = status.hasPendingChanges
+                let lastError = status.lastError ?? ""
                 let health = SyncHealthEvaluator.evaluate(
                     SyncHealthInput(
                         hasLink: true,
@@ -199,14 +185,12 @@ public struct SyncCenterView: View {
                         hasPendingChanges: hasPendingChanges,
                         lastSyncEpochMs: lastSyncEpochMs,
                         lastAttemptEpochMs: lastAttemptEpochMs,
-                        lastError: lastError.isEmpty ? nil : lastError,
+                        lastError: status.lastError,
                         encryptionEnabled: isCloudEncryptionEnabled
                     )
                 )
-                let stackId = (UserDefaults.standard.string(forKey: "cloudSyncStackBinId_\(activeBinId)") ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                let historyId = (UserDefaults.standard.string(forKey: "cloudSyncHistoryBinId_\(activeBinId)") ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let stackId = status.stackBinId
+                let historyId = status.historyBinId
                 
                 VStack(alignment: .leading, spacing: 6) {
                     syncHealthSummary(health)
@@ -781,14 +765,6 @@ public struct SyncCenterView: View {
         }
     }
     
-    private var rawLogJsonString: String {
-        let id = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { return "[]" }
-        let key = "cloudSyncLog_\(id)"
-        guard let data = UserDefaults.standard.data(forKey: key) else { return "[]" }
-        return String(data: data, encoding: .utf8) ?? "[]"
-    }
-    
     private var prettyLogText: String {
         guard !logEntries.isEmpty else { return "[]" }
         return logEntries.map { "\($0.title) — \($0.message)" }.joined(separator: "\n")
@@ -1117,34 +1093,13 @@ public struct SyncCenterView: View {
     private func appendLog(binId: String, phase: String, message: String) {
         let resolvedBinId = binId == "pending" ? activeBinId : binId
         guard !resolvedBinId.isEmpty else { return }
-        var current = loadLogEntries(binId: resolvedBinId)
-        let entry = CloudSyncLogEntry(epochMs: nowEpochMs(), phase: phase, message: message)
-        if let first = current.first,
-           first.phase == entry.phase,
-           first.message == entry.message,
-           (entry.epochMs - first.epochMs) < 15_000 {
-            return
-        }
-        current.insert(entry, at: 0)
-        if current.count > 30 { current = Array(current.prefix(30)) }
-        saveLogEntries(binId: resolvedBinId, entries: current)
+        let current = CloudSyncLogStore.append(
+            manifestId: resolvedBinId,
+            phase: phase,
+            message: message,
+            nowEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
+        )
         if activeBinId == resolvedBinId { logEntries = current }
-    }
-    
-    private func loadLogEntries(binId: String) -> [CloudSyncLogEntry] {
-        let key = "cloudSyncLog_\(binId)"
-        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
-        return (try? JSONDecoder().decode([CloudSyncLogEntry].self, from: data)) ?? []
-    }
-    
-    private func saveLogEntries(binId: String, entries: [CloudSyncLogEntry]) {
-        let key = "cloudSyncLog_\(binId)"
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: key)
-    }
-    
-    private func nowEpochMs() -> Int64 {
-        Int64(Date().timeIntervalSince1970 * 1000.0)
     }
 
     @MainActor
@@ -1165,7 +1120,7 @@ public struct SyncCenterView: View {
     private func clearLogs() {
         let id = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { return }
-        UserDefaults.standard.removeObject(forKey: "cloudSyncLog_\(id)")
+        CloudSyncLogStore.clear(manifestId: id)
         logEntries = []
         showToast("sync_center_toast_log_cleared".localized)
     }
@@ -1176,12 +1131,7 @@ private enum SyncCenterTab: String {
     case link
 }
 
-private struct CloudSyncLogEntry: Codable, Identifiable {
-    var id: String { "\(epochMs)_\(phase)" }
-    let epochMs: Int64
-    let phase: String
-    let message: String
-    
+private extension CloudSyncLogEntry {
     static func displayText(for phase: String) -> String {
         switch phase.uppercased() {
         case "HOST":
