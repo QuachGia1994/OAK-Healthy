@@ -15,6 +15,7 @@ class OakRegressionTests(unittest.TestCase):
         self.assertIn("scripts/ux_polish_gate.py", oak_regression.GATES)
         self.assertIn("scripts/editorial_design_gate.py", oak_regression.GATES)
         self.assertIn("scripts/p11_completion_gate.py", oak_regression.GATES)
+        self.assertIn("scripts/store_activation_gate.py", oak_regression.GATES)
         self.assertIn("scripts/release_preflight.py", oak_regression.GATES)
 
 

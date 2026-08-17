@@ -176,6 +176,7 @@ class GooglePlayBillingService(
     }
 
     private fun applyProductDetails(details: List<ProductDetails>) {
+        purchaseOptions.clear()
         val states = details.mapNotNull { detail ->
             val offer = selectOffer(detail) ?: return@mapNotNull null
             purchaseOptions[detail.productId] = PurchaseOption(detail, offer.offerToken)

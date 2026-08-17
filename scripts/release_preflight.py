@@ -42,7 +42,11 @@ def main() -> int:
     )
     ios_catalog = read("iOS/Services/CommercialEntitlements.swift")
     android_manifest = read("Android/app/src/main/AndroidManifest.xml")
+    android_root_gradle = read("Android/build.gradle")
+    android_wrapper = read("Android/gradle/wrapper/gradle-wrapper.properties")
     release_workflow = read(".github/workflows/release.yml")
+    ios_build_workflow = read(".github/workflows/ios-build.yml")
+    quality_workflow = read(".github/workflows/quality-gates.yml")
 
     android_id = capture(r"applicationId\s+[\"']([^\"']+)", android_gradle, "Android applicationId", failures)
     ios_id = capture(r"PRODUCT_BUNDLE_IDENTIFIER:\s*([^\s]+)", ios_project, "iOS bundle identifier", failures)
@@ -56,6 +60,16 @@ def main() -> int:
     android_build = capture(r"baseVersionCode\s*=\s*(\d+)", android_gradle, "Android base versionCode", failures)
     ios_build = capture(r"CURRENT_PROJECT_VERSION:\s*[\"']?(\d+)", ios_project, "iOS build number", failures)
     require(android_build == ios_build, "Android and iOS build numbers match", failures)
+    require("compileSdk 36" in android_gradle and "targetSdk 36" in android_gradle, "Android app targets API 36", failures)
+    require("com.android.tools.build:gradle:8.10.1" in android_root_gradle, "Android AGP supports API 36", failures)
+    require("gradle-8.11.1-bin.zip" in android_wrapper, "Gradle wrapper matches API 36 toolchain", failures)
+    require(
+        'xcode-version: "26.4"' in release_workflow
+        and 'xcode-version: "26.4"' in ios_build_workflow
+        and 'xcode-version: "26.4"' in quality_workflow,
+        "iOS CI/store workflows use Xcode 26 SDK tooling",
+        failures,
+    )
 
     for product_id in sorted(PRODUCT_IDS):
         require(product_id in android_catalog, f"Android catalog contains {product_id}", failures)
@@ -120,7 +134,21 @@ def main() -> int:
     )
     require(
         "|| 'beta'" in release_workflow and "|| 'internal'" in release_workflow,
-        "Release automation defaults to beta/internal rather than production",
+        "Release targets default to beta/internal rather than production",
+        failures,
+    )
+    require(
+        "execute_store_uploads" in release_workflow
+        and "Store Activation Readiness Only" in release_workflow
+        and "github.event.inputs.execute_store_uploads == 'true'" in release_workflow,
+        "Store uploads require explicit execution opt-in",
+        failures,
+    )
+    require(
+        "iOS Release (Blocked - Missing Store Credentials)" in release_workflow
+        and "Android Release (Blocked - Missing Store Credentials)" in release_workflow
+        and release_workflow.count("exit 1") >= 5,
+        "Requested store execution fails closed when credentials are missing",
         failures,
     )
     require(

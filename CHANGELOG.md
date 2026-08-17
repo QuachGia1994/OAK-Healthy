@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- P12 Store Activation adds Android API 36/Xcode 26 store toolchain readiness, explicit no-upload versus execute-store workflow modes, fail-closed missing-credential jobs, stable catalog/store activation gates, and a non-fabricated external-account runbook.
 - P11.2–P11.10 and P11-CLOSE add cross-platform accessibility/touch-target policies, responsive metric layouts, reduced-motion behavior, failure-safe Sync recovery copy, progressive technical diagnostics, denser History/Coach signals, a synthetic-only presentation pack, and a pre-store completion gate/QA matrix.
 - P11.1 UX Polish 4.0 adds shared Android/iOS feedback surfaces, explicit History load-error/true-empty/no-match recovery states, Coach locked/empty/error feedback, EN/VI parity, and a repository UX contract/QA matrix.
 - P10.2–P10.4 add bounded persistence/background-work budgets, AES-GCM tamper/security/privacy regressions, Firebase/backup/secret-scan contracts, and one `scripts/oak_regression.py` command for the full deterministic P8–P10 repository matrix.
@@ -36,6 +37,8 @@ versioning where practical.
 
 ### Changed
 
+- Android compile/target SDK moved to API 36 with AGP 8.10.1 and Gradle 8.11.1; iOS build/quality/store workflows now pin Xcode 26.4 so 2026 store submissions use current SDK tooling.
+- Release workflow now runs readiness-only by default and requires `execute_store_uploads=true` before any App Store Connect or Google Play upload; requested execution with missing credentials fails instead of reporting a successful skip.
 - Dark-theme paper, secondary-text, outline and hairline tokens now use higher-contrast values on Android and iOS; Sync technical metrics are hidden behind progressive disclosure and iOS Sync log surfaces no longer use per-row blur material.
 - History now distinguishes loading, load failure, true empty and filtered no-match states with explicit retry/client-management actions; touched iOS History diagnostics expose only aggregate client presence and error type rather than raw client identity/error text.
 - iOS Settings status rows now mirror Android long-label protection by giving labels flexible width while keeping trailing status/timestamp values single-line and right aligned.
@@ -58,6 +61,7 @@ versioning where practical.
 
 ### Fixed
 
+- Google Play product refresh now clears stale cached purchase offers before rebuilding the active offer map, preventing a removed/reconfigured store offer from remaining selectable in the client session.
 - Android Settings rows now reserve flexible width for long labels and keep trailing values on one line, preventing the latest reminder rebuild timestamp from collapsing into a narrow vertical column.
 - Android sync tombstones now compare the remote effective timestamp against both local update and deletion timestamps, so an older remote deletion cannot erase a newer local edit; equal-timestamp conflicts keep local state on both platforms.
 - Backup restore no longer silently drops orphan or high-volume history; future schemas and incomplete recurrence payloads now fail closed, and Safe Mode requires a stable preview before applying downloaded data.

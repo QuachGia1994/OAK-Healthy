@@ -33,7 +33,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace 'com.example.supplementtracker'
-    compileSdk 34
+    compileSdk 36
 
     signingConfigs {
         release {
@@ -49,7 +49,7 @@ android {
     defaultConfig {
         applicationId "com.phongqk.oakhealthy"
         minSdk 26
-        targetSdk 34
+        targetSdk 36
         versionCode resolvedVersionCode
         versionName "1.0.1"
         resConfigs "en", "vi"
