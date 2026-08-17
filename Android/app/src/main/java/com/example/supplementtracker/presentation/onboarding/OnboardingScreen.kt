@@ -16,6 +16,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -152,6 +155,7 @@ fun OnboardingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .navigationBarsPadding()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -169,7 +173,9 @@ fun OnboardingScreen(
             }
 
             OakCard(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 variant = OakCardVariant.Paper,
                 shape = cardShape,
                 contentPadding = PaddingValues(16.dp),
@@ -209,17 +215,20 @@ fun OnboardingScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 if (step != OnboardingStep.CLIENT) {
-                    OutlinedButton(onClick = { step = step.previous() }) {
-                        Text(stringResource(R.string.back))
+                    OutlinedButton(
+                        onClick = { step = step.previous() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.back), maxLines = 1)
                     }
                 } else {
                     Spacer(modifier = Modifier.weight(1f))
                 }
-                Spacer(modifier = Modifier.weight(1f))
                 Button(
                     onClick = {
                         if (step == OnboardingStep.DONE) {
@@ -228,9 +237,13 @@ fun OnboardingScreen(
                             step = step.next()
                         }
                     },
-                    enabled = step != OnboardingStep.CLIENT || currentClientId != null
+                    enabled = step != OnboardingStep.CLIENT || currentClientId != null,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(stringResource(if (step == OnboardingStep.DONE) R.string.onboarding_done else R.string.onboarding_next))
+                    Text(
+                        stringResource(if (step == OnboardingStep.DONE) R.string.onboarding_done else R.string.onboarding_next),
+                        maxLines = 1
+                    )
                 }
             }
         }
@@ -348,7 +361,12 @@ private fun ReminderSetupStep(
     onOpenExactAlarm: () -> Unit,
     onRequestDisableOptimization: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         NotificationsStep(checked, hasPermission, onCheckedChange, onOpenAppSettings)
         androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         ExactAlarmStep(onOpenExactAlarm)

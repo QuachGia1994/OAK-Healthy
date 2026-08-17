@@ -10,6 +10,8 @@ FILES = {
     "android_colors": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/designsystem/OakColors.kt",
     "android_splash": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/splash/SplashScreen.kt",
     "android_stack": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/home/MyStackListScreen.kt",
+    "android_home": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/home/HomeScreen.kt",
+    "android_onboarding": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/onboarding/OnboardingScreen.kt",
     "android_settings": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/home/SettingsComponents.kt",
     "android_coach": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/coach/CoachOverviewScreen.kt",
     "android_plan": ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/monetization/PlanAccessScreen.kt",
@@ -63,6 +65,12 @@ def validate_adaptive_layout(data: dict[str, str]) -> None:
     require("adaptive.stackMetrics" in data["android_stack"], "Android Stack large-text fallback missing")
     require("adaptive.stackMetrics" in data["android_plan"], "Android Plan Access large-text fallback missing")
     require("adaptive.stackMetrics" in data["android_coach"], "Android Coach large-text fallback missing")
+    require("maxWidth < 420.dp" in data["android_home"], "Android Home compact metric grid fallback missing")
+    require("maxLines = 2" in data["android_home"], "Android Home metric labels can regress to one-line ellipsis")
+    onboarding = data["android_onboarding"]
+    require(".navigationBarsPadding()" in onboarding, "Android onboarding footer lacks navigation-bar safe area")
+    require(".verticalScroll(rememberScrollState())" in onboarding, "Android reminder onboarding is not scroll-safe")
+    require(".fillMaxWidth()\n                    .weight(1f)" in onboarding, "Android onboarding content does not reserve fixed footer space")
 
     require("dynamicTypeSize" in data["ios_stack"] and "OAKResponsiveMetricLayout" in data["ios_stack"], "iOS Stack Dynamic Type fallback missing")
     require("dynamicTypeSize" in data["ios_settings"] and ".pickerStyle(.menu)" in data["ios_settings"], "iOS Settings accessibility theme-picker fallback missing")

@@ -658,24 +658,35 @@ private fun TodayStrip(
             onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
         }
     }
-    if (adaptive.stackMetrics) {
-        Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm), content = firstRow)
-            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm), content = secondRow)
-        }
-    } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm), modifier = Modifier.fillMaxWidth()) {
-            TodayMetricButton(stringResource(R.string.home_status_due), counts.due, due, selected == HomeDoseFilter.DUE, Modifier.weight(1f)) {
-                onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val useTwoColumnGrid = adaptive.stackMetrics || maxWidth < 420.dp
+        if (useTwoColumnGrid) {
+            Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm),
+                    content = firstRow
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm),
+                    content = secondRow
+                )
             }
-            TodayMetricButton(stringResource(R.string.dose_status_missed), counts.missed, missed, selected == HomeDoseFilter.OVERDUE, Modifier.weight(1f)) {
-                onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
-            }
-            TodayMetricButton(stringResource(R.string.notif_action_taken), counts.taken, taken, selected == HomeDoseFilter.TAKEN, Modifier.weight(1f)) {
-                onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
-            }
-            TodayMetricButton(stringResource(R.string.notif_action_skip), counts.skipped, skipped, selected == HomeDoseFilter.SKIPPED, Modifier.weight(1f)) {
-                onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm), modifier = Modifier.fillMaxWidth()) {
+                TodayMetricButton(stringResource(R.string.home_status_due), counts.due, due, selected == HomeDoseFilter.DUE, Modifier.weight(1f)) {
+                    onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
+                }
+                TodayMetricButton(stringResource(R.string.dose_status_missed), counts.missed, missed, selected == HomeDoseFilter.OVERDUE, Modifier.weight(1f)) {
+                    onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
+                }
+                TodayMetricButton(stringResource(R.string.notif_action_taken), counts.taken, taken, selected == HomeDoseFilter.TAKEN, Modifier.weight(1f)) {
+                    onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
+                }
+                TodayMetricButton(stringResource(R.string.notif_action_skip), counts.skipped, skipped, selected == HomeDoseFilter.SKIPPED, Modifier.weight(1f)) {
+                    onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
+                }
             }
         }
     }
@@ -706,8 +717,7 @@ private fun TodayMetricButton(
                 text = title,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
         }
         Text(
