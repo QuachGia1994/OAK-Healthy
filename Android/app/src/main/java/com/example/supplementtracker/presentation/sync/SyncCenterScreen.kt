@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,6 +123,7 @@ fun SyncCenterScreen(
     var isExportLogConfirmVisible by remember { mutableStateOf(false) }
     var isStatusBinIdVisible by remember { mutableStateOf(false) }
     var isManifestPartsVisible by remember { mutableStateOf(false) }
+    var isStatusDiagnosticsVisible by remember { mutableStateOf(false) }
 
     val activeBinId = remember(hostedBinId, linkedBinId) {
         val hosted = hostedBinId.orEmpty().trim()
@@ -573,6 +575,23 @@ fun SyncCenterScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = secondaryTextColor
                                 )
+                                if (!status.lastError.isNullOrBlank()) {
+                                    Text(
+                                        stringResource(R.string.sync_center_failure_safe_body),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) OakColors.ErrorDark else OakColors.Error
+                                    )
+                                }
+                                TextButton(onClick = { isStatusDiagnosticsVisible = !isStatusDiagnosticsVisible }) {
+                                    Text(
+                                        stringResource(
+                                            if (isStatusDiagnosticsVisible) R.string.sync_center_diagnostics_hide
+                                            else R.string.sync_center_diagnostics_show
+                                        )
+                                    )
+                                }
+                                if (isStatusDiagnosticsVisible) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(
                                     stringResource(R.string.sync_center_queue_format, status.queuedMutationCount),
                                     style = MaterialTheme.typography.bodySmall,
@@ -682,7 +701,7 @@ fun SyncCenterScreen(
                                     Text(
                                         stringResource(R.string.sync_center_status_last_error_format, status.lastError.orEmpty()),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = OakColors.Error,
+                                        color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) OakColors.ErrorDark else OakColors.Error,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -698,6 +717,8 @@ fun SyncCenterScreen(
                                             maxLines = 3,
                                             overflow = TextOverflow.Ellipsis
                                         )
+                                    }
+                                }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))

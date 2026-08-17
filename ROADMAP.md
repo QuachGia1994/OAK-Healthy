@@ -10,11 +10,13 @@ cross-platform reliability rather than by a fixed delivery date.
 - P9.3 Sync Engine 2.0 is pushed on `f14d4b4`: durable dirty-part queue, sanitized operation journal, deterministic conflict preview, local-first stale-delete protection and observable retry/backoff.
 - P9.4 Coach Workspace 3.0 and P9.5 Activation & Retention 2.0 are pushed on `db30562` with Android Build, iOS Build and Quality Gates green.
 - P10 is closed on green baseline `7f5945c`: Android Build, iOS Build and Quality Gates all pass, including fail-closed verification for the known xcodebuild post-suite exit anomaly.
-- P11.1 UX Polish 4.0 is locally implemented: shared feedback surfaces, explicit History loading/error/empty/no-match recovery, Coach feedback parity, long-label Settings protection, EN/VI parity and a UX repository gate.
+- P11.1 UX Polish 4.0 plus the Warm Editorial native redesign are closed on green baseline `f96a826` across Android Build, iOS Build and Quality Gates.
+- P11.2–P11.10 are implemented as the pre-store completion batch: corrected dark contrast, accessibility/touch targets, reduced-motion and responsive behavior, failure-safe Sync UX, denser History/Coach signals, progressive technical diagnostics, post-redesign render-cost cleanup and explicit synthetic presentation fixtures.
+- P11-CLOSE is defined by `scripts/p11_completion_gate.py`, the unified P8–P11 regression matrix and exact-SHA Android/iOS/Quality CI.
 
 ## Next
 
-- Close P11.1 on a pushed green Android/iOS/Quality SHA, then execute P11.2 accessibility, P11.3 failure UX, P11.4 presentation pack, P11.5 store-neutral commercial readiness and P11-CLOSE.
+- Keep P12 Store Activation deferred. Product work after P11 should be driven by device testing and user feedback rather than store enrollment.
 
 ## Deferred
 

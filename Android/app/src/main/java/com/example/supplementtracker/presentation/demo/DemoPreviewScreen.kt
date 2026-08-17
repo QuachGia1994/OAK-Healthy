@@ -27,6 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.R
+import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.OakCard
+import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
 
 private data class DemoRoutine(
     val name: String,
@@ -37,7 +40,9 @@ private data class DemoRoutine(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DemoPreviewScreen(onBack: () -> Unit) {
+    OakBackground {
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.demo_preview_title)) },
@@ -52,6 +57,7 @@ fun DemoPreviewScreen(onBack: () -> Unit) {
             )
         }
     ) { padding -> DemoPreviewContent(Modifier.padding(padding)) }
+    }
 }
 
 @Composable
@@ -61,8 +67,15 @@ private fun DemoPreviewContent(modifier: Modifier) {
         DemoRoutine("Creatine", "12:30 • 5 g", R.string.home_status_due),
         DemoRoutine("Magnesium", "21:30 • 200 mg", R.string.dose_status_missed)
     )
+    val adaptive = rememberOakAdaptiveLayout()
     LazyColumn(
         modifier = modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            start = adaptive.horizontalPadding,
+            top = 12.dp,
+            end = adaptive.horizontalPadding,
+            bottom = 24.dp
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { DemoNoticeCard() }
@@ -73,17 +86,27 @@ private fun DemoPreviewContent(modifier: Modifier) {
 
 @Composable
 private fun DemoNoticeCard() {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    OakCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                stringResource(R.string.demo_preview_privacy_badge),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
             Text(stringResource(R.string.demo_preview_client), style = MaterialTheme.typography.titleLarge)
             Text(stringResource(R.string.demo_preview_body), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.demo_preview_presentation_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
 private fun DemoSummaryCard() {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.demo_preview_streak), fontWeight = FontWeight.SemiBold)
             DemoSummaryMetrics()
@@ -122,7 +145,7 @@ private fun DemoMetric(labelRes: Int, modifier: Modifier = Modifier) {
 @Composable
 private fun DemoRoutineCard(routine: DemoRoutine) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).semantics(mergeDescendants = true) {}
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),

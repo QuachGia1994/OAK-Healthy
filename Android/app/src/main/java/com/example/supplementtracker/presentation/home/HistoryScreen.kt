@@ -360,6 +360,11 @@ private fun InsightsTrendCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Text(
+                    text = stringResource(R.string.history_signal_window_format, window, completion, late),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     InsightsChip(
                         text = stringResource(R.string.insights_completion_chip_format, completion),

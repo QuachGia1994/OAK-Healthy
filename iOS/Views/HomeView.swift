@@ -644,11 +644,23 @@ private struct HomeDoseFilterBar: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                filterButton(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
-                filterButton(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
-                filterButton(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
-                filterButton(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    filterButton(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
+                    filterButton(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
+                    filterButton(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
+                    filterButton(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
+                }
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        filterButton(.due, count: counts.due, tint: OAKPalette.due(for: colorScheme))
+                        filterButton(.overdue, count: counts.missed, tint: OAKPalette.missed(for: colorScheme))
+                    }
+                    HStack(spacing: 8) {
+                        filterButton(.taken, count: counts.taken, tint: OAKPalette.taken(for: colorScheme))
+                        filterButton(.skipped, count: counts.skipped, tint: OAKPalette.skipped(for: colorScheme))
+                    }
+                }
             }
 
             let other = max(0, totalCount - selectedCount)
@@ -715,6 +727,7 @@ private struct HomeFilterButton: View {
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        .oakTouchTarget()
         .oakCardStyle(.paper, cornerRadius: 12, strokeOpacity: 0.12, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -773,6 +786,7 @@ private struct StreakChip: View {
 private struct ActiveSupplementRow: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let supplement: UserSupplement
     let timeString: String
     let status: HomeViewModel.DoseStatus
@@ -826,15 +840,17 @@ private struct ActiveSupplementRow: View {
             Spacer()
             Button {
                 guard status != .taken, status != .skipped else { return }
-                withAnimation(.snappy) {
+                if reduceMotion {
                     isShowingActions = true
+                } else {
+                    withAnimation(.snappy) { isShowingActions = true }
                 }
             } label: {
                 Image(systemName: symbolName(for: status))
                     .foregroundStyle(symbolColor(for: status))
                     .font(.title2)
                     .scaleEffect(iconScale)
-                    .animation(.snappy, value: status)
+                    .animation(reduceMotion ? nil : .snappy, value: status)
                     .frame(width: 44, height: 44)
                     .contentShape(Circle())
             }
@@ -848,7 +864,7 @@ private struct ActiveSupplementRow: View {
                 .stroke(borderColor, lineWidth: borderWidth)
                 .allowsHitTesting(false)
         )
-        .animation(.snappy, value: urgency)
+        .animation(reduceMotion ? nil : .snappy, value: urgency)
         .confirmationDialog(
             "home_confirm_intake_title".localized,
             isPresented: $isShowingActions,
@@ -930,8 +946,12 @@ private struct ActiveSupplementRow: View {
     
     @MainActor
     private func pulseIcon() {
+        guard !reduceMotion else {
+            iconScale = 1
+            return
+        }
         withAnimation(.spring(response: 0.22, dampingFraction: 0.7)) {
-            iconScale = 1.25
+            iconScale = 1.18
         }
         Task {
             do {

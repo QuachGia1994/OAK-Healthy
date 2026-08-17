@@ -16,6 +16,7 @@ struct OAKFeedbackView: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .buttonStyle(.borderedProminent)
+                    .oakTouchTarget()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -338,6 +338,17 @@ private struct InsightsTrendCard: View {
                     .foregroundStyle(.primary)
                     .minimumScaleFactor(0.6)
 
+                Text(
+                    String.localizedStringWithFormat(
+                        "history_signal_window_format".localized,
+                        window == .days7 ? 7 : 30,
+                        completion,
+                        lateCount
+                    )
+                )
+                .font(.caption)
+                .oakSecondaryText()
+
                 HStack(spacing: 12) {
                     InsightsChip(
                         text: String.localizedStringWithFormat("insights_completion_chip_format".localized, completion),

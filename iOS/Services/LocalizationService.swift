@@ -568,7 +568,14 @@ public struct LocalizationService: Sendable {
         "sync_health_hint_none": ("No recovery action is required.", "Không cần thao tác khôi phục."),
         "sync_health_hint_sync_now": ("Retry safely; local data is kept.", "Có thể thử lại an toàn; dữ liệu cục bộ vẫn được giữ."),
         "sync_health_hint_import_key": ("Import the matching key below before retrying.", "Nhập đúng khóa bên dưới trước khi thử lại."),
-        "sync_health_hint_check_link": ("Review the Link Code and sync configuration before retrying.", "Kiểm tra mã liên kết và cấu hình đồng bộ trước khi thử lại.")
+        "sync_health_hint_check_link": ("Review the Link Code and sync configuration before retrying.", "Kiểm tra mã liên kết và cấu hình đồng bộ trước khi thử lại."),
+        "sync_center_diagnostics_show": ("Show technical details", "Hiện chi tiết kỹ thuật"),
+        "sync_center_diagnostics_hide": ("Hide technical details", "Ẩn chi tiết kỹ thuật"),
+        "sync_center_failure_safe_body": ("Sync could not finish. Local data is still kept on this device.", "Đồng bộ chưa hoàn tất. Dữ liệu cục bộ vẫn được giữ trên thiết bị này."),
+        "coach_attention_count_format": ("%d client(s) may need a routine follow-up", "%d học viên có thể cần theo dõi routine"),
+        "history_signal_window_format": ("%d-day signal · %d%% completion · %d late", "Tín hiệu %d ngày · hoàn thành %d%% · %d lượt trễ"),
+        "demo_preview_privacy_badge": ("SYNTHETIC · LOCAL PREVIEW", "GIẢ LẬP · XEM TRƯỚC CỤC BỘ"),
+        "demo_preview_presentation_note": ("Presentation mode uses fixed synthetic fixtures only; it never reads or writes personal health data.", "Chế độ trình bày chỉ dùng fixture giả lập cố định; không đọc hoặc ghi dữ liệu sức khỏe cá nhân.")
     ]
     
     public func string(for key: String) -> String {

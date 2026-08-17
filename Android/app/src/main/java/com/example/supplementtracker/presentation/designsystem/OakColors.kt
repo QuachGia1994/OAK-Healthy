@@ -16,11 +16,11 @@ object OakColors {
     val Hairline = Color(0xFFD5CDBF)
 
     val PaperDark = Color(0xFF111713)
-    val PaperRaisedDark = Color(0xFF171E18)
-    val PaperMutedDark = Color(0xFF202820)
-    val InkDark = Color(0xFFF4EFE5)
-    val InkMutedDark = Color(0xFFB9BDB4)
-    val HairlineDark = Color(0xFF354139)
+    val PaperRaisedDark = Color(0xFF1A211B)
+    val PaperMutedDark = Color(0xFF242D25)
+    val InkDark = Color(0xFFF8F3E9)
+    val InkMutedDark = Color(0xFFD0D5CB)
+    val HairlineDark = Color(0xFF56645A)
 
     val Taken = Accent
     val Skipped = Color(0xFF9A661F)
@@ -87,7 +87,7 @@ val OakDarkColorScheme = darkColorScheme(
     surfaceVariant = OakColors.PaperMutedDark,
     onSurface = OakColors.InkDark,
     onSurfaceVariant = OakColors.InkMutedDark,
-    outline = Color(0xFF788178),
+    outline = Color(0xFF9AA59C),
     outlineVariant = OakColors.HairlineDark,
     error = OakColors.ErrorDark
 )

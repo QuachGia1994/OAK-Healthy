@@ -200,6 +200,11 @@ private fun CoachSummaryCard(summary: CoachOverviewSummary) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.coach_report_window_format, summary.windowDays), fontWeight = FontWeight.SemiBold)
             CoachSummaryMetrics(summary)
+            Text(
+                stringResource(R.string.coach_attention_count_format, summary.needsCheckInCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
             Text(overallCompletionText(summary), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

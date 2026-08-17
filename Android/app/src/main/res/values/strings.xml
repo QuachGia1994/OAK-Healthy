@@ -608,4 +608,11 @@
     <string name="sync_health_hint_sync_now">Retry safely; local data is kept.</string>
     <string name="sync_health_hint_import_key">Import the matching key below before retrying.</string>
     <string name="sync_health_hint_check_link">Review the Link Code and sync configuration before retrying.</string>
+    <string name="sync_center_diagnostics_show">Show technical details</string>
+    <string name="sync_center_diagnostics_hide">Hide technical details</string>
+    <string name="sync_center_failure_safe_body">Sync could not finish. Local data is still kept on this device.</string>
+    <string name="coach_attention_count_format">%1$d client(s) may need a routine follow-up</string>
+    <string name="history_signal_window_format">%1$d-day signal · %2$d%% completion · %3$d late</string>
+    <string name="demo_preview_privacy_badge">SYNTHETIC · LOCAL PREVIEW</string>
+    <string name="demo_preview_presentation_note">Presentation mode uses fixed synthetic fixtures only; it never reads or writes personal health data.</string>
 </resources>

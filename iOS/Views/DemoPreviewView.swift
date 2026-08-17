@@ -22,9 +22,18 @@ public struct DemoPreviewView: View {
     public var body: some View {
         List {
             Section {
-                Text("demo_preview_body".localized)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("demo_preview_privacy_badge".localized)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(OAKPalette.accent)
+                    Text("demo_preview_body".localized)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("demo_preview_presentation_note".localized)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
             }
             Section("demo_preview_client".localized) {
                 ViewThatFits(in: .horizontal) {
@@ -47,6 +56,8 @@ public struct DemoPreviewView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background { Color.clear.oakBackground() }
         .navigationTitle("demo_preview_title".localized)
     }
 }

@@ -69,6 +69,9 @@ import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.designsystem.OakTypography
 import com.example.supplementtracker.presentation.designsystem.OakBackground
+import com.example.supplementtracker.presentation.designsystem.oakTouchTarget
+import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
+import com.example.supplementtracker.presentation.designsystem.rememberOakReduceMotion
 import com.example.supplementtracker.presentation.components.ClientEditorDialog
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
@@ -318,6 +321,7 @@ private fun HomeContent(
     onEdit: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
+    val adaptive = rememberOakAdaptiveLayout()
     var filter by rememberSaveable { mutableStateOf(HomeDoseFilter.ALL) }
     val activeItems = remember(state.activeSupplements) { state.activeSupplements.values.flatten() }
     val missedItems = remember(activeItems) { activeItems.filter { it.doseStatus == DoseStatus.MISSED } }
@@ -333,7 +337,12 @@ private fun HomeContent(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 100.dp),
+        contentPadding = PaddingValues(
+            start = adaptive.horizontalPadding,
+            top = 16.dp,
+            end = adaptive.horizontalPadding,
+            bottom = 100.dp
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item(
@@ -592,6 +601,24 @@ private fun TodayStrip(
     onSelected: (HomeDoseFilter) -> Unit
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val adaptive = rememberOakAdaptiveLayout()
+    if (adaptive.stackMetrics) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            TodayStripButton(stringResource(R.string.home_status_due), counts.due, if (isDark) OakColors.DueSoonDark else OakColors.DueSoon, selected == HomeDoseFilter.DUE, Modifier.fillMaxWidth()) {
+                onSelected(if (selected == HomeDoseFilter.DUE) HomeDoseFilter.ALL else HomeDoseFilter.DUE)
+            }
+            TodayStripButton(stringResource(R.string.dose_status_missed), counts.missed, if (isDark) OakColors.MissedDark else OakColors.Missed, selected == HomeDoseFilter.OVERDUE, Modifier.fillMaxWidth()) {
+                onSelected(if (selected == HomeDoseFilter.OVERDUE) HomeDoseFilter.ALL else HomeDoseFilter.OVERDUE)
+            }
+            TodayStripButton(stringResource(R.string.notif_action_taken), counts.taken, if (isDark) OakColors.TakenDark else OakColors.Taken, selected == HomeDoseFilter.TAKEN, Modifier.fillMaxWidth()) {
+                onSelected(if (selected == HomeDoseFilter.TAKEN) HomeDoseFilter.ALL else HomeDoseFilter.TAKEN)
+            }
+            TodayStripButton(stringResource(R.string.notif_action_skip), counts.skipped, if (isDark) OakColors.SkippedDark else OakColors.Skipped, selected == HomeDoseFilter.SKIPPED, Modifier.fillMaxWidth()) {
+                onSelected(if (selected == HomeDoseFilter.SKIPPED) HomeDoseFilter.ALL else HomeDoseFilter.SKIPPED)
+            }
+        }
+        return
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             TodayStripButton(
@@ -655,6 +682,7 @@ private fun TodayStripButton(
         onClick = onClick,
         modifier = modifier
             .semantics(mergeDescendants = true) {}
+            .oakTouchTarget()
             .heightIn(min = 72.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
@@ -912,6 +940,7 @@ private fun ActiveSupplementCard(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val reduceMotion = rememberOakReduceMotion()
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -943,13 +972,17 @@ private fun ActiveSupplementCard(
                 DoseStatus.MISSED -> if (isDark) OakColors.MissedDark else OakColors.Missed
                 DoseStatus.PLANNED -> secondaryTextColor
             }
-            val tint by androidx.compose.animation.animateColorAsState(targetValue = targetTint, label = "doseTint")
+            val tint by androidx.compose.animation.animateColorAsState(
+                targetValue = targetTint,
+                animationSpec = tween(if (reduceMotion) 0 else 160),
+                label = "doseTint"
+            )
             val pulse = remember { Animatable(1f) }
             LaunchedEffect(item.doseStatus) {
-                if (item.doseStatus == DoseStatus.TAKEN || item.doseStatus == DoseStatus.SKIPPED) {
+                if (!reduceMotion && (item.doseStatus == DoseStatus.TAKEN || item.doseStatus == DoseStatus.SKIPPED)) {
                     pulse.snapTo(1f)
-                    pulse.animateTo(1.16f, tween(140))
-                    pulse.animateTo(1f, tween(200))
+                    pulse.animateTo(1.12f, tween(120))
+                    pulse.animateTo(1f, tween(160))
                 }
             }
             IconButton(
@@ -1000,8 +1033,8 @@ private fun ActiveSupplementCard(
         } else {
             AnimatedVisibility(
                 visible = item.doseStatus == DoseStatus.PLANNED && (item.isMissedSoon || item.isDueSoon),
-                enter = fadeIn(animationSpec = tween(160)),
-                exit = fadeOut(animationSpec = tween(160))
+                enter = fadeIn(animationSpec = tween(if (reduceMotion) 0 else 140)),
+                exit = fadeOut(animationSpec = tween(if (reduceMotion) 0 else 140))
             ) {
                 val text = if (item.isMissedSoon) {
                     stringResource(R.string.home_almost_missed)

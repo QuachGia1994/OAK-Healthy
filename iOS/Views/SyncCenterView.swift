@@ -4,6 +4,7 @@ import UIKit
 
 public struct SyncCenterView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
@@ -27,6 +28,7 @@ public struct SyncCenterView: View {
     @State private var logPhaseFilter: String = "ALL"
     @State private var syncPhase: SyncPhase = .idle
     @State private var isManifestPartsVisible: Bool = false
+    @State private var isStatusDiagnosticsVisible: Bool = false
     
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
@@ -239,6 +241,23 @@ public struct SyncCenterView: View {
                     )
                         .font(.caption)
                         .foregroundStyle(hasPendingChanges ? .orange : .secondary)
+                    if !lastError.isEmpty {
+                        Text("sync_center_failure_safe_body".localized)
+                            .font(.caption)
+                            .foregroundStyle(OAKPalette.missed(for: colorScheme))
+                    }
+                    Button(
+                        isStatusDiagnosticsVisible
+                            ? "sync_center_diagnostics_hide".localized
+                            : "sync_center_diagnostics_show".localized
+                    ) {
+                        isStatusDiagnosticsVisible.toggle()
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .oakTouchTarget()
+
+                    if isStatusDiagnosticsVisible {
                     Text(String(format: "sync_center_queue_format".localized, queuedMutationCount))
                         .font(.caption)
                         .oakSecondaryText()
@@ -318,6 +337,7 @@ public struct SyncCenterView: View {
                                     .accessibilityLabel(isManifestPartsVisible ? "hide_details".localized : "show_details".localized)
                             }
                             .buttonStyle(.borderless)
+                            .oakTouchTarget()
                         }
                     }
                     
@@ -339,7 +359,7 @@ public struct SyncCenterView: View {
                     if !lastError.isEmpty {
                         Text(String(format: "sync_center_last_error_format".localized, lastError))
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(OAKPalette.missed(for: colorScheme))
                             .lineLimit(3)
                         let isTransient = lastError.localizedCaseInsensitiveContains("522") ||
                             lastError.localizedCaseInsensitiveContains("quá thời gian") ||
@@ -364,6 +384,7 @@ public struct SyncCenterView: View {
                                 .oakSecondaryText()
                                 .lineLimit(3)
                         }
+                    }
                     }
                 }
                 
@@ -779,7 +800,7 @@ public struct SyncCenterView: View {
     private var hasActiveCloudLink: Bool { !activeBinId.isEmpty }
 
     private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
+        OAKPalette.surface(for: colorScheme)
     }
     
     private var importKeyConfirmText: String {

@@ -29,7 +29,7 @@ fun OakFeedbackCard(
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (actionLabel != null && onAction != null) {
-                Button(onClick = onAction) { Text(actionLabel) }
+                Button(onClick = onAction, modifier = Modifier.oakTouchTarget()) { Text(actionLabel) }
             }
         }
     }

@@ -608,4 +608,11 @@
     <string name="sync_health_hint_sync_now">Có thể thử lại an toàn; dữ liệu cục bộ vẫn được giữ.</string>
     <string name="sync_health_hint_import_key">Nhập đúng khóa bên dưới trước khi thử lại.</string>
     <string name="sync_health_hint_check_link">Kiểm tra mã liên kết và cấu hình đồng bộ trước khi thử lại.</string>
+    <string name="sync_center_diagnostics_show">Hiện chi tiết kỹ thuật</string>
+    <string name="sync_center_diagnostics_hide">Ẩn chi tiết kỹ thuật</string>
+    <string name="sync_center_failure_safe_body">Đồng bộ chưa hoàn tất. Dữ liệu cục bộ vẫn được giữ trên thiết bị này.</string>
+    <string name="coach_attention_count_format">%1$d học viên có thể cần theo dõi routine</string>
+    <string name="history_signal_window_format">Tín hiệu %1$d ngày · hoàn thành %2$d%% · %3$d lượt trễ</string>
+    <string name="demo_preview_privacy_badge">GIẢ LẬP · XEM TRƯỚC CỤC BỘ</string>
+    <string name="demo_preview_presentation_note">Chế độ trình bày chỉ dùng fixture giả lập cố định; không đọc hoặc ghi dữ liệu sức khỏe cá nhân.</string>
 </resources>

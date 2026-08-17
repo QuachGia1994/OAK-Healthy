@@ -59,10 +59,15 @@ public struct CoachOverviewView: View {
 
     private func summarySection(_ report: CoachOverviewSummary) -> some View {
         Section {
-            ViewThatFits(in: .horizontal) {
-                HStack { metrics(report) }
-                VStack(alignment: .leading) { metrics(report) }
-            }
+            OAKResponsiveMetricLayout { metrics(report) }
+            Text(
+                String.localizedStringWithFormat(
+                    "coach_attention_count_format".localized,
+                    report.needsCheckInCount
+                )
+            )
+            .font(.caption)
+            .foregroundStyle(OAKPalette.accent)
             Text(overallCompletionText(report))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)

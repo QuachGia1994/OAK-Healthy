@@ -12,11 +12,11 @@ enum OAKPalette {
     static let hairline = Color(red: 0.84, green: 0.80, blue: 0.75)
 
     static let paperDark = Color(red: 0.067, green: 0.09, blue: 0.074)
-    static let paperRaisedDark = Color(red: 0.09, green: 0.12, blue: 0.094)
-    static let paperMutedDark = Color(red: 0.125, green: 0.16, blue: 0.125)
-    static let inkDark = Color(red: 0.96, green: 0.94, blue: 0.90)
-    static let inkMutedDark = Color(red: 0.73, green: 0.74, blue: 0.70)
-    static let hairlineDark = Color(red: 0.21, green: 0.26, blue: 0.22)
+    static let paperRaisedDark = Color(red: 0.102, green: 0.129, blue: 0.106)
+    static let paperMutedDark = Color(red: 0.141, green: 0.176, blue: 0.145)
+    static let inkDark = Color(red: 0.973, green: 0.953, blue: 0.914)
+    static let inkMutedDark = Color(red: 0.816, green: 0.835, blue: 0.796)
+    static let hairlineDark = Color(red: 0.337, green: 0.392, blue: 0.353)
 
     static let due = Color(red: 0.27, green: 0.42, blue: 0.55)
     static let missed = Color(red: 0.71, green: 0.28, blue: 0.25)
@@ -92,6 +92,10 @@ extension View {
 
     func oakTertiaryText() -> some View {
         modifier(OAKTertiaryTextModifier())
+    }
+
+    func oakTouchTarget() -> some View {
+        frame(minWidth: 44, minHeight: 44)
     }
 
     func oakCardStyle(
