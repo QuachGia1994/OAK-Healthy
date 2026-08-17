@@ -101,10 +101,15 @@ jobs:
           xcodegen generate
 
       - name: Run Unit Tests (with coverage)
+        shell: bash
         run: |
           set -o pipefail
           rm -rf iOS/build/TestResults.xcresult
+          set +e
           xcodebuild -project iOS/OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,name=${IOS_SIMULATOR_NAME}" -enableCodeCoverage YES -resultBundlePath iOS/build/TestResults.xcresult clean test | tee iOS/xcodebuild-test.log
+          xcode_status=${PIPESTATUS[0]}
+          set -e
+          python3 scripts/verify_xcode_test_run.py iOS/xcodebuild-test.log iOS/build/TestResults.xcresult --xcodebuild-exit "${xcode_status}"
 
       - name: Report Coverage (warn)
         if: ${{ always() }}
