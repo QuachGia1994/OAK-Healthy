@@ -57,6 +57,7 @@ import com.example.supplementtracker.presentation.designsystem.OakFeedbackCard
 import com.example.supplementtracker.presentation.designsystem.OakRadius
 import com.example.supplementtracker.presentation.designsystem.OakSpacing
 import com.example.supplementtracker.presentation.designsystem.OakTypography
+import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
 import java.text.DateFormat
 import java.util.Date
 
@@ -184,18 +185,32 @@ private fun ReadyState(
 
 @Composable
 private fun WindowSelector(selected: Int, onSelected: (Int) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        listOf(7, 30, 90).forEach { days ->
-            FilterChip(
-                selected = selected == days,
-                onClick = { onSelected(days) },
-                label = { Text(stringResource(R.string.coach_window_days_format, days)) }
-            )
+    val adaptive = rememberOakAdaptiveLayout()
+    val days = listOf(7, 30, 90)
+    if (adaptive.stackMetrics) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = adaptive.horizontalPadding),
+            verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)
+        ) {
+            days.forEach { WindowChip(it, selected, onSelected) }
+        }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = adaptive.horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
+        ) {
+            days.forEach { WindowChip(it, selected, onSelected) }
         }
     }
+}
+
+@Composable
+private fun WindowChip(days: Int, selected: Int, onSelected: (Int) -> Unit) {
+    FilterChip(
+        selected = selected == days,
+        onClick = { onSelected(days) },
+        label = { Text(stringResource(R.string.coach_window_days_format, days)) }
+    )
 }
 
 @Composable
@@ -285,7 +300,11 @@ private fun ClientReportControls(
     onSortChanged: (CoachSort) -> Unit,
     onFilterChanged: (CoachFilter) -> Unit
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val adaptive = rememberOakAdaptiveLayout()
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = adaptive.horizontalPadding),
+        verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
+    ) {
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChanged,
@@ -293,20 +312,43 @@ private fun ClientReportControls(
             label = { Text(stringResource(R.string.coach_search_clients)) },
             singleLine = true
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SortChip(CoachSort.ATTENTION, sort, R.string.coach_sort_attention, onSortChanged)
-            SortChip(CoachSort.NAME, sort, R.string.coach_sort_name, onSortChanged)
-            SortChip(CoachSort.COMPLETION, sort, R.string.coach_sort_completion, onSortChanged)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = filter == CoachFilter.ALL, onClick = { onFilterChanged(CoachFilter.ALL) }, label = { Text(stringResource(R.string.coach_filter_all)) })
-            FilterChip(selected = filter == CoachFilter.CHECK_IN, onClick = { onFilterChanged(CoachFilter.CHECK_IN) }, label = { Text(stringResource(R.string.coach_filter_check_in)) })
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = filter == CoachFilter.ACTIVE, onClick = { onFilterChanged(CoachFilter.ACTIVE) }, label = { Text(stringResource(R.string.coach_filter_active)) })
-            FilterChip(selected = filter == CoachFilter.INACTIVE, onClick = { onFilterChanged(CoachFilter.INACTIVE) }, label = { Text(stringResource(R.string.coach_filter_inactive)) })
+        if (adaptive.stackMetrics) {
+            Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+                SortChip(CoachSort.ATTENTION, sort, R.string.coach_sort_attention, onSortChanged)
+                SortChip(CoachSort.NAME, sort, R.string.coach_sort_name, onSortChanged)
+                SortChip(CoachSort.COMPLETION, sort, R.string.coach_sort_completion, onSortChanged)
+                CoachFilterChips(filter, onFilterChanged, stacked = true)
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
+                SortChip(CoachSort.ATTENTION, sort, R.string.coach_sort_attention, onSortChanged)
+                SortChip(CoachSort.NAME, sort, R.string.coach_sort_name, onSortChanged)
+                SortChip(CoachSort.COMPLETION, sort, R.string.coach_sort_completion, onSortChanged)
+            }
+            CoachFilterChips(filter, onFilterChanged, stacked = false)
         }
     }
+}
+
+@Composable
+private fun CoachFilterChips(filter: CoachFilter, onFilterChanged: (CoachFilter) -> Unit, stacked: Boolean) {
+    if (stacked) {
+        Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+            CoachFilterChipItems(filter, onFilterChanged)
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
+            CoachFilterChipItems(filter, onFilterChanged)
+        }
+    }
+}
+
+@Composable
+private fun CoachFilterChipItems(filter: CoachFilter, onFilterChanged: (CoachFilter) -> Unit) {
+    FilterChip(selected = filter == CoachFilter.ALL, onClick = { onFilterChanged(CoachFilter.ALL) }, label = { Text(stringResource(R.string.coach_filter_all)) })
+    FilterChip(selected = filter == CoachFilter.CHECK_IN, onClick = { onFilterChanged(CoachFilter.CHECK_IN) }, label = { Text(stringResource(R.string.coach_filter_check_in)) })
+    FilterChip(selected = filter == CoachFilter.ACTIVE, onClick = { onFilterChanged(CoachFilter.ACTIVE) }, label = { Text(stringResource(R.string.coach_filter_active)) })
+    FilterChip(selected = filter == CoachFilter.INACTIVE, onClick = { onFilterChanged(CoachFilter.INACTIVE) }, label = { Text(stringResource(R.string.coach_filter_inactive)) })
 }
 
 @Composable
@@ -424,12 +466,21 @@ private fun CoachCheckInEditor(
     onFeelingChanged: (CoachRoutineFeeling) -> Unit,
     onSave: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val adaptive = rememberOakAdaptiveLayout()
+    Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
         Text(stringResource(R.string.coach_check_in_title), fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FeelingChip(CoachRoutineFeeling.COMFORTABLE, feeling, R.string.coach_feeling_comfortable, onFeelingChanged)
-            FeelingChip(CoachRoutineFeeling.OKAY, feeling, R.string.coach_feeling_okay, onFeelingChanged)
-            FeelingChip(CoachRoutineFeeling.DIFFICULT, feeling, R.string.coach_feeling_difficult, onFeelingChanged)
+        if (adaptive.stackMetrics) {
+            Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+                FeelingChip(CoachRoutineFeeling.COMFORTABLE, feeling, R.string.coach_feeling_comfortable, onFeelingChanged)
+                FeelingChip(CoachRoutineFeeling.OKAY, feeling, R.string.coach_feeling_okay, onFeelingChanged)
+                FeelingChip(CoachRoutineFeeling.DIFFICULT, feeling, R.string.coach_feeling_difficult, onFeelingChanged)
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)) {
+                FeelingChip(CoachRoutineFeeling.COMFORTABLE, feeling, R.string.coach_feeling_comfortable, onFeelingChanged)
+                FeelingChip(CoachRoutineFeeling.OKAY, feeling, R.string.coach_feeling_okay, onFeelingChanged)
+                FeelingChip(CoachRoutineFeeling.DIFFICULT, feeling, R.string.coach_feeling_difficult, onFeelingChanged)
+            }
         }
         OutlinedTextField(value = note, onValueChange = { onNoteChanged(it.take(500)) }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.coach_note_hint)) })
         Button(onClick = onSave) { Text(stringResource(R.string.coach_save_check_in)) }

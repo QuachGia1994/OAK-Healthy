@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 
 enum class OakCardVariant {
     Paper,
-    Glass,
     Surface
 }
 
@@ -37,8 +36,7 @@ fun OakCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     when (variant) {
-        OakCardVariant.Paper,
-        OakCardVariant.Glass -> PaperCard(modifier, accent, shape, contentPadding, content)
+        OakCardVariant.Paper -> PaperCard(modifier, accent, shape, contentPadding, content)
         OakCardVariant.Surface -> SurfaceCard(modifier, shape, contentPadding, elevation, content)
     }
 }

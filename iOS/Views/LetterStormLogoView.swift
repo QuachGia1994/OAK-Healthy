@@ -57,7 +57,7 @@ public struct OAKLoadingLogoView: View {
 
     private func ringAnimation(delay: Double) -> Animation? {
         guard !reduceMotion else { return nil }
-        return .easeOut(duration: 1.7).repeatForever(autoreverses: false).delay(delay)
+        return .easeOut(duration: 1.7).delay(delay)
     }
 
     private func startAnimation() {
@@ -68,7 +68,7 @@ public struct OAKLoadingLogoView: View {
         withAnimation(.spring(response: 0.62, dampingFraction: 0.78)) {
             isRevealed = true
         }
-        withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
+        withAnimation(.easeOut(duration: 1.25)) {
             isPulsing = true
         }
     }

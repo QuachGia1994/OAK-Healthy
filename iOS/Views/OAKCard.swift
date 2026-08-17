@@ -27,9 +27,6 @@ enum OAKPalette {
     static let takenDark = accentDark
     static let skippedDark = Color(red: 0.82, green: 0.64, blue: 0.37)
 
-    static let heroStart = Color(red: 0.16, green: 0.30, blue: 0.22)
-    static let heroEnd = heroStart
-
     static func background(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? paperDark : paper }
     static func surface(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? paperRaisedDark : paperRaised }
     static func mutedSurface(for colorScheme: ColorScheme) -> Color { colorScheme == .dark ? paperMutedDark : paperMuted }
@@ -44,7 +41,6 @@ enum OAKPalette {
 
 enum OAKCardVariant: Sendable {
     case paper
-    case glass
 }
 
 private struct OAKSecondaryTextModifier: ViewModifier {

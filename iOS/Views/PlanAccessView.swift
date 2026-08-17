@@ -4,6 +4,7 @@ public struct PlanAccessView: View {
     @Environment(EntitlementManager.self) private var entitlementManager
     @Environment(StoreKitBillingService.self) private var billingService
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public init() {}
 
@@ -77,19 +78,33 @@ public struct PlanAccessView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private func planHeader(_ plan: CommercialPlan) -> some View {
-        HStack(alignment: .top) {
+        if dynamicTypeSize >= .accessibility1 {
             VStack(alignment: .leading, spacing: OAKSpacing.xs) {
-                Text(planTitle(plan)).font(.title3.weight(.semibold))
-                Text(planSubtitle(plan)).font(.subheadline).oakSecondaryText()
+                planHeading(plan)
+                if entitlementManager.snapshot.plan == plan { currentPlanBadge }
             }
-            Spacer()
-            if entitlementManager.snapshot.plan == plan {
-                Text("plan_access_current_badge".localized)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(OAKPalette.accent)
+        } else {
+            HStack(alignment: .top) {
+                planHeading(plan)
+                Spacer()
+                if entitlementManager.snapshot.plan == plan { currentPlanBadge }
             }
         }
+    }
+
+    private func planHeading(_ plan: CommercialPlan) -> some View {
+        VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+            Text(planTitle(plan)).font(.title3.weight(.semibold))
+            Text(planSubtitle(plan)).font(.subheadline).oakSecondaryText()
+        }
+    }
+
+    private var currentPlanBadge: some View {
+        Text("plan_access_current_badge".localized)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(OAKPalette.accent)
     }
 
     private func featureRow(_ label: String) -> some View {
@@ -129,24 +144,41 @@ public struct PlanAccessView: View {
         }
     }
 
+    @ViewBuilder
     private func purchaseRow(_ product: StoreProductViewState) -> some View {
-        HStack(spacing: OAKSpacing.md) {
-            VStack(alignment: .leading, spacing: OAKSpacing.xs) {
-                Text(product.displayName).font(.headline)
-                Text(product.displayPrice).font(.subheadline).oakSecondaryText()
+        if dynamicTypeSize >= .accessibility1 {
+            VStack(alignment: .leading, spacing: OAKSpacing.sm) {
+                purchaseLabel(product)
+                purchaseButton(product)
             }
-            Spacer()
-            Button("billing_buy".localized) {
-                DiagnosticsReporter.event(
-                    "billing_purchase_started",
-                    fields: CommercialTelemetryFields.product(product.productId, source: "app_store")
-                )
-                Task { await billingService.purchase(productId: product.productId) }
+            .padding(.vertical, OAKSpacing.sm)
+        } else {
+            HStack(spacing: OAKSpacing.md) {
+                purchaseLabel(product)
+                Spacer()
+                purchaseButton(product)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(billingService.purchasingProductId != nil)
+            .padding(.vertical, OAKSpacing.sm)
         }
-        .padding(.vertical, OAKSpacing.sm)
+    }
+
+    private func purchaseLabel(_ product: StoreProductViewState) -> some View {
+        VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+            Text(product.displayName).font(.headline)
+            Text(product.displayPrice).font(.subheadline).oakSecondaryText()
+        }
+    }
+
+    private func purchaseButton(_ product: StoreProductViewState) -> some View {
+        Button("billing_buy".localized) {
+            DiagnosticsReporter.event(
+                "billing_purchase_started",
+                fields: CommercialTelemetryFields.product(product.productId, source: "app_store")
+            )
+            Task { await billingService.purchase(productId: product.productId) }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(billingService.purchasingProductId != nil)
     }
 
     private var restoreBlock: some View {

@@ -43,30 +43,9 @@ public struct StackView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
 
-                        HStack(spacing: 0) {
-                            Button {
-                                selectedDestination = .syncCenter
-                            } label: {
-                                StackQuickAction(
-                                    title: "sync_center_title".localized,
-                                    systemImage: "arrow.triangle.2.circlepath"
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            Divider()
-                            Button {
-                                selectedDestination = .userGuide
-                            } label: {
-                                StackQuickAction(
-                                    title: "user_guide_title".localized,
-                                    systemImage: "book.closed.fill"
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .background(
-                            OAKPalette.mutedSurface(for: colorScheme),
-                            in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+                        StackActionSurface(
+                            onSync: { selectedDestination = .syncCenter },
+                            onGuide: { selectedDestination = .userGuide }
                         )
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
@@ -374,7 +353,7 @@ private struct StackOverviewCard: View {
                 .font(.oakDisplay(size: 52))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
-            HStack(spacing: 28) {
+            OAKResponsiveMetricLayout {
                 StackMetric(title: "cycle_status_on".localized, value: max(0, totalCount - restingCount))
                 StackMetric(title: "cycle_status_off".localized, value: restingCount)
             }
@@ -401,6 +380,43 @@ private struct StackMetric: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
+    }
+}
+
+private struct StackActionSurface: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let onSync: () -> Void
+    let onGuide: () -> Void
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize >= .accessibility1 {
+                VStack(spacing: 0) {
+                    actionButton("sync_center_title".localized, "arrow.triangle.2.circlepath", onSync)
+                    Divider()
+                    actionButton("user_guide_title".localized, "book.closed.fill", onGuide)
+                }
+            } else {
+                HStack(spacing: 0) {
+                    actionButton("sync_center_title".localized, "arrow.triangle.2.circlepath", onSync)
+                    Divider()
+                    actionButton("user_guide_title".localized, "book.closed.fill", onGuide)
+                }
+            }
+        }
+        .background(
+            OAKPalette.mutedSurface(for: colorScheme),
+            in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+        )
+    }
+
+    private func actionButton(_ title: String, _ systemImage: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            StackQuickAction(title: title, systemImage: systemImage)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 }
 

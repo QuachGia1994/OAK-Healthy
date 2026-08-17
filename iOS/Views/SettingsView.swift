@@ -7,6 +7,7 @@ public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     private let cycleEngine = CycleCalculator()
@@ -356,18 +357,30 @@ public struct SettingsView: View {
     @ViewBuilder
     private var themeSelectionSection: some View {
         Section {
-            Picker(selection: themeSelection) {
-                Text("appearance_light".localized).tag("light")
-                Text("appearance_dark".localized).tag("dark")
-                Text("appearance_system".localized).tag("system")
-            } label: {
-                Text("appearance_title".localized)
+            if dynamicTypeSize >= .accessibility1 {
+                Picker("appearance_title".localized, selection: themeSelection) {
+                    themeOptions
+                }
+                .pickerStyle(.menu)
+            } else {
+                Picker(selection: themeSelection) {
+                    themeOptions
+                } label: {
+                    Text("appearance_title".localized)
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
         } header: {
             Text("appearance_title".localized)
         }
         .listRowBackground(settingsRowBackground)
+    }
+
+    @ViewBuilder
+    private var themeOptions: some View {
+        Text("appearance_light".localized).tag("light")
+        Text("appearance_dark".localized).tag("dark")
+        Text("appearance_system".localized).tag("system")
     }
     
     @ViewBuilder

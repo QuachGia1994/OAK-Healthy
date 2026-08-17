@@ -67,6 +67,7 @@ import com.example.supplementtracker.presentation.designsystem.OakTypeScale
 import com.example.supplementtracker.presentation.designsystem.OakTypography
 import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import com.example.supplementtracker.presentation.designsystem.oakTouchTarget
+import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import java.util.Locale
 
@@ -146,22 +147,28 @@ private fun StackContent(
     modifier: Modifier,
     listState: androidx.compose.foundation.lazy.LazyListState
 ) {
+    val adaptive = rememberOakAdaptiveLayout()
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(
-            start = OakSpacing.Lg,
+            start = adaptive.horizontalPadding,
             top = OakSpacing.Sm,
-            end = OakSpacing.Lg,
+            end = adaptive.horizontalPadding,
             bottom = 112.dp
         ),
         verticalArrangement = Arrangement.spacedBy(OakSpacing.Section)
     ) {
         item(key = "overview") {
-            StackOverviewSurface(totalCount, (totalCount - restingCount).coerceAtLeast(0), restingCount)
+            StackOverviewSurface(
+                totalCount,
+                (totalCount - restingCount).coerceAtLeast(0),
+                restingCount,
+                adaptive.stackMetrics
+            )
         }
         item(key = "actions") {
-            StackActionStrip(onNavigateToSyncCenter, onNavigateToUserGuide)
+            StackActionStrip(onNavigateToSyncCenter, onNavigateToUserGuide, adaptive.stackMetrics)
         }
         item(key = "search") {
             StackSearchField(searchText, onSearchTextChange)
@@ -216,7 +223,7 @@ private fun filterStackItems(
 }
 
 @Composable
-private fun StackOverviewSurface(totalCount: Int, activeCount: Int, restingCount: Int) {
+private fun StackOverviewSurface(totalCount: Int, activeCount: Int, restingCount: Int, stackMetrics: Boolean) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(OakRadius.Lg),
@@ -237,9 +244,16 @@ private fun StackOverviewSurface(totalCount: Int, activeCount: Int, restingCount
                 style = MaterialTheme.typography.displayMedium.copy(fontFamily = OakTypography.Display),
                 fontWeight = FontWeight.SemiBold
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Xxl)) {
-                StackMetric(stringResource(R.string.cycle_status_on), activeCount)
-                StackMetric(stringResource(R.string.cycle_status_off), restingCount)
+            if (stackMetrics) {
+                Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Md)) {
+                    StackMetric(stringResource(R.string.cycle_status_on), activeCount)
+                    StackMetric(stringResource(R.string.cycle_status_off), restingCount)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(OakSpacing.Xxl)) {
+                    StackMetric(stringResource(R.string.cycle_status_on), activeCount)
+                    StackMetric(stringResource(R.string.cycle_status_off), restingCount)
+                }
             }
         }
     }
@@ -259,26 +273,24 @@ private fun StackMetric(title: String, value: Int) {
 }
 
 @Composable
-private fun StackActionStrip(onSync: () -> Unit, onGuide: () -> Unit) {
+private fun StackActionStrip(onSync: () -> Unit, onGuide: () -> Unit, stacked: Boolean) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(OakRadius.Md),
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            StackActionRow(
-                title = stringResource(R.string.sync_center_title),
-                icon = Icons.Default.Sync,
-                modifier = Modifier.weight(1f),
-                onClick = onSync
-            )
-            Box(Modifier.width(1.dp).height(48.dp).background(MaterialTheme.colorScheme.outlineVariant))
-            StackActionRow(
-                title = stringResource(R.string.settings_guide_title),
-                icon = Icons.AutoMirrored.Filled.HelpOutline,
-                modifier = Modifier.weight(1f),
-                onClick = onGuide
-            )
+        if (stacked) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                StackActionRow(stringResource(R.string.sync_center_title), Icons.Default.Sync, Modifier.fillMaxWidth(), onSync)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                StackActionRow(stringResource(R.string.settings_guide_title), Icons.AutoMirrored.Filled.HelpOutline, Modifier.fillMaxWidth(), onGuide)
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                StackActionRow(stringResource(R.string.sync_center_title), Icons.Default.Sync, Modifier.weight(1f), onSync)
+                Box(Modifier.width(1.dp).height(48.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                StackActionRow(stringResource(R.string.settings_guide_title), Icons.AutoMirrored.Filled.HelpOutline, Modifier.weight(1f), onGuide)
+            }
         }
     }
 }

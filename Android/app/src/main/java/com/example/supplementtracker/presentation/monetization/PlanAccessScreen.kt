@@ -42,6 +42,7 @@ import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.designsystem.OakRadius
 import com.example.supplementtracker.presentation.designsystem.OakSpacing
 import com.example.supplementtracker.presentation.designsystem.OakTypography
+import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
 import com.example.supplementtracker.service.CommercialPlan
 import com.example.supplementtracker.service.CommercialTelemetryFields
 import com.example.supplementtracker.service.DiagnosticsReporter
@@ -97,9 +98,15 @@ private fun PlanAccessContent(
     billingService: GooglePlayBillingService,
     modifier: Modifier = Modifier
 ) {
+    val adaptive = rememberOakAdaptiveLayout()
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(OakSpacing.Lg),
+        contentPadding = PaddingValues(
+            start = adaptive.horizontalPadding,
+            top = OakSpacing.Lg,
+            end = adaptive.horizontalPadding,
+            bottom = OakSpacing.Xl
+        ),
         verticalArrangement = Arrangement.spacedBy(OakSpacing.Section)
     ) {
         item { CurrentPlanHero(currentPlan) }
@@ -157,25 +164,41 @@ private fun PlanComparisonSurface(currentPlan: CommercialPlan) {
 
 @Composable
 private fun PlanSection(plan: CommercialPlan, isCurrent: Boolean) {
+    val adaptive = rememberOakAdaptiveLayout()
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = OakSpacing.Lg),
         verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
-                Text(planTitle(plan), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Text(planSubtitle(plan), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (adaptive.stackMetrics) {
+            Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+                PlanHeading(plan)
+                if (isCurrent) CurrentPlanBadge()
             }
-            if (isCurrent) {
-                Text(
-                    stringResource(R.string.plan_access_current_badge),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Box(modifier = Modifier.weight(1f)) { PlanHeading(plan) }
+                if (isCurrent) CurrentPlanBadge()
             }
         }
         planFeatureLabels(plan).forEach { label -> FeatureRow(label) }
     }
+}
+
+@Composable
+private fun PlanHeading(plan: CommercialPlan) {
+    Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+        Text(planTitle(plan), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(planSubtitle(plan), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun CurrentPlanBadge() {
+    Text(
+        stringResource(R.string.plan_access_current_badge),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary
+    )
 }
 
 @Composable
@@ -233,25 +256,52 @@ private fun PurchaseRow(
     billingService: GooglePlayBillingService
 ) {
     val context = LocalContext.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = OakSpacing.Sm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(product.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(product.formattedPrice, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val adaptive = rememberOakAdaptiveLayout()
+    if (adaptive.stackMetrics) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = OakSpacing.Sm),
+            verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
+        ) {
+            PurchaseLabel(product)
+            PurchaseAction(product, purchasingProductId, activity, billingService, context)
         }
-        Button(
-            enabled = activity != null && purchasingProductId == null,
-            onClick = {
-                DiagnosticsReporter.event(
-                    context,
-                    "billing_purchase_started",
-                    CommercialTelemetryFields.product(product.productId, "play_store")
-                )
-                activity?.let { billingService.purchase(it, product.productId) }
-            }
-        ) { Text(stringResource(R.string.billing_buy)) }
+    } else {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = OakSpacing.Sm),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.weight(1f)) { PurchaseLabel(product) }
+            PurchaseAction(product, purchasingProductId, activity, billingService, context)
+        }
+    }
+}
+
+@Composable
+private fun PurchaseAction(
+    product: PlayStoreProduct,
+    purchasingProductId: String?,
+    activity: Activity?,
+    billingService: GooglePlayBillingService,
+    context: Context
+) {
+    Button(
+        enabled = activity != null && purchasingProductId == null,
+        onClick = {
+            DiagnosticsReporter.event(
+                context,
+                "billing_purchase_started",
+                CommercialTelemetryFields.product(product.productId, "play_store")
+            )
+            activity?.let { billingService.purchase(it, product.productId) }
+        }
+    ) { Text(stringResource(R.string.billing_buy)) }
+}
+
+@Composable
+private fun PurchaseLabel(product: PlayStoreProduct) {
+    Column {
+        Text(product.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(product.formattedPrice, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

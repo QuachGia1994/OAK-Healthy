@@ -56,7 +56,7 @@ def require(condition: bool, message: str) -> None:
 
 
 def validate_foundation(data: dict[str, str]) -> None:
-    for token in ("OakSpacing", "OakRadius", "OakElevation", "OakTypeScale"):
+    for token in ("OakSpacing", "OakRadius", "OakTypeScale"):
         require(token in data["android_tokens"], f"Android token family missing: {token}")
     for token in ("OAKSpacing", "OAKRadius", "OAKTypeScale"):
         require(token in data["ios_tokens"], f"iOS token family missing: {token}")

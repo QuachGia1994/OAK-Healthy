@@ -59,11 +59,14 @@ jobs:
       - name: Validate P11 completion and pre-store candidate
         run: python3 scripts/p11_completion_gate.py
 
+      - name: Validate Stage B final UI release candidate
+        run: python3 scripts/stage_b_ui_rc_gate.py
+
       - name: Validate P12 store activation readiness
         run: python3 scripts/store_activation_gate.py
 
       - name: Run readiness unit tests
-        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate scripts.tests.test_coach_workspace_gate scripts.tests.test_activation_retention_gate scripts.tests.test_architecture_boundaries_gate scripts.tests.test_performance_battery_gate scripts.tests.test_security_hardening_gate scripts.tests.test_ux_polish_gate scripts.tests.test_editorial_design_gate scripts.tests.test_health_ui_redesign_gate scripts.tests.test_p11_completion_gate scripts.tests.test_store_activation_gate scripts.tests.test_oak_regression scripts.tests.test_verify_xcode_test_run -q
+        run: python3 -m unittest scripts.tests.test_product_readiness scripts.tests.test_data_recovery_gate scripts.tests.test_reminder_reliability_gate scripts.tests.test_sync_engine_gate scripts.tests.test_coach_workspace_gate scripts.tests.test_activation_retention_gate scripts.tests.test_architecture_boundaries_gate scripts.tests.test_performance_battery_gate scripts.tests.test_security_hardening_gate scripts.tests.test_ux_polish_gate scripts.tests.test_editorial_design_gate scripts.tests.test_health_ui_redesign_gate scripts.tests.test_p11_completion_gate scripts.tests.test_stage_b_ui_rc_gate scripts.tests.test_store_activation_gate scripts.tests.test_oak_regression scripts.tests.test_verify_xcode_test_run -q
 
       - name: Run unified repository regression matrix
         run: python3 scripts/oak_regression.py

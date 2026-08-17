@@ -21,10 +21,6 @@ object OakRadius {
     val Pill = 999.dp
 }
 
-object OakElevation {
-    val Flat = 0.dp
-    val Raised = 1.dp
-}
 
 object OakTypeScale {
     val ScreenTitle = 30.sp

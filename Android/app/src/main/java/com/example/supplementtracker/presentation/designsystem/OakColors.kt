@@ -43,17 +43,6 @@ object OakColors {
     val TextSecondary = InkMuted
     val TextTertiary = Color(0xFF7B8077)
 
-    val ChartBar = Accent
-    val ChartBarDark = AccentDark
-
-    val BadgeStart = Accent
-    val BadgeEnd = Accent
-    val StreakBorder = Color(0xFFB1802C)
-    val InsightCardStart = Color(0xFF294D3B)
-    val InsightCardEnd = Color(0xFF294D3B)
-    val SkippedRecord = Missed
-    val SkippedBg = Color(0xFF6C302C)
-
     val ShareDarkStart = Color(0xFF171A17)
     val ShareDarkEnd = Color(0xFF101310)
 }

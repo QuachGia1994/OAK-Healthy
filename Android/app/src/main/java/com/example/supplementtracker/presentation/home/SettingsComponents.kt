@@ -5,7 +5,6 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -36,6 +35,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
 import com.example.supplementtracker.domain.model.ClientProfile
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -93,7 +93,7 @@ internal fun StepChip(label: String, done: Boolean) {
     ) {
         Icon(
             imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.KeyboardArrowRight,
-            contentDescription = if (done) "Done" else "Pending",
+            contentDescription = null,
             tint = if (done) OakColors.Done else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp)
         )
@@ -154,8 +154,14 @@ internal fun SettingsSwitchRow(
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = title, style = MaterialTheme.typography.bodyLarge, color = primaryTextColor)
-        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = primaryTextColor,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -205,32 +211,46 @@ internal fun AppThemeSegmentedControl(
         Triple(stringResource(R.string.appearance_system), AppTheme.SYSTEM, appTheme == AppTheme.SYSTEM)
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(outerColor, RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        items.forEach { (label, theme, selected) ->
-            val pillShape = RoundedCornerShape(12.dp)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(if (selected) selectedColor else Color.Transparent, pillShape)
-            ) {
-                TextButton(
-                    onClick = { onThemeChange(theme) },
-                    colors = ButtonDefaults.textButtonColors(containerColor = Color.Transparent),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = label,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+    val adaptive = rememberOakAdaptiveLayout()
+    val containerModifier = Modifier
+        .fillMaxWidth()
+        .background(outerColor, RoundedCornerShape(14.dp))
+        .padding(4.dp)
+    if (adaptive.stackMetrics) {
+        Column(modifier = containerModifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            items.forEach { (label, theme, selected) ->
+                ThemeOption(label, selected, selectedColor) { onThemeChange(theme) }
             }
+        }
+    } else {
+        Row(modifier = containerModifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items.forEach { (label, theme, selected) ->
+                ThemeOption(label, selected, selectedColor, Modifier.weight(1f)) { onThemeChange(theme) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeOption(
+    label: String,
+    selected: Boolean,
+    selectedColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier = modifier.background(if (selected) selectedColor else Color.Transparent, shape)) {
+        TextButton(
+            onClick = onClick,
+            colors = ButtonDefaults.textButtonColors(containerColor = Color.Transparent),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = label,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -329,7 +349,7 @@ internal fun ExpandableInfoCard(
                     contentDescription = stringResource(if (expanded) R.string.a11y_hide else R.string.a11y_show)
                 )
             }
-            AnimatedVisibility(visible = expanded) {
+            if (expanded) {
                 Column {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
