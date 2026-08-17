@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- P10.1 Architecture Decomposition adds typed sync status/log boundaries, injectable notification diagnostics, Coach source providers, iOS bootstrap/import/lifecycle coordinators, a current-state architecture map, and a repository boundary regression gate.
 - P9.5 Activation & Retention 2.0 adds cross-platform first-value milestones, actionable empty/recovery states, pressure-free recent-rhythm feedback, existing-user milestone reconciliation, and consent-gated aggregate activation telemetry restricted to milestone/state enums.
 - P9.4 Coach Workspace 3.0 adds client drill-down, same-client current-vs-previous 7/30/90-day comparisons, client filters, bounded local routine check-ins, renderer-neutral report documents, Android/iOS workspace tests, and a non-medical/local-only repository gate.
 - P9.3 Sync Engine 2.0 adds durable dirty-part queues, sanitized operation journals, deterministic conflict previews, exponential retry/backoff state, and cross-platform local-first regression gates.
@@ -32,6 +33,7 @@ versioning where practical.
 
 ### Changed
 
+- Sync, notification, Safe Mode recovery, bootstrap and Coach repository access now have explicit service/domain owners instead of keeping raw persistence/platform orchestration inside large views and ViewModels; behavior and data schemas are unchanged.
 - Store execution is explicitly deferred until developer accounts are desired; repository commerce/store gates remain intact and do not block continued product development.
 - About/onboarding/recovery copy now consistently positions OAK Healthy as a wellness routine tracker for individuals and coaches without diagnosis/treatment claims.
 - Production store promotion now requires an explicit beta-tested candidate commit/version/build and release-specific P4 evidence; iOS reuses that TestFlight build and Android promotes that Play versionCode instead of rebuilding production binaries.
