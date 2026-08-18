@@ -16,7 +16,9 @@ mutation.
 
 Unknown/future schemas, duplicate stable IDs, orphan history and partial recurrence
 configurations block restore. Foreign-profile supplement IDs are deterministically
-remapped while history links remain attached to the target client.
+remapped while history links remain attached to the target client. Legacy exports
+without supplement IDs are upgraded to deterministic IDs from the complete routine
+field key; display name alone is never a merge identity.
 
 ## Persistence migrations
 
@@ -34,6 +36,15 @@ the versioned schema plan.
 Before replacement, the app captures the target client's supplements and complete
 history. If persistence fails, that snapshot is restored. The restore does not
 create Taken or Skipped records; those statuses only come from the imported payload.
+
+Safe Mode recovery on iOS targets the stored client UUID when available. Name-only
+resolution exists only for older pending-import state and is accepted only when one
+profile matches. A rollback persistence failure is surfaced as a recovery error; it
+is not swallowed.
+
+Date-only fields preserve the literal local calendar day. History query windows are
+half-open `[startInclusive, endExclusive)`, preventing midnight from belonging to two
+days and preserving DST-short/long days.
 
 Run the repository fixture gate with:
 

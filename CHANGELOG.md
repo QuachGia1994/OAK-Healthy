@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- Health-data integrity hardening adds canonical cross-platform dose timing/completion policies, explicit local-day boundaries/codecs, iOS SwiftData mutation owners for clients/routines/history, stable-ID Safe Mode recovery targeting, and focused DST/idempotence/recovery persistence tests plus a current health-data-flow architecture map.
 - Stage B Final UI/UX Release Candidate adds compact/large-text fallbacks for Stack/Coach/Settings/Plan Access, finite reduced-motion launch branding, deterministic screenshot/demo documentation, dead presentation-token cleanup, and a dedicated cross-platform RC gate wired into Quality Gates and the unified regression matrix.
 - Stage A Complete Product UI Redesign unifies Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode across Android/iOS, with progressive technical disclosure and a single cross-platform presentation contract.
 - UI-R2 History & Trends Scanability adds cross-platform completion-ring/trend hierarchy, visible result/day counts, unified activity-chart styling, compact search/segmented filters, and continuous date-grouped History timelines without per-record cards.
@@ -41,6 +42,9 @@ versioning where practical.
 
 ### Changed
 
+- History and Coach derived metrics now consume one timing/completion policy per platform; Android history queries use half-open local-day ranges and iOS date-only backup/sync values preserve the literal calendar day instead of converting through UTC.
+- iOS Views no longer directly insert/delete/save SwiftData health models; persistence mutations are delegated to explicit mutation-store boundaries and local Coach check-in corruption/save failures are surfaced instead of silently becoming empty data.
+- Legacy iOS export upgrade no longer contains a name-based merge path; ID-less routines are converted to deterministic identities before entering the preview/restore pipeline.
 - Stage B removes decorative infinite launch animation and obsolete glass/elevation/hero/chart/badge presentation tokens, makes synthetic Demo Preview follow the same continuous-row wellness hierarchy as production UI, and preserves all health/business behavior while closing the redesign program.
 - Stage A removes remaining glass/material fragmentation from core iOS flows, consolidates Android onboarding to Client → Reminders → Done while preserving exact-alarm/battery actions, replaces card-per-supplement/client/alarm/log patterns with continuous rows, and reorganizes paywall/sync/recovery hierarchy without changing health/business logic.
 - History now prioritizes completion/trend over raw intake totals, uses the same wellness accent language for 7/30-day trends and 7-day activity, replaces glass/material search treatments, and renders log records as continuous divider rows grouped by date.
@@ -70,6 +74,8 @@ versioning where practical.
 
 ### Fixed
 
+- Android `removeIntake(supplementId, date)` now deletes only the requested local calendar day instead of ignoring the supplied date and deleting today's history; exact next-midnight records are excluded by half-open query bounds.
+- iOS pending-import recovery now uses the stored client UUID when present, rejects ambiguous legacy name-only targets and surfaces rollback persistence failure instead of swallowing it.
 - Google Play product refresh now clears stale cached purchase offers before rebuilding the active offer map, preventing a removed/reconfigured store offer from remaining selectable in the client session.
 - Android Settings rows now reserve flexible width for long labels and keep trailing values on one line, preventing the latest reminder rebuild timestamp from collapsing into a narrow vertical column.
 - Android sync tombstones now compare the remote effective timestamp against both local update and deletion timestamps, so an older remote deletion cannot erase a newer local edit; equal-timestamp conflicts keep local state on both platforms.
