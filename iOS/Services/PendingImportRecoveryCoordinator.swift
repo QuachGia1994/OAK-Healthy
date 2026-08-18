@@ -42,24 +42,38 @@ struct PendingImportRecoveryCoordinator {
         guard current == approvedPreview else { return .previewChanged(current) }
         let resolution = try resolveClient(id: clientId, name: clientName)
         do {
-            try SupplementExportCodec.importBackup(
-                data: data, client: resolution.client, context: modelContext
+            return try await applyValidatedBackup(
+                data: data,
+                resolution: resolution,
+                linkedBinId: linkedBinId,
+                notificationsEnabled: notificationsEnabled
             )
-            activeClientManager.setCurrentClientId(resolution.client.id)
-            applyLink(linkedBinId, clientId: resolution.client.id)
-            if notificationsEnabled {
-                guard await reschedule(clientId: resolution.client.id) else {
-                    return .notificationsPending
-                }
-            }
-            return .applied
         } catch {
-            do {
-                try rollbackCreatedClient(resolution)
-            } catch {
-                throw PendingImportRecoveryError.rollbackFailed
-            }
+            try rollbackOrThrow(resolution)
             throw error
+        }
+    }
+
+    private func applyValidatedBackup(
+        data: Data,
+        resolution: (client: ClientProfile, created: Bool),
+        linkedBinId: String,
+        notificationsEnabled: Bool
+    ) async throws -> PendingImportApplyResult {
+        try SupplementExportCodec.importBackup(
+            data: data, client: resolution.client, context: modelContext
+        )
+        activeClientManager.setCurrentClientId(resolution.client.id)
+        applyLink(linkedBinId, clientId: resolution.client.id)
+        guard notificationsEnabled else { return .applied }
+        return await reschedule(clientId: resolution.client.id) ? .applied : .notificationsPending
+    }
+
+    private func rollbackOrThrow(_ resolution: (client: ClientProfile, created: Bool)) throws {
+        do {
+            try rollbackCreatedClient(resolution)
+        } catch {
+            throw PendingImportRecoveryError.rollbackFailed
         }
     }
 

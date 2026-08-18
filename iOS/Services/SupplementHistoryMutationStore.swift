@@ -17,39 +17,94 @@ public enum SupplementHistoryMutationStore {
         updatedAtEpochMs: Int64,
         in context: ModelContext
     ) throws -> DosePersistenceResult {
-        let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1_000)
-        let canonicalScheduledAt = Date(timeIntervalSince1970: Double(scheduledAtEpochMs) / 1_000.0)
-        let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
+        let epochMs = Int64(scheduledAt.timeIntervalSince1970 * 1_000)
+        let canonicalDate = Date(timeIntervalSince1970: Double(epochMs) / 1_000.0)
+        let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: epochMs)
         let id = DoseEventKey.stableUUID(from: key)
-        if let existing = supplement.intakeRecords.first(where: { record in
-            let recordEpochMs = Int64(record.date.timeIntervalSince1970 * 1_000)
-            return DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: recordEpochMs) == key
-        }) {
+        if let existing = try existingRecord(supplement: supplement, key: key, id: id, context: context) {
             return DosePersistenceResult(record: existing, inserted: false)
         }
-        if let existing = try fetchRecord(id: id, context: context) {
-            return DosePersistenceResult(record: existing, inserted: false)
-        }
-        let record = IntakeRecord(
+        return try insertDose(
             id: id,
-            date: canonicalScheduledAt,
+            supplement: supplement,
+            scheduledAt: canonicalDate,
+            intakeTime: intakeTime,
+            status: status,
+            updatedAtEpochMs: updatedAtEpochMs,
+            context: context
+        )
+    }
+
+    private static func insertDose(
+        id: UUID,
+        supplement: UserSupplement,
+        scheduledAt: Date,
+        intakeTime: String,
+        status: IntakeStatus,
+        updatedAtEpochMs: Int64,
+        context: ModelContext
+    ) throws -> DosePersistenceResult {
+        let record = makeRecord(
+            id: id,
+            scheduledAt: scheduledAt,
+            intakeTime: intakeTime,
+            status: status,
+            updatedAtEpochMs: updatedAtEpochMs,
+            supplement: supplement
+        )
+        context.insert(record)
+        updateLastTakenIfNeeded(
+            supplement: supplement,
+            scheduledAt: scheduledAt,
+            status: status,
+            updatedAtEpochMs: updatedAtEpochMs
+        )
+        try saveOrRollback(context)
+        return DosePersistenceResult(record: record, inserted: true)
+    }
+
+    private static func existingRecord(
+        supplement: UserSupplement,
+        key: String,
+        id: UUID,
+        context: ModelContext
+    ) throws -> IntakeRecord? {
+        if let related = supplement.intakeRecords.first(where: { record in
+            let epochMs = Int64(record.date.timeIntervalSince1970 * 1_000)
+            return DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: epochMs) == key
+        }) {
+            return related
+        }
+        return try fetchRecord(id: id, context: context)
+    }
+
+    private static func makeRecord(
+        id: UUID,
+        scheduledAt: Date,
+        intakeTime: String,
+        status: IntakeStatus,
+        updatedAtEpochMs: Int64,
+        supplement: UserSupplement
+    ) -> IntakeRecord {
+        IntakeRecord(
+            id: id,
+            date: scheduledAt,
             status: status.rawValue,
             intakeTime: intakeTime,
             updatedAtEpochMs: updatedAtEpochMs,
             supplement: supplement
         )
-        context.insert(record)
-        if status == .taken {
-            supplement.lastTakenLocalDate = LocalDayCodec.string(from: canonicalScheduledAt)
-            supplement.updatedAtEpochMs = updatedAtEpochMs
-        }
-        do {
-            try context.save()
-            return DosePersistenceResult(record: record, inserted: true)
-        } catch {
-            context.rollback()
-            throw error
-        }
+    }
+
+    private static func updateLastTakenIfNeeded(
+        supplement: UserSupplement,
+        scheduledAt: Date,
+        status: IntakeStatus,
+        updatedAtEpochMs: Int64
+    ) {
+        guard status == .taken else { return }
+        supplement.lastTakenLocalDate = LocalDayCodec.string(from: scheduledAt)
+        supplement.updatedAtEpochMs = updatedAtEpochMs
     }
 
     public static func softDelete(
@@ -59,12 +114,7 @@ public enum SupplementHistoryMutationStore {
     ) throws {
         supplement.deletedAtEpochMs = epochMs
         supplement.updatedAtEpochMs = epochMs
-        do {
-            try context.save()
-        } catch {
-            context.rollback()
-            throw error
-        }
+        try saveOrRollback(context)
     }
 
     public static func softDelete(
@@ -77,6 +127,10 @@ public enum SupplementHistoryMutationStore {
             supplement.deletedAtEpochMs = epochMs
             supplement.updatedAtEpochMs = epochMs
         }
+        try saveOrRollback(context)
+    }
+
+    private static func saveOrRollback(_ context: ModelContext) throws {
         do {
             try context.save()
         } catch {

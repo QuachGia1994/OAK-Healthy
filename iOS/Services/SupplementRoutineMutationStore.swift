@@ -40,16 +40,29 @@ public enum SupplementRoutineMutationStore {
         in context: ModelContext
     ) throws -> SupplementRoutinePersistenceResult {
         guard let existing else {
-            let created = draft.makeModel(updatedAtEpochMs: epochMs)
-            context.insert(created)
-            do {
-                try context.save()
-                return SupplementRoutinePersistenceResult(supplement: created, wasEditing: false)
-            } catch {
-                context.rollback()
-                throw error
-            }
+            return try create(draft: draft, at: epochMs, in: context)
         }
+        apply(draft: draft, to: existing, at: epochMs)
+        try saveOrRollback(context)
+        return SupplementRoutinePersistenceResult(supplement: existing, wasEditing: true)
+    }
+
+    private static func create(
+        draft: SupplementRoutineDraft,
+        at epochMs: Int64,
+        in context: ModelContext
+    ) throws -> SupplementRoutinePersistenceResult {
+        let created = draft.makeModel(updatedAtEpochMs: epochMs)
+        context.insert(created)
+        try saveOrRollback(context)
+        return SupplementRoutinePersistenceResult(supplement: created, wasEditing: false)
+    }
+
+    private static func apply(
+        draft: SupplementRoutineDraft,
+        to existing: UserSupplement,
+        at epochMs: Int64
+    ) {
         existing.name = draft.name
         existing.startDate = draft.startDate
         existing.cycleConfig = draft.cycleConfig
@@ -58,9 +71,11 @@ public enum SupplementRoutineMutationStore {
         existing.client = draft.client
         existing.updatedAtEpochMs = epochMs
         existing.deletedAtEpochMs = nil
+    }
+
+    private static func saveOrRollback(_ context: ModelContext) throws {
         do {
             try context.save()
-            return SupplementRoutinePersistenceResult(supplement: existing, wasEditing: true)
         } catch {
             context.rollback()
             throw error
