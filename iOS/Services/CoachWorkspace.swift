@@ -144,8 +144,7 @@ public enum CoachWorkspaceBuilder {
     }
 
     private static func completion(taken: Int, skipped: Int) -> Int? {
-        let total = taken + skipped
-        return total == 0 ? nil : Int((Double(taken) / Double(total)) * 100)
+        DoseTimingPolicy.completionPercent(taken: taken, skipped: skipped)
     }
 
     private static func delta(_ current: Int?, _ previous: Int?) -> Int? {
@@ -178,9 +177,9 @@ public enum CoachCheckInPolicy {
 }
 
 public enum CoachCheckInStore {
-    public static func entries(clientId: UUID, defaults: UserDefaults = .standard) -> [CoachCheckInEntry] {
+    public static func entries(clientId: UUID, defaults: UserDefaults = .standard) throws -> [CoachCheckInEntry] {
         guard let data = defaults.data(forKey: key(clientId)) else { return [] }
-        return (try? JSONDecoder().decode([CoachCheckInEntry].self, from: data)) ?? []
+        return try JSONDecoder().decode([CoachCheckInEntry].self, from: data)
     }
 
     public static func add(
@@ -189,11 +188,11 @@ public enum CoachCheckInStore {
         note: String,
         epochMs: Int64,
         defaults: UserDefaults = .standard
-    ) {
+    ) throws {
         let entry = CoachCheckInEntry(epochMs: epochMs, feeling: feeling, note: note)
-        let updated = CoachCheckInPolicy.adding(entry, to: entries(clientId: clientId, defaults: defaults))
-        guard let data = try? JSONEncoder().encode(updated) else { return }
-        defaults.set(data, forKey: key(clientId))
+        let existing = try entries(clientId: clientId, defaults: defaults)
+        let updated = CoachCheckInPolicy.adding(entry, to: existing)
+        defaults.set(try JSONEncoder().encode(updated), forKey: key(clientId))
     }
 
     private static func key(_ clientId: UUID) -> String {

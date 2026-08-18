@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.example.supplementtracker.domain.model.IntakeStatus
 import java.util.UUID
 
 /**
@@ -26,6 +27,6 @@ data class IntakeRecordEntity(
     val id: String = UUID.randomUUID().toString(),
     val supplementId: String,
     val date: Long, // Epoch millis
-    val status: String = "Taken",
+    val status: String = IntakeStatus.TAKEN.storageValue,
     val updatedAtEpochMs: Long
 )

@@ -4,7 +4,7 @@ import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.util.DoseEventKey
 import kotlinx.coroutines.flow.Flow
@@ -47,6 +47,8 @@ private class RecordingImportRepository : SupplementRepository {
     override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = currentRecords
     override suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement> = currentSupplements
     override suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord> = currentRecords
+    override suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean = false
+    override suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean = false
     override suspend fun deleteAllSupplementsByClient(clientId: String) = Unit
     override suspend fun deleteAllIntakeRecordsByClient(clientId: String) = Unit
     override suspend fun importBackupAtomic(

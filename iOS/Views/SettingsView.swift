@@ -62,13 +62,10 @@ public struct SettingsView: View {
                     showError(message: "plan_client_limit_reached".localized)
                     return
                 }
-                let created = ClientProfile(name: name)
-                modelContext.insert(created)
                 do {
-                    try modelContext.save()
+                    let created = try ClientProfileMutationStore.create(name: name, in: modelContext)
                     activeClientManager.setCurrentClientId(created.id)
                 } catch {
-                    modelContext.delete(created)
                     showError(message: error.localizedDescription)
                 }
             }
@@ -78,12 +75,9 @@ public struct SettingsView: View {
                 title: "edit_client".localized,
                 initialName: client.name
             ) { name in
-                let previousName = client.name
-                client.name = name
                 do {
-                    try modelContext.save()
+                    try ClientProfileMutationStore.rename(client, to: name, in: modelContext)
                 } catch {
-                    client.name = previousName
                     showError(message: error.localizedDescription)
                 }
             }
@@ -468,15 +462,13 @@ public struct SettingsView: View {
     
     private func deleteClient(_ client: ClientProfile) {
         let deletingActive = client.id == activeClientManager.currentClientId
-        modelContext.delete(client)
         do {
-            try modelContext.save()
+            try ClientProfileMutationStore.delete(client, in: modelContext)
         } catch {
             showError(message: error.localizedDescription)
             return
         }
         CloudSyncProfileStore().clearLinks(clientId: client.id)
-
         guard deletingActive else { return }
         let fallback = clients.first { $0.id != client.id }?.id
         activeClientManager.setCurrentClientId(fallback)

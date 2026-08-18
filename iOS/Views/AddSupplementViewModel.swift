@@ -190,7 +190,8 @@ public final class AddSupplementViewModel {
     /// Tạo đối tượng UserSupplement hoàn chỉnh.
     public func createSupplement(id: UUID) -> UserSupplement? {
         do {
-            return try buildSupplementOrThrow(id: id)
+            let draft = try buildSupplementDraftOrThrow(id: id)
+            return draft.makeModel(updatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1_000))
         } catch let failure as SaveFailure {
             errorMessage = failure.message
             return nil
@@ -240,41 +241,23 @@ public final class AddSupplementViewModel {
         return true
     }
     
-    private struct PersistResult {
-        let supplement: UserSupplement
-        let wasEditing: Bool
-    }
-    
-    private func persistSupplement() throws -> PersistResult {
+    private func persistSupplement() throws -> SupplementRoutinePersistenceResult {
         guard editingSupplement != nil || activeClient != nil else { throw SaveFailure.missingActiveClient }
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        
-        if let existing = editingSupplement {
-            let updated = try buildSupplementOrThrow(id: existing.id)
-            existing.name = updated.name
-            existing.startDate = updated.startDate
-            existing.cycleConfig = updated.cycleConfig
-            existing.dailyDose = updated.dailyDose
-            existing.intakeTime = updated.intakeTime
-            existing.updatedAtEpochMs = now
-            existing.deletedAtEpochMs = nil
-            do {
-                try modelContext.save()
-            } catch {
-                throw SaveFailure.modelSaveFailed(error)
-            }
-            return PersistResult(supplement: existing, wasEditing: true)
-        }
-        
-        let created = try buildSupplementOrThrow(id: UUID())
-        modelContext.insert(created)
+        let id = editingSupplement?.id ?? UUID()
+        let draft = try buildSupplementDraftOrThrow(id: id)
+        let now = Int64(Date().timeIntervalSince1970 * 1_000)
         do {
-            try modelContext.save()
+            let result = try SupplementRoutineMutationStore.persist(
+                draft: draft,
+                editing: editingSupplement,
+                at: now,
+                in: modelContext
+            )
+            editingSupplement = result.supplement
+            return result
         } catch {
             throw SaveFailure.modelSaveFailed(error)
         }
-        editingSupplement = created
-        return PersistResult(supplement: created, wasEditing: false)
     }
     
     private func syncNotifications(for supplement: UserSupplement, wasEditing: Bool) async throws {
@@ -288,7 +271,7 @@ public final class AddSupplementViewModel {
         }
     }
     
-    private func buildSupplementOrThrow(id: UUID) throws -> UserSupplement {
+    private func buildSupplementDraftOrThrow(id: UUID) throws -> SupplementRoutineDraft {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { throw SaveFailure.invalidName }
         guard advancedCyclesAllowed || !usesAdvancedCycle else { throw SaveFailure.advancedCyclesRequired }
@@ -298,15 +281,13 @@ public final class AddSupplementViewModel {
         let config = try buildCycleConfigOrThrow(weekly: weekly)
         let timeString = try buildIntakeTimesOrThrow()
         
-        return UserSupplement(
+        return SupplementRoutineDraft(
             id: id,
             name: trimmedName,
             startDate: startDate,
             cycleConfig: config,
             dailyDose: dailyDose,
             intakeTime: timeString,
-            updatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
-            deletedAtEpochMs: nil,
             client: client
         )
     }

@@ -1,5 +1,7 @@
 package com.example.supplementtracker.service
 
+import com.example.supplementtracker.domain.model.IntakeStatus
+import com.example.supplementtracker.domain.util.DoseTimingPolicy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -70,8 +72,8 @@ object CoachOverviewBuilder {
         windowDays: Int,
         zoneId: ZoneId
     ): CoachOverviewSummary {
-        val taken = records.count { it.status == "Taken" }
-        val skipped = records.count { it.status == "Skipped" }
+        val taken = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.TAKEN }
+        val skipped = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.SKIPPED }
         val completion = completionPercent(taken, skipped)
         return CoachOverviewSummary(
             totalClients = summaries.size,
@@ -94,8 +96,8 @@ object CoachOverviewBuilder {
         zoneId: ZoneId
     ): CoachClientSummary {
         val window = windowRecords(records, start, today, zoneId)
-        val taken = window.count { it.status == "Taken" }
-        val skipped = window.count { it.status == "Skipped" }
+        val taken = window.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.TAKEN }
+        val skipped = window.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.SKIPPED }
         val completion = completionPercent(taken, skipped)
         return CoachClientSummary(
             clientId = client.id,
@@ -140,8 +142,8 @@ object CoachOverviewBuilder {
         bucketDays: Int,
         zoneId: ZoneId
     ): CoachTrendPoint {
-        val taken = records.count { it.status == "Taken" }
-        val skipped = records.count { it.status == "Skipped" }
+        val taken = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.TAKEN }
+        val skipped = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.SKIPPED }
         val bucketStart = start.plusDays((index * bucketDays).toLong())
         return CoachTrendPoint(
             bucketStartEpochMs = bucketStart.atStartOfDay(zoneId).toInstant().toEpochMilli(),
@@ -151,10 +153,8 @@ object CoachOverviewBuilder {
         )
     }
 
-    private fun completionPercent(taken: Int, skipped: Int): Int? {
-        val total = taken + skipped
-        return if (total == 0) null else ((taken * 100.0) / total).toInt()
-    }
+    private fun completionPercent(taken: Int, skipped: Int): Int? =
+        DoseTimingPolicy.completionPercent(taken, skipped)
 
     private fun normalizeWindowDays(windowDays: Int): Int = when (windowDays) {
         7, 30, 90 -> windowDays

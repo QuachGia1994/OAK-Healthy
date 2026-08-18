@@ -140,8 +140,7 @@ public enum CoachOverviewBuilder {
     }
 
     private static func completionPercent(taken: Int, skipped: Int) -> Int? {
-        let total = taken + skipped
-        return total == 0 ? nil : Int((Double(taken) / Double(total)) * 100)
+        DoseTimingPolicy.completionPercent(taken: taken, skipped: skipped)
     }
 
     private static func normalizeWindowDays(_ windowDays: Int) -> Int {

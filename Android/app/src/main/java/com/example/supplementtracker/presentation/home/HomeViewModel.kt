@@ -28,8 +28,9 @@ import java.time.LocalDate
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.ZoneId
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.util.DoseEventKey
+import com.example.supplementtracker.domain.util.HealthDayBoundary
 import com.example.supplementtracker.domain.util.TimeStrings
 import com.example.supplementtracker.data.mock.SupplementDictionary
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
@@ -268,7 +269,7 @@ class HomeViewModel(
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HomeUiState.NoClient)
             combine(
                 repository.getAllSupplements(id),
-                repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 119), getEndOfTomorrow())
+                repository.getRecordsByDateRange(id, getStartOfDay(today, daysAgo = 119), getEndExclusive(today))
             ) { supplements, records -> supplements to records }
                 .mapLatest { (supplements, records) ->
                     cleanupExpiredSupplements(supplements, today)
@@ -361,13 +362,11 @@ class HomeViewModel(
         )
     }
     
-    private fun getStartOfDay(daysAgo: Long): Long {
-        return LocalDate.now().minusDays(daysAgo).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    }
-    
-    private fun getEndOfTomorrow(): Long {
-        return LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    }
+    private fun getStartOfDay(today: LocalDate, daysAgo: Long): Long =
+        HealthDayBoundary.range(today.minusDays(daysAgo), ZoneId.systemDefault()).startInclusive
+
+    private fun getEndExclusive(today: LocalDate): Long =
+        HealthDayBoundary.range(today, ZoneId.systemDefault()).endExclusive
 
     private fun processSupplements(
         supplements: List<UserSupplement>,

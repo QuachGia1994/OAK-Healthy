@@ -569,7 +569,7 @@ public struct NotificationService: NotificationManaging {
         guard let interval = supplement.cycleConfig.intervalDays, interval > 1 else { return true }
         let day = calendar.startOfDay(for: date)
         if let raw = supplement.lastTakenLocalDate,
-           let lastTaken = dayDate(from: raw, calendar: calendar) {
+           let lastTaken = LocalDayCodec.date(from: raw, calendar: calendar) {
             let lastDay = calendar.startOfDay(for: lastTaken)
             let days = calendar.dateComponents([.day], from: lastDay, to: day).day ?? 0
             return days > 0 && days % interval == 0
@@ -579,16 +579,6 @@ public struct NotificationService: NotificationManaging {
         return days >= 0 && days % interval == 0
     }
 
-    private func dayDate(from raw: String, calendar: Calendar) -> Date? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: trimmed)
-    }
     
     private func weekdayBitIndex(for date: Date, calendar: Calendar) -> Int? {
         let weekday = calendar.component(.weekday, from: date)

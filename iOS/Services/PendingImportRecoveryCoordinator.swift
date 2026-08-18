@@ -7,11 +7,19 @@ enum PendingImportApplyResult: Equatable {
     case notificationsPending
 }
 
-enum PendingImportRecoveryError: LocalizedError {
+enum PendingImportRecoveryError: LocalizedError, Equatable {
     case clientLimitReached
+    case invalidClientIdentity
+    case ambiguousLegacyClient
+    case rollbackFailed
 
     var errorDescription: String? {
-        "plan_client_limit_reached".localized
+        switch self {
+        case .clientLimitReached: "plan_client_limit_reached".localized
+        case .invalidClientIdentity: "safe_mode_invalid_client_identity".localized
+        case .ambiguousLegacyClient: "safe_mode_ambiguous_client".localized
+        case .rollbackFailed: "safe_mode_rollback_failed".localized
+        }
     }
 }
 
@@ -25,13 +33,14 @@ struct PendingImportRecoveryCoordinator {
     func apply(
         data: Data,
         approvedPreview: OAKBackupPreview,
+        clientId: String,
         clientName: String,
         linkedBinId: String,
         notificationsEnabled: Bool
     ) async throws -> PendingImportApplyResult {
         let current = try SupplementExportCodec.previewBackup(data)
         guard current == approvedPreview else { return .previewChanged(current) }
-        let resolution = try resolveClient(name: clientName)
+        let resolution = try resolveClient(id: clientId, name: clientName)
         do {
             try SupplementExportCodec.importBackup(
                 data: data, client: resolution.client, context: modelContext
@@ -45,26 +54,42 @@ struct PendingImportRecoveryCoordinator {
             }
             return .applied
         } catch {
-            rollbackCreatedClient(resolution)
+            do {
+                try rollbackCreatedClient(resolution)
+            } catch {
+                throw PendingImportRecoveryError.rollbackFailed
+            }
             throw error
         }
     }
 
-    private func resolveClient(name: String) throws -> (client: ClientProfile, created: Bool) {
-        let storedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalized = storedName.lowercased()
+    private func resolveClient(id rawId: String, name: String) throws -> (client: ClientProfile, created: Bool) {
         let existing = try modelContext.fetch(FetchDescriptor<ClientProfile>())
-        if !normalized.isEmpty,
-           let matched = existing.first(where: { normalizedName($0.name) == normalized }) {
-            return (matched, false)
+        let trimmedId = rawId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedId.isEmpty {
+            guard let id = UUID(uuidString: trimmedId) else { throw PendingImportRecoveryError.invalidClientIdentity }
+            if let matched = existing.first(where: { $0.id == id }) { return (matched, false) }
+            return try createClient(id: id, name: name, existingCount: existing.count)
         }
-        if let limit = entitlementManager.maxClients, existing.count >= limit {
+        let normalized = ClientNamePolicy.canonical(name)
+        guard !normalized.isEmpty else { throw PendingImportRecoveryError.invalidClientIdentity }
+        let matches = existing.filter { ClientNamePolicy.canonical($0.name) == normalized }
+        if matches.count == 1, let matched = matches.first { return (matched, false) }
+        if matches.count > 1 { throw PendingImportRecoveryError.ambiguousLegacyClient }
+        return try createClient(id: UUID(), name: name, existingCount: existing.count)
+    }
+
+    private func createClient(
+        id: UUID,
+        name: String,
+        existingCount: Int
+    ) throws -> (client: ClientProfile, created: Bool) {
+        if let limit = entitlementManager.maxClients, existingCount >= limit {
             throw PendingImportRecoveryError.clientLimitReached
         }
+        let storedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedName = storedName.isEmpty ? "imported_client_default_name".localized : storedName
-        let client = ClientProfile(id: UUID(), name: resolvedName)
-        modelContext.insert(client)
-        try modelContext.save()
+        let client = try ClientProfileMutationStore.create(id: id, name: resolvedName, in: modelContext)
         return (client, true)
     }
 
@@ -87,13 +112,9 @@ struct PendingImportRecoveryCoordinator {
         }
     }
 
-    private func rollbackCreatedClient(_ resolution: (client: ClientProfile, created: Bool)) {
+    private func rollbackCreatedClient(_ resolution: (client: ClientProfile, created: Bool)) throws {
         guard resolution.created else { return }
-        modelContext.delete(resolution.client)
-        try? modelContext.save()
+        try ClientProfileMutationStore.delete(resolution.client, in: modelContext)
     }
 
-    private func normalizedName(_ value: String) -> String {
-        value.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-    }
 }

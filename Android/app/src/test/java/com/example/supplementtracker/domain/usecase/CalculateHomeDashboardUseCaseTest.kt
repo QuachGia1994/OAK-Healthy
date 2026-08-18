@@ -4,7 +4,7 @@ import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.util.DoseEventKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

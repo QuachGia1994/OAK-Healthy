@@ -64,7 +64,7 @@ firebase deploy --only database --project oak-healthy
 - `firebase/`: Realtime Database Rules và script deploy.
 - `.github/workflows/`: build/test Android và iOS trên GitHub Actions.
 - `DESIGN.md`: quy tắc thiết kế dùng chung cho hai nền tảng.
-- `docs/`: review UI/UX và ghi chú dự án.
+- `docs/`: architecture, recovery, QA và release notes; [`docs/arch/HEALTH_DATA_FLOW.md`](docs/arch/HEALTH_DATA_FLOW.md) mô tả owner của input → persistence → history/insight → backup/recovery.
 
 ## Build và test
 

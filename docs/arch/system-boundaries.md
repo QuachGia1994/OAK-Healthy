@@ -1,8 +1,8 @@
 # OAK Healthy system boundaries
 
-Updated 2026-08-17 · v1.0.1
+Updated 2026-08-18 · v1.0.1
 
-This document records current ownership boundaries after P10.1. It describes implementation structure, not a future roadmap.
+This document records current ownership boundaries after the health-data integrity hardening pass. It describes implementation structure, not a future roadmap. See also [`HEALTH_DATA_FLOW.md`](HEALTH_DATA_FLOW.md).
 
 ## Sync
 
@@ -22,13 +22,23 @@ This document records current ownership boundaries after P10.1. It describes imp
 ## Backup and recovery
 
 - Backup codecs remain responsible for payload validation, integrity and persistence semantics.
-- iOS `PendingImportRecoveryCoordinator` owns Safe Mode apply orchestration: stable-preview check, client resolution, import, link restoration, notification reschedule and rollback of a newly created client on import failure.
+- Android `ImportBackupUseCase` owns preview/validation and delegates the final replacement to repository atomic import.
+- iOS `PendingImportRecoveryCoordinator` owns Safe Mode apply orchestration: stable-preview check, stable client-ID resolution, import, link restoration, notification reschedule and explicit rollback of a newly created client on import failure.
+- Name-only iOS recovery is legacy fallback only and fails when more than one profile matches.
 - `SafeModeView` owns only UI state, file selection/lifecycle and user messaging.
 
 ## App bootstrap
 
 - iOS `AppBootstrapper` owns SwiftData container creation, active-client validation and construction of notification/entitlement/billing dependencies.
 - `SafeBootView` owns crash-recovery decision, splash timing and presentation of bootstrap failure/retry.
+
+## Health persistence and derived policy
+
+- Android persistence mutations go through `SupplementRepository`; Room DAO details do not leak into UI/domain code.
+- iOS client mutations are owned by `ClientProfileMutationStore`; routine mutations by `SupplementRoutineMutationStore`; intake/tombstone mutations by `SupplementHistoryMutationStore`. Views do not directly insert/delete/save SwiftData models.
+- `IntakeStatus` is the schema-compatible owner of persisted Taken/Skipped terminology; `ClientNamePolicy` owns trimmed/canonical profile-name validation while UUID remains profile identity.
+- `HealthDayBoundary` (Android) and `LocalDayCodec` (iOS) own date-only/day-window semantics.
+- `DoseTimingPolicy` owns due-soon, missed, late and completion formulas on each platform.
 
 ## Coach
 
@@ -37,9 +47,10 @@ This document records current ownership boundaries after P10.1. It describes imp
 
 ## Invariants
 
-- No schema or migration behavior is changed by P10.1.
+- This hardening does not change stored model schema versions; existing `Taken`/`Skipped` strings and stored date columns remain compatible.
 - Local databases remain the source of truth for routines and intake history.
 - Sync conflict policy remains local-first on equal timestamps and rejects stale remote deletion over newer local state.
 - Reminder recovery never creates Taken/Skipped intake records.
-- Safe Mode import still revalidates the preview immediately before persistence mutation.
+- Safe Mode import still revalidates the preview immediately before persistence mutation and targets a stable client UUID when available.
+- History day windows are half-open `[startInclusive, endExclusive)`; midnight belongs to exactly one day.
 - Architecture boundaries must remain enforced by `scripts/architecture_boundaries_gate.py`.

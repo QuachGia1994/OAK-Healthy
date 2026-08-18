@@ -55,16 +55,12 @@ public struct HomeView: View {
                     isShowingSettingsSheet = true
                     return
                 }
-                let created = ClientProfile(name: name)
-                modelContext.insert(created)
                 do {
-                    try modelContext.save()
+                    let created = try ClientProfileMutationStore.create(name: name, in: modelContext)
+                    activeClientManager.setCurrentClientId(created.id)
                 } catch {
-                    modelContext.delete(created)
                     viewModel.errorMessage = error.localizedDescription
-                    return
                 }
-                activeClientManager.setCurrentClientId(created.id)
             }
         }
     }
@@ -447,15 +443,11 @@ public struct HomeView: View {
     private func pruneExpiredSupplementsIfNeeded(today: Date = .now) {
         let expired = supplementsForActiveClient.filter { isExpired($0, today: today) }
         guard !expired.isEmpty else { return }
-        let now = Int64(today.timeIntervalSince1970 * 1000)
-        for supplement in expired {
-            supplement.deletedAtEpochMs = now
-            supplement.updatedAtEpochMs = now
-        }
+        let now = Int64(today.timeIntervalSince1970 * 1_000)
         do {
-            try modelContext.save()
+            try SupplementHistoryMutationStore.softDelete(expired, at: now, in: modelContext)
         } catch {
-            return
+            viewModel.errorMessage = error.localizedDescription
         }
     }
 

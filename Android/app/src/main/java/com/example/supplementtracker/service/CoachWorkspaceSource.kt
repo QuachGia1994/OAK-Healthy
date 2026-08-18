@@ -1,6 +1,7 @@
 package com.example.supplementtracker.service
 
 import com.example.supplementtracker.domain.repository.SupplementRepository
+import com.example.supplementtracker.domain.util.HealthDayBoundary
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
@@ -35,9 +36,9 @@ class RepositoryCoachWorkspaceSourceProvider(
     private fun coachWindowBounds(): Pair<Long, Long> {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
-        val start = today.minusDays(PerformanceBudgets.COACH_HISTORY_DAYS - 1)
-            .atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-        return start to end
+        val startDay = today.minusDays(PerformanceBudgets.COACH_HISTORY_DAYS - 1)
+        val start = HealthDayBoundary.range(startDay, zone).startInclusive
+        val endExclusive = HealthDayBoundary.range(today, zone).endExclusive
+        return start to endExclusive
     }
 }

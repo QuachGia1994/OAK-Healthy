@@ -44,7 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import com.example.supplementtracker.R
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeStatus
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakFeedbackCard
 import com.example.supplementtracker.presentation.designsystem.OakRadius
@@ -131,8 +132,9 @@ private fun HistoryContent(
         val query = searchText.trim().lowercase(Locale.ROOT)
         state.sections.mapNotNull { section ->
             val records = section.records.filter { record ->
-                if (filter == HistoryFilter.TAKEN && record.status != "Taken") return@filter false
-                if (filter == HistoryFilter.SKIPPED && record.status != "Skipped") return@filter false
+                val status = IntakeStatus.fromStorage(record.status)
+                if (filter == HistoryFilter.TAKEN && status != IntakeStatus.TAKEN) return@filter false
+                if (filter == HistoryFilter.SKIPPED && status != IntakeStatus.SKIPPED) return@filter false
                 if (query.isEmpty()) return@filter true
                 val name = record.supplementName?.lowercase(Locale.ROOT).orEmpty()
                 name.contains(query)
@@ -799,7 +801,7 @@ private fun HistoryRecordItem(record: IntakeRecord, zoneId: ZoneId) {
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    val isSkipped = record.status == "Skipped"
+    val isSkipped = IntakeStatus.fromStorage(record.status) == IntakeStatus.SKIPPED
 
     val accent = if (isSkipped) {
         if (isDark) OakColors.SkippedDark else OakColors.Skipped

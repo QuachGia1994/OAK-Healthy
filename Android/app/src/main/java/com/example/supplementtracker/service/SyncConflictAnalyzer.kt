@@ -4,7 +4,7 @@ import com.example.supplementtracker.domain.export.OAKBackupDataDTO
 import com.example.supplementtracker.domain.export.OAKBackupHistoryDTO
 import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.model.UserSupplement
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.util.DoseEventKey
 import java.util.Locale
 

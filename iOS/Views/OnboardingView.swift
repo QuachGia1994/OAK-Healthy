@@ -59,15 +59,12 @@ public struct OnboardingView: View {
                     initialName: "",
                     confirmTitle: "client_create_action".localized
                 ) { name in
-                    let created = ClientProfile(name: name)
-                    modelContext.insert(created)
                     do {
-                        try modelContext.save()
+                        let created = try ClientProfileMutationStore.create(name: name, in: modelContext)
                         clientMessage = nil
                         activeClientManager.setCurrentClientId(created.id)
                         ActivationRetentionStore.mark(.clientReady)
                     } catch {
-                        modelContext.delete(created)
                         clientMessage = error.localizedDescription
                     }
                 }

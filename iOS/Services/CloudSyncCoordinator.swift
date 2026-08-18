@@ -189,7 +189,7 @@ enum CloudSyncAutoSync {
             markAttempt(ctx: ctx)
             recordSyncStart(ctx: ctx)
             setPhase("pulling", ctx: ctx)
-            guard let client = fetchClient(modelContext: modelContext, clientId: clientId) else {
+            guard let client = try fetchClient(modelContext: modelContext, clientId: clientId) else {
                 throw CloudSyncError.invalidResponse
             }
             if let parts = try await resolveManifestPartsOrNil(manifestId: ctx.id) {
@@ -321,8 +321,8 @@ enum CloudSyncAutoSync {
         UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: ctx.lastAttemptKey)
     }
 
-    private static func fetchClient(modelContext: ModelContext, clientId: UUID) -> ClientProfile? {
-        (try? modelContext.fetch(FetchDescriptor<ClientProfile>()))?.first { $0.id == clientId }
+    private static func fetchClient(modelContext: ModelContext, clientId: UUID) throws -> ClientProfile? {
+        try modelContext.fetch(FetchDescriptor<ClientProfile>()).first { $0.id == clientId }
     }
 
     private static func decodeRemoteParts(

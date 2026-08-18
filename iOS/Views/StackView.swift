@@ -229,15 +229,12 @@ public struct StackView: View {
             isExpired($0, today: today)
         }
         guard !expired.isEmpty else { return }
-        let now = Int64(today.timeIntervalSince1970 * 1000)
-        for supplement in expired {
-            supplement.deletedAtEpochMs = now
-            supplement.updatedAtEpochMs = now
-        }
+        let now = Int64(today.timeIntervalSince1970 * 1_000)
         do {
-            try modelContext.save()
+            try SupplementHistoryMutationStore.softDelete(expired, at: now, in: modelContext)
         } catch {
-            return
+            errorMessage = error.localizedDescription
+            isShowingError = true
         }
     }
 
@@ -281,17 +278,14 @@ public struct StackView: View {
     }
     
     private func deleteSupplement(_ supplement: UserSupplement) {
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        supplement.deletedAtEpochMs = now
-        supplement.updatedAtEpochMs = now
+        let now = Int64(Date().timeIntervalSince1970 * 1_000)
         do {
-            try modelContext.save()
+            try SupplementHistoryMutationStore.softDelete(supplement, at: now, in: modelContext)
         } catch {
             errorMessage = error.localizedDescription
             isShowingError = true
             return
         }
-        
         refreshVisibleSupplements()
         Task {
             await notificationService.cancelReminders(for: supplement)

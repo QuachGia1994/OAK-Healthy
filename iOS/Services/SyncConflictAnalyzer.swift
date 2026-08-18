@@ -74,7 +74,7 @@ enum SyncConflictAnalyzer {
         if applies(fields, "name") && remote.name != local.name { return true }
         if applies(fields, "dailyDose") && remote.dailyDose != local.dailyDose { return true }
         if applies(fields, "intakeTime") && remote.intakeTime != local.intakeTime { return true }
-        if applies(fields, "startDate") && remote.startDate != dayString(local.startDate) { return true }
+        if applies(fields, "startDate") && remote.startDate != LocalDayCodec.string(from: local.startDate) { return true }
         if applies(fields, "lastTakenLocalDate") && remote.lastTakenLocalDate != local.lastTakenLocalDate { return true }
         return applies(fields, "cycle") && cycleDiffers(remote.cycle, local.cycleConfig)
     }
@@ -85,7 +85,7 @@ enum SyncConflictAnalyzer {
             remote.intervalDays != local.intervalDays ||
             remote.weeklyWeekdaysMask != local.weeklyRecurrence?.weekdaysMask ||
             remote.weeklyIntervalWeeks != local.weeklyRecurrence?.intervalWeeks ||
-            remote.weeklyAnchorDate != local.weeklyRecurrence.map { dayString($0.anchorDate) }
+            remote.weeklyAnchorDate != local.weeklyRecurrence.map { LocalDayCodec.string(from: $0.anchorDate) }
     }
 
     private static func applies(_ fields: Set<String>?, _ field: String) -> Bool {
@@ -115,12 +115,4 @@ enum SyncConflictAnalyzer {
         return updated
     }
 
-    private static func dayString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
 }

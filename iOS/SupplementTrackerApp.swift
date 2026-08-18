@@ -12,13 +12,6 @@ private enum BootKeys {
     static let containerReady = "container_ready"
 }
 
-private enum PendingImportKeys {
-    static let filePath = "oakPendingImportFilePath"
-    static let clientId = "oakPendingImportClientId"
-    static let clientName = "oakPendingImportClientName"
-    static let linkedBinId = "oakPendingImportLinkedBinId"
-}
-
 // #region debug-point ios-tab-crash-reporter
 enum DebugReporter {
     private static let urlKey = "debugServerUrl"
@@ -439,6 +432,7 @@ private struct SafeModeView: View {
             let result = try await importCoordinator.apply(
                 data: data,
                 approvedPreview: approved,
+                clientId: pendingImportClientId,
                 clientName: pendingImportClientName,
                 linkedBinId: pendingImportLinkedBinId,
                 notificationsEnabled: UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser")
@@ -697,8 +691,18 @@ struct MainTabView: View {
     @MainActor
     private func applyDoseAction(_ payload: NotificationDoseAction) async -> Bool {
         guard let context = doseActionContext(payload) else { return false }
-        if !hasPersistedDose(context) {
-            guard persistDoseRecord(context) else { return false }
+        do {
+            _ = try SupplementHistoryMutationStore.recordDose(
+                supplement: context.supplement,
+                scheduledAt: context.scheduledAt,
+                intakeTime: context.intakeTime,
+                status: context.status,
+                updatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1_000),
+                in: modelContext
+            )
+        } catch {
+            DebugReporter.report("dose_action_save_failed", fields: ["error_type": "persistence"])
+            return false
         }
         await finalizeDoseAction(
             supplement: context.supplement,
@@ -713,9 +717,7 @@ struct MainTabView: View {
         let supplement: UserSupplement
         let scheduledAt: Date
         let intakeTime: String
-        let scheduledAtEpochMs: Int64
-        let recordId: UUID
-        let status: String
+        let status: IntakeStatus
     }
 
     @MainActor
@@ -730,27 +732,14 @@ struct MainTabView: View {
         }
         let scheduledAt = Date(timeIntervalSince1970: TimeInterval(payload.scheduledAtEpochMs) / 1000)
         let intakeTime = TimeStrings.normalizeList(payload.intakeTime).first ?? payload.intakeTime
-        let key = DoseEventKey.make(supplementId: supplement.id, scheduledAtEpochMs: payload.scheduledAtEpochMs)
-        let status = payload.actionIdentifier == NotificationService.Action.skipped.rawValue
-            ? IntakeStatus.skipped.rawValue
-            : IntakeStatus.taken.rawValue
+        let status: IntakeStatus = payload.actionIdentifier == NotificationService.Action.skipped.rawValue
+            ? .skipped
+            : .taken
         return NotificationDoseContext(
             supplement: supplement,
             scheduledAt: scheduledAt,
             intakeTime: intakeTime,
-            scheduledAtEpochMs: payload.scheduledAtEpochMs,
-            recordId: DoseEventKey.stableUUID(from: key),
             status: status
-        )
-    }
-
-    @MainActor
-    private func hasPersistedDose(_ context: NotificationDoseContext) -> Bool {
-        if fetchDoseRecord(id: context.recordId) != nil { return true }
-        return hasRecord(
-            supplement: context.supplement,
-            scheduledAt: context.scheduledAt,
-            intakeTime: context.intakeTime
         )
     }
 
@@ -763,59 +752,6 @@ struct MainTabView: View {
             DebugReporter.report("dose_action_fetch_failed", fields: ["error": error.localizedDescription])
             return nil
         }
-    }
-
-    @MainActor
-    private func persistDoseRecord(_ context: NotificationDoseContext) -> Bool {
-        let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
-        modelContext.insert(IntakeRecord(
-            id: context.recordId,
-            date: context.scheduledAt,
-            status: context.status,
-            intakeTime: context.intakeTime,
-            updatedAtEpochMs: nowEpochMs,
-            supplement: context.supplement
-        ))
-        updateSupplementAfterDoseAction(
-            context.supplement,
-            status: context.status,
-            scheduledAt: context.scheduledAt,
-            updatedAtEpochMs: nowEpochMs
-        )
-        do {
-            try modelContext.save()
-            return true
-        } catch {
-            modelContext.rollback()
-            DebugReporter.report("dose_action_save_failed", fields: ["error": error.localizedDescription])
-            return false
-        }
-    }
-
-    private func updateSupplementAfterDoseAction(
-        _ supplement: UserSupplement,
-        status: String,
-        scheduledAt: Date,
-        updatedAtEpochMs: Int64
-    ) {
-        guard status == IntakeStatus.taken.rawValue else { return }
-        supplement.lastTakenLocalDate = notificationDayString(scheduledAt)
-        supplement.updatedAtEpochMs = updatedAtEpochMs
-    }
-
-    private func notificationDayString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = .current
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
-    
-    @MainActor
-    private func fetchDoseRecord(id: UUID) -> IntakeRecord? {
-        let descriptor = FetchDescriptor<IntakeRecord>(predicate: #Predicate { $0.id == id })
-        return (try? modelContext.fetch(descriptor))?.first
     }
 
     @MainActor
@@ -832,17 +768,4 @@ struct MainTabView: View {
         CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: supplement.client?.id)
     }
     
-    private func hasRecord(supplement: UserSupplement, scheduledAt: Date, intakeTime: String) -> Bool {
-        let calendar = Calendar.current
-        return supplement.intakeRecords.contains { record in
-            guard calendar.isDate(record.date, inSameDayAs: scheduledAt) else { return false }
-            if record.intakeTime.isEmpty { return true }
-            let recordTime = record.intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)
-            let scheduledTime = intakeTime.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let recordMinutes = TimeStrings.parseLenientTime(recordTime), let scheduledMinutes = TimeStrings.parseLenientTime(scheduledTime) {
-                return TimeStrings.formatTime(recordMinutes) == TimeStrings.formatTime(scheduledMinutes)
-            }
-            return recordTime == scheduledTime
-        }
-    }
 }

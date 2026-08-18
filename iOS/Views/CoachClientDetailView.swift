@@ -6,10 +6,11 @@ struct CoachClientDetailView: View {
     @State private var note = ""
     @State private var feeling: CoachRoutineFeeling = .okay
     @State private var checkInVersion = 0
+    @State private var checkIns: [CoachCheckInEntry] = []
+    @State private var checkInErrorMessage: String?
 
     var body: some View {
         let detail = makeDetail()
-        let checkIns = CoachCheckInStore.entries(clientId: client.id)
         let report = CoachWorkspaceBuilder.reportDocument(
             detail: detail,
             checkIns: checkIns,
@@ -23,6 +24,7 @@ struct CoachClientDetailView: View {
         }
         .listSectionSpacing(20)
         .id(checkInVersion)
+        .task(id: checkInVersion) { loadCheckIns() }
         .navigationTitle(client.name)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -86,7 +88,9 @@ struct CoachClientDetailView: View {
                     }
                 }
             Button("coach_save_check_in".localized, action: saveCheckIn)
-            if entries.isEmpty {
+            if let checkInErrorMessage {
+                Text(checkInErrorMessage).foregroundStyle(.red).font(.caption)
+            } else if entries.isEmpty {
                 Text("coach_check_in_empty".localized).foregroundStyle(.secondary)
             } else {
                 ForEach(entries.prefix(3)) { entry in checkInRow(entry) }
@@ -151,13 +155,28 @@ struct CoachClientDetailView: View {
     }
 
     private func saveCheckIn() {
-        CoachCheckInStore.add(
-            clientId: client.id,
-            feeling: feeling,
-            note: note,
-            epochMs: Int64(Date().timeIntervalSince1970 * 1000)
-        )
-        note = ""
-        checkInVersion += 1
+        do {
+            try CoachCheckInStore.add(
+                clientId: client.id,
+                feeling: feeling,
+                note: note,
+                epochMs: Int64(Date().timeIntervalSince1970 * 1_000)
+            )
+            note = ""
+            checkInErrorMessage = nil
+            checkInVersion += 1
+        } catch {
+            checkInErrorMessage = String(format: "coach_check_in_error_format".localized, error.localizedDescription)
+        }
+    }
+
+    private func loadCheckIns() {
+        do {
+            checkIns = try CoachCheckInStore.entries(clientId: client.id)
+            checkInErrorMessage = nil
+        } catch {
+            checkIns = []
+            checkInErrorMessage = String(format: "coach_check_in_error_format".localized, error.localizedDescription)
+        }
     }
 }

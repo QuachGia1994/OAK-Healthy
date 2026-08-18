@@ -308,7 +308,7 @@ struct OAKBackupHistory: Codable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let supplementId = try c.decodeIfPresent(String.self, forKey: .supplementId) ?? ""
         let dateEpochMs = try c.decodeIfPresent(Int64.self, forKey: .dateEpochMs) ?? 0
-        let status = try c.decodeIfPresent(String.self, forKey: .status) ?? "Taken"
+        let status = try c.decodeIfPresent(String.self, forKey: .status) ?? IntakeStatus.taken.rawValue
         let updatedAtEpochMs = try c.decodeIfPresent(Int64.self, forKey: .updatedAtEpochMs) ?? 0
         let rawId = (try c.decodeIfPresent(String.self, forKey: .id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if rawId.isEmpty {
@@ -1124,20 +1124,6 @@ struct SupplementExportCodec {
         return file
     }
     
-    static func importFile(
-        _ file: SupplementExportFile,
-        client: ClientProfile,
-        context: ModelContext
-    ) throws {
-        for dto in file.supplements {
-            let existing = try findSupplement(named: dto.name, for: client, context: context)
-            let target = try existing ?? createSupplement(from: dto, client: client)
-            if existing == nil { context.insert(target) }
-            try apply(dto: dto, to: target, client: client)
-        }
-        try context.save()
-    }
-    
     static func renderShareImageData(
         supplements: [UserSupplement],
         colorScheme: ColorScheme
@@ -1150,50 +1136,6 @@ struct SupplementExportCodec {
         renderer.scale = 3
         guard let cgImage = renderer.cgImage else { throw SupplementExportError.writeFailed }
         return try pngData(from: cgImage)
-    }
-    
-    private static func findSupplement(
-        named name: String,
-        for client: ClientProfile,
-        context: ModelContext
-    ) throws -> UserSupplement? {
-        let clientId = client.id
-        var descriptor = FetchDescriptor<UserSupplement>(
-            predicate: #Predicate {
-                $0.client?.id == clientId && $0.name == name
-            }
-        )
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
-    }
-    
-    private static func createSupplement(
-        from dto: SupplementExportSupplement,
-        client: ClientProfile
-    ) throws -> UserSupplement {
-        UserSupplement(
-            name: dto.name,
-            startDate: try dayDate(from: dto.startDate),
-            cycleConfig: try cycleConfig(from: dto.cycle),
-            dailyDose: dto.dailyDose,
-            intakeTime: dto.intakeTime,
-            lastTakenLocalDate: dto.lastTakenLocalDate,
-            client: client
-        )
-    }
-    
-    private static func apply(
-        dto: SupplementExportSupplement,
-        to supplement: UserSupplement,
-        client: ClientProfile
-    ) throws {
-        supplement.name = dto.name
-        supplement.dailyDose = dto.dailyDose
-        supplement.intakeTime = dto.intakeTime
-        supplement.startDate = try dayDate(from: dto.startDate)
-        supplement.cycleConfig = try cycleConfig(from: dto.cycle)
-        supplement.lastTakenLocalDate = dto.lastTakenLocalDate
-        supplement.client = client
     }
     
     private static func cycleConfig(from dto: SupplementExportCycle) throws -> CycleConfig {
@@ -1242,21 +1184,11 @@ struct SupplementExportCodec {
     }
     
     private static func dayString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        LocalDayCodec.string(from: date)
     }
     
     private static func dayDate(from string: String) throws -> Date {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: string) else { throw SupplementExportError.invalidDate }
+        guard let date = LocalDayCodec.date(from: string) else { throw SupplementExportError.invalidDate }
         return date
     }
 }

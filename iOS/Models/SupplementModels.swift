@@ -57,12 +57,7 @@ public struct WeeklyRecurrenceConfig: Codable, Sendable, Equatable {
         if let seconds = try? container.decodeIfPresent(Double.self, forKey: key) { return Date(timeIntervalSince1970: seconds) }
         if let raw = try? container.decodeIfPresent(String.self, forKey: key) {
             let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            let formatter = DateFormatter()
-            formatter.calendar = Calendar(identifier: .gregorian)
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            formatter.dateFormat = "yyyy-MM-dd"
-            return formatter.date(from: trimmed) ?? ISO8601DateFormatter().date(from: trimmed)
+            return LocalDayCodec.date(from: trimmed) ?? ISO8601DateFormatter().date(from: trimmed)
         }
         return nil
     }

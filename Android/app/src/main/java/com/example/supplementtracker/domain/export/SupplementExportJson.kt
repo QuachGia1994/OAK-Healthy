@@ -1,5 +1,6 @@
 package com.example.supplementtracker.domain.export
 
+import com.example.supplementtracker.domain.model.IntakeStatus
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
@@ -408,7 +409,7 @@ object OAKBackupJson {
             id = obj.optString("id", "").ifBlank { stableHistoryId(supplementId, dateEpochMs) },
             supplementId = supplementId,
             dateEpochMs = dateEpochMs,
-            status = obj.optString("status", "Taken"),
+            status = obj.optString("status", IntakeStatus.TAKEN.storageValue),
             updatedAtEpochMs = obj.optLong("updatedAtEpochMs", 0L)
         )
     }

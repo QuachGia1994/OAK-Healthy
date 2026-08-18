@@ -1,5 +1,7 @@
 package com.example.supplementtracker.service
 
+import com.example.supplementtracker.domain.model.IntakeStatus
+import com.example.supplementtracker.domain.util.DoseTimingPolicy
 import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
@@ -108,8 +110,8 @@ object CoachWorkspaceBuilder {
     }
 
     private fun stats(records: List<CoachRecordSnapshot>, zoneId: ZoneId): CoachWindowStats {
-        val taken = records.count { it.status == "Taken" }
-        val skipped = records.count { it.status == "Skipped" }
+        val taken = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.TAKEN }
+        val skipped = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.SKIPPED }
         val activeDays = records.map {
             Instant.ofEpochMilli(it.epochMs).atZone(zoneId).toLocalDate()
         }.distinct().size
@@ -148,8 +150,8 @@ object CoachWorkspaceBuilder {
         bucketDays: Int,
         zoneId: ZoneId
     ): CoachTrendPoint {
-        val taken = records.count { it.status == "Taken" }
-        val skipped = records.count { it.status == "Skipped" }
+        val taken = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.TAKEN }
+        val skipped = records.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.SKIPPED }
         val bucketStart = start.plusDays((index * bucketDays).toLong())
         return CoachTrendPoint(
             bucketStart.atStartOfDay(zoneId).toInstant().toEpochMilli(),
@@ -159,10 +161,8 @@ object CoachWorkspaceBuilder {
         )
     }
 
-    private fun completion(taken: Int, skipped: Int): Int? {
-        val total = taken + skipped
-        return if (total == 0) null else ((taken * 100.0) / total).toInt()
-    }
+    private fun completion(taken: Int, skipped: Int): Int? =
+        DoseTimingPolicy.completionPercent(taken, skipped)
 
     private fun delta(current: Int?, previous: Int?): Int? {
         if (current == null || previous == null) return null

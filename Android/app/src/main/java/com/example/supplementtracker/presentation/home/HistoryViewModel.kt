@@ -2,7 +2,10 @@ package com.example.supplementtracker.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeStatus
+import com.example.supplementtracker.domain.model.IntakeRecord
+import com.example.supplementtracker.domain.util.DoseTimingPolicy
+import com.example.supplementtracker.domain.util.HealthDayBoundary
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -192,10 +195,10 @@ class HistoryViewModel(
     private fun historyBounds(plan: CommercialPlan): Pair<Long, Long> {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
-        val start = today.minusDays(EntitlementPolicy.historyDays(plan) - 1)
-            .atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-        return start to end
+        val startDay = today.minusDays(EntitlementPolicy.historyDays(plan) - 1)
+        val start = HealthDayBoundary.range(startDay, zone).startInclusive
+        val endExclusive = HealthDayBoundary.range(today, zone).endExclusive
+        return start to endExclusive
     }
 
     private fun processHistory(records: List<IntakeRecord>, plan: CommercialPlan): HistoryUiState {
@@ -203,7 +206,7 @@ class HistoryViewModel(
         val today = LocalDate.now(zoneId)
         val historyStart = today.minusDays(EntitlementPolicy.historyDays(plan) - 1)
         val orderedRecords = records.sortedByDescending { it.date }.filter { record ->
-            val day = java.time.Instant.ofEpochMilli(record.date).atZone(zoneId).toLocalDate()
+            val day = HealthDayBoundary.localDate(record.date, zoneId)
             !day.isBefore(historyStart) && !day.isAfter(today)
         }
         val startDate = today.minusDays(6)
@@ -212,7 +215,7 @@ class HistoryViewModel(
         var currentDate: LocalDate? = null
         var currentBucket = mutableListOf<IntakeRecord>()
         for (record in orderedRecords) {
-            val date = java.time.Instant.ofEpochMilli(record.date).atZone(zoneId).toLocalDate()
+            val date = HealthDayBoundary.localDate(record.date, zoneId)
             if (!date.isBefore(startDate) && !date.isAfter(today)) {
                 counts[date] = (counts[date] ?: 0) + 1
             }
@@ -256,22 +259,21 @@ class HistoryViewModel(
         val today = LocalDate.now(zoneId)
         val start = today.minusDays(windowDays - 1)
         val window = records.filter {
-            val day = java.time.Instant.ofEpochMilli(it.date).atZone(zoneId).toLocalDate()
+            val day = HealthDayBoundary.localDate(it.date, zoneId)
             !day.isBefore(start) && !day.isAfter(today)
         }
         if (window.isEmpty()) return null
-        val taken = window.count { it.status == "Taken" }
-        val skipped = window.count { it.status == "Skipped" }
+        val taken = window.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.TAKEN }
+        val skipped = window.count { IntakeStatus.fromStorage(it.status) == IntakeStatus.SKIPPED }
         val late = window.count { isLateTaken(it) }
-        val denom = (taken + skipped).coerceAtLeast(1)
-        val completion = taken.toFloat() / denom.toFloat()
+        val completion = DoseTimingPolicy.completionRate(taken, skipped)?.toFloat() ?: return null
         return InsightsSummary(
             windowDays = windowDays.toInt(),
             completionRate = completion,
             takenCount = taken,
             skippedCount = skipped,
             lateCount = late,
-            topSkipped = topListBySupplement(window, "Skipped", limit = 3),
+            topSkipped = topListBySupplement(window, IntakeStatus.SKIPPED, limit = 3),
             topLate = topLateBySupplement(window, limit = 3),
             topLateHour = topLateHour(window, zoneId)
         )
@@ -286,14 +288,14 @@ class HistoryViewModel(
         val start = today.minusDays(windowDays - 1)
         val counts = mutableMapOf<LocalDate, Pair<Int, Int>>()
         for (record in records) {
-            val day = java.time.Instant.ofEpochMilli(record.date).atZone(zoneId).toLocalDate()
+            val day = HealthDayBoundary.localDate(record.date, zoneId)
             if (day.isAfter(today)) continue
             if (day.isBefore(start)) break
             val current = counts[day] ?: (0 to 0)
-            if (record.status == "Taken") {
-                counts[day] = (current.first + 1) to current.second
-            } else if (record.status == "Skipped") {
-                counts[day] = current.first to (current.second + 1)
+            when (IntakeStatus.fromStorage(record.status)) {
+                IntakeStatus.TAKEN -> counts[day] = (current.first + 1) to current.second
+                IntakeStatus.SKIPPED -> counts[day] = current.first to (current.second + 1)
+                null -> Unit
             }
         }
         val points = mutableListOf<InsightsTrendPoint>()
@@ -305,16 +307,12 @@ class HistoryViewModel(
         return points
     }
 
-    private fun isLateTaken(record: IntakeRecord): Boolean {
-        if (record.status != "Taken") return false
-        if (record.updatedAtEpochMs <= 0L) return false
-        val threshold = record.date + 20 * 60 * 1000
-        return record.updatedAtEpochMs > threshold
-    }
+    private fun isLateTaken(record: IntakeRecord): Boolean =
+        DoseTimingPolicy.isLateTaken(record.status, record.date, record.updatedAtEpochMs)
 
-    private fun topListBySupplement(records: List<IntakeRecord>, status: String, limit: Int): List<InsightsItem> {
+    private fun topListBySupplement(records: List<IntakeRecord>, status: IntakeStatus, limit: Int): List<InsightsItem> {
         if (limit <= 0) return emptyList()
-        val grouped = records.filter { it.status == status }
+        val grouped = records.filter { IntakeStatus.fromStorage(it.status) == status }
             .groupBy { it.supplementName ?: "N/A" }
             .mapValues { it.value.size }
             .entries
