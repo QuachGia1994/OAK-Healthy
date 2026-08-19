@@ -1,172 +1,132 @@
 ---
-version: alpha
-name: OAK Calm Precision
-description: A calm, trustworthy health dashboard shared by the iOS and Android apps.
+version: ui-rc
+name: OAK Wellness Paper
+description: Calm, scan-first health/wellness UI shared by Android and iOS.
 colors:
-  primary: "#0F6F75"
-  primary-dark: "#78D2CF"
-  primary-container: "#C5EAE7"
-  on-primary-container: "#073F43"
-  surface: "#FAFCF9"
-  surface-dark: "#0C1C1A"
-  on-surface: "#14201D"
-  on-surface-dark: "#E4F0EC"
-  due: "#1565C0"
-  taken: "#237A4B"
-  skipped: "#B45309"
-  missed: "#C73538"
-  due-dark: "#64B5F6"
-  taken-dark: "#81C784"
-  skipped-dark: "#FFB74D"
-  missed-dark: "#EF9A9A"
-  hero-start: "#087887"
-  hero-end: "#0C4D78"
-  on-hero: "#FFFFFF"
+  accent: "#1F6B4D"
+  accent-dark: "#7DD3A8"
+  paper: "#F6F7F5"
+  paper-raised: "#FFFFFF"
+  paper-muted: "#EEF1EE"
+  ink: "#111513"
+  ink-muted: "#59615C"
+  hairline: "#DCE2DD"
+  paper-dark: "#0B0F0D"
+  paper-raised-dark: "#111714"
+  paper-muted-dark: "#18201C"
+  ink-dark: "#F2F5F3"
+  ink-muted-dark: "#AAB5AE"
+  hairline-dark: "#405047"
+  due: "#466A8D"
+  taken: "#1F6B4D"
+  skipped: "#9A661F"
+  missed: "#B5473F"
+  due-dark: "#91AEC8"
+  taken-dark: "#7DD3A8"
+  skipped-dark: "#D2A35F"
+  missed-dark: "#E28C82"
 typography:
-  display:
-    fontFamily: System UI
-    fontSize: 44px
-    fontWeight: 700
-    lineHeight: 1.05
-  headline:
-    fontFamily: System UI
-    fontSize: 20px
-    fontWeight: 700
-    lineHeight: 1.2
-  body:
-    fontFamily: System UI
-    fontSize: 16px
-    fontWeight: 400
-    lineHeight: 1.45
-  label:
-    fontFamily: System UI
-    fontSize: 13px
-    fontWeight: 600
-    lineHeight: 1.2
-rounded:
-  sm: 12px
-  md: 18px
-  lg: 20px
-  xl: 24px
-  full: 9999px
+  screen-title: 30
+  hero-number: 42
+  section-title: 20
+  metric: 24
+  body: 16
+  caption: 13
 spacing:
-  xs: 4px
-  sm: 8px
-  md: 12px
-  lg: 16px
-  xl: 24px
-components:
-  hero-card:
-    backgroundColor: "{colors.hero-end}"
-    textColor: "{colors.on-hero}"
-    typography: "{typography.display}"
-    rounded: "{rounded.xl}"
-    padding: "{spacing.lg}"
-  card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.on-surface}"
-    typography: "{typography.body}"
-    rounded: "{rounded.lg}"
-    padding: "{spacing.lg}"
-  navigation-selected:
-    backgroundColor: "{colors.primary-container}"
-    textColor: "{colors.on-primary-container}"
-    typography: "{typography.label}"
-    rounded: "{rounded.full}"
-  status-due:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.due}"
-    typography: "{typography.label}"
-    rounded: "{rounded.md}"
-  status-taken:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.taken}"
-    typography: "{typography.label}"
-    rounded: "{rounded.md}"
-  status-skipped:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.skipped}"
-    typography: "{typography.label}"
-    rounded: "{rounded.md}"
-  status-missed:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.missed}"
-    typography: "{typography.label}"
-    rounded: "{rounded.md}"
-  dark-card:
-    backgroundColor: "{colors.surface-dark}"
-    textColor: "{colors.on-surface-dark}"
-    typography: "{typography.body}"
-    rounded: "{rounded.lg}"
-  dark-accent:
-    backgroundColor: "{colors.surface-dark}"
-    textColor: "{colors.primary-dark}"
-    typography: "{typography.label}"
-    rounded: "{rounded.md}"
-  hero-gradient-start:
-    backgroundColor: "{colors.hero-start}"
-    textColor: "{colors.on-hero}"
-    rounded: "{rounded.xl}"
-  status-due-dark:
-    backgroundColor: "{colors.surface-dark}"
-    textColor: "{colors.due-dark}"
-    rounded: "{rounded.md}"
-  status-taken-dark:
-    backgroundColor: "{colors.surface-dark}"
-    textColor: "{colors.taken-dark}"
-    rounded: "{rounded.md}"
-  status-skipped-dark:
-    backgroundColor: "{colors.surface-dark}"
-    textColor: "{colors.skipped-dark}"
-    rounded: "{rounded.md}"
-  status-missed-dark:
-    backgroundColor: "{colors.surface-dark}"
-    textColor: "{colors.missed-dark}"
-    rounded: "{rounded.md}"
+  xs: 4
+  sm: 8
+  md: 12
+  lg: 16
+  xl: 24
+  xxl: 32
+  section: 28
+radius:
+  sm: 10
+  md: 14
+  lg: 18
+  xl: 22
+  pill: 999
 ---
 
 # OAK Healthy Design System
 
-## Overview
+## Product character
 
-OAK Healthy uses calm precision: clinical enough to feel trustworthy, warm enough to support a daily habit. The visual density is moderate, with status and next actions visible before secondary detail. iOS and Android share hierarchy and tokens while retaining native navigation, controls, accessibility, and motion behavior.
+OAK Healthy is a modern health/wellness product, not a hospital dashboard. Screens favor whitespace, strong typography, one primary insight or action, prominent progress/charts, and continuous rows instead of card-per-item fragmentation.
 
-## Colors
+Android and iOS keep native interaction behavior while sharing the same hierarchy and semantic tokens. The source-of-truth token files are:
 
-- Primary teal is reserved for navigation, links, and the most important neutral action.
-- Due, taken, skipped, and missed always remain blue, green, orange, and red respectively. Never communicate these states by color alone; pair them with a label, count, or icon.
-- Hero cards use the teal-to-blue range. Surfaces stay softly neutral so health data remains the focus.
-- All normal-size text and interactive labels must meet WCAG AA contrast. Status colors in this file are the accessible text variants.
+- Android: `presentation/designsystem/OakColors.kt`, `OakTokens.kt`.
+- iOS: `Views/OAKDesignTokens.swift`.
 
-## Typography
+`DESIGN.md` documents those tokens; it must not introduce a parallel palette or formula.
 
-Use each platform's native system family for Dynamic Type and localization. Rounded display numerals are allowed for dashboard totals. Use bold only for section hierarchy, totals, and selected states; body copy remains regular.
+## Color semantics
 
-## Layout
+The single neutral accent is moss green. Health states keep stable semantic colors across platforms:
 
-Use an 8px rhythm with 4px micro-adjustments. Screen gutters are 16px, related controls use 8px or 12px gaps, and primary cards use 16px to 24px internal padding. Long data collections use native lazy lists with stable identity. Keep the primary summary above filters and the detailed feed below them.
+- Due: muted blue.
+- Taken: moss green.
+- Skipped: amber/brown.
+- Missed: restrained red.
 
-## Elevation & Depth
+Never rely on color alone. Pair state color with a label, icon, count, or progress cue. Dark theme uses near-black paper surfaces with brighter text and semantic colors tuned for contrast.
 
-Depth comes from tonal glass surfaces, a thin semantic border, and one soft shadow. Do not stack multiple shadows or place a glass card inside another glass card. Hero cards may use a stronger shadow because they anchor the screen.
+## Typography and hierarchy
 
-## Shapes
+Use native system sans-serif for body and controls. Serif is reserved for display/hero health metrics where already defined by the shared typography helpers. Do not create screen-specific font scales.
 
-Cards use 18px to 24px continuous corners. Inputs and compact status tiles use 12px to 18px corners. Pills are reserved for short metrics, selected navigation indicators, and streaks.
+A normal screen should read in this order:
 
-## Components
+1. screen title/context;
+2. one primary insight or primary action;
+3. compact supporting metrics/chart;
+4. continuous rows/details;
+5. technical or diagnostic detail only after explicit disclosure.
 
-- Home status filters are four independent native buttons with a minimum 44px touch target. Tapping the selected filter returns to the all state.
-- Supplement rows use a leading status rail plus text or icon so status survives grayscale and color-vision differences.
-- Stack starts with one overview hero, then two quick actions, search, and the supplement list.
-- History starts with the 7/30-day insight hero, followed by frequency and the searchable timeline.
-- Bottom navigation uses native tab components. Selection uses the primary container; overdue count is the only badge.
+## Layout and surfaces
 
-## Do's and Don'ts
+Use the shared 4/8/12/16/24/32 spacing rhythm. Default screen gutter is 16, compact phones may use 12, and wide layouts may expand to 28 while keeping content hierarchy intact.
 
-- Do keep the four dose colors stable across platforms.
-- Do preserve native focus, Dynamic Type, TalkBack, VoiceOver, and reduced-motion behavior.
-- Do use one clear hero surface per tab and avoid repetitive card nesting.
-- Don't use purple as a generated default or introduce decorative color without a semantic role.
-- Don't add custom gestures when a native button, picker, list, or navigation item covers the interaction.
-- Don't animate every state change; reserve motion for selection, status confirmation, and screen transitions.
+Use paper surfaces and hairline separation. Avoid nested cards, per-row cards, decorative gradients, blur/glass surfaces, and heavy elevation. Radius is restrained; 14–18 is the normal surface range and pills are reserved for true short-selection/status patterns.
+
+## App shell and bottom navigation
+
+The three primary destinations are Home, Stack, and History. Settings and secondary flows are pushed from those destinations rather than occupying a fourth primary tab.
+
+Android:
+
+- `Scaffold.bottomBar` owns the bottom navigation boundary.
+- System navigation inset is consumed exactly once by the bottom bar.
+- Full state shows icon + label; scrolling down on a primary tab minimizes to a 56dp icon-only bar, scrolling up restores the 80dp full bar.
+- The overdue count is the only tab badge.
+- Switching primary tabs restores the expanded state.
+
+Apple platforms:
+
+- Use native `TabView` and system tab-bar safe-area handling.
+- On iPhone with iOS 26+, the native tab bar minimizes on downward scroll and expands on upward scroll.
+- Older iOS versions keep the stable full tab bar; iPad keeps native non-minimized behavior.
+- The overdue count is the only tab badge.
+
+## Accessibility and motion
+
+Android interactive targets remain at least 48dp; iOS targets remain at least 44pt. Preserve TalkBack/VoiceOver labels even when visual tab labels are minimized. Large text must wrap or switch to vertical layouts rather than compress health data.
+
+Motion is functional only. Android shell minimization uses a short height transition and becomes immediate when system animator duration is disabled. iOS uses the native tab-bar minimization behavior. Avoid decorative infinite animation.
+
+## Screen patterns
+
+- Home: one daily summary, progress first, inline Due/Missed/Taken/Skipped controls.
+- Stack: one overview plus continuous routine rows and direct add/sync actions.
+- History: completion/trend hero, prominent 7-day activity chart, compact filters, continuous date-grouped timeline.
+- Coach: one workspace insight plus continuous client rows and same-client comparison.
+- Forms: one continuous form surface with section dividers; avoid one card per field group.
+- Sync/recovery: human-readable health and repair state first; technical logs/IDs/keys disclosed on demand.
+- Empty/loading/error/success/partial states must be explicit and never replaced by fake runtime sample health data.
+
+## Do / do not
+
+Do keep semantic health colors stable, use native controls, preserve reduced-motion/accessibility behavior, and reuse shared tokens/components only where repeated patterns are proven.
+
+Do not add arbitrary gradients, glassmorphism, decorative color, giant dashboard grids, duplicated token values, or one-off screen styles. Do not encode health/business formulas in presentation code.

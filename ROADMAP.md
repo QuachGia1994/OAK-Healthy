@@ -25,11 +25,12 @@ cross-platform reliability rather than by a fixed delivery date.
 - UI-R2 History & Trends Scanability is closed on green baseline `1325897`: completion/trend hierarchy, unified chart styling and continuous History rows are aligned cross-platform.
 - Stage A Complete Product UI Redesign is closed on green baseline `736e495`: Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode share the same wellness hierarchy without changing health/business behavior.
 - Stage B Final UI/UX Release Candidate is closed on the pushed Stage B baseline and follow-up fixes (`9d75b5f` → `3d43907`): cross-screen consistency, compact/large-text fallbacks, finite/reduced launch motion, dead presentation cleanup and the synthetic screenshot/demo pack are locked by `scripts/stage_b_ui_rc_gate.py`; Android/iOS/Quality verification is green.
-- The current engineering-hardening pass is tightening health-data ownership and correctness without adding new product domains: canonical intake status/timing/day boundaries, explicit iOS mutation owners and stable-ID recovery are the active repository work.
+- Health-data ownership/correctness hardening is closed on source-tested baseline `6ed2007`: canonical intake status/timing/day boundaries, explicit iOS mutation owners, stable-ID recovery and focused persistence/date tests are protected by `scripts/health_data_integrity_gate.py`.
+- App Shell Closure is implemented as the final presentation bug-fix batch: Android single-inset `Scaffold.bottomBar`, scroll-minimized 80dp→56dp primary navigation, native iOS 26 iPhone tab minimization with iOS 17+ fallback, and iOS token SSoT relocation. Closure requires exact-SHA Android/iOS/Quality CI before `main` is fast-forwarded.
 
 ## Next
 
-- No further small UI redesign stages are planned after Stage B. Continue only with bug fixes/regressions or explicitly requested product work.
+- No further small UI redesign stages are planned after App Shell Closure. Continue only with bug fixes/regressions or explicitly requested product work.
 - Store execution remains at the external gate unless developer accounts are intentionally enabled. When enabled, run TestFlight/Sandbox + Play Internal and complete real P4.1 evidence before any production promotion.
 - After real store activation, production commerce hardening remains the next commerce stage: Google Play server-side purchase-token verification/acknowledgement plus RTDN lifecycle processing.
 
