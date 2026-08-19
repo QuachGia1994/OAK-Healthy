@@ -23,7 +23,7 @@ FILES = {
     "android_en": ROOT / "Android/app/src/main/res/values/strings.xml",
     "android_vi": ROOT / "Android/app/src/main/res/values-vi/strings.xml",
     "ios_tokens": I / "OAKDesignTokens.swift",
-    "ios_palette": I / "OAKCard.swift",
+    "ios_palette": I / "OAKDesignTokens.swift",
     "ios_home": I / "HomeView.swift",
     "ios_history": I / "HistoryView.swift",
     "ios_stack": I / "StackView.swift",

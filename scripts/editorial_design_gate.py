@@ -12,6 +12,7 @@ ANDROID_STACK = ROOT / "Android/app/src/main/java/com/example/supplementtracker/
 ANDROID_SETTINGS = ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/home/SettingsComponents.kt"
 ANDROID_COACH = ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/coach/CoachOverviewScreen.kt"
 ANDROID_SYNC = ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/sync/SyncCenterScreen.kt"
+IOS_TOKENS = ROOT / "iOS/Views/OAKDesignTokens.swift"
 IOS_CARD = ROOT / "iOS/Views/OAKCard.swift"
 IOS_HOME = ROOT / "iOS/Views/HomeView.swift"
 IOS_HISTORY = ROOT / "iOS/Views/HistoryView.swift"
@@ -33,6 +34,7 @@ REQUIRED = [
     ANDROID_SETTINGS,
     ANDROID_COACH,
     ANDROID_SYNC,
+    IOS_TOKENS,
     IOS_CARD,
     IOS_HOME,
     IOS_HISTORY,
@@ -63,6 +65,7 @@ def main() -> None:
     android_card = read(ANDROID_CARD)
     android_type = read(ANDROID_TYPE)
     android_screens = [read(path) for path in [ANDROID_HOME, ANDROID_HISTORY, ANDROID_STACK, ANDROID_SETTINGS, ANDROID_COACH, ANDROID_SYNC]]
+    ios_tokens = read(IOS_TOKENS)
     ios_card = read(IOS_CARD)
     ios_screens = [read(path) for path in [IOS_HOME, IOS_HISTORY, IOS_STACK, IOS_SETTINGS, IOS_COACH, IOS_SYNC]]
 
@@ -83,7 +86,8 @@ def main() -> None:
     require("RoundedCornerShape(28.dp)" not in android_screens[5], "Android Sync reverted to oversized rounded card groups")
 
     for token in ["paper", "paperRaised", "paperMuted", "ink", "inkMuted", "hairline", "accent"]:
-        require(f"static let {token}" in ios_card, f"iOS editorial token missing: {token}")
+        require(f"static let {token}" in ios_tokens, f"iOS editorial token missing: {token}")
+    require("enum OAKPalette" not in ios_card, "iOS card component must consume the shared token owner instead of declaring a palette")
     require("ultraThinMaterial" not in ios_card, "iOS shared card must not revert to glass material")
     require("Circle()" not in ios_card and ".blur(" not in ios_card, "iOS shared background must not restore decorative glow circles")
     require("oakDisplay" in ios_card, "iOS display serif helper missing")

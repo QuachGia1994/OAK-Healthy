@@ -8,6 +8,7 @@ versioning where practical.
 
 ### Added
 
+- App Shell Closure adds cross-platform scroll-minimized primary navigation: Android collapses the 80dp icon+label bar to a 56dp icon-only bar on downward user scroll and restores it on upward scroll, while iPhone on iOS 26+ uses the native `tabBarMinimizeBehavior(.onScrollDown)` with an iOS 17+ fallback and an automated shell/inset/token gate.
 - Health-data integrity hardening adds canonical cross-platform dose timing/completion policies, explicit local-day boundaries/codecs, iOS SwiftData mutation owners for clients/routines/history, stable-ID Safe Mode recovery targeting, and focused DST/idempotence/recovery persistence tests plus a current health-data-flow architecture map.
 - Stage B Final UI/UX Release Candidate adds compact/large-text fallbacks for Stack/Coach/Settings/Plan Access, finite reduced-motion launch branding, deterministic screenshot/demo documentation, dead presentation-token cleanup, and a dedicated cross-platform RC gate wired into Quality Gates and the unified regression matrix.
 - Stage A Complete Product UI Redesign unifies Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode across Android/iOS, with progressive technical disclosure and a single cross-platform presentation contract.
@@ -42,6 +43,7 @@ versioning where practical.
 
 ### Changed
 
+- Android `Scaffold.bottomBar` now owns primary navigation and consumes the system navigation inset exactly once; iOS palette ownership moved into `OAKDesignTokens.swift`, and `DESIGN.md` now mirrors the current moss/paper token system instead of the retired teal/gradient/glass language.
 - History and Coach derived metrics now consume one timing/completion policy per platform; Android history queries use half-open local-day ranges and iOS date-only backup/sync values preserve the literal calendar day instead of converting through UTC.
 - iOS Views no longer directly insert/delete/save SwiftData health models; persistence mutations are delegated to explicit mutation-store boundaries and local Coach check-in corruption/save failures are surfaced instead of silently becoming empty data.
 - Legacy iOS export upgrade no longer contains a name-based merge path; ID-less routines are converted to deterministic identities before entering the preview/restore pipeline.
@@ -74,6 +76,7 @@ versioning where practical.
 
 ### Fixed
 
+- Android bottom navigation no longer risks double-applying the system navigation-bar inset on gesture or 3-button navigation devices.
 - Android `removeIntake(supplementId, date)` now deletes only the requested local calendar day instead of ignoring the supplied date and deleting today's history; exact next-midnight records are excluded by half-open query bounds.
 - iOS pending-import recovery now uses the stored client UUID when present, rejects ambiguous legacy name-only targets and surfaces rollback persistence failure instead of swallowing it.
 - Google Play product refresh now clears stale cached purchase offers before rebuilding the active offer map, preventing a removed/reconfigured store offer from remaining selectable in the client session.

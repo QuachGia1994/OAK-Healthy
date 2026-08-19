@@ -24,6 +24,7 @@ GATES = (
     "scripts/health_ui_redesign_gate.py",
     "scripts/p11_completion_gate.py",
     "scripts/stage_b_ui_rc_gate.py",
+    "scripts/ui_shell_closure_gate.py",
     "scripts/store_activation_gate.py",
     "scripts/release_preflight.py",
 )
@@ -45,7 +46,7 @@ def main() -> int:
     except subprocess.CalledProcessError as error:
         print(f"OAK regression matrix failed: {error.cmd}")
         return error.returncode or 1
-    print("OAK regression matrix passed: P8-P12-CLOSE, final UI RC and health-data ownership/integrity contracts are green.")
+    print("OAK regression matrix passed: P8-P12-CLOSE, final UI RC, app-shell closure and health-data ownership/integrity contracts are green.")
     return 0
 
 

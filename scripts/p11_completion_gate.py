@@ -14,6 +14,7 @@ ANDROID_SYNC = ROOT / "Android/app/src/main/java/com/example/supplementtracker/p
 ANDROID_DEMO = ROOT / "Android/app/src/main/java/com/example/supplementtracker/presentation/demo/DemoPreviewScreen.kt"
 ANDROID_EN = ROOT / "Android/app/src/main/res/values/strings.xml"
 ANDROID_VI = ROOT / "Android/app/src/main/res/values-vi/strings.xml"
+IOS_TOKENS = ROOT / "iOS/Views/OAKDesignTokens.swift"
 IOS_CARD = ROOT / "iOS/Views/OAKCard.swift"
 IOS_INTERACTION = ROOT / "iOS/Views/OAKInteraction.swift"
 IOS_HOME = ROOT / "iOS/Views/HomeView.swift"
@@ -35,6 +36,7 @@ REQUIRED = (
     ANDROID_DEMO,
     ANDROID_EN,
     ANDROID_VI,
+    IOS_TOKENS,
     IOS_CARD,
     IOS_INTERACTION,
     IOS_HOME,
@@ -69,11 +71,11 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def validate_dark_contrast(android_colors: str, ios_card: str) -> None:
+def validate_dark_contrast(android_colors: str, ios_tokens: str) -> None:
     for token in ("0xFF111714", "0xFFAAB5AE", "0xFF405047", "0xFF7DD3A8"):
         require(token in android_colors, f"Android dark contrast token missing: {token}")
     for token in ("0.0667", "0.6667", "0.2510", "0.4902"):
-        require(token in ios_card, f"iOS dark contrast token missing: {token}")
+        require(token in ios_tokens, f"iOS dark contrast token missing: {token}")
     require(contrast_ratio("AAB5AE", "111714") >= 4.5, "Dark secondary text contrast below 4.5:1")
     require(contrast_ratio("F2F5F3", "0B0F0D") >= 7.0, "Dark primary text contrast below 7:1")
     require(contrast_ratio("405047", "111714") >= 2.0, "Dark hairline contrast below 2:1")
@@ -135,8 +137,9 @@ def main() -> None:
     for path in REQUIRED:
         require(path.exists(), f"Missing P11 completion file: {path.relative_to(ROOT)}")
     android_colors = read(ANDROID_COLORS)
+    ios_tokens = read(IOS_TOKENS)
     ios_card = read(IOS_CARD)
-    validate_dark_contrast(android_colors, ios_card)
+    validate_dark_contrast(android_colors, ios_tokens)
     validate_interaction(read(ANDROID_INTERACTION), read(ANDROID_HOME), ios_card, read(IOS_HOME))
     validate_product_surfaces({
         "android_history": read(ANDROID_HISTORY),

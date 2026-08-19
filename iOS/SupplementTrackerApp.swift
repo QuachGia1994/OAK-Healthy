@@ -565,6 +565,7 @@ struct MainTabView: View {
         .tint(colorScheme == .dark ? OAKPalette.accentDark : OAKPalette.accent)
         .toolbarBackground(OAKPalette.surface(for: colorScheme), for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .oakScrollMinimizingTabBar()
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenDashboard"))) { _ in
             selectedTab = 0
         }
@@ -768,4 +769,15 @@ struct MainTabView: View {
         CloudSyncAutoSync.requestSyncSoon(modelContext: modelContext, clientId: supplement.client?.id)
     }
     
+}
+
+private extension View {
+    @ViewBuilder
+    func oakScrollMinimizingTabBar() -> some View {
+        if #available(iOS 26.0, *) {
+            tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+    }
 }

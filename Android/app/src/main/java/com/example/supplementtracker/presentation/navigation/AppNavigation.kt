@@ -1,28 +1,19 @@
 package com.example.supplementtracker.presentation.navigation
 
-import com.example.supplementtracker.presentation.designsystem.OakColors
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -46,8 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.home.DoseStatus
 import com.example.supplementtracker.presentation.home.HomeUiState
@@ -91,7 +81,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: @Composable 
     data object Onboarding : Screen("onboarding", R.string.app_name, { })
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(
     homeViewModel: HomeViewModel,
@@ -180,17 +170,52 @@ fun AppNavigation(
 
     val startDestination = if (hasCompletedOnboarding) Screen.Home.route else Screen.Onboarding.route
     val isMainTab = items.any { it.route == currentDestination?.route }
+    val bottomBarScrollState = rememberOakBottomBarScrollState()
+
+    LaunchedEffect(currentDestination?.route) {
+        bottomBarScrollState.expand()
+    }
 
     Scaffold(
-        containerColor = Color.Transparent
+        containerColor = Color.Transparent,
+        bottomBar = {
+            if (isMainTab && hasCompletedOnboarding) {
+                OakBottomBar(
+                    items = items,
+                    currentRoute = currentDestination?.route,
+                    overdueCount = overdueCount,
+                    scrollState = bottomBarScrollState,
+                    onTabSelected = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+            }
+        }
     ) { innerPadding ->
-        Column(modifier = Modifier.padding(innerPadding)) {
-            // ponytail: single NavHost for all routes — fixes fragmented back stack
-            NavHost(
-                navController = navController,
-                startDestination = startDestination,
-                modifier = Modifier.weight(1f).fillMaxWidth()
-            ) {
+        val shellModifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .consumeWindowInsets(innerPadding)
+            .then(
+                if (isMainTab && hasCompletedOnboarding) {
+                    Modifier.nestedScroll(bottomBarScrollState.nestedScrollConnection)
+                } else {
+                    Modifier
+                }
+            )
+
+        // Single NavHost owns the complete app back stack; shell chrome stays outside route content.
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            modifier = shellModifier
+        ) {
                 composable(Screen.Home.route) {
                     HomeScreen(
                         viewModel = homeViewModel,
@@ -310,77 +335,6 @@ fun AppNavigation(
                         }
                     )
                 }
-            }
-
-            if (isMainTab && hasCompletedOnboarding) {
-                OakBottomBar(
-                    items = items,
-                    currentRoute = currentDestination?.route,
-                    overdueCount = overdueCount,
-                    onTabSelected = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OakBottomBar(
-    items: List<Screen>,
-    currentRoute: String?,
-    overdueCount: Int,
-    onTabSelected: (String) -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp
-    ) {
-        Column {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Box(
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding(),
-                contentAlignment = Alignment.Center
-            ) {
-                NavigationBar(
-                    modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
-                    containerColor = Color.Transparent,
-                    tonalElevation = 0.dp
-                ) {
-                    items.forEach { screen ->
-                        val selected = currentRoute == screen.route
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { if (!selected) onTabSelected(screen.route) },
-                            icon = {
-                                BadgedBox(
-                                    badge = {
-                                        if (screen == Screen.Home && overdueCount > 0) {
-                                            Badge { Text(if (overdueCount > 99) "99+" else overdueCount.toString()) }
-                                        }
-                                    }
-                                ) { screen.icon() }
-                            },
-                            label = { Text(stringResource(screen.titleRes), maxLines = 1) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                                indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
-                }
-            }
         }
     }
 }
