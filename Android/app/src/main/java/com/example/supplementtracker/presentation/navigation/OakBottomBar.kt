@@ -47,7 +47,7 @@ class OakBottomBarScrollState internal constructor(
 
     val nestedScrollConnection = object : NestedScrollConnection {
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-            if (source != NestedScrollSource.UserInput || available.y == 0f) return Offset.Zero
+            if (source != NestedScrollSource.Drag || available.y == 0f) return Offset.Zero
             accumulatedY = when {
                 available.y < 0f -> minOf(0f, accumulatedY) + available.y
                 else -> maxOf(0f, accumulatedY) + available.y

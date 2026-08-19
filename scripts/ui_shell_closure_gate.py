@@ -32,7 +32,7 @@ def validate_android(data: dict[str, str]) -> None:
     require("navigationBarsPadding" not in nav, "Android AppNavigation still applies a second navigation-bar inset")
     require(bar.count("navigationBarsPadding()") == 1, "Android bottom bar must consume navigation inset exactly once")
     require("WindowInsets(0, 0, 0, 0)" in bar, "Android NavigationBar internal insets are not disabled at the owned boundary")
-    require("NestedScrollConnection" in bar and "NestedScrollSource.UserInput" in bar, "Android scroll-minimize state does not observe user nested scroll")
+    require("NestedScrollConnection" in bar and "NestedScrollSource.Drag" in bar, "Android scroll-minimize state does not observe direct user drag input")
     require("56.dp" in bar and "80.dp" in bar, "Android compact/full bottom-bar heights are missing")
     require("label = if (scrollState.compact)" in bar and "alwaysShowLabel = !scrollState.compact" in bar, "Android compact bar does not switch to icon-only presentation")
     require("rememberOakReduceMotion" in bar and "snap()" in bar, "Android bottom-bar transition does not respect reduced motion")
