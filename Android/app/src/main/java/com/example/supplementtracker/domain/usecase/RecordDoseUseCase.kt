@@ -1,6 +1,7 @@
 package com.example.supplementtracker.domain.usecase
 
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeStatus
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.util.DoseEventKey
 import java.time.ZoneId
@@ -9,9 +10,9 @@ import java.util.Locale
 class RecordDoseUseCase(
     private val repository: SupplementRepository
 ) {
-    enum class Action(val rawStatus: String) {
-        TAKEN("Taken"),
-        SKIPPED("Skipped")
+    enum class Action(val status: IntakeStatus) {
+        TAKEN(IntakeStatus.TAKEN),
+        SKIPPED(IntakeStatus.SKIPPED)
     }
 
     suspend operator fun invoke(
@@ -28,16 +29,17 @@ class RecordDoseUseCase(
                 id = DoseEventKey.make(normalizedSupplementId, scheduledAtEpochMs),
                 supplementId = normalizedSupplementId,
                 date = scheduledAtEpochMs,
-                status = action.rawStatus,
+                status = action.status.storageValue,
                 updatedAtEpochMs = now
             )
         )
 
         if (action == Action.TAKEN) {
             val supplement = repository.getSupplementById(normalizedSupplementId) ?: return
-            val day = java.time.Instant.ofEpochMilli(scheduledAtEpochMs)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate()
+            val day = com.example.supplementtracker.domain.util.HealthDayBoundary.localDate(
+                scheduledAtEpochMs,
+                ZoneId.systemDefault()
+            )
             repository.updateSupplement(
                 supplement.copy(lastTakenLocalDate = day, updatedAtEpochMs = now)
             )

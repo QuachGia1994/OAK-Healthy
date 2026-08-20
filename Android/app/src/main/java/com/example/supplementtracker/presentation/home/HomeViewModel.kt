@@ -6,10 +6,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.usecase.CalculateCycleUseCase
+import com.example.supplementtracker.domain.usecase.BackupImportPlan
+import com.example.supplementtracker.domain.usecase.BackupImportPreview
 import com.example.supplementtracker.domain.usecase.CalculateHomeDashboardUseCase
 import com.example.supplementtracker.domain.usecase.ClientProfileUseCase
 import com.example.supplementtracker.domain.usecase.ImportBackupUseCase
 import com.example.supplementtracker.domain.usecase.RecordDoseUseCase
+import com.example.supplementtracker.domain.usecase.SupplementMutationUseCase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -18,13 +21,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.ZoneId
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.util.DoseEventKey
+import com.example.supplementtracker.domain.util.HealthDayBoundary
 import com.example.supplementtracker.domain.util.TimeStrings
 import com.example.supplementtracker.data.mock.SupplementDictionary
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
@@ -36,14 +43,24 @@ import com.example.supplementtracker.service.CloudHostEngine
 import com.example.supplementtracker.service.CloudBackupEngine
 import com.example.supplementtracker.service.CloudSyncCrypto
 import com.example.supplementtracker.service.CloudSyncPayloadCodec
+import com.example.supplementtracker.service.CloudSyncLogStore
+import com.example.supplementtracker.service.CloudSyncProfileStore
+import com.example.supplementtracker.service.CloudSyncStatusReader
+import com.example.supplementtracker.service.CloudSyncStatusSnapshot
+import com.example.supplementtracker.service.CloudSyncStatusSource
+import com.example.supplementtracker.service.ActiveProfileNotificationPolicy
+import com.example.supplementtracker.service.FactoryResetEngine
+import com.example.supplementtracker.service.ClientProfileMutationEngine
+import com.example.supplementtracker.service.ClientProfileMutationResult
+import com.example.supplementtracker.service.CommercialFeature
+import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.NotificationRecoveryAction
 import com.example.supplementtracker.service.NotificationScheduleEngine
 import com.example.supplementtracker.worker.CloudAutoSyncWork
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import org.json.JSONArray
-import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -54,7 +71,9 @@ class HomeViewModel(
     private val context: Context,
     private val repository: com.example.supplementtracker.domain.repository.SupplementRepository,
     private val activeClientManager: ActiveClientManager,
-    private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase()
+    private val entitlementManager: EntitlementManager,
+    private val calculateCycleUseCase: CalculateCycleUseCase = CalculateCycleUseCase(),
+    private val cloudSyncStatusSource: CloudSyncStatusSource = CloudSyncStatusReader(OakPrefs.get(context))
 ) : ViewModel() {
     private val _today = MutableStateFlow(LocalDate.now())
     val currentDay: StateFlow<LocalDate> = _today
@@ -77,6 +96,12 @@ class HomeViewModel(
         val lastError: String?,
         val phase: CloudSyncPhase,
         val conflictRetryCount: Int,
+        val queuedMutationCount: Int,
+        val nextRetryEpochMs: Long,
+        val conflictRemoteWins: Int,
+        val conflictLocalWins: Int,
+        val conflictTieLocalWins: Int,
+        val journalCount: Int,
         val bytesDownloaded: Long,
         val bytesUploaded: Long,
         val pullMs: Long,
@@ -86,53 +111,93 @@ class HomeViewModel(
     )
 
     private val _refreshTrigger = MutableStateFlow(0)
+    private val _lastNotificationRebuildEpochMs = MutableStateFlow(
+        OakPrefs.get(context).getLong("oakLastNotificationRebuildEpochMs", 0L)
+    )
+    val lastNotificationRebuildEpochMs: StateFlow<Long> = _lastNotificationRebuildEpochMs
     private val _dataTransferMessage = MutableStateFlow<String?>(null)
     val dataTransferMessage: StateFlow<String?> = _dataTransferMessage
+    private val _backupImportPreview = MutableStateFlow<BackupImportPreview?>(null)
+    val backupImportPreview: StateFlow<BackupImportPreview?> = _backupImportPreview
     private val _cloudSyncLoading = MutableStateFlow(false)
     val cloudSyncLoading: StateFlow<Boolean> = _cloudSyncLoading
-    private val _hostedBinId = MutableStateFlow<String?>(null)
+    private val cloudSyncProfileStore = CloudSyncProfileStore(context)
+    private val initialCloudLinks = cloudSyncProfileStore.links(activeClientManager.currentClientId.value)
+    private val _hostedBinId = MutableStateFlow(initialCloudLinks.hostedBinId)
     val hostedBinId: StateFlow<String?> = _hostedBinId
+    private val _linkedBinId = MutableStateFlow(initialCloudLinks.linkedBinId)
+    val linkedBinId: StateFlow<String?> = _linkedBinId
     private val _cloudSyncUiStatus = MutableStateFlow<CloudSyncUiStatus?>(null)
     val cloudSyncUiStatus: StateFlow<CloudSyncUiStatus?> = _cloudSyncUiStatus
     private var pendingAutoSyncJob: Job? = null
-    private val cloudSyncEngine = CloudSyncEngine(
-        context = context,
-        repository = repository,
-        currentClientId = { activeClientManager.currentClientId.value },
-        buildFullBackupJson = { buildFullBackupJson() },
-        buildStackBackupJson = { buildStackBackupJson() },
-        buildHistoryBackupJson = { buildHistoryBackupJson() },
-        updateUi = { updateCloudSyncUiStatus(it) },
-        setLoading = { _cloudSyncLoading.value = it },
-        rescheduleNotifications = { rescheduleNotificationsNow() },
-        disableAutoSync = { stopAutoSync() },
-        appendLog = { prefs, binId, phase, message -> appendCloudSyncLog(prefs, binId, phase, message) }
-    )
     private val cloudBackupEngine = CloudBackupEngine(
         context = context,
         repository = repository,
         currentClientId = { activeClientManager.currentClientId.value }
     )
-    private val calculateHomeDashboardUseCase = CalculateHomeDashboardUseCase(calculateCycleUseCase)
-    private val importBackupUseCase = ImportBackupUseCase(repository)
-    private val recordDoseUseCase = RecordDoseUseCase(repository)
-    private val notificationScheduleEngine = NotificationScheduleEngine(context, repository)
-    private val clientProfileUseCase = ClientProfileUseCase(repository)
-    private val cloudHostEngine = CloudHostEngine(
+    private val cloudSyncEngine = CloudSyncEngine(
         context = context,
-        getHostedBinId = { _hostedBinId.value },
-        setHostedBinId = { _hostedBinId.value = it },
-        buildStackBackupJson = { cloudBackupEngine.buildStackBackupJson() },
-        buildHistoryBackupJson = { cloudBackupEngine.buildHistoryBackupJson() },
-        buildFullBackupJson = { cloudBackupEngine.buildFullBackupJson() },
+        repository = repository,
+        currentClientId = { activeClientManager.currentClientId.value },
+        buildFullBackupJson = { clientId -> cloudBackupEngine.buildFullBackupJson(clientId) },
+        buildStackBackupJson = { clientId -> cloudBackupEngine.buildStackBackupJson(clientId) },
+        buildHistoryBackupJson = { clientId -> cloudBackupEngine.buildHistoryBackupJson(clientId) },
         updateUi = { updateCloudSyncUiStatus(it) },
         setLoading = { _cloudSyncLoading.value = it },
-        appendLog = { prefs, binId, phase, message -> appendCloudSyncLog(prefs, binId, phase, message) },
+        rescheduleNotifications = { rescheduleNotificationsNow() },
+        disableAutoSync = { stopAutoSync() },
+        appendLog = CloudSyncLogStore::append
+    )
+    private val calculateHomeDashboardUseCase = CalculateHomeDashboardUseCase(calculateCycleUseCase)
+    private val importBackupUseCase = ImportBackupUseCase(repository)
+    private var pendingBackupImportPlan: BackupImportPlan? = null
+    private val recordDoseUseCase = RecordDoseUseCase(repository)
+    private val supplementMutationUseCase = SupplementMutationUseCase(repository)
+    private val notificationScheduleEngine = NotificationScheduleEngine(
+        context,
+        repository,
+        { activeClientManager.currentClientId.value }
+    )
+    private val factoryResetEngine = FactoryResetEngine(
+        repository = repository,
+        clearNotifications = { notificationScheduleEngine.clearAll() },
+        disableAutoSync = { stopAutoSync() },
+        clearPreferences = { check(OakPrefs.get(context).edit().clear().commit()) },
+        clearCryptoMaterial = { CloudSyncCrypto.clearLocalKeyMaterial().getOrThrow() },
+        clearActiveClient = { activeClientManager.setCurrentClientId(null) }
+    )
+    private val clientProfileUseCase = ClientProfileUseCase(repository)
+    private val clientProfileMutationEngine = ClientProfileMutationEngine(
+        createProfile = clientProfileUseCase::create,
+        updateProfile = clientProfileUseCase::update,
+        deleteProfile = clientProfileUseCase::delete,
+        loadClients = { repository.observeClients().first() },
+        currentClientId = { activeClientManager.currentClientId.value },
+        setCurrentClientId = activeClientManager::setCurrentClientId,
+        clearCloudLinks = cloudSyncProfileStore::clearLinks,
+        maxClients = entitlementManager::maxClients
+    )
+    private val cloudHostEngine = CloudHostEngine(
+        context = context,
+        currentClientId = { activeClientManager.currentClientId.value },
+        getHostedBinId = { clientId -> cloudSyncProfileStore.links(clientId).hostedBinId },
+        setHostedBinId = { clientId, binId -> setHostedBinId(clientId, binId) },
+        buildStackBackupJson = { clientId -> cloudBackupEngine.buildStackBackupJson(clientId) },
+        buildHistoryBackupJson = { clientId -> cloudBackupEngine.buildHistoryBackupJson(clientId) },
+        buildFullBackupJson = { clientId -> cloudBackupEngine.buildFullBackupJson(clientId) },
+        updateUi = { updateCloudSyncUiStatus(it) },
+        setLoading = { _cloudSyncLoading.value = it },
+        appendLog = CloudSyncLogStore::append,
         setMessage = { _dataTransferMessage.value = it }
     )
     private var realtimeListener: com.example.supplementtracker.service.FirebaseRealtimeSyncListener? = null
 
     fun startAutoSync() {
+        if (!entitlementManager.canUse(CommercialFeature.ENCRYPTED_CLOUD_SYNC)) {
+            OakPrefs.get(context).edit().putBoolean("isAutoSyncEnabled", false).apply()
+            stopAutoSync()
+            return
+        }
         CloudAutoSyncWork.setEnabled(context, true)
         startRealtimeListener()
         activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it, delayMillis = 0L) }
@@ -163,12 +228,38 @@ class HomeViewModel(
         realtimeListener?.close()
         realtimeListener = null
     }
+
     private val adviceByName: Map<String, String?> =
         SupplementDictionary.localizedReferences(context).associate { it.name to it.advice }
     private val expiredCleanupIds = ConcurrentHashMap.newKeySet<String>()
 
     init {
         observeDayChanges()
+        observeActiveClientChanges()
+        viewModelScope.launch { autoReconcileNotificationSchedules() }
+    }
+
+    private fun observeActiveClientChanges() {
+        viewModelScope.launch {
+            activeClientManager.currentClientId
+                .drop(1)
+                .collectLatest { handleActiveClientChanged(it) }
+        }
+    }
+
+    private suspend fun handleActiveClientChanged(clientId: java.util.UUID?) {
+        pendingAutoSyncJob?.cancel()
+        pendingAutoSyncJob = null
+        stopRealtimeListener()
+        val links = cloudSyncProfileStore.links(clientId)
+        _hostedBinId.value = links.hostedBinId
+        _linkedBinId.value = links.linkedBinId
+        _cloudSyncUiStatus.value = null
+        rescheduleNotificationsNow()
+        if (!OakPrefs.get(context).getBoolean("isAutoSyncEnabled", false)) return
+        val manifestId = links.activeManifestId ?: return
+        startRealtimeListener()
+        requestAutoSyncDebounced(manifestId, delayMillis = 0L)
     }
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -180,7 +271,7 @@ class HomeViewModel(
             val id = clientId?.toString() ?: return@flatMapLatest flowOf(HomeUiState.NoClient)
             combine(
                 repository.getAllSupplements(id),
-                repository.getRecordsByDateRange(id, getStartOfDay(daysAgo = 119), getEndOfTomorrow())
+                repository.getRecordsByDateRange(id, getStartOfDay(today, daysAgo = 119), getEndExclusive(today))
             ) { supplements, records -> supplements to records }
                 .mapLatest { (supplements, records) ->
                     cleanupExpiredSupplements(supplements, today)
@@ -220,10 +311,11 @@ class HomeViewModel(
         _dataTransferMessage.value = null
     }
     
-    private suspend fun syncTwoWay(binId: String): Boolean = cloudSyncEngine.syncTwoWay(binId)
+    private suspend fun syncTwoWay(binId: String, force: Boolean = false): Boolean =
+        cloudSyncEngine.syncTwoWay(binId, force = force)
 
     fun syncNow(binId: String) {
-        viewModelScope.launch { syncTwoWay(binId) }
+        viewModelScope.launch { syncTwoWay(binId, force = true) }
     }
     
     fun refreshCloudSyncUi(binId: String) {
@@ -232,67 +324,51 @@ class HomeViewModel(
     
     private suspend fun updateCloudSyncUiStatus(binId: String) {
         val clientId = activeClientManager.currentClientId.value ?: return
-        val prefs = OakPrefs.get(context)
         val id = binId.trim()
         if (id.isEmpty()) {
             _cloudSyncUiStatus.value = null
             return
         }
-        val lastSyncKey = "cloudSyncLastSyncEpochMs_$id"
-        val lastAttemptKey = "cloudSyncLastAttemptEpochMs_$id"
-        val lastErrorKey = "cloudSyncLastError_$id"
-        val phaseKey = "cloudSyncPhase_$id"
-        val retryKey = "cloudSyncConflictRetryCount_$id"
-        val bytesDownloadedKey = "cloudSyncBytesDownloaded_$id"
-        val bytesUploadedKey = "cloudSyncBytesUploaded_$id"
-        val pullMsKey = "cloudSyncPullMs_$id"
-        val mergeMsKey = "cloudSyncMergeMs_$id"
-        val pushMsKey = "cloudSyncPushMs_$id"
-        val totalMsKey = "cloudSyncTotalMs_$id"
-        val lastSyncEpochMs = prefs.getLong(lastSyncKey, 0L)
-        val lastAttemptEpochMs = prefs.getLong(lastAttemptKey, 0L)
-        val lastError = prefs.getString(lastErrorKey, null)?.trim()?.takeIf { it.isNotEmpty() }
-        val phase = runCatching { CloudSyncPhase.valueOf(prefs.getString(phaseKey, "") ?: "") }.getOrNull()
-            ?: CloudSyncPhase.IDLE
-        val retryCount = prefs.getInt(retryKey, 0)
-        val bytesDownloaded = prefs.getLong(bytesDownloadedKey, 0L)
-        val bytesUploaded = prefs.getLong(bytesUploadedKey, 0L)
-        val pullMs = prefs.getLong(pullMsKey, 0L)
-        val mergeMs = prefs.getLong(mergeMsKey, 0L)
-        val pushMs = prefs.getLong(pushMsKey, 0L)
-        val totalMs = prefs.getLong(totalMsKey, 0L)
-        val pending = cloudSyncEngine.hasLocalChangesSince(clientId, lastSyncEpochMs)
-        _cloudSyncUiStatus.value = CloudSyncUiStatus(
+        val snapshot = cloudSyncStatusSource.read(id, clientId.toString())
+        val pending = cloudSyncEngine.hasLocalChangesSince(clientId, snapshot.lastSyncEpochMs)
+        _cloudSyncUiStatus.value = buildCloudSyncUiStatus(id, snapshot, pending)
+    }
+
+    private fun buildCloudSyncUiStatus(
+        id: String,
+        snapshot: CloudSyncStatusSnapshot,
+        pending: Boolean
+    ): CloudSyncUiStatus {
+        val phase = runCatching { CloudSyncPhase.valueOf(snapshot.phaseName) }
+            .getOrDefault(CloudSyncPhase.IDLE)
+        return CloudSyncUiStatus(
             binId = id,
-            lastSyncEpochMs = lastSyncEpochMs,
-            lastAttemptEpochMs = lastAttemptEpochMs,
+            lastSyncEpochMs = snapshot.lastSyncEpochMs,
+            lastAttemptEpochMs = snapshot.lastAttemptEpochMs,
             hasPendingChanges = pending,
-            lastError = lastError
-            ,
+            lastError = snapshot.lastError,
             phase = phase,
-            conflictRetryCount = retryCount,
-            bytesDownloaded = bytesDownloaded,
-            bytesUploaded = bytesUploaded,
-            pullMs = pullMs,
-            mergeMs = mergeMs,
-            pushMs = pushMs,
-            totalMs = totalMs
+            conflictRetryCount = snapshot.conflictRetryCount,
+            queuedMutationCount = snapshot.queuedMutationCount,
+            nextRetryEpochMs = snapshot.nextRetryEpochMs,
+            conflictRemoteWins = snapshot.conflictRemoteWins,
+            conflictLocalWins = snapshot.conflictLocalWins,
+            conflictTieLocalWins = snapshot.conflictTieLocalWins,
+            journalCount = snapshot.journalCount,
+            bytesDownloaded = snapshot.bytesDownloaded,
+            bytesUploaded = snapshot.bytesUploaded,
+            pullMs = snapshot.pullMs,
+            mergeMs = snapshot.mergeMs,
+            pushMs = snapshot.pushMs,
+            totalMs = snapshot.totalMs
         )
     }
     
-    private suspend fun buildStackBackupJson(): Result<String> = cloudBackupEngine.buildStackBackupJson()
+    private fun getStartOfDay(today: LocalDate, daysAgo: Long): Long =
+        HealthDayBoundary.range(today.minusDays(daysAgo), ZoneId.systemDefault()).startInclusive
 
-    private suspend fun buildHistoryBackupJson(): Result<String> = cloudBackupEngine.buildHistoryBackupJson()
-
-    private suspend fun buildFullBackupJson(): Result<String> = cloudBackupEngine.buildFullBackupJson()
-
-    private fun getStartOfDay(daysAgo: Long): Long {
-        return LocalDate.now().minusDays(daysAgo).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    }
-    
-    private fun getEndOfTomorrow(): Long {
-        return LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-    }
+    private fun getEndExclusive(today: LocalDate): Long =
+        HealthDayBoundary.range(today, ZoneId.systemDefault()).endExclusive
 
     private fun processSupplements(
         supplements: List<UserSupplement>,
@@ -322,7 +398,12 @@ class HomeViewModel(
         val restingList = result.restingSupplements.map {
             RestingSupplementInfo(it.supplement, it.daysRemaining)
         }
-        return HomeUiState.Success(activeItems, restingList, result.streakDays)
+        return HomeUiState.Success(
+            activeItems,
+            restingList,
+            result.streakDays,
+            result.hasAnyIntakeRecord
+        )
     }
 
     private fun isExpired(supplement: UserSupplement, today: LocalDate): Boolean =
@@ -337,7 +418,7 @@ class HomeViewModel(
                 val id = supplement.id.toString()
                 if (!expiredCleanupIds.add(id)) continue
                 try {
-                    repository.deleteSupplement(supplement)
+                    supplementMutationUseCase.softDeleteRoutine(supplement)
                     removed += supplement
                 } finally {
                     expiredCleanupIds.remove(id)
@@ -367,6 +448,9 @@ class HomeViewModel(
         action: DoseAction
     ) {
         viewModelScope.launch {
+            val supplement = repository.getSupplementById(supplementId) ?: return@launch
+            val activeClientId = activeClientManager.currentClientId.value
+            if (!ActiveProfileNotificationPolicy.allows(activeClientId, supplement.clientId)) return@launch
             val normalizedSupplementId = supplementId.lowercase(Locale.ROOT)
             val recordId = DoseEventKey.make(normalizedSupplementId, scheduledAtEpochMs)
             if (repository.getIntakeRecordById(recordId) != null) return@launch
@@ -383,13 +467,15 @@ class HomeViewModel(
                 DoseAction.SKIPPED -> RecordDoseUseCase.Action.SKIPPED
             }
         )
+        com.example.supplementtracker.service.ActivationRetentionStore(context)
+            .mark(com.example.supplementtracker.service.ActivationMilestone.FIRST_ACTION)
         rescheduleNotificationsNow()
         activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it) }
     }
 
     fun deleteItem(supplement: UserSupplement) {
         viewModelScope.launch {
-            repository.deleteSupplement(supplement)
+            supplementMutationUseCase.softDeleteRoutine(supplement)
             rescheduleNotificationsNow()
             val binId = activeAutoSyncBinId()
             if (binId != null) {
@@ -401,11 +487,9 @@ class HomeViewModel(
     fun deleteDoseTime(supplement: UserSupplement, timeString: String) {
         viewModelScope.launch {
             val remainingTimes = TimeStrings.removingTime(timeString, from = supplement.intakeTime)
-            repository.updateSupplement(
-                supplement.copy(
-                    intakeTime = remainingTimes.joinToString(", "),
-                    updatedAtEpochMs = System.currentTimeMillis()
-                )
+            supplementMutationUseCase.updateIntakeTimes(
+                supplement,
+                remainingTimes.joinToString(", ")
             )
             rescheduleNotificationsNow()
             activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it) }
@@ -415,7 +499,7 @@ class HomeViewModel(
     fun deleteItem(supplementId: String) {
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
-            repository.deleteSupplement(supplement)
+            supplementMutationUseCase.softDeleteRoutine(supplement)
             rescheduleNotificationsNow()
             val binId = activeAutoSyncBinId()
             if (binId != null) {
@@ -436,8 +520,26 @@ class HomeViewModel(
                     _dataTransferMessage.value = context.getString(R.string.invalid_json)
                     return@launch
                 }
-            importBackupUseCase(prepared, clientId)
+            importBackupUseCase.preview(prepared, clientId)
+                .onSuccess(::showBackupImportPreview)
+                .onFailure {
+                    cancelBackupImport()
+                    _dataTransferMessage.value = context.getString(R.string.invalid_json)
+                }
+        }
+    }
+
+    fun confirmBackupImport() {
+        val plan = pendingBackupImportPlan ?: return
+        if (activeClientManager.currentClientId.value?.toString() != plan.clientId) {
+            cancelBackupImport()
+            _dataTransferMessage.value = context.getString(R.string.missing_active_client)
+            return
+        }
+        viewModelScope.launch {
+            importBackupUseCase.restore(plan)
                 .onSuccess {
+                    cancelBackupImport()
                     refresh()
                     rescheduleNotificationsNow()
                     OakPrefs.get(context)
@@ -447,8 +549,37 @@ class HomeViewModel(
                     _dataTransferMessage.value = context.getString(R.string.import_success)
                 }
                 .onFailure {
-                    _dataTransferMessage.value = context.getString(R.string.invalid_json)
+                    _dataTransferMessage.value = context.getString(R.string.import_failed_rollback_safe)
                 }
+        }
+    }
+
+    fun cancelBackupImport() {
+        pendingBackupImportPlan = null
+        _backupImportPreview.value = null
+    }
+
+    private fun showBackupImportPreview(plan: BackupImportPlan) {
+        pendingBackupImportPlan = plan
+        _backupImportPreview.value = plan.preview
+        val preview = plan.preview
+        _dataTransferMessage.value = if (preview.canRestore) {
+            context.getString(
+                R.string.import_preview_format,
+                preview.sourceSchema,
+                preview.supplementCount,
+                preview.historyCount,
+                preview.existingSupplementCount,
+                preview.existingHistoryCount,
+                preview.remappedSupplementIdCount
+            )
+        } else {
+            context.getString(
+                R.string.import_preview_blocked_format,
+                preview.duplicateSupplementIdCount,
+                preview.duplicateHistoryCount,
+                preview.orphanHistoryCount
+            )
         }
     }
 
@@ -510,13 +641,14 @@ class HomeViewModel(
     }
     
     private fun activeAutoSyncBinId(): String? {
-        val prefs = OakPrefs.get(context)
-        val enabled = prefs.getBoolean("isAutoSyncEnabled", false)
-        if (!enabled) return null
-        val hosted = prefs.getString("cloudSyncHostedBinId", "").orEmpty().trim()
-        val linked = prefs.getString("cloudSyncLinkedBinId", "").orEmpty().trim()
-        val id = if (hosted.isNotEmpty()) hosted else linked
-        return id.takeIf { it.isNotEmpty() }
+        if (!OakPrefs.get(context).getBoolean("isAutoSyncEnabled", false)) return null
+        return cloudSyncProfileStore.activeManifestId(activeClientManager.currentClientId.value)
+    }
+
+    private fun setHostedBinId(clientId: java.util.UUID, binId: String?) {
+        cloudSyncProfileStore.setHostedBinId(clientId, binId)
+        if (activeClientManager.currentClientId.value != clientId) return
+        _hostedBinId.value = binId?.trim()?.takeIf { it.isNotEmpty() }
     }
     
     private fun requestAutoSyncDebounced(binId: String, delayMillis: Long = 350L) {
@@ -530,50 +662,15 @@ class HomeViewModel(
         }
     }
     
-    private fun appendCloudSyncLog(prefs: android.content.SharedPreferences, binId: String, phase: String, message: String) {
-        val id = binId.trim()
-        if (id.isEmpty()) return
-        val key = "cloudSyncLog_$id"
-        val existing = prefs.getString(key, null)
-        val array = runCatching { if (existing.isNullOrBlank()) JSONArray() else JSONArray(existing) }.getOrElse { JSONArray() }
-        val now = System.currentTimeMillis()
-        if (array.length() > 0) {
-            val last = runCatching { array.getJSONObject(array.length() - 1) }.getOrNull()
-            val lastPhase = last?.optString("phase").orEmpty()
-            val lastMsg = last?.optString("msg").orEmpty()
-            val lastTs = last?.optLong("ts") ?: 0L
-            if (lastPhase == phase && lastMsg == message && (now - lastTs) < 15_000L) return
-        }
-        val entry = JSONObject()
-            .put("ts", now)
-            .put("phase", phase)
-            .put("msg", message)
-        array.put(entry)
-        val keep = 30
-        val trimmed = JSONArray()
-        val start = (array.length() - keep).coerceAtLeast(0)
-        for (i in start until array.length()) trimmed.put(array.getJSONObject(i))
-        prefs.edit().putString(key, trimmed.toString()).apply()
-    }
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-    
     fun refreshNotificationSchedules() {
         viewModelScope.launch {
             rescheduleNotificationsNow()
         }
+    }
+
+    suspend fun rebuildNotificationSchedules(): Long {
+        rescheduleNotificationsNow()
+        return _lastNotificationRebuildEpochMs.value
     }
     
     fun clearPendingNotifications() {
@@ -582,52 +679,74 @@ class HomeViewModel(
         }
     }
 
+    fun factoryReset(onResult: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val result = factoryResetEngine.reset()
+            if (result.isSuccess) {
+                _hostedBinId.value = null
+                _linkedBinId.value = null
+                _cloudSyncUiStatus.value = null
+                _cloudSyncLoading.value = false
+                refresh()
+            }
+            onResult(result)
+        }
+    }
+
     private suspend fun rescheduleNotificationsNow() {
         notificationScheduleEngine.rescheduleAll()
+        recordNotificationRebuild()
     }
 
-    fun receiveData(binId: String) {
+    private suspend fun autoReconcileNotificationSchedules() {
+        val decision = notificationScheduleEngine.reconcileIfNeeded()
+        if (decision.action == NotificationRecoveryAction.REBUILD) recordNotificationRebuild()
+    }
+
+    private fun recordNotificationRebuild() {
+        val rebuiltAt = System.currentTimeMillis()
+        OakPrefs.get(context).edit().putLong("oakLastNotificationRebuildEpochMs", rebuiltAt).apply()
+        _lastNotificationRebuildEpochMs.value = rebuiltAt
+    }
+
+    fun linkData(binId: String) {
         viewModelScope.launch {
-            syncTwoWay(binId)
+            val clientId = activeClientManager.currentClientId.value ?: return@launch
+            val id = binId.trim()
+            if (id.isEmpty() || !syncTwoWay(id, force = true)) return@launch
+            if (activeClientManager.currentClientId.value != clientId) return@launch
+            cloudSyncProfileStore.setLinkedBinId(clientId, id)
+            _linkedBinId.value = id
+            if (OakPrefs.get(context).getBoolean("isAutoSyncEnabled", false)) startRealtimeListener()
         }
     }
 
-    fun silentDownloadAndMerge(binId: String) {
-        viewModelScope.launch { syncTwoWay(binId) }
+    fun unlinkData() {
+        val clientId = activeClientManager.currentClientId.value ?: return
+        cloudSyncProfileStore.setLinkedBinId(clientId, null)
+        _linkedBinId.value = null
+        if (_hostedBinId.value.isNullOrBlank()) stopRealtimeListener()
     }
 
-    suspend fun runSyncTwoWayNow(binId: String) {
-        syncTwoWay(binId)
-    }
-    
-
-    
-
-    
-
-
-
-
-
-
-
-
-    fun createClient(profile: ClientProfile) {
-        viewModelScope.launch {
-            clientProfileUseCase.create(profile)
-        }
+    fun createClient(
+        profile: ClientProfile,
+        onResult: (ClientProfileMutationResult) -> Unit = {}
+    ) {
+        viewModelScope.launch { onResult(clientProfileMutationEngine.create(profile)) }
     }
 
-    fun deleteClient(profile: ClientProfile) {
-        viewModelScope.launch {
-            clientProfileUseCase.delete(profile)
-        }
+    fun deleteClient(
+        profile: ClientProfile,
+        onResult: (ClientProfileMutationResult) -> Unit = {}
+    ) {
+        viewModelScope.launch { onResult(clientProfileMutationEngine.delete(profile)) }
     }
 
-    fun updateClient(profile: ClientProfile) {
-        viewModelScope.launch {
-            clientProfileUseCase.update(profile)
-        }
+    fun updateClient(
+        profile: ClientProfile,
+        onResult: (ClientProfileMutationResult) -> Unit = {}
+    ) {
+        viewModelScope.launch { onResult(clientProfileMutationEngine.update(profile)) }
     }
 
     private fun observeDayChanges() {

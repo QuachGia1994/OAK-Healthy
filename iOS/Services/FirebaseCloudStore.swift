@@ -154,17 +154,16 @@ final class FirebaseRealtimeSyncListener {
     private var boundBinIds = Set<String>()
     private var pendingRevisions: [String: String] = [:]
     private var syncTask: Task<Void, Never>?
+    private var activeSession: CloudSyncRealtimeSession?
     private let modelContext: ModelContext
-    private let activeClientManager: ActiveClientManager
 
-    init(modelContext: ModelContext, activeClientManager: ActiveClientManager) {
+    init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.activeClientManager = activeClientManager
     }
 
-    func start(manifestId: String) async {
+    func start(session: CloudSyncRealtimeSession) async {
         stop()
-        guard !manifestId.isEmpty else { return }
+        guard !session.manifestId.isEmpty else { return }
         let startGeneration = generation
         do {
             try await FirebaseBootstrap.ensureSignedIn()
@@ -173,8 +172,9 @@ final class FirebaseRealtimeSyncListener {
             return
         }
         guard startGeneration == generation else { return }
-        activeManifestId = manifestId
-        bindListeners(manifestId: manifestId)
+        activeSession = session
+        activeManifestId = session.manifestId
+        bindListeners(manifestId: session.manifestId)
     }
 
     func stop() {
@@ -182,6 +182,7 @@ final class FirebaseRealtimeSyncListener {
         syncTask?.cancel()
         syncTask = nil
         pendingRevisions.removeAll()
+        activeSession = nil
         activeManifestId = nil
         boundBinIds.removeAll()
         removeObservations()
@@ -221,10 +222,10 @@ final class FirebaseRealtimeSyncListener {
             return
         }
         pendingRevisions[binId] = revision
-        guard syncTask == nil else { return }
+        guard syncTask == nil, let session = activeSession else { return }
         let startGeneration = generation
         syncTask = Task { @MainActor in
-            await processPendingRevisions(startGeneration: startGeneration)
+            await processPendingRevisions(startGeneration: startGeneration, session: session)
         }
     }
 
@@ -237,14 +238,18 @@ final class FirebaseRealtimeSyncListener {
         incoming != lastProcessed && incoming != applied && incoming != pending
     }
 
-    private func processPendingRevisions(startGeneration: Int) async {
+    private func processPendingRevisions(
+        startGeneration: Int,
+        session: CloudSyncRealtimeSession
+    ) async {
         var failureAttempt = 0
-        while !Task.isCancelled, generation == startGeneration, !pendingRevisions.isEmpty {
+        while shouldContinueProcessing(startGeneration: startGeneration, session: session) {
             let targets = pendingRevisions
             let success = await CloudSyncAutoSync.syncIfEnabled(
                 modelContext: modelContext,
-                clientId: activeClientManager.currentClientId
+                clientId: session.clientId
             )
+            guard shouldAcceptSyncResult(startGeneration: startGeneration, session: session) else { break }
             guard success else {
                 failureAttempt = min(failureAttempt + 1, 4)
                 await waitBeforeRetry(attempt: failureAttempt)
@@ -254,7 +259,37 @@ final class FirebaseRealtimeSyncListener {
             markProcessed(targets)
             refreshBindingsIfNeeded()
         }
-        syncTask = nil
+        if generation == startGeneration { syncTask = nil }
+    }
+
+    private func shouldContinueProcessing(
+        startGeneration: Int,
+        session: CloudSyncRealtimeSession
+    ) -> Bool {
+        !Task.isCancelled && generation == startGeneration && activeSession == session && !pendingRevisions.isEmpty
+    }
+
+    private func shouldAcceptSyncResult(
+        startGeneration: Int,
+        session: CloudSyncRealtimeSession
+    ) -> Bool {
+        Self.shouldAcceptSyncResult(
+            startGeneration: startGeneration,
+            currentGeneration: generation,
+            expectedSession: session,
+            activeSession: activeSession,
+            isCancelled: Task.isCancelled
+        )
+    }
+
+    static func shouldAcceptSyncResult(
+        startGeneration: Int,
+        currentGeneration: Int,
+        expectedSession: CloudSyncRealtimeSession,
+        activeSession: CloudSyncRealtimeSession?,
+        isCancelled: Bool
+    ) -> Bool {
+        !isCancelled && startGeneration == currentGeneration && expectedSession == activeSession
     }
 
     private func markProcessed(_ targets: [String: String]) {

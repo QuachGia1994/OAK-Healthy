@@ -31,7 +31,7 @@ public struct OnboardingView: View {
     
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
+            VStack(spacing: OAKSpacing.lg) {
                 OnboardingHero(step: step)
                 ScrollView {
                     VStack(spacing: 14) {
@@ -48,7 +48,9 @@ public struct OnboardingView: View {
                 }
                 footer
             }
-            .padding(16)
+            .padding(OAKSpacing.lg)
+            .frame(maxWidth: 680)
+            .frame(maxWidth: .infinity)
             .navigationTitle("onboarding_title".localized)
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $isShowingAddClient) {
@@ -57,14 +59,12 @@ public struct OnboardingView: View {
                     initialName: "",
                     confirmTitle: "client_create_action".localized
                 ) { name in
-                    let created = ClientProfile(name: name)
-                    modelContext.insert(created)
                     do {
-                        try modelContext.save()
+                        let created = try ClientProfileMutationStore.create(name: name, in: modelContext)
                         clientMessage = nil
                         activeClientManager.setCurrentClientId(created.id)
+                        ActivationRetentionStore.mark(.clientReady)
                     } catch {
-                        modelContext.delete(created)
                         clientMessage = error.localizedDescription
                     }
                 }
@@ -76,9 +76,13 @@ public struct OnboardingView: View {
             Task { await refreshAuthorizationState() }
         }
         .task {
-            guard activeClientManager.currentClientId == nil else { return }
+            if activeClientManager.currentClientId != nil {
+                ActivationRetentionStore.mark(.clientReady)
+                return
+            }
             guard let first = clients.first else { return }
             activeClientManager.setCurrentClientId(first.id)
+            ActivationRetentionStore.mark(.clientReady)
         }
         .task {
             await refreshAuthorizationState()
@@ -303,10 +307,11 @@ public struct OnboardingView: View {
     private func scheduleNotificationsForActiveClient() async {
         guard let clientId = activeClientManager.currentClientId else { return }
         do {
-            let descriptor = FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
-            let supplements = try modelContext.fetch(descriptor)
-            let filtered = supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
-            await notificationService.replaceAllSchedules(supplements: filtered)
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            await notificationService.replaceAllSchedules(supplements: supplements)
         } catch {
             return
         }
@@ -323,6 +328,9 @@ public struct OnboardingView: View {
         await MainActor.run {
             authorizationStatus = settings.authorizationStatus
             if authorizationStatus == .denied { isNotificationEnabledByUser = false }
+            if isSystemNotificationGranted && isNotificationEnabledByUser {
+                ActivationRetentionStore.mark(.reminderReady)
+            }
             let ack = readEpochMs(forKey: "oakLastTestNotificationAckEpochMs")
             if ack != lastTestAckEpochMs { lastTestAckEpochMs = ack }
         }
@@ -405,10 +413,7 @@ private struct OnboardingHero: View {
             case .done: return "onboarding_step_done_title".localized
             }
         }()
-        VStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.title2)
-                .foregroundStyle(.tint)
+        VStack(spacing: OAKSpacing.sm) {
             OnboardingProgress(step: step)
         }
         .frame(maxWidth: .infinity)
@@ -443,9 +448,9 @@ private struct OnboardingProgress: View {
 
 private extension View {
     func onboardingCard() -> some View {
-        return padding(14)
+        padding(OAKSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .oakCardStyle(.glass, cornerRadius: 16)
+            .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
     }
 }
 

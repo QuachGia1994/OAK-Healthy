@@ -2,15 +2,17 @@ package com.example.supplementtracker.service
 
 import android.content.Context
 import com.example.supplementtracker.R
+import java.util.UUID
 
 /** Orchestrates creation/update of the hosted manifest and its stack/history bins. */
 class CloudHostEngine(
     private val context: Context,
-    private val getHostedBinId: () -> String?,
-    private val setHostedBinId: (String?) -> Unit,
-    private val buildStackBackupJson: suspend () -> Result<String>,
-    private val buildHistoryBackupJson: suspend () -> Result<String>,
-    private val buildFullBackupJson: suspend () -> Result<String>,
+    private val currentClientId: () -> UUID?,
+    private val getHostedBinId: (UUID) -> String?,
+    private val setHostedBinId: (UUID, String?) -> Unit,
+    private val buildStackBackupJson: suspend (UUID) -> Result<String>,
+    private val buildHistoryBackupJson: suspend (UUID) -> Result<String>,
+    private val buildFullBackupJson: suspend (UUID) -> Result<String>,
     private val updateUi: suspend (String) -> Unit,
     private val setLoading: (Boolean) -> Unit,
     private val appendLog: (android.content.SharedPreferences, String, String, String) -> Unit,
@@ -18,24 +20,30 @@ class CloudHostEngine(
 ) {
     suspend fun hostData() {
         setLoading(true)
-        val manifestId = getHostedBinId()?.trim().orEmpty()
+        val clientId = currentClientId() ?: return abortMissingClient()
+        val manifestId = getHostedBinId(clientId)?.trim().orEmpty()
         val prefs = OakPrefs.get(context)
         val stackEncrypted = encryptExport(
-            buildStackBackupJson(),
+            buildStackBackupJson(clientId),
             R.string.cloud_host_export_stack_failed,
             R.string.cloud_host_encrypt_stack_failed
         ) ?: return
         val historyEncrypted = encryptExport(
-            buildHistoryBackupJson(),
+            buildHistoryBackupJson(clientId),
             R.string.cloud_host_export_history_failed,
             R.string.cloud_host_encrypt_history_failed
         ) ?: return
 
         if (manifestId.isNotEmpty()) {
-            updateExisting(prefs, manifestId, stackEncrypted, historyEncrypted)
+            updateExisting(prefs, manifestId, stackEncrypted, historyEncrypted, clientId)
             return
         }
-        createNewHost(prefs, stackEncrypted, historyEncrypted)
+        createNewHost(prefs, stackEncrypted, historyEncrypted, clientId)
+    }
+
+    private fun abortMissingClient() {
+        setLoading(false)
+        setMessage(context.getString(R.string.missing_active_client))
     }
 
     private suspend fun encryptExport(
@@ -58,13 +66,31 @@ class CloudHostEngine(
     private suspend fun createNewHost(
         prefs: android.content.SharedPreferences,
         stackEncrypted: String,
-        historyEncrypted: String
+        historyEncrypted: String,
+        clientId: UUID
     ) {
         val stackId = uploadOrAbort(stackEncrypted, R.string.cloud_host_upload_stack_failed) ?: return
-        val historyId = uploadOrAbort(historyEncrypted, R.string.cloud_host_upload_history_failed) ?: return
-        val manifestEncrypted = encryptManifest(stackId, historyId) ?: return
-        val newManifestId = uploadOrAbort(manifestEncrypted, R.string.cloud_host_upload_manifest_failed) ?: return
-        persistNewHost(prefs, newManifestId, stackId, historyId)
+        val historyId = uploadOrAbort(historyEncrypted, R.string.cloud_host_upload_history_failed)
+        if (historyId == null) {
+            deleteUploadedBins(stackId)
+            return
+        }
+        val manifestEncrypted = encryptManifest(stackId, historyId)
+        if (manifestEncrypted == null) {
+            deleteUploadedBins(stackId, historyId)
+            return
+        }
+        val newManifestId = uploadOrAbort(manifestEncrypted, R.string.cloud_host_upload_manifest_failed)
+        if (newManifestId == null) {
+            deleteUploadedBins(stackId, historyId)
+            return
+        }
+        persistNewHost(prefs, newManifestId, stackId, historyId, clientId)
+    }
+
+    private suspend fun deleteUploadedBins(vararg binIds: String) {
+        val manager = CloudSyncManager()
+        binIds.forEach { binId -> runCatching { manager.deleteBackup(binId).getOrThrow() } }
     }
 
     private suspend fun uploadOrAbort(payload: String, failRes: Int): String? {
@@ -92,13 +118,13 @@ class CloudHostEngine(
         prefs: android.content.SharedPreferences,
         newManifestId: String,
         stackId: String,
-        historyId: String
+        historyId: String,
+        clientId: UUID
     ) {
         setLoading(false)
-        val oldManifestId = getHostedBinId()?.trim().orEmpty()
-        setHostedBinId(newManifestId)
+        val oldManifestId = getHostedBinId(clientId)?.trim().orEmpty()
+        setHostedBinId(clientId, newManifestId)
         val editor = prefs.edit()
-            .putString("cloudSyncHostedBinId", newManifestId)
             .putString("cloudSyncStackBinId_$newManifestId", stackId)
             .putString("cloudSyncHistoryBinId_$newManifestId", historyId)
             .putLong("cloudSyncLastSyncEpochMs_$newManifestId", System.currentTimeMillis())
@@ -119,7 +145,9 @@ class CloudHostEngine(
     }
 
     suspend fun revokeHostedBin(): Result<Unit> {
-        val manifestId = getHostedBinId()?.trim().orEmpty()
+        val clientId = currentClientId()
+            ?: return Result.failure(IllegalStateException(context.getString(R.string.missing_active_client)))
+        val manifestId = getHostedBinId(clientId)?.trim().orEmpty()
         if (manifestId.isEmpty()) {
             return Result.failure(IllegalStateException(context.getString(R.string.cloud_revoke_missing_code)))
         }
@@ -131,9 +159,8 @@ class CloudHostEngine(
             manager.deleteBackup(manifestId).getOrThrow()
             if (stackId.isNotEmpty()) manager.deleteBackup(stackId).getOrThrow()
             if (historyId.isNotEmpty()) manager.deleteBackup(historyId).getOrThrow()
-            setHostedBinId(null)
+            setHostedBinId(clientId, null)
             prefs.edit()
-                .remove("cloudSyncHostedBinId")
                 .remove("cloudSyncStackBinId_$manifestId")
                 .remove("cloudSyncHistoryBinId_$manifestId")
                 .remove("cloudSyncEtagV2_$manifestId")
@@ -149,9 +176,10 @@ class CloudHostEngine(
         prefs: android.content.SharedPreferences,
         manifestId: String,
         stackEncrypted: String,
-        historyEncrypted: String
+        historyEncrypted: String,
+        clientId: UUID
     ) {
-        val resolved = resolveStackHistoryIds(prefs, manifestId) ?: return
+        val resolved = resolveStackHistoryIds(prefs, manifestId, clientId) ?: return
         val (stackId, historyId) = resolved
         appendLog(prefs, manifestId, "HOST", "Host update start")
         val upsertStack = CloudSyncManager().upsertBackup(stackId, stackEncrypted)
@@ -172,7 +200,8 @@ class CloudHostEngine(
 
     private suspend fun resolveStackHistoryIds(
         prefs: android.content.SharedPreferences,
-        manifestId: String
+        manifestId: String,
+        clientId: UUID
     ): Pair<String, String>? {
         val stackKey = "cloudSyncStackBinId_$manifestId"
         val historyKey = "cloudSyncHistoryBinId_$manifestId"
@@ -188,7 +217,7 @@ class CloudHostEngine(
         val prepared = prepareManifestPayload(manifestDownload.json ?: "") ?: return null
         val decoded = runCatching { CloudSyncManifestCodec.decode(prepared) }.getOrNull()
         if (decoded == null) {
-            updateLegacyFullPayload(prefs, manifestId)
+            updateLegacyFullPayload(prefs, manifestId, clientId)
             return null
         }
         stackId = decoded.stackBinId
@@ -214,9 +243,10 @@ class CloudHostEngine(
 
     private suspend fun updateLegacyFullPayload(
         prefs: android.content.SharedPreferences,
-        manifestId: String
+        manifestId: String,
+        clientId: UUID
     ) {
-        val legacyPlain = buildFullBackupJson().getOrElse { error ->
+        val legacyPlain = buildFullBackupJson(clientId).getOrElse { error ->
             setLoading(false)
             setMessage(error.message ?: context.getString(R.string.cloud_host_export_failed))
             return

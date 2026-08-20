@@ -13,7 +13,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -44,6 +43,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.supplementtracker.BuildConfig
 import com.example.supplementtracker.R
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakLogoMark
@@ -57,10 +57,18 @@ import androidx.compose.ui.text.input.VisualTransformation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.domain.model.ClientProfile
+import com.example.supplementtracker.service.ClientProfileMutationResult
+import com.example.supplementtracker.service.CommercialFeature
+import com.example.supplementtracker.service.CommercialPlan
+import com.example.supplementtracker.service.EntitlementManager
+import com.example.supplementtracker.service.EntitlementPolicy
+import com.example.supplementtracker.service.DiagnosticsReporter
 import com.example.supplementtracker.presentation.share.StackShareImageGenerator
 import com.example.supplementtracker.presentation.share.StackShareItem
 import java.io.File
 import java.io.FileOutputStream
+import java.text.DateFormat
+import java.util.Date
 import java.util.UUID
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -81,14 +89,35 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
+@Composable
+private fun SettingsBrandHeader(secondaryTextColor: Color) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OakLogoMark()
+        Text(
+            text = stringResource(R.string.settings_dedication),
+            style = MaterialTheme.typography.bodySmall,
+            fontStyle = FontStyle.Italic,
+            color = secondaryTextColor
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     homeViewModel: HomeViewModel,
     activeClientManager: ActiveClientManager,
+    entitlementManager: EntitlementManager,
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit,
     onNavigateToNotificationCheck: () -> Unit,
+    onNavigateToPlanAccess: () -> Unit,
+    onNavigateToCoachOverview: () -> Unit,
+    onNavigateToDemoPreview: () -> Unit,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -97,9 +126,22 @@ fun SettingsScreen(
     val prefs = remember { OakPrefs.get(context) }
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val allSupplements by homeViewModel.allClientSupplements.collectAsStateWithLifecycle()
+    val lastNotificationRebuildEpochMs by homeViewModel.lastNotificationRebuildEpochMs.collectAsStateWithLifecycle()
     val clientsRaw by activeClientManager.clients.collectAsStateWithLifecycle()
-    val clients = remember(clientsRaw) { clientsRaw.distinctBy { it.id } }
     val currentClientId by activeClientManager.currentClientId.collectAsStateWithLifecycle()
+    val entitlementSnapshot by entitlementManager.snapshot.collectAsStateWithLifecycle()
+    val clients = remember(clientsRaw, entitlementSnapshot.plan) {
+        val unique = clientsRaw.distinctBy { it.id }
+        entitlementManager.maxClients()?.let(unique::take) ?: unique
+    }
+    val canExport = EntitlementPolicy.allows(entitlementSnapshot.plan, CommercialFeature.DATA_EXPORT)
+    val currentPlanLabel = stringResource(
+        when (entitlementSnapshot.plan) {
+            CommercialPlan.FREE -> R.string.plan_free_title
+            CommercialPlan.PRO -> R.string.plan_pro_title
+            CommercialPlan.COACH -> R.string.plan_coach_title
+        }
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     val hostView = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -112,6 +154,7 @@ fun SettingsScreen(
     var isEditClientDialogVisible by remember { mutableStateOf(false) }
     var editingClient by remember { mutableStateOf<ClientProfile?>(null) }
     var isFactoryResetDialogVisible by remember { mutableStateOf(false) }
+    var shareAnonymousDiagnostics by remember { mutableStateOf(DiagnosticsReporter.isEnabled(context)) }
     var isNotificationEnabledByUser by remember { mutableStateOf(prefs.getBoolean("isNotificationEnabledByUser", false)) }
     var hasNotificationPermission by remember { mutableStateOf(hasNotificationPermission(context)) }
 
@@ -128,6 +171,29 @@ fun SettingsScreen(
             return
         }
         if (stored != isNotificationEnabledByUser) isNotificationEnabledByUser = stored
+    }
+
+    fun handleClientMutation(
+        result: ClientProfileMutationResult,
+        onSuccess: () -> Unit
+    ) {
+        when (result) {
+            ClientProfileMutationResult.Success -> onSuccess()
+            ClientProfileMutationResult.DuplicateName -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.client_name_duplicate))
+            }
+            ClientProfileMutationResult.ClientLimitReached -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(context.getString(R.string.plan_client_limit_reached))
+            }
+            is ClientProfileMutationResult.Failure -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(
+                        R.string.client_mutation_failed_format,
+                        result.error.message ?: context.getString(R.string.error_unknown)
+                    )
+                )
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -166,24 +232,10 @@ fun SettingsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                item { SettingsBrandHeader(secondaryTextColor) }
+
                 item {
                     SettingsSection(title = stringResource(R.string.client_management)) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            OakLogoMark()
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = stringResource(R.string.settings_dedication),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontStyle = FontStyle.Italic,
-                                color = secondaryTextColor
-                            )
-                        }
-
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
                         if (clients.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.add_client_to_start),
@@ -243,9 +295,9 @@ fun SettingsScreen(
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(R.string.delete)) },
                                                 onClick = {
-                                                    val deletingActive = client.id == currentClientId
-                                                    homeViewModel.deleteClient(client)
-                                                    if (deletingActive) activeClientManager.setCurrentClientId(null)
+                                                    homeViewModel.deleteClient(client) { result ->
+                                                        handleClientMutation(result) {}
+                                                    }
                                                     isMenuExpanded = false
                                                 }
                                             )
@@ -267,10 +319,73 @@ fun SettingsScreen(
                 }
 
                 item {
+                    SettingsSection(title = stringResource(R.string.plan_access_title)) {
+                        SettingsRow(
+                            title = stringResource(R.string.plan_access_manage),
+                            trailing = currentPlanLabel,
+                            onClick = onNavigateToPlanAccess
+                        )
+                        SettingsRow(
+                            title = stringResource(R.string.coach_overview_title),
+                            trailing = if (entitlementSnapshot.plan == CommercialPlan.COACH) {
+                                stringResource(R.string.coach_overview_open)
+                            } else {
+                                stringResource(R.string.plan_coach_title)
+                            },
+                            onClick = {
+                                if (entitlementSnapshot.plan == CommercialPlan.COACH) {
+                                    onNavigateToCoachOverview()
+                                } else {
+                                    onNavigateToPlanAccess()
+                                }
+                            }
+                        )
+                        if (BuildConfig.DEBUG) {
+                            SettingsRow(
+                                title = stringResource(R.string.demo_preview_title),
+                                trailing = "DEBUG",
+                                onClick = onNavigateToDemoPreview
+                            )
+                        }
+                    }
+                }
+
+                item {
                     SettingsSection(title = stringResource(R.string.appearance_title)) {
                         AppThemeSegmentedControl(
                             appTheme = appTheme,
                             onThemeChange = onThemeChange
+                        )
+                    }
+                }
+
+                item {
+                    SettingsSection(title = stringResource(R.string.privacy_diagnostics_title)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.diagnostics_opt_in_title), color = primaryTextColor)
+                                Text(
+                                    stringResource(R.string.diagnostics_opt_in_body),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
+                                )
+                            }
+                            Switch(
+                                checked = shareAnonymousDiagnostics,
+                                onCheckedChange = { enabled ->
+                                    shareAnonymousDiagnostics = enabled
+                                    DiagnosticsReporter.setConsent(context, enabled)
+                                }
+                            )
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Text(
+                            stringResource(R.string.health_disclaimer_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryTextColor
                         )
                     }
                 }
@@ -281,7 +396,9 @@ fun SettingsScreen(
                         SettingsRow(
                             title = shareStackTitle,
                             onClick = {
-                                coroutineScope.launch(Dispatchers.Main) {
+                                if (!canExport) {
+                                    onNavigateToPlanAccess()
+                                } else coroutineScope.launch(Dispatchers.Main) {
                                     try {
                                         val activity = context as? Activity
                                         if (activity == null) {
@@ -428,6 +545,15 @@ fun SettingsScreen(
                         SettingsRow(
                             title = stringResource(R.string.notification_check_open_diagnostics),
                             onClick = onNavigateToNotificationCheck
+                        )
+                        SettingsRow(
+                            title = stringResource(R.string.reliability_last_rebuild),
+                            trailing = if (lastNotificationRebuildEpochMs <= 0L) {
+                                stringResource(R.string.reliability_never)
+                            } else {
+                                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                                    .format(Date(lastNotificationRebuildEpochMs))
+                            }
                         )
 
                         SettingsRow(
@@ -597,9 +723,19 @@ fun SettingsScreen(
             text = { Text(stringResource(R.string.wipe_data_warning)) },
             confirmButton = {
                 TextButton(onClick = {
-                    clients.forEach { homeViewModel.deleteClient(it) }
-                    activeClientManager.setCurrentClientId(null)
-                    isFactoryResetDialogVisible = false
+                    homeViewModel.factoryReset { result ->
+                        result.onSuccess {
+                            isNotificationEnabledByUser = false
+                            onThemeChange(AppTheme.SYSTEM)
+                            isFactoryResetDialogVisible = false
+                        }.onFailure { error ->
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(
+                                    error.message ?: context.getString(R.string.error_unknown)
+                                )
+                            }
+                        }
+                    }
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
@@ -618,9 +754,9 @@ fun SettingsScreen(
             onDismiss = { isAddClientDialogVisible = false },
             onConfirm = { name ->
                 val created = ClientProfile(id = UUID.randomUUID(), name = name, avatarColorArgb = 0)
-                homeViewModel.createClient(created)
-                activeClientManager.setCurrentClientId(created.id)
-                isAddClientDialogVisible = false
+                homeViewModel.createClient(created) { result ->
+                    handleClientMutation(result) { isAddClientDialogVisible = false }
+                }
             }
         )
     }
@@ -634,8 +770,9 @@ fun SettingsScreen(
                 confirmTitle = stringResource(R.string.save),
                 onDismiss = { isEditClientDialogVisible = false },
                 onConfirm = { name ->
-                    homeViewModel.updateClient(target.copy(name = name))
-                    isEditClientDialogVisible = false
+                    homeViewModel.updateClient(target.copy(name = name)) { result ->
+                        handleClientMutation(result) { isEditClientDialogVisible = false }
+                    }
                 }
             )
         }

@@ -4,82 +4,79 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
-// ponytail: centralized color tokens — no hardcoded Color(0xFF...) outside this file.
 object OakColors {
-    // Brand
-    val Accent = Color(0xFF0F6F75)
-    val AccentDark = Color(0xFF78D2CF)
+    val Accent = Color(0xFF1F6B4D)
+    val AccentDark = Color(0xFF7DD3A8)
 
-    // Dose status
-    val Taken = Color(0xFF237A4B)
-    val Skipped = Color(0xFFB45309)
-    val Missed = Color(0xFFC73538)
-    val DueSoon = Color(0xFF1565C0)
-    val TakenDark = Color(0xFF81C784)
-    val SkippedDark = Color(0xFFFFB74D)
-    val MissedDark = Color(0xFFEF9A9A)
-    val DueSoonDark = Color(0xFF64B5F6)
-    val Done = Color(0xFF22C55E)
+    val Paper = Color(0xFFF6F7F5)
+    val PaperRaised = Color(0xFFFFFFFF)
+    val PaperMuted = Color(0xFFEEF1EE)
+    val Ink = Color(0xFF111513)
+    val InkMuted = Color(0xFF59615C)
+    val Hairline = Color(0xFFDCE2DD)
 
-    // Semantic
-    val Error = Color(0xFFD32F2F)
-    val ErrorDark = Color(0xFFC62828)
-    val Success = Color(0xFF2E7D32)
-    val Warning = Color(0xFFEF6C00)
-    val Neutral = Color(0xFF607D8B)
-    val NeutralDark = Color(0xFF546E7A)
+    val PaperDark = Color(0xFF0B0F0D)
+    val PaperRaisedDark = Color(0xFF111714)
+    val PaperMutedDark = Color(0xFF18201C)
+    val InkDark = Color(0xFFF2F5F3)
+    val InkMutedDark = Color(0xFFAAB5AE)
+    val HairlineDark = Color(0xFF405047)
 
-    // Text
-    val TextPrimary = Color(0xFF111111)
-    val TextSecondary = Color(0xFF374151)
-    val TextTertiary = Color(0xFF6B7280)
+    val Taken = Accent
+    val Skipped = Color(0xFF9A661F)
+    val Missed = Color(0xFFB5473F)
+    val DueSoon = Color(0xFF466A8D)
+    val TakenDark = AccentDark
+    val SkippedDark = Color(0xFFD2A35F)
+    val MissedDark = Color(0xFFE28C82)
+    val DueSoonDark = Color(0xFF91AEC8)
+    val Done = Accent
 
-    // Chart
-    val ChartBar = Color(0xFF2196F3)
-    val ChartBarDark = Color(0xFF64B5F6)
+    val Error = Missed
+    val ErrorDark = MissedDark
+    val Success = Taken
+    val Warning = Skipped
+    val Neutral = Color(0xFF74786F)
+    val NeutralDark = Color(0xFF9CA299)
 
-    // Badge
-    val BadgeStart = Color(0xFFFF5A5F)
-    val BadgeEnd = Color(0xFFFF9F43)
+    val TextPrimary = Ink
+    val TextSecondary = InkMuted
+    val TextTertiary = Color(0xFF7B8077)
 
-    // Accent
-    val StreakBorder = Color(0xFFFFB300)
-    val InsightCardStart = Color(0xFF087887)
-    val InsightCardEnd = Color(0xFF0C4D78)
-    val SkippedRecord = Color(0xFFFF5252)
-    val SkippedBg = Color(0xFFB71C1C)
-
-    // Share image
-    val ShareDarkStart = Color(0xFF1A1A1A)
-    val ShareDarkEnd = Color(0xFF0D0D0D)
+    val ShareDarkStart = Color(0xFF171A17)
+    val ShareDarkEnd = Color(0xFF101310)
 }
 
 val OakLightColorScheme = lightColorScheme(
     primary = OakColors.Accent,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFC5EAE7),
-    onPrimaryContainer = Color(0xFF073F43),
-    secondary = Color(0xFF4D635C),
-    background = Color(0xFFF3F8F5),
-    surface = Color(0xFFFAFCF9),
-    surfaceVariant = Color(0xFFE5EEE9),
-    onSurface = Color(0xFF14201D),
-    onSurfaceVariant = Color(0xFF52615C),
-    outlineVariant = Color(0xFFC2CEC8)
+    onPrimary = OakColors.PaperRaised,
+    primaryContainer = Color(0xFFDCE7DD),
+    onPrimaryContainer = Color(0xFF173326),
+    secondary = Color(0xFF667267),
+    onSecondary = OakColors.PaperRaised,
+    background = OakColors.Paper,
+    surface = OakColors.PaperRaised,
+    surfaceVariant = OakColors.PaperMuted,
+    onSurface = OakColors.Ink,
+    onSurfaceVariant = OakColors.InkMuted,
+    outline = Color(0xFF9E988D),
+    outlineVariant = OakColors.Hairline,
+    error = OakColors.Error
 )
 
 val OakDarkColorScheme = darkColorScheme(
     primary = OakColors.AccentDark,
-    onPrimary = Color(0xFF003739),
-    primaryContainer = Color(0xFF15585B),
-    onPrimaryContainer = Color(0xFFB9EFEC),
-    secondary = Color(0xFFC7D9D1),
-    onSecondary = Color(0xFF10201B),
-    background = Color(0xFF071413),
-    surface = Color(0xFF0C1C1A),
-    surfaceVariant = Color(0xFF1B2C29),
-    onSurface = Color(0xFFF5FBF8),
-    onSurfaceVariant = Color(0xFFD2E0DA),
-    outline = Color(0xFF78968D),
-    outlineVariant = Color(0xFF4B625B)
+    onPrimary = Color(0xFF173326),
+    primaryContainer = Color(0xFF294638),
+    onPrimaryContainer = Color(0xFFDCEBDD),
+    secondary = Color(0xFFB6C0B6),
+    onSecondary = Color(0xFF202820),
+    background = OakColors.PaperDark,
+    surface = OakColors.PaperRaisedDark,
+    surfaceVariant = OakColors.PaperMutedDark,
+    onSurface = OakColors.InkDark,
+    onSurfaceVariant = OakColors.InkMutedDark,
+    outline = Color(0xFF9AA59C),
+    outlineVariant = OakColors.HairlineDark,
+    error = OakColors.ErrorDark
 )

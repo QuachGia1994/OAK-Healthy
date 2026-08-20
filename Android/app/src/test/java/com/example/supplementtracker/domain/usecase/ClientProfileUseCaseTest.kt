@@ -3,7 +3,7 @@ package com.example.supplementtracker.domain.usecase
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -62,6 +62,8 @@ private class RecordingClientRepository(
     override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = emptyList()
     override suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement> = emptyList()
     override suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord> = emptyList()
+    override suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean = false
+    override suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean = false
     override suspend fun deleteAllSupplementsByClient(clientId: String) = Unit
     override suspend fun deleteAllIntakeRecordsByClient(clientId: String) = Unit
     override suspend fun importBackupAtomic(
@@ -99,7 +101,25 @@ class ClientProfileUseCaseTest {
         val renamed = clientA.copy(name = " Alice ")
 
         assertTrue(useCase.update(renamed))
-        assertEquals(renamed, repository.updated.single())
+        assertEquals(renamed.copy(name = "Alice"), repository.updated.single())
+    }
+
+    @Test
+    fun create_rejectsDiacriticEquivalentDuplicate() = kotlinx.coroutines.runBlocking {
+        val repository = RecordingClientRepository(listOf(clientA.copy(name = "Ánh")))
+        val useCase = ClientProfileUseCase(repository)
+
+        assertFalse(useCase.create(clientB.copy(name = "anh")))
+        assertTrue(repository.saved.isEmpty())
+    }
+
+    @Test
+    fun create_persistsTrimmedName() = kotlinx.coroutines.runBlocking {
+        val repository = RecordingClientRepository()
+        val useCase = ClientProfileUseCase(repository)
+
+        assertTrue(useCase.create(clientA.copy(name = "  Alice  ")))
+        assertEquals("Alice", repository.saved.single().name)
     }
 
     @Test

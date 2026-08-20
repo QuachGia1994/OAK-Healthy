@@ -7,11 +7,14 @@ public struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
-    @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     private let cycleEngine = CycleCalculator()
     @AppStorage("appTheme") private var appTheme: String = "system"
+    @AppStorage("shareAnonymousDiagnostics") private var shareAnonymousDiagnostics: Bool = false
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
+    @AppStorage("oakLastNotificationRebuildEpochMs") private var lastNotificationRebuildEpochMs: Double = 0
     @State private var isShowingAddClientSheet = false
     @State private var editingClient: ClientProfile?
     @State private var isShowingFactoryResetConfirm = false
@@ -55,14 +58,14 @@ public struct SettingsView: View {
                 initialName: "",
                 confirmTitle: "client_create_action".localized
             ) { name in
-                guard !name.isEmpty else { return }
-                let created = ClientProfile(name: name)
-                modelContext.insert(created)
+                guard !name.isEmpty, canCreateClient else {
+                    showError(message: "plan_client_limit_reached".localized)
+                    return
+                }
                 do {
-                    try modelContext.save()
+                    let created = try ClientProfileMutationStore.create(name: name, in: modelContext)
                     activeClientManager.setCurrentClientId(created.id)
                 } catch {
-                    modelContext.delete(created)
                     showError(message: error.localizedDescription)
                 }
             }
@@ -72,12 +75,9 @@ public struct SettingsView: View {
                 title: "edit_client".localized,
                 initialName: client.name
             ) { name in
-                let previousName = client.name
-                client.name = name
                 do {
-                    try modelContext.save()
+                    try ClientProfileMutationStore.rename(client, to: name, in: modelContext)
                 } catch {
-                    client.name = previousName
                     showError(message: error.localizedDescription)
                 }
             }
@@ -96,42 +96,64 @@ public struct SettingsView: View {
     
     private var settingsList: some View {
         List {
-            clientManagementSection
             appHeaderSection
-            themeSelectionSection
+            clientManagementSection
+            planAccessSection
             notificationsSection
+            themeSelectionSection
+            syncCenterSection
             dataToolsSection
+            privacyDiagnosticsSection
             aboutSection
             copyrightSection
             factoryResetSection
         }
         .scrollContentBackground(.hidden)
+        .listSectionSpacing(20)
         .navigationTitle("settings_title".localized)
     }
     
     @ViewBuilder
+    private var privacyDiagnosticsSection: some View {
+        Section {
+            Toggle("diagnostics_opt_in_title".localized, isOn: $shareAnonymousDiagnostics)
+                .onChange(of: shareAnonymousDiagnostics) { _, enabled in
+                    DiagnosticsReporter.setConsent(enabled)
+                }
+            Text("diagnostics_opt_in_body".localized)
+                .font(.footnote)
+                .oakSecondaryText()
+            Text("health_disclaimer_body".localized)
+                .font(.footnote)
+                .oakSecondaryText()
+        } header: {
+            Text("privacy_diagnostics_title".localized)
+        }
+        .listRowBackground(settingsRowBackground)
+    }
+
+    private var lastReminderRebuildText: String {
+        guard lastNotificationRebuildEpochMs > 0 else { return "reliability_never".localized }
+        let date = Date(timeIntervalSince1970: lastNotificationRebuildEpochMs)
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    @ViewBuilder
     private var notificationsSection: some View {
         Section {
-            HStack {
-                Text("onboarding_permission_status".localized)
-                Spacer()
-                Text(notificationPermissionText)
-                    .oakSecondaryText()
-            }
+            SettingsValueRow(
+                title: "onboarding_permission_status".localized,
+                value: notificationPermissionText
+            )
+            SettingsValueRow(
+                title: "reliability_last_rebuild".localized,
+                value: lastReminderRebuildText
+            )
             
             Toggle("notification_permission_toggle".localized, isOn: $isNotificationEnabledByUser)
                 .onChange(of: isNotificationEnabledByUser) {
                     if isNotificationEnabledByUser {
-                        Task { @MainActor in
-                            do {
-                                try await NotificationService.shared.requestAuthorization()
-                            } catch {
-                                isNotificationEnabledByUser = false
-                                showError(message: error.localizedDescription)
-                                return
-                            }
-                            await NotificationService.shared.replaceAllSchedules(supplements: supplementsForActiveClient)
-                        }
+                        Task { @MainActor in await rescheduleNotifications() }
                         return
                     }
                     Task { @MainActor in
@@ -144,15 +166,7 @@ public struct SettingsView: View {
             }
 
             Button {
-                Task { @MainActor in
-                    do {
-                        try await NotificationService.shared.requestAuthorization()
-                    } catch {
-                        showError(message: error.localizedDescription)
-                        return
-                    }
-                    await NotificationService.shared.replaceAllSchedules(supplements: supplementsForActiveClient)
-                }
+                Task { @MainActor in await rescheduleNotifications() }
             } label: {
                 Label("onboarding_reschedule_now".localized, systemImage: "arrow.triangle.2.circlepath")
             }
@@ -167,41 +181,56 @@ public struct SettingsView: View {
         } header: {
             Text("settings_notifications_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     @ViewBuilder
     private var dataToolsSection: some View {
         Section {
-            
-            if let shareStackPNGURL {
-                ShareLink(item: shareStackPNGURL) {
-                    Label("share_stack".localized, systemImage: "square.and.arrow.up")
+            if entitlementManager.canUse(.dataExport) {
+                if let shareStackPNGURL {
+                    ShareLink(item: shareStackPNGURL) {
+                        Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                    }
+                } else {
+                    Button {
+                        Task { @MainActor in await prepareShareStack() }
+                    } label: {
+                        Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(isPreparingShareStack || activeClientManager.currentClientId == nil)
                 }
             } else {
-                Button {
-                    Task { @MainActor in await prepareShareStack() }
+                NavigationLink {
+                    PlanAccessView()
                 } label: {
-                    Label("share_stack".localized, systemImage: "square.and.arrow.up")
+                    Label("plan_unlock_export".localized, systemImage: "lock.fill")
                 }
-                .disabled(isPreparingShareStack || activeClientManager.currentClientId == nil)
             }
         } header: {
             Text("data_tools".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
 
     @ViewBuilder
     private var syncCenterSection: some View {
         Section {
-            NavigationLink("sync_center_title".localized) {
-                SyncCenterView(activeClientManager: activeClientManager)
+            if entitlementManager.canUse(.encryptedCloudSync) {
+                NavigationLink("sync_center_title".localized) {
+                    SyncCenterView(activeClientManager: activeClientManager)
+                }
+            } else {
+                NavigationLink {
+                    PlanAccessView()
+                } label: {
+                    Label("plan_unlock_cloud_sync".localized, systemImage: "lock.fill")
+                }
             }
         } header: {
             Text("multi_device_sync_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     @ViewBuilder
@@ -218,7 +247,7 @@ public struct SettingsView: View {
                         .multilineTextAlignment(.center)
                 }
             } else {
-                ForEach(clients) { client in
+                ForEach(permittedClients) { client in
                     ClientRow(
                         client: client,
                         isActive: client.id == activeClientManager.currentClientId,
@@ -229,15 +258,71 @@ public struct SettingsView: View {
                 }
             }
             
-            Button("add_client".localized) {
-                isShowingAddClientSheet = true
+            if canCreateClient {
+                Button("add_client".localized) {
+                    isShowingAddClientSheet = true
+                }
+            } else {
+                NavigationLink {
+                    PlanAccessView()
+                } label: {
+                    Label("plan_client_limit_reached".localized, systemImage: "lock.fill")
+                }
             }
         } header: {
             Text("client_management".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
+    private var permittedClients: [ClientProfile] {
+        entitlementManager.maxClients.map { Array(clients.prefix($0)) } ?? clients
+    }
+
+    private var canCreateClient: Bool {
+        entitlementManager.maxClients.map { clients.count < $0 } ?? true
+    }
+
+    @ViewBuilder
+    private var planAccessSection: some View {
+        Section {
+            NavigationLink {
+                PlanAccessView()
+            } label: {
+                HStack {
+                    Text("plan_access_manage".localized)
+                    Spacer()
+                    Text(planTitle(entitlementManager.snapshot.plan))
+                        .oakSecondaryText()
+                }
+            }
+            if entitlementManager.canUse(.coachReports) {
+                NavigationLink("coach_overview_title".localized) {
+                    CoachOverviewView()
+                }
+            } else {
+                NavigationLink {
+                    PlanAccessView()
+                } label: {
+                    HStack {
+                        Text("coach_overview_title".localized)
+                        Spacer()
+                        Text("plan_coach_title".localized)
+                            .oakSecondaryText()
+                    }
+                }
+            }
+#if DEBUG
+            NavigationLink("demo_preview_title".localized) {
+                DemoPreviewView()
+            }
+#endif
+        } header: {
+            Text("plan_access_title".localized)
+        }
+        .listRowBackground(settingsRowBackground)
+    }
+
     @ViewBuilder
     private var appHeaderSection: some View {
         Section {
@@ -254,9 +339,10 @@ public struct SettingsView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 12)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 6)
+            .background(
+                OAKPalette.mutedSurface(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+            )
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
@@ -265,18 +351,30 @@ public struct SettingsView: View {
     @ViewBuilder
     private var themeSelectionSection: some View {
         Section {
-            Picker(selection: themeSelection) {
-                Text("appearance_light".localized).tag("light")
-                Text("appearance_dark".localized).tag("dark")
-                Text("appearance_system".localized).tag("system")
-            } label: {
-                Text("appearance_title".localized)
+            if dynamicTypeSize >= .accessibility1 {
+                Picker("appearance_title".localized, selection: themeSelection) {
+                    themeOptions
+                }
+                .pickerStyle(.menu)
+            } else {
+                Picker(selection: themeSelection) {
+                    themeOptions
+                } label: {
+                    Text("appearance_title".localized)
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
         } header: {
             Text("appearance_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
+    }
+
+    @ViewBuilder
+    private var themeOptions: some View {
+        Text("appearance_light".localized).tag("light")
+        Text("appearance_dark".localized).tag("dark")
+        Text("appearance_system".localized).tag("system")
     }
     
     @ViewBuilder
@@ -288,7 +386,7 @@ public struct SettingsView: View {
         } header: {
             Text("about_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
     
     @ViewBuilder
@@ -309,7 +407,7 @@ public struct SettingsView: View {
         } header: {
             Text("copyright_title".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
     }
 
     @ViewBuilder
@@ -319,21 +417,31 @@ public struct SettingsView: View {
                 isShowingFactoryResetConfirm = true
             }
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(settingsRowBackground)
         .confirmationDialog(
             "wipe_data_warning".localized,
             isPresented: $isShowingFactoryResetConfirm,
             titleVisibility: .visible
         ) {
             Button("delete".localized, role: .destructive) {
-                performFactoryReset()
+                Task { @MainActor in
+                    await performFactoryReset()
+                }
             }
             Button("cancel".localized, role: .cancel) {}
         }
     }
 
-    private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
+    private func planTitle(_ plan: CommercialPlan) -> String {
+        switch plan {
+        case .free: return "plan_free_title".localized
+        case .pro: return "plan_pro_title".localized
+        case .coach: return "plan_coach_title".localized
+        }
+    }
+
+    private var settingsRowBackground: some View {
+        OAKPalette.surface(for: colorScheme)
     }
 
     private var preferredColorScheme: ColorScheme? {
@@ -354,14 +462,13 @@ public struct SettingsView: View {
     
     private func deleteClient(_ client: ClientProfile) {
         let deletingActive = client.id == activeClientManager.currentClientId
-        modelContext.delete(client)
         do {
-            try modelContext.save()
+            try ClientProfileMutationStore.delete(client, in: modelContext)
         } catch {
             showError(message: error.localizedDescription)
             return
         }
-        
+        CloudSyncProfileStore().clearLinks(clientId: client.id)
         guard deletingActive else { return }
         let fallback = clients.first { $0.id != client.id }?.id
         activeClientManager.setCurrentClientId(fallback)
@@ -378,54 +485,29 @@ public struct SettingsView: View {
         return String(format: "cycle_summary_format".localized, statusText, config.daysOn, config.daysOff)
     }
 
-    private func performFactoryReset() {
+    @MainActor
+    private func performFactoryReset() async {
         do {
-            let records = try modelContext.fetch(FetchDescriptor<IntakeRecord>())
-            for record in records {
-                modelContext.delete(record)
-            }
-            
-            let supplements = try modelContext.fetch(FetchDescriptor<UserSupplement>())
-            for supplement in supplements {
-                modelContext.delete(supplement)
-            }
-            
-            let clients = try modelContext.fetch(FetchDescriptor<ClientProfile>())
-            for client in clients {
-                modelContext.delete(client)
-            }
-            
-            try modelContext.save()
+            try await FactoryResetService.perform(
+                modelContext: modelContext,
+                activeClientManager: activeClientManager
+            )
         } catch {
+            showError(message: error.localizedDescription)
             return
         }
-        
-        UserDefaults.standard.removeObject(forKey: "SkippedUpdateVersion")
         appTheme = "system"
-        activeClientManager.setCurrentClientId(nil)
-        clearKeychainItems()
-    }
-
-    private func clearKeychainItems() {
-        let services = ["com.oakhealthy.cloudsync"]
-        for service in services {
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: service
-            ]
-            SecItemDelete(query as CFDictionary)
-        }
+        isNotificationEnabledByUser = false
+        shareStackPNGURL = nil
     }
     
     @MainActor
     private func refreshSharePayloads() {
-        guard activeClientManager.currentClientId != nil else {
-            shareStackPNGURL = nil
-            return
-        }
-        
         do {
-            let png = try SupplementExportCodec.renderShareImageData(supplements: supplementsForActiveClient, colorScheme: colorScheme)
+            let png = try SupplementExportCodec.renderShareImageData(
+                supplements: activeSupplements(),
+                colorScheme: colorScheme
+            )
             shareStackPNGURL = try writeTempFile(named: "OAKHealthy_Stack.png", data: png)
         } catch {
             shareStackPNGURL = nil
@@ -445,14 +527,31 @@ public struct SettingsView: View {
         }
     }
     
+    @MainActor
+    private func rescheduleNotifications() async {
+        do {
+            try await NotificationService.shared.requestAuthorization()
+            await NotificationService.shared.replaceAllSchedules(
+                supplements: try activeSupplements()
+            )
+            ActivationRetentionStore.mark(.reminderReady)
+        } catch {
+            isNotificationEnabledByUser = false
+            showError(message: error.localizedDescription)
+        }
+    }
+
+    private func activeSupplements() throws -> [UserSupplement] {
+        guard let clientId = activeClientManager.currentClientId else { return [] }
+        return try ClientScopedStore.activeSupplements(
+            modelContext: modelContext,
+            clientId: clientId
+        )
+    }
+
     private func showError(message: String) {
         errorMessage = message
         isShowingError = true
-    }
-    
-    private var supplementsForActiveClient: [UserSupplement] {
-        guard let clientId = activeClientManager.currentClientId else { return [] }
-        return supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }
     }
     
     @MainActor
@@ -462,6 +561,8 @@ public struct SettingsView: View {
         let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
         if !authorized, isNotificationEnabledByUser {
             isNotificationEnabledByUser = false
+        } else if authorized, isNotificationEnabledByUser {
+            ActivationRetentionStore.mark(.reminderReady)
         }
     }
     
@@ -564,6 +665,25 @@ private struct MyStackListView: View {
     }
 }
 
+private struct SettingsValueRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(title)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+            Text(value)
+                .oakSecondaryText()
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
 #Preview {
     SettingsView(activeClientManager: ActiveClientManager())
+        .environment(EntitlementManager())
 }

@@ -3,7 +3,7 @@ package com.example.supplementtracker.presentation.navigation
 import android.content.Context
 import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.domain.repository.SupplementRepository
-import com.example.supplementtracker.service.OakPrefs
+import com.example.supplementtracker.service.ActiveClientStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,7 +21,7 @@ class ActiveClientManager(
     context: Context,
     repository: SupplementRepository
 ) {
-    private val prefs = OakPrefs.get(context)
+    private val activeClientStore = ActiveClientStore(context)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val clients: StateFlow<List<ClientProfile>> = repository.observeClients()
@@ -33,7 +33,7 @@ class ActiveClientManager(
         .distinctUntilChanged()
         .stateIn(scope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val _currentClientId = MutableStateFlow(loadClientId())
+    private val _currentClientId = MutableStateFlow(activeClientStore.currentClientId())
     val currentClientId: StateFlow<UUID?> = _currentClientId.asStateFlow()
 
     init {
@@ -50,15 +50,6 @@ class ActiveClientManager(
 
     fun setCurrentClientId(id: UUID?) {
         _currentClientId.value = id
-        prefs.edit().putString(KEY_ACTIVE_CLIENT_ID, id?.toString()).apply()
-    }
-
-    private fun loadClientId(): UUID? {
-        val raw = prefs.getString(KEY_ACTIVE_CLIENT_ID, null) ?: return null
-        return runCatching { UUID.fromString(raw) }.getOrNull()
-    }
-
-    companion object {
-        private const val KEY_ACTIVE_CLIENT_ID = "activeClientId"
+        activeClientStore.setCurrentClientId(id)
     }
 }

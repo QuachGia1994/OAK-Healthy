@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.model.UserSupplement
@@ -145,14 +146,22 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
-            buildIntent(supplement, timeString, scheduledAtMillis),
+            buildIntent(supplement, timeString, scheduledAtMillis, requestCode),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        scheduleAlarm(triggerAtMillis, pendingIntent)
         NotificationDebugStore.recordScheduled(
             context,
             ScheduledAlarmInfo(requestCode, supplement.id.toString(), supplement.name, supplement.dailyDose, cycleLabel(supplement, date), triggerAtMillis)
         )
+    }
+
+    private fun scheduleAlarm(triggerAtMillis: Long, pendingIntent: PendingIntent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            return
+        }
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
     }
 
     private data class QuietHoursPlan(
@@ -186,13 +195,19 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
         }
     }
 
-    private fun buildIntent(supplement: UserSupplement, timeString: String, scheduledAtMillis: Long): Intent {
+    private fun buildIntent(
+        supplement: UserSupplement,
+        timeString: String,
+        scheduledAtMillis: Long,
+        requestCode: Int
+    ): Intent {
         return Intent(context, NotificationReceiver::class.java).apply {
             putExtra("SUPPLEMENT_NAME", supplement.name)
             putExtra("DAILY_DOSE", supplement.dailyDose)
             putExtra("SUPPLEMENT_ID", supplement.id.toString())
             putExtra("INTAKE_TIME", timeString)
             putExtra("SCHEDULED_AT_MILLIS", scheduledAtMillis)
+            putExtra("REQUEST_CODE", requestCode)
         }
     }
 
@@ -223,6 +238,28 @@ class NotificationSchedulerImpl(private val context: Context) : NotificationSche
     fun clearAll(supplements: List<UserSupplement>) {
         cancelAllKnown()
         supplements.forEach { cancel(it) }
+    }
+
+    fun auditDebugEntries(nowMillis: Long = System.currentTimeMillis()): NotificationAlarmAudit {
+        val entries = NotificationDebugStore.getAll(context)
+        val staleEntries = entries.filter { it.scheduledAtMillis < nowMillis }
+        staleEntries.forEach { NotificationDebugStore.recordCancelled(context, it.requestCode) }
+        val upcoming = entries.filter { it.scheduledAtMillis >= nowMillis }
+        val missing = upcoming.count { !pendingIntentExists(it.requestCode) }
+        return NotificationAlarmAudit(
+            scheduledCount = upcoming.size,
+            missingPendingIntentCount = missing,
+            staleEntryCount = staleEntries.size
+        )
+    }
+
+    private fun pendingIntentExists(requestCode: Int): Boolean {
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            Intent(context, NotificationReceiver::class.java),
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        ) != null
     }
 
     private fun cancelAllKnown() {

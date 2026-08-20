@@ -199,12 +199,12 @@ public struct NotificationService: NotificationManaging {
     
     @MainActor
     public func replaceAllSchedules(supplements: [UserSupplement]) async {
+        center.removeAllPendingNotificationRequests()
+        await NotificationShadowLogStore.shared.clear()
         guard UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser") else { return }
         let settings = await center.notificationSettings()
         let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
         guard authorized else { return }
-        center.removeAllPendingNotificationRequests()
-        await NotificationShadowLogStore.shared.clear()
         for supplement in supplements {
             do {
                 try await scheduleReminders(for: supplement)
@@ -212,6 +212,7 @@ public struct NotificationService: NotificationManaging {
                 await logShadowScheduleFailure(supplement: supplement, error: error)
             }
         }
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "oakLastNotificationRebuildEpochMs")
     }
 
     @MainActor
@@ -219,12 +220,37 @@ public struct NotificationService: NotificationManaging {
         center.removeAllPendingNotificationRequests()
         await NotificationShadowLogStore.shared.clear()
     }
+
+    @MainActor
+    public func reconcileSchedulesIfNeeded(
+        supplements: [UserSupplement],
+        forceEnvironmentChanged: Bool = false
+    ) async -> NotificationRecoveryDecision {
+        let settings = await center.notificationSettings()
+        let pending = await center.pendingNotificationRequests()
+        let shadow = await NotificationShadowLogStore.shared.read()
+        let environmentChanged = notificationEnvironmentChanged(settings: settings) || forceEnvironmentChanged
+        let decision = recoveryDecision(
+            settings: settings,
+            pending: pending,
+            shadow: shadow,
+            supplementCount: supplements.count,
+            environmentChanged: environmentChanged
+        )
+        await applyRecoveryDecision(decision, supplements: supplements)
+        return decision
+    }
     
     // MARK: - Private Helpers
     
     private struct TriggerPlan: Sendable, Hashable {
         let scheduledAt: Date
         let triggerAt: Date
+    }
+
+    private struct ShadowRecoveryState: Sendable {
+        let futureIdentifiers: Set<String>
+        let errorCount: Int
     }
 
     private func intakeTimeComponents(from time: String) -> DateComponents? {
@@ -388,8 +414,75 @@ public struct NotificationService: NotificationManaging {
     
     private func shadowDateFormatter() -> DateFormatter {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm"
         return formatter
+    }
+
+    private func notificationEnvironmentChanged(settings: UNNotificationSettings) -> Bool {
+        let defaults = UserDefaults.standard
+        let timezone = TimeZone.autoupdatingCurrent
+        let timezoneState = "\(timezone.identifier)|\(timezone.secondsFromGMT())"
+        let authorization = String(settings.authorizationStatus.rawValue)
+        let oldTimezone = defaults.string(forKey: "oakNotificationTimezone")
+        let oldAuthorization = defaults.string(forKey: "oakNotificationAuthorization")
+        defaults.set(timezoneState, forKey: "oakNotificationTimezone")
+        defaults.set(authorization, forKey: "oakNotificationAuthorization")
+        let timezoneChanged = oldTimezone.map { $0 != timezoneState } ?? false
+        let authorizationChanged = oldAuthorization.map { $0 != authorization } ?? false
+        return timezoneChanged || authorizationChanged
+    }
+
+    private func recoveryDecision(
+        settings: UNNotificationSettings,
+        pending: [UNNotificationRequest],
+        shadow: [String],
+        supplementCount: Int,
+        environmentChanged: Bool
+    ) -> NotificationRecoveryDecision {
+        let authorized = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+        let pendingIds = Set(pending.map(\.identifier))
+        let shadowState = shadowRecoveryState(shadow)
+        let input = NotificationRecoveryInput(
+            enabledByUser: UserDefaults.standard.bool(forKey: "isNotificationEnabledByUser"),
+            permissionGranted: authorized,
+            activeSupplementCount: supplementCount,
+            pendingCount: pendingIds.count,
+            pendingOnlyCount: pendingIds.subtracting(shadowState.futureIdentifiers).count,
+            shadowOnlyCount: shadowState.futureIdentifiers.subtracting(pendingIds).count,
+            shadowErrorCount: shadowState.errorCount,
+            environmentChanged: environmentChanged
+        )
+        return NotificationRecoveryPolicy.decide(input)
+    }
+
+    private func shadowRecoveryState(_ entries: [String]) -> ShadowRecoveryState {
+        let formatter = shadowDateFormatter()
+        var future = Set<String>()
+        var errors = 0
+        for raw in entries {
+            let parts = raw.components(separatedBy: "||")
+            if parts.count >= 3, parts[2] == "ERROR" { errors += 1; continue }
+            guard parts.count >= 5, let date = formatter.date(from: parts[4]), date >= Date.now else { continue }
+            future.insert(parts[0])
+        }
+        return ShadowRecoveryState(futureIdentifiers: future, errorCount: errors)
+    }
+
+    @MainActor
+    private func applyRecoveryDecision(
+        _ decision: NotificationRecoveryDecision,
+        supplements: [UserSupplement]
+    ) async {
+        switch decision.action {
+        case .none:
+            return
+        case .repairShadow:
+            await rebuildShadowFromPendingRequests()
+        case .rebuild:
+            await replaceAllSchedules(supplements: supplements)
+        }
+        UserDefaults.standard.set(decision.reason.rawValue, forKey: "oakLastNotificationRecoveryTrigger")
     }
     
     private func requestIdentifier(supplementId: UUID, timeString: String, day: Date) -> String {
@@ -476,7 +569,7 @@ public struct NotificationService: NotificationManaging {
         guard let interval = supplement.cycleConfig.intervalDays, interval > 1 else { return true }
         let day = calendar.startOfDay(for: date)
         if let raw = supplement.lastTakenLocalDate,
-           let lastTaken = dayDate(from: raw, calendar: calendar) {
+           let lastTaken = LocalDayCodec.date(from: raw, calendar: calendar) {
             let lastDay = calendar.startOfDay(for: lastTaken)
             let days = calendar.dateComponents([.day], from: lastDay, to: day).day ?? 0
             return days > 0 && days % interval == 0
@@ -486,16 +579,6 @@ public struct NotificationService: NotificationManaging {
         return days >= 0 && days % interval == 0
     }
 
-    private func dayDate(from raw: String, calendar: Calendar) -> Date? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: trimmed)
-    }
     
     private func weekdayBitIndex(for date: Date, calendar: Calendar) -> Int? {
         let weekday = calendar.component(.weekday, from: date)

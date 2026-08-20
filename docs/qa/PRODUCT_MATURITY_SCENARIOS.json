@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "synthetic_only": true,
+  "scenarios": [
+    {
+      "id": "notification_reconcile_missing_alarm",
+      "category": "notification",
+      "platforms": ["android"],
+      "steps": ["Create a synthetic routine", "Remove one registered PendingIntent outside the debug registry", "Open notification diagnostics"],
+      "expected": "Health reports repair-needed and rebuild restores registered alarms without changing routine data."
+    },
+    {
+      "id": "notification_reconcile_shadow_mismatch",
+      "category": "notification",
+      "platforms": ["ios"],
+      "steps": ["Create synthetic pending reminders", "Create a shadow mismatch", "Open notification diagnostics"],
+      "expected": "Mismatch is visible; rebuilding schedules reconciles pending and shadow entries without logging an intake."
+    },
+    {
+      "id": "notification_zero_future_rest_phase",
+      "category": "notification",
+      "platforms": ["android", "ios"],
+      "steps": ["Use a synthetic routine in a long rest phase", "Open notification diagnostics"],
+      "expected": "Zero future reminders is degraded/inspectable and is not automatically treated as corrupted data."
+    },
+    {
+      "id": "coach_windows_and_sort",
+      "category": "coach",
+      "platforms": ["android", "ios"],
+      "steps": ["Open Coach Overview with synthetic clients", "Switch 7/30/90 day windows", "Search and sort clients"],
+      "expected": "Counts and trend window change deterministically; check-in language remains neutral and non-medical."
+    },
+    {
+      "id": "sync_pending_offline_retry",
+      "category": "sync",
+      "platforms": ["android", "ios"],
+      "steps": ["Make a local synthetic edit", "Disable network", "Attempt sync", "Restore network and retry"],
+      "expected": "Health moves pending/retryable/healthy while the local edit remains intact."
+    },
+    {
+      "id": "sync_missing_encryption_key",
+      "category": "sync",
+      "platforms": ["android", "ios"],
+      "steps": ["Use an encrypted synthetic cloud fixture without its local key", "Open Sync Center"],
+      "expected": "Health recommends importing the key and does not delete or overwrite local data."
+    },
+    {
+      "id": "backup_integrity_tamper",
+      "category": "backup",
+      "platforms": ["android", "ios"],
+      "steps": ["Export a synthetic backup with integrity manifest", "Modify one dose field without changing the manifest", "Attempt import"],
+      "expected": "Import is rejected before persistence mutation because the semantic SHA-256 digest no longer matches."
+    },
+    {
+      "id": "backup_legacy_compat",
+      "category": "backup",
+      "platforms": ["android", "ios"],
+      "steps": ["Load a valid legacy backup without an integrity manifest", "Preview/decode it"],
+      "expected": "Legacy backup remains readable and existing deterministic ID collision protection still applies."
+    },
+    {
+      "id": "backup_cross_platform_digest",
+      "category": "backup",
+      "platforms": ["android", "ios"],
+      "steps": ["Build the shared fixed semantic backup fixture", "Calculate integrity digest on each platform"],
+      "expected": "Both platforms produce 2e1efab8d9ebcae33d23c2dcc945ea7fd618bbf15864c77647f5717fc3f6daf4."
+    },
+    {
+      "id": "accessibility_large_text",
+      "category": "accessibility",
+      "platforms": ["android", "ios"],
+      "steps": ["Use Vietnamese", "Set largest supported text size", "Open Coach Overview, recovery and diagnostics"],
+      "expected": "Primary actions and metrics remain readable without clipping critical state or forcing horizontal scrolling."
+    },
+    {
+      "id": "demo_read_only",
+      "category": "qa",
+      "platforms": ["android", "ios"],
+      "steps": ["Open the debug synthetic demo", "Navigate through preview content", "Return to real client data"],
+      "expected": "No synthetic client, supplement or intake is persisted and release builds expose no demo entry point."
+    },
+    {
+      "id": "migration_existing_store",
+      "category": "migration",
+      "platforms": ["android", "ios"],
+      "steps": ["Open the existing migration fixture", "Migrate through current schema", "Read clients, routines and history"],
+      "expected": "Migration preserves existing data and completes without schema-concurrency or foreign-key regression."
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import XCTest
+import SwiftData
 @testable import OAKHealthy
 
 final class CloudSyncPayloadCodecTests: XCTestCase {
@@ -34,6 +35,26 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
         let output = try CloudSyncPayloadCodec.decompressIfNeeded(data)
 
         XCTAssertEqual(String(data: output, encoding: .utf8), #"{"oak":"interop"}"#)
+    }
+
+    func testLegacyV1ExportDerivesCanonicalCrossPlatformSupplementId() throws {
+        let json = #"{"schemaVersion":1,"exportedAtEpochMs":1700000000000,"supplements":[{"name":"Vitamin C","dailyDose":"500 mg","intakeTime":"08:00","startDate":"2026-01-02","category":null,"cycle":{"isContinuous":false,"daysOn":5,"daysOff":2,"durationMonths":3,"weeklyWeekdaysMask":2,"weeklyIntervalWeeks":2,"weeklyAnchorDate":"2026-01-05","intervalDays":3}}]}"#
+        let data = try XCTUnwrap(json.data(using: .utf8))
+
+        let backup = try SupplementExportCodec.decodeBackupCompat(data: data)
+
+        XCTAssertEqual(backup.stack.count, 1)
+        XCTAssertEqual(backup.stack[0].id.lowercased(), "0c13f015-3ab0-47b7-af85-713a1c628ff0")
+    }
+
+    func testLegacyArrayWithoutIdDerivesCanonicalCrossPlatformSupplementId() throws {
+        let json = #"[{"name":"Vitamin C","dailyDose":"500 mg","intakeTime":"08:00","startDate":"2026-01-02","cycle":{"isContinuous":false,"daysOn":5,"daysOff":2,"durationMonths":3,"weeklyWeekdaysMask":2,"weeklyIntervalWeeks":2,"weeklyAnchorDate":"2026-01-05","intervalDays":3}}]"#
+        let data = try XCTUnwrap(json.data(using: .utf8))
+
+        let backup = try SupplementExportCodec.decodeBackupCompat(data: data)
+
+        XCTAssertEqual(backup.stack.count, 1)
+        XCTAssertEqual(backup.stack[0].id.lowercased(), "0c13f015-3ab0-47b7-af85-713a1c628ff0")
     }
 
     func testBackupDecodeRunsOutsideMainActor() async throws {
@@ -73,7 +94,52 @@ final class CloudSyncPayloadCodecTests: XCTestCase {
     }
 }
 
+final class SupplementMergeRegressionTests: XCTestCase {
+    @MainActor
+    func testMergeDoesNotResurrectNewerLocalDeletion() throws {
+        let schema = Schema([ClientProfile.self, UserSupplement.self, IntakeRecord.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: config)
+        let context = ModelContext(container)
+        let client = ClientProfile(name: "Test")
+        let id = UUID()
+        let local = UserSupplement(
+            id: id, name: "Local", startDate: .now, cycleConfig: .continuous,
+            dailyDose: "1", intakeTime: "08:00", updatedAtEpochMs: 100,
+            deletedAtEpochMs: 300, client: client
+        )
+        context.insert(client)
+        context.insert(local)
+        try context.save()
+        let cycle = SupplementExportCycle(
+            isContinuous: true, daysOn: 1, daysOff: 0, durationMonths: nil,
+            weeklyWeekdaysMask: nil, weeklyIntervalWeeks: nil, weeklyAnchorDate: nil, intervalDays: nil
+        )
+        let remote = OAKBackupSupplement(
+            id: id.uuidString, name: "Remote", dailyDose: "2", intakeTime: "09:00",
+            startDate: "2026-01-01", cycle: cycle, lastTakenLocalDate: nil,
+            updatedAtEpochMs: 200, deletedAtEpochMs: nil, modifiedFields: ["name"]
+        )
+        let backup = OAKBackupData(version: "2.0", meta: nil, stack: [remote], history: [], historyZlibBase64: nil)
+        try SupplementExportCodec.mergeBackupDataSafely(backup, client: client, context: context)
+
+        XCTAssertEqual(local.name, "Local")
+        XCTAssertEqual(local.deletedAtEpochMs, 300)
+    }
+}
+
 final class CloudSyncTelemetryTests: XCTestCase {
+    func testFreshActivityFallbackDoesNotPollFasterThanThirtySeconds() async {
+        let interval = await MainActor.run {
+            CloudSyncAutoSync.pollInterval(
+                nowEpoch: 1_000,
+                lastFailureEpoch: 0,
+                lastActivityEpoch: 999
+            )
+        }
+        XCTAssertEqual(interval, .seconds(30))
+    }
+
     func testPollIntervalBacksOffAfterUserActivityIsStale() async {
         let interval = await MainActor.run {
             CloudSyncAutoSync.pollInterval(
@@ -85,32 +151,29 @@ final class CloudSyncTelemetryTests: XCTestCase {
         XCTAssertEqual(interval, .seconds(30))
     }
 
-    func testTelemetryFields_includesServerErrorFields() async {
+    func testTelemetryFieldsExposeOnlyCoarseFailureMetadata() async {
         let clientId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
         let fields = await MainActor.run {
             CloudSyncAutoSync.telemetryFields(
-                binId: "bin",
+                binId: "sensitive-bin",
                 clientId: clientId,
-                error: CloudSyncError.serverError(statusCode: 500, body: " hi \n")
+                error: CloudSyncError.serverError(statusCode: 500, body: "sensitive server body")
             )
         }
         XCTAssertEqual(fields["status_code"], "500")
-        XCTAssertEqual(fields["server_body"], "hi")
-        XCTAssertEqual(fields["bin_id"], "bin")
-        XCTAssertEqual(fields["client_id"], clientId.uuidString)
+        XCTAssertEqual(fields["error_type"], "server_error")
+        XCTAssertNil(fields["server_body"])
+        XCTAssertNil(fields["bin_id"])
+        XCTAssertNil(fields["client_id"])
+        XCTAssertNil(fields["error"])
     }
-    
-    func testTelemetryFields_truncatesServerBody() async {
+
+    func testSuccessfulTelemetryContainsNoIdentifiers() async {
         let clientId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
-        let body = String(repeating: "a", count: 400)
         let fields = await MainActor.run {
-            CloudSyncAutoSync.telemetryFields(
-                binId: "bin",
-                clientId: clientId,
-                error: CloudSyncError.serverError(statusCode: 500, body: body)
-            )
+            CloudSyncAutoSync.telemetryFields(binId: "sensitive-bin", clientId: clientId, error: nil)
         }
-        XCTAssertEqual(fields["server_body"]?.count, 240)
+        XCTAssertTrue(fields.isEmpty)
     }
 }
 
@@ -179,6 +242,98 @@ final class FirebaseRevisionTests: XCTestCase {
         }
         XCTAssertEqual(results, [false, false, false])
     }
+
+    func testRealtimeListenerRejectsStaleSessionCompletion() async {
+        let clientA = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let clientB = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let sessionA = CloudSyncRealtimeSession(clientId: clientA, manifestId: "shared")
+        let sessionB = CloudSyncRealtimeSession(clientId: clientB, manifestId: "shared")
+        let results = await MainActor.run {
+            [
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 3,
+                    expectedSession: sessionA, activeSession: sessionA, isCancelled: false
+                ),
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 4,
+                    expectedSession: sessionA, activeSession: sessionA, isCancelled: false
+                ),
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 3,
+                    expectedSession: sessionA, activeSession: sessionB, isCancelled: false
+                ),
+                FirebaseRealtimeSyncListener.shouldAcceptSyncResult(
+                    startGeneration: 3, currentGeneration: 3,
+                    expectedSession: sessionA, activeSession: sessionA, isCancelled: true
+                )
+            ]
+        }
+        XCTAssertEqual(results, [true, false, false, false])
+    }
+}
+
+final class CloudSyncCoordinatorRegressionTests: XCTestCase {
+    @MainActor
+    func testLegacyFallbackOnlyForLegacyPayloadShapes() {
+        XCTAssertTrue(CloudSyncAutoSync.shouldUseLegacyFallback(.invalidResponse))
+        XCTAssertTrue(CloudSyncAutoSync.shouldUseLegacyFallback(.manifestCodec(.decodeFailed)))
+        XCTAssertFalse(CloudSyncAutoSync.shouldUseLegacyFallback(.networkError(message: "offline")))
+    }
+
+    @MainActor
+    func testConflictRetryOnlyForRevisionConflicts() {
+        XCTAssertTrue(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 409, body: "")))
+        XCTAssertTrue(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 412, body: "")))
+        XCTAssertFalse(CloudSyncAutoSync.isConflictError(CloudSyncError.serverError(statusCode: 500, body: "")))
+    }
+
+    @MainActor
+    func testRealtimeSessionReuseRequiresSameProfileAndManifest() {
+        let clientA = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        let clientB = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let sessionA = CloudSyncRealtimeSession(clientId: clientA, manifestId: "shared")
+        let sessionB = CloudSyncRealtimeSession(clientId: clientB, manifestId: "shared")
+
+        XCTAssertTrue(CloudSyncAutoSync.shouldReuseRealtimeSession(current: sessionA, requested: sessionA, hasTask: true))
+        XCTAssertFalse(CloudSyncAutoSync.shouldReuseRealtimeSession(current: sessionA, requested: sessionB, hasTask: true))
+        XCTAssertFalse(CloudSyncAutoSync.shouldReuseRealtimeSession(current: sessionA, requested: sessionA, hasTask: false))
+    }
+
+    @MainActor
+    func testSuccessfulSyncCleanupRemovesStaleFailureState() throws {
+        let suite = "CloudSyncCoordinatorRegressionTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let binId = "test-bin"
+        defaults.set("stale", forKey: "cloudSyncLastError_\(binId)")
+        defaults.set(123.0, forKey: "cloudSyncLastFailureEpoch")
+
+        CloudSyncAutoSync.clearFailureState(binId: binId, defaults: defaults)
+
+        XCTAssertNil(defaults.string(forKey: "cloudSyncLastError_\(binId)"))
+        XCTAssertEqual(defaults.double(forKey: "cloudSyncLastFailureEpoch"), 0)
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    @MainActor
+    func testRunGateSerializesManualBehindAuto() async {
+        let gate = CloudSyncRunGate(waitInterval: .milliseconds(1))
+        XCTAssertTrue(gate.beginAuto())
+        XCTAssertFalse(gate.beginAuto())
+        XCTAssertTrue(gate.takeAutoRerun())
+        let release = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(20))
+            gate.finish()
+        }
+        let clock = ContinuousClock()
+        let started = clock.now
+        let acquired = await gate.beginManual()
+        let elapsed = started.duration(to: clock.now)
+
+        XCTAssertTrue(acquired)
+        XCTAssertTrue(elapsed >= Duration.milliseconds(10))
+        gate.finish()
+        _ = await release.value
+    }
 }
 
 final class CloudSyncCryptoInteropTests: XCTestCase {
@@ -197,6 +352,14 @@ final class CloudSyncCryptoInteropTests: XCTestCase {
         let legacy = "AAECAwQFBgcICQoLPCC5eq7H+DnkL+Puw4YIQPXnpUmVBOFtPs/RqbLwTBZTYsL5"
         let output = try CloudSyncCrypto.decryptIfNeeded(envelope(ciphertext: legacy))
         XCTAssertEqual(String(data: output, encoding: .utf8), "{\"oak\":\"interop-v1\"}")
+    }
+
+    func testRejectsTamperedCiphertext() throws {
+        _ = try CloudSyncKeyManager.importKey(exported: exportedKey)
+        var bytes = try XCTUnwrap(Data(base64Encoded: ciphertext))
+        bytes[bytes.index(before: bytes.endIndex)] ^= 0x01
+        let tampered = bytes.base64EncodedString()
+        XCTAssertThrowsError(try CloudSyncCrypto.decryptIfNeeded(envelope(ciphertext: tampered)))
     }
 
     func testRejectsInvalidKeyIdentifiers() {

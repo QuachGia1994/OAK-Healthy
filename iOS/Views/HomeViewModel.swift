@@ -121,13 +121,12 @@ public final class HomeViewModel {
         guard let time = normalizedTimeString(timeString) else { return .none }
         guard doseStatus(supplement, timeString: time, now: now) == .planned else { return .none }
         guard let scheduledAt = scheduledAtLocal(for: now, timeString: time) else { return .none }
-        let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1000)
+        let scheduledAtEpochMs = Int64(scheduledAt.timeIntervalSince1970 * 1_000)
         let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
         if todayRecordStatusById[recordId] != nil { return .none }
-        let dueSoonSeconds: TimeInterval = 20 * 60
-        if scheduledAt > now && scheduledAt.timeIntervalSince(now) <= dueSoonSeconds { return .dueSoon }
-        let missedAfter = scheduledAt.addingTimeInterval(2 * 60 * 60)
-        if now >= missedAfter.addingTimeInterval(-dueSoonSeconds) && now < missedAfter { return .missedSoon }
+        let nowEpochMs = Int64(now.timeIntervalSince1970 * 1_000)
+        if DoseTimingPolicy.isDueSoon(scheduledAtEpochMs: scheduledAtEpochMs, nowEpochMs: nowEpochMs) { return .dueSoon }
+        if DoseTimingPolicy.isMissedSoon(scheduledAtEpochMs: scheduledAtEpochMs, nowEpochMs: nowEpochMs) { return .missedSoon }
         return .none
     }
     
@@ -154,15 +153,8 @@ public final class HomeViewModel {
         notificationService: NotificationService
     ) {
         guard let ctx = makeMarkDoseContext(supplement: supplement, timeString: timeString, action: action) else { return }
-        let newRecord = IntakeRecord(
-            id: ctx.recordId,
-            date: ctx.scheduledAt,
-            status: ctx.status,
-            intakeTime: ctx.time,
-            updatedAtEpochMs: ctx.nowEpochMs,
-            supplement: supplement
-        )
-        guard persistMark(newRecord, supplement: supplement, action: action, ctx: ctx, context: context) else { return }
+        guard persistMark(supplement: supplement, ctx: ctx, context: context) else { return }
+        ActivationRetentionStore.mark(.firstAction)
         applyMarkToCaches(ctx: ctx, action: action)
         scheduleMarkSideEffects(
             supplement: supplement,
@@ -179,7 +171,7 @@ public final class HomeViewModel {
         let scheduledAtEpochMs: Int64
         let recordId: UUID
         let previous: DoseStatus
-        let status: String
+        let status: IntakeStatus
         let nowEpochMs: Int64
     }
 
@@ -195,9 +187,9 @@ public final class HomeViewModel {
         let recordId = recordIdForDoseCached(supplementId: supplement.id, scheduledAtEpochMs: scheduledAtEpochMs)
         guard todayRecordStatusById[recordId] == nil else { return nil }
         let nowEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
-        let status: String = switch action {
-        case .taken: IntakeStatus.taken.rawValue
-        case .skipped: IntakeStatus.skipped.rawValue
+        let status: IntakeStatus = switch action {
+        case .taken: .taken
+        case .skipped: .skipped
         }
         return MarkDoseContext(
             time: time,
@@ -211,22 +203,28 @@ public final class HomeViewModel {
     }
 
     private func persistMark(
-        _ record: IntakeRecord,
         supplement: UserSupplement,
-        action: DoseAction,
         ctx: MarkDoseContext,
         context: ModelContext
     ) -> Bool {
-        context.insert(record)
-        if action == .taken {
-            supplement.lastTakenLocalDate = localDayString(from: ctx.scheduledAt)
-            supplement.updatedAtEpochMs = ctx.nowEpochMs
+        do {
+            let result = try SupplementHistoryMutationStore.recordDose(
+                supplement: supplement,
+                scheduledAt: ctx.scheduledAt,
+                intakeTime: ctx.time,
+                status: ctx.status,
+                updatedAtEpochMs: ctx.nowEpochMs,
+                in: context
+            )
+            return result.inserted
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
         }
-        return true
     }
 
     private func applyMarkToCaches(ctx: MarkDoseContext, action: DoseAction) {
-        todayRecordStatusById[ctx.recordId] = ctx.status
+        todayRecordStatusById[ctx.recordId] = ctx.status.rawValue
         recentRecordIds.insert(ctx.recordId)
         adjustTodayCounts(previous: ctx.previous, action: action, scheduledAt: ctx.scheduledAt, now: .now)
         Task { @MainActor in
@@ -288,14 +286,6 @@ public final class HomeViewModel {
         CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
     }
 
-    private func localDayString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar.current
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
     
     public func doseStatus(_ supplement: UserSupplement, timeString: String, now: Date = .now) -> DoseStatus {
         guard let time = normalizedTimeString(timeString) else { return .planned }
@@ -310,9 +300,10 @@ public final class HomeViewModel {
             return .taken
         }
         
-        let missedAfter = scheduledAt.addingTimeInterval(2 * 60 * 60)
-        if now > missedAfter { return .missed }
-        return .planned
+        let nowEpochMs = Int64(now.timeIntervalSince1970 * 1_000)
+        return DoseTimingPolicy.isMissed(scheduledAtEpochMs: scheduledAtEpochMs, nowEpochMs: nowEpochMs)
+            ? .missed
+            : .planned
     }
     
     private func scheduledAtLocal(for day: Date, timeString: String) -> Date? {
@@ -361,22 +352,21 @@ public final class HomeViewModel {
         timeString: String,
         context: ModelContext,
         notificationService: NotificationService
-    ) {
+    ) async {
         let remainingTimes = TimeStrings.removingTime(timeString, from: supplement.intakeTime)
-        let previousIntakeTime = supplement.intakeTime
-        let previousUpdatedAt = supplement.updatedAtEpochMs
-        supplement.intakeTime = remainingTimes.joined(separator: ", ")
-        supplement.updatedAtEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         do {
-            try context.save()
+            try SupplementRoutineMutationStore.updateIntakeTime(
+                supplement,
+                intakeTime: remainingTimes.joined(separator: ", "),
+                at: Int64(Date().timeIntervalSince1970 * 1000),
+                in: context
+            )
         } catch {
-            supplement.intakeTime = previousIntakeTime
-            supplement.updatedAtEpochMs = previousUpdatedAt
             errorMessage = error.localizedDescription
             return
         }
         processSupplements(supplementsCache)
-        Task { await rescheduleAndSync(supplement, context: context, notificationService: notificationService) }
+        await rescheduleAndSync(supplement, context: context, notificationService: notificationService)
     }
 
     private func rescheduleAndSync(
@@ -393,23 +383,22 @@ public final class HomeViewModel {
     }
     
     /// Xóa thực phẩm bổ sung.
-    public func deleteSupplement(_ supplement: UserSupplement, context: ModelContext, notificationService: NotificationService) {
+    public func deleteSupplement(
+        _ supplement: UserSupplement,
+        context: ModelContext,
+        notificationService: NotificationService
+    ) async {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
-        supplement.deletedAtEpochMs = now
-        supplement.updatedAtEpochMs = now
         do {
-            try context.save()
+            try SupplementHistoryMutationStore.softDelete(supplement, at: now, in: context)
         } catch {
             errorMessage = error.localizedDescription
             return
         }
 
         removeSupplementFromCaches(supplement.id)
-        
-        Task {
-            await notificationService.cancelReminders(for: supplement)
-            CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
-        }
+        await notificationService.cancelReminders(for: supplement)
+        CloudSyncAutoSync.requestSyncSoon(modelContext: context, clientId: supplement.client?.id)
     }
     
     private func removeSupplementFromCaches(_ supplementId: UUID) {
@@ -449,6 +438,7 @@ public final class HomeViewModel {
                     todayStatus[record.id] = record.status
                 }
             }
+            if todayStart < calendarCurrent.startOfDay(for: supplement.startDate) { continue }
             let status = try? cycleEngine.determineStatus(
                 for: supplement.startDate,
                 config: supplement.cycleConfig,
@@ -549,7 +539,7 @@ public final class HomeViewModel {
         guard let interval = supplement.cycleConfig.intervalDays, interval > 1 else { return true }
         let day = calendar.startOfDay(for: date)
         if let raw = supplement.lastTakenLocalDate,
-           let lastTaken = parseLocalDay(raw, calendar: calendar) {
+           let lastTaken = LocalDayCodec.date(from: raw, calendar: calendar) {
             let lastDay = calendar.startOfDay(for: lastTaken)
             let days = calendar.dateComponents([.day], from: lastDay, to: day).day ?? 0
             return days >= 0 && days % interval == 0
@@ -559,16 +549,6 @@ public final class HomeViewModel {
         return days >= 0 && days % interval == 0
     }
 
-    private func parseLocalDay(_ raw: String, calendar: Calendar) -> Date? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: trimmed)
-    }
 
     private func hasCompletedDose(
         supplement: UserSupplement,

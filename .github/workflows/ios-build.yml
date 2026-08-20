@@ -2,7 +2,7 @@ name: iOS Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 'ci/**' ]
     paths:
       - iOS/**
       - scripts/**
@@ -83,10 +83,20 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Setup Xcode (pinned)
+      - name: Setup Xcode (current stable)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.4"
+          xcode-version: "latest-stable"
+
+      - name: Require Xcode 26+
+        shell: bash
+        run: |
+          version="$(xcodebuild -version | awk '/Xcode/ {print $2; exit}')"
+          major="${version%%.*}"
+          if [ -z "${major}" ] || [ "${major}" -lt 26 ]; then
+            echo "App Store activation requires Xcode 26 or later; found ${version:-unknown}."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         env:
@@ -95,23 +105,21 @@ jobs:
         run: |
           brew list xcodegen > /dev/null 2>&1 || brew install xcodegen
 
-      - name: Inject API Keys securely
-        env:
-          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
-        run: |
-          mkdir -p iOS
-          printf "JSONBIN_API_KEY = %s\n" "${JSONBIN_KEY:-}" > iOS/Secrets.xcconfig
-
       - name: Generate Xcode Project
         run: |
           cd iOS
           xcodegen generate
 
       - name: Run Unit Tests (with coverage)
+        shell: bash
         run: |
           set -o pipefail
           rm -rf iOS/build/TestResults.xcresult
+          set +e
           xcodebuild -project iOS/OAKHealthy.xcodeproj -scheme OAKHealthy -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,name=${IOS_SIMULATOR_NAME}" -enableCodeCoverage YES -resultBundlePath iOS/build/TestResults.xcresult clean test | tee iOS/xcodebuild-test.log
+          xcode_status=${PIPESTATUS[0]}
+          set -e
+          python3 scripts/verify_xcode_test_run.py iOS/xcodebuild-test.log iOS/build/TestResults.xcresult --xcodebuild-exit "${xcode_status}"
 
       - name: Report Coverage (warn)
         if: ${{ always() }}
@@ -147,10 +155,20 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Setup Xcode (pinned)
+      - name: Setup Xcode (current stable)
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: "16.4"
+          xcode-version: "latest-stable"
+
+      - name: Require Xcode 26+
+        shell: bash
+        run: |
+          version="$(xcodebuild -version | awk '/Xcode/ {print $2; exit}')"
+          major="${version%%.*}"
+          if [ -z "${major}" ] || [ "${major}" -lt 26 ]; then
+            echo "App Store activation requires Xcode 26 or later; found ${version:-unknown}."
+            exit 1
+          fi
 
       - name: Install XcodeGen
         env:
@@ -158,13 +176,6 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
           brew list xcodegen > /dev/null 2>&1 || brew install xcodegen
-
-      - name: Inject API Keys securely
-        env:
-          JSONBIN_KEY: ${{ secrets.JSONBIN_API_KEY }}
-        run: |
-          mkdir -p iOS
-          printf "JSONBIN_API_KEY = %s\n" "$JSONBIN_KEY" > iOS/Secrets.xcconfig
 
       - name: Generate Xcode Project
         run: |

@@ -3,6 +3,8 @@ import SwiftData
 
 public struct StackView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(EntitlementManager.self) private var entitlementManager
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     @Query(sort: \UserSupplement.name) private var supplements: [UserSupplement]
     
@@ -41,27 +43,10 @@ public struct StackView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
 
-                        HStack(spacing: 12) {
-                            Button {
-                                selectedDestination = .syncCenter
-                            } label: {
-                                StackQuickAction(
-                                    title: "sync_center_title".localized,
-                                    systemImage: "arrow.triangle.2.circlepath"
-                                )
-                            }
-                            .buttonStyle(.plain)
-
-                            Button {
-                                selectedDestination = .userGuide
-                            } label: {
-                                StackQuickAction(
-                                    title: "user_guide_title".localized,
-                                    systemImage: "book.closed.fill"
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
+                        StackActionSurface(
+                            onSync: { selectedDestination = .syncCenter },
+                            onGuide: { selectedDestination = .userGuide }
+                        )
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 12, trailing: 16))
@@ -69,7 +54,7 @@ public struct StackView: View {
                     
                     Section {
                         if displayedSupplements.isEmpty {
-                            StackEmptyState()
+                            StackEmptyState(onAdd: { isShowingAddSheet = true })
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                                 .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
@@ -83,8 +68,8 @@ public struct StackView: View {
                                 )
                                 .equatable()
                                 .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                .listRowSeparator(.visible)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button {
                                         editingSupplement = supplement
@@ -110,12 +95,12 @@ public struct StackView: View {
                 .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always))
                 .navigationTitle("my_list_title".localized)
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                .toolbarBackground(OAKPalette.background(for: colorScheme), for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Menu {
-                            ForEach(clients) { client in
+                            ForEach(permittedClients) { client in
                                 Button(client.name) {
                                     activeClientManager.setCurrentClientId(client.id)
                                 }
@@ -187,15 +172,23 @@ public struct StackView: View {
     private func destinationView(for destination: StackDestination) -> some View {
         switch destination {
         case .syncCenter:
-            SyncCenterView(activeClientManager: activeClientManager)
+            if entitlementManager.canUse(.encryptedCloudSync) {
+                SyncCenterView(activeClientManager: activeClientManager)
+            } else {
+                PlanAccessView()
+            }
         case .userGuide:
             UserGuideView()
         }
     }
     
+    private var permittedClients: [ClientProfile] {
+        entitlementManager.maxClients.map { Array(clients.prefix($0)) } ?? clients
+    }
+
     private var activeClient: ClientProfile? {
         guard let id = activeClientManager.currentClientId else { return nil }
-        return clients.first { $0.id == id }
+        return permittedClients.first { $0.id == id }
     }
     
     private var displayedSupplements: [UserSupplement] {
@@ -236,15 +229,12 @@ public struct StackView: View {
             isExpired($0, today: today)
         }
         guard !expired.isEmpty else { return }
-        let now = Int64(today.timeIntervalSince1970 * 1000)
-        for supplement in expired {
-            supplement.deletedAtEpochMs = now
-            supplement.updatedAtEpochMs = now
-        }
+        let now = Int64(today.timeIntervalSince1970 * 1_000)
         do {
-            try modelContext.save()
+            try SupplementHistoryMutationStore.softDelete(expired, at: now, in: modelContext)
         } catch {
-            return
+            errorMessage = error.localizedDescription
+            isShowingError = true
         }
     }
 
@@ -288,17 +278,14 @@ public struct StackView: View {
     }
     
     private func deleteSupplement(_ supplement: UserSupplement) {
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        supplement.deletedAtEpochMs = now
-        supplement.updatedAtEpochMs = now
+        let now = Int64(Date().timeIntervalSince1970 * 1_000)
         do {
-            try modelContext.save()
+            try SupplementHistoryMutationStore.softDelete(supplement, at: now, in: modelContext)
         } catch {
             errorMessage = error.localizedDescription
             isShowingError = true
             return
         }
-        
         refreshVisibleSupplements()
         Task {
             await notificationService.cancelReminders(for: supplement)
@@ -321,11 +308,10 @@ private struct StackSupplementRow: View, Equatable {
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(isOffCycle ? Color.secondary.opacity(0.35) : OAKPalette.taken(for: colorScheme))
-                .frame(width: 4, height: 44)
-            VStack(alignment: .leading, spacing: 5) {
+        let accent = isOffCycle ? Color.secondary.opacity(0.55) : OAKPalette.taken(for: colorScheme)
+        HStack(spacing: OAKSpacing.md) {
+            Circle().fill(accent).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: OAKSpacing.xs) {
                 Text(name)
                     .font(.headline)
                     .foregroundStyle(isOffCycle ? Color.secondary : Color.primary)
@@ -335,12 +321,11 @@ private struct StackSupplementRow: View, Equatable {
                     .lineLimit(2)
             }
             Spacer(minLength: 8)
-            Image(systemName: isOffCycle ? "moon.zzz.fill" : "bolt.heart.fill")
-                .foregroundStyle(isOffCycle ? Color.secondary : OAKPalette.taken(for: colorScheme))
+            Image(systemName: isOffCycle ? "moon.zzz.fill" : "checkmark.circle.fill")
+                .foregroundStyle(accent)
                 .accessibilityHidden(true)
         }
-        .padding(16)
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
+        .padding(.vertical, OAKSpacing.md)
         .accessibilityElement(children: .combine)
     }
 
@@ -354,30 +339,22 @@ private struct StackOverviewCard: View {
     let restingCount: Int
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Label("my_list_title".localized, systemImage: "square.stack.3d.up.fill")
+        VStack(alignment: .leading, spacing: 14) {
+            Text("my_list_title".localized)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.86))
+                .oakSecondaryText()
             Text(totalCount, format: .number)
-                .font(.system(size: 44, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .font(.oakDisplay(size: 52))
+                .foregroundStyle(.primary)
                 .monospacedDigit()
-            HStack(spacing: 10) {
+            OAKResponsiveMetricLayout {
                 StackMetric(title: "cycle_status_on".localized, value: max(0, totalCount - restingCount))
                 StackMetric(title: "cycle_status_off".localized, value: restingCount)
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [OAKPalette.heroStart, OAKPalette.heroEnd],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-        )
-        .shadow(color: OAKPalette.heroEnd.opacity(0.22), radius: 16, x: 0, y: 9)
+        .oakCardStyle(.paper, cornerRadius: 16)
         .accessibilityElement(children: .combine)
     }
 }
@@ -387,15 +364,53 @@ private struct StackMetric: View {
     let value: Int
 
     var body: some View {
-        HStack(spacing: 7) {
-            Text(value, format: .number).fontWeight(.bold).monospacedDigit()
-            Text(title).lineLimit(1).minimumScaleFactor(0.75)
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value, format: .number)
+                .font(.title3.weight(.semibold))
+                .monospacedDigit()
+            Text(title)
+                .font(.caption)
+                .oakSecondaryText()
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
-        .font(.caption)
-        .foregroundStyle(.white)
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .background(.white.opacity(0.14), in: Capsule())
+    }
+}
+
+private struct StackActionSurface: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let onSync: () -> Void
+    let onGuide: () -> Void
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize >= .accessibility1 {
+                VStack(spacing: 0) {
+                    actionButton("sync_center_title".localized, "arrow.triangle.2.circlepath", onSync)
+                    Divider()
+                    actionButton("user_guide_title".localized, "book.closed.fill", onGuide)
+                }
+            } else {
+                HStack(spacing: 0) {
+                    actionButton("sync_center_title".localized, "arrow.triangle.2.circlepath", onSync)
+                    Divider()
+                    actionButton("user_guide_title".localized, "book.closed.fill", onGuide)
+                }
+            }
+        }
+        .background(
+            OAKPalette.mutedSurface(for: colorScheme),
+            in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+        )
+    }
+
+    private func actionButton(_ title: String, _ systemImage: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            StackQuickAction(title: title, systemImage: systemImage)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -404,7 +419,7 @@ private struct StackQuickAction: View {
     let systemImage: String
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: OAKSpacing.sm) {
             Image(systemName: systemImage)
                 .foregroundStyle(OAKPalette.accent)
             Text(title)
@@ -414,24 +429,21 @@ private struct StackQuickAction: View {
                 .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
         }
-        .padding(14)
+        .padding(.horizontal, OAKSpacing.md)
+        .oakTouchTarget()
         .frame(maxWidth: .infinity)
-        .oakCardStyle(.glass, cornerRadius: 18, strokeOpacity: 0.14, shadowOpacity: 0.05, shadowRadius: 7, shadowY: 3)
     }
 }
 
 private struct StackEmptyState: View {
+    let onAdd: () -> Void
+
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "leaf.circle.fill")
-                .font(.system(size: 34))
-                .foregroundStyle(OAKPalette.accent)
-            Text("no_supplements_yet".localized)
-                .font(.subheadline.weight(.semibold))
-                .oakSecondaryText()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.04, shadowRadius: 7, shadowY: 3)
+        OAKFeedbackView(
+            title: "no_supplements_yet".localized,
+            message: "add_supplement".localized,
+            actionTitle: "add_supplement".localized,
+            action: onAdd
+        )
     }
 }

@@ -7,6 +7,13 @@ import android.content.Context
 import android.os.PersistableBundle
 import com.example.supplementtracker.service.OakPrefs
 import com.example.supplementtracker.service.FirebaseRevision
+import com.example.supplementtracker.service.CloudSyncLogEntry
+import com.example.supplementtracker.service.CloudSyncLogStore
+import com.example.supplementtracker.service.SyncHealthEvaluator
+import com.example.supplementtracker.service.SyncHealthInput
+import com.example.supplementtracker.service.SyncHealthLevel
+import com.example.supplementtracker.service.SyncHealthReport
+import com.example.supplementtracker.service.SyncRecoveryAction
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -58,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,7 +76,6 @@ import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
 import com.example.supplementtracker.presentation.home.HomeViewModel
-import org.json.JSONArray
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -86,6 +93,7 @@ fun SyncCenterScreen(
     val context = LocalContext.current
     val prefs = remember { OakPrefs.get(context) }
     val hostedBinId by homeViewModel.hostedBinId.collectAsStateWithLifecycle()
+    val linkedBinId by homeViewModel.linkedBinId.collectAsStateWithLifecycle()
     val cloudSyncLoading by homeViewModel.cloudSyncLoading.collectAsStateWithLifecycle()
     val uiStatus by homeViewModel.cloudSyncUiStatus.collectAsStateWithLifecycle()
     val formatter = remember {
@@ -95,8 +103,7 @@ fun SyncCenterScreen(
     val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    var activeLinkedBinId by remember { mutableStateOf(prefs.getString("cloudSyncLinkedBinId", "").orEmpty()) }
-    var linkedBinInput by remember { mutableStateOf(activeLinkedBinId) }
+    var linkedBinInput by remember { mutableStateOf(linkedBinId.orEmpty()) }
     var isAutoSyncEnabled by remember { mutableStateOf(prefs.getBoolean("isAutoSyncEnabled", false)) }
     var isEncryptionEnabled by remember { mutableStateOf(prefs.getBoolean("cloudSyncEncryptionEnabled", false)) }
     var encryptionKeyInput by remember { mutableStateOf("") }
@@ -116,10 +123,12 @@ fun SyncCenterScreen(
     var isExportLogConfirmVisible by remember { mutableStateOf(false) }
     var isStatusBinIdVisible by remember { mutableStateOf(false) }
     var isManifestPartsVisible by remember { mutableStateOf(false) }
+    var isStatusDiagnosticsVisible by remember { mutableStateOf(false) }
+    var isLogsVisible by remember { mutableStateOf(false) }
 
-    val activeBinId = remember(hostedBinId, activeLinkedBinId) {
-        val hosted = (hostedBinId ?: "").trim()
-        val linked = activeLinkedBinId.trim()
+    val activeBinId = remember(hostedBinId, linkedBinId) {
+        val hosted = hostedBinId.orEmpty().trim()
+        val linked = linkedBinId.orEmpty().trim()
         if (hosted.isNotEmpty()) hosted else linked
     }
     val hasActiveCloudLink = activeBinId.isNotEmpty()
@@ -129,14 +138,14 @@ fun SyncCenterScreen(
             when (key) {
                 "isAutoSyncEnabled" -> isAutoSyncEnabled = prefs.getBoolean("isAutoSyncEnabled", false)
                 "cloudSyncEncryptionEnabled" -> isEncryptionEnabled = prefs.getBoolean("cloudSyncEncryptionEnabled", false)
-                "cloudSyncLinkedBinId" -> {
-                    activeLinkedBinId = prefs.getString("cloudSyncLinkedBinId", "").orEmpty()
-                    if (activeLinkedBinId.isEmpty()) linkedBinInput = ""
-                }
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    LaunchedEffect(linkedBinId) {
+        linkedBinInput = linkedBinId.orEmpty()
     }
 
     LaunchedEffect(isAutoSyncEnabled) {
@@ -159,21 +168,7 @@ fun SyncCenterScreen(
 
     val exportedKey = homeViewModel.exportCloudEncryptionKey().orEmpty()
     val logsRaw = remember(activeBinId, uiStatus?.lastAttemptEpochMs, uiStatus?.lastError, logsVersion) {
-        if (activeBinId.isBlank()) return@remember emptyList<CloudSyncLogUiItem>()
-        val raw = prefs.getString("cloudSyncLog_${activeBinId.trim()}", "[]").orEmpty()
-        val array = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
-        val out = ArrayList<CloudSyncLogUiItem>(array.length())
-        for (i in 0 until array.length()) {
-            val obj = array.optJSONObject(i) ?: continue
-            out.add(
-                CloudSyncLogUiItem(
-                    ts = obj.optLong("ts", 0L),
-                    phase = obj.optString("phase", "").orEmpty(),
-                    msg = obj.optString("msg", "").orEmpty()
-                )
-            )
-        }
-        out.asReversed()
+        CloudSyncLogStore.read(prefs, activeBinId)
     }
     val logs = remember(logsRaw, logPhaseFilter, logQuery) {
         val q = logQuery.trim()
@@ -181,7 +176,7 @@ fun SyncCenterScreen(
             val phaseOk = logPhaseFilter == "ALL" || item.phase.equals(logPhaseFilter, ignoreCase = true)
             if (!phaseOk) return@filter false
             if (q.isEmpty()) return@filter true
-            item.phase.contains(q, ignoreCase = true) || item.msg.contains(q, ignoreCase = true)
+            item.phase.contains(q, ignoreCase = true) || item.message.contains(q, ignoreCase = true)
         }
     }
 
@@ -284,7 +279,7 @@ fun SyncCenterScreen(
                         onClick = {
                             val id = activeBinId.trim()
                             if (id.isNotEmpty()) {
-                                prefs.edit().remove("cloudSyncLog_$id").apply()
+                                CloudSyncLogStore.clear(prefs, id)
                                 logsVersion += 1
                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_log_cleared), Toast.LENGTH_SHORT).show()
                             }
@@ -307,8 +302,7 @@ fun SyncCenterScreen(
                         onClick = {
                             val id = activeBinId.trim()
                             if (id.isNotEmpty()) {
-                                val raw = prefs.getString("cloudSyncLog_$id", "[]").orEmpty()
-                                val pretty = formatLogPretty(raw, formatter)
+                                val pretty = formatLogPretty(CloudSyncLogStore.read(prefs, id), formatter)
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("cloudSyncLog", pretty))
                                 Toast.makeText(context, context.getString(R.string.sync_center_toast_log_copied), Toast.LENGTH_SHORT).show()
@@ -344,39 +338,31 @@ fun SyncCenterScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item(key = "tabs") {
-                    OakCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        elevation = 1.dp
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        divider = {}
                     ) {
-                        TabRow(
-                            selectedTabIndex = selectedTab,
-                            containerColor = Color.Transparent,
-                            divider = {}
-                        ) {
-                            Tab(
-                                selected = selectedTab == 0,
-                                onClick = { selectedTab = 0 },
-                                text = { Text(stringResource(R.string.sync_center_tab_host), color = primaryTextColor) }
-                            )
-                            Tab(
-                                selected = selectedTab == 1,
-                                onClick = { selectedTab = 1 },
-                                text = { Text(stringResource(R.string.sync_center_tab_link), color = primaryTextColor) }
-                            )
-                        }
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text(stringResource(R.string.sync_center_tab_host), color = primaryTextColor) }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text(stringResource(R.string.sync_center_tab_link), color = primaryTextColor) }
+                        )
                     }
                 }
 
                 item(key = "setup") {
                     OakCard(
                         modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
+                        variant = OakCardVariant.Paper,
+                        shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(16.dp),
-                        elevation = 2.dp
+                        elevation = 0.dp
                     ) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             if (selectedTab == 0) {
@@ -491,19 +477,16 @@ fun SyncCenterScreen(
                                                 Toast.makeText(context, context.getString(R.string.sync_center_invalid_link_code), Toast.LENGTH_SHORT).show()
                                                 return@OutlinedButton
                                             }
-                                            activeLinkedBinId = linkCode
-                                            prefs.edit().putString("cloudSyncLinkedBinId", linkCode).apply()
-                                            homeViewModel.receiveData(linkCode)
+                                            homeViewModel.linkData(linkCode)
                                         },
                                         enabled = linkedBinInput.trim().isNotEmpty() && !cloudSyncLoading
                                     ) { Text(stringResource(R.string.sync_center_action_download)) }
                                 }
-                                if (activeLinkedBinId.isNotBlank()) {
+                                if (!linkedBinId.isNullOrBlank()) {
                                     OutlinedButton(
                                         onClick = {
-                                            activeLinkedBinId = ""
+                                            homeViewModel.unlinkData()
                                             linkedBinInput = ""
-                                            prefs.edit().remove("cloudSyncLinkedBinId").apply()
                                             if (hostedBinId.isNullOrBlank()) isAutoSyncEnabled = false
                                         },
                                         enabled = !cloudSyncLoading
@@ -528,18 +511,35 @@ fun SyncCenterScreen(
                 item(key = "status") {
                     if (activeBinId.isNotBlank() && uiStatus?.binId == activeBinId.trim()) {
                         val status = uiStatus!!
+                        val health = remember(status, isAutoSyncEnabled, isEncryptionEnabled) {
+                            SyncHealthEvaluator.evaluate(
+                                SyncHealthInput(
+                                    hasLink = true,
+                                    autoSyncEnabled = isAutoSyncEnabled,
+                                    hasPendingChanges = status.hasPendingChanges,
+                                    lastSyncEpochMs = status.lastSyncEpochMs,
+                                    lastAttemptEpochMs = status.lastAttemptEpochMs,
+                                    lastError = status.lastError,
+                                    encryptionEnabled = isEncryptionEnabled
+                                )
+                            )
+                        }
                         val notYet = stringResource(R.string.sync_center_not_yet)
                         val lastSyncText = if (status.lastSyncEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastSyncEpochMs)) else notYet
                         val lastAttemptText = if (status.lastAttemptEpochMs > 0L) formatter.format(Instant.ofEpochMilli(status.lastAttemptEpochMs)) else notYet
                         OakCard(
                             modifier = Modifier.fillMaxWidth(),
-                            variant = OakCardVariant.Glass,
-                            shape = RoundedCornerShape(28.dp),
+                            variant = OakCardVariant.Paper,
+                            shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(16.dp),
-                            elevation = 2.dp
+                            elevation = 0.dp
                         ) {
                             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(stringResource(R.string.sync_center_status_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
+                                SyncHealthSummary(
+                                    report = health,
+                                    onSyncNow = { homeViewModel.syncNow(status.binId) }
+                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
@@ -565,6 +565,55 @@ fun SyncCenterScreen(
                                 Text(stringResource(R.string.sync_center_status_last_attempt_format, lastAttemptText), style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
                                 Text(
                                     if (status.hasPendingChanges) stringResource(R.string.sync_center_status_pending_changes) else stringResource(R.string.sync_center_status_no_pending_changes),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
+                                )
+                                if (!status.lastError.isNullOrBlank()) {
+                                    Text(
+                                        stringResource(R.string.sync_center_failure_safe_body),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) OakColors.ErrorDark else OakColors.Error
+                                    )
+                                }
+                                TextButton(onClick = { isStatusDiagnosticsVisible = !isStatusDiagnosticsVisible }) {
+                                    Text(
+                                        stringResource(
+                                            if (isStatusDiagnosticsVisible) R.string.sync_center_diagnostics_hide
+                                            else R.string.sync_center_diagnostics_show
+                                        )
+                                    )
+                                }
+                                if (isStatusDiagnosticsVisible) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    stringResource(R.string.sync_center_queue_format, status.queuedMutationCount),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor
+                                )
+                                if (status.nextRetryEpochMs > System.currentTimeMillis()) {
+                                    Text(
+                                        stringResource(
+                                            R.string.sync_center_retry_after_format,
+                                            formatter.format(Instant.ofEpochMilli(status.nextRetryEpochMs))
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = secondaryTextColor
+                                    )
+                                }
+                                if (status.conflictRemoteWins + status.conflictLocalWins + status.conflictTieLocalWins > 0) {
+                                    Text(
+                                        stringResource(
+                                            R.string.sync_center_conflict_preview_format,
+                                            status.conflictRemoteWins,
+                                            status.conflictLocalWins,
+                                            status.conflictTieLocalWins
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = secondaryTextColor
+                                    )
+                                }
+                                Text(
+                                    stringResource(R.string.sync_center_journal_count_format, status.journalCount),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = secondaryTextColor
                                 )
@@ -645,7 +694,7 @@ fun SyncCenterScreen(
                                     Text(
                                         stringResource(R.string.sync_center_status_last_error_format, status.lastError.orEmpty()),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = OakColors.Error,
+                                        color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) OakColors.ErrorDark else OakColors.Error,
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -663,6 +712,8 @@ fun SyncCenterScreen(
                                         )
                                     }
                                 }
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 OutlinedButton(
                                     onClick = { homeViewModel.syncNow(status.binId) },
@@ -676,10 +727,10 @@ fun SyncCenterScreen(
                 item(key = "encryption") {
                     OakCard(
                         modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
+                        variant = OakCardVariant.Paper,
+                        shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(16.dp),
-                        elevation = 2.dp
+                        elevation = 0.dp
                     ) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
@@ -796,7 +847,23 @@ fun SyncCenterScreen(
 
                 item(key = "logs_title") {
                     if (activeBinId.isNotBlank()) {
-                        Text(stringResource(R.string.sync_center_logs_title), style = MaterialTheme.typography.titleMedium, color = primaryTextColor)
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                stringResource(R.string.sync_center_logs_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = primaryTextColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { isLogsVisible = !isLogsVisible }) {
+                                Text(
+                                    stringResource(
+                                        if (isLogsVisible) R.string.sync_center_diagnostics_hide
+                                        else R.string.sync_center_diagnostics_show
+                                    )
+                                )
+                            }
+                        }
+                        if (isLogsVisible) {
                         Spacer(modifier = Modifier.height(6.dp))
                         OutlinedTextField(
                             value = logQuery,
@@ -874,27 +941,28 @@ fun SyncCenterScreen(
                                 Text(stringResource(R.string.sync_center_action_clear), color = MaterialTheme.colorScheme.error)
                             }
                         }
+                        }
                     }
                 }
 
-                items(items = logs, key = { it.ts }) { item ->
-                    OakCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        variant = OakCardVariant.Glass,
-                        shape = RoundedCornerShape(28.dp),
-                        contentPadding = PaddingValues(12.dp),
-                        elevation = 1.dp
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val time = if (item.ts > 0L) formatter.format(Instant.ofEpochMilli(item.ts)) else ""
-                            val phaseText = when (item.phase.uppercase()) {
-                                "ERROR" -> stringResource(R.string.sync_center_filter_error)
-                                "HOST" -> stringResource(R.string.sync_center_filter_host)
-                                "DONE" -> stringResource(R.string.sync_center_filter_done)
-                                else -> item.phase
+                if (isLogsVisible) {
+                    items(items = logs, key = { "${it.epochMs}-${it.phase}" }) { item ->
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                val time = if (item.epochMs > 0L) formatter.format(Instant.ofEpochMilli(item.epochMs)) else ""
+                                val phaseText = when (item.phase.uppercase()) {
+                                    "ERROR" -> stringResource(R.string.sync_center_filter_error)
+                                    "HOST" -> stringResource(R.string.sync_center_filter_host)
+                                    "DONE" -> stringResource(R.string.sync_center_filter_done)
+                                    else -> item.phase
+                                }
+                                Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
+                                Text(item.message, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
                             }
-                            Text("$time • $phaseText", style = MaterialTheme.typography.bodySmall, color = secondaryTextColor)
-                            Text(item.msg, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }
@@ -903,11 +971,41 @@ fun SyncCenterScreen(
     }
 }
 
-private data class CloudSyncLogUiItem(
-    val ts: Long,
-    val phase: String,
-    val msg: String
-)
+@Composable
+private fun SyncHealthSummary(report: SyncHealthReport, onSyncNow: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(syncHealthTitle(report.level), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            Text(syncRecoveryHint(report.action), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (report.action == SyncRecoveryAction.SYNC_NOW) {
+            OutlinedButton(onClick = onSyncNow) { Text(stringResource(R.string.sync_center_action_sync_now)) }
+        }
+    }
+}
+
+@Composable
+private fun syncHealthTitle(level: SyncHealthLevel): String = when (level) {
+    SyncHealthLevel.UNLINKED -> stringResource(R.string.sync_health_unlinked)
+    SyncHealthLevel.IDLE -> stringResource(R.string.sync_health_idle)
+    SyncHealthLevel.HEALTHY -> stringResource(R.string.sync_health_healthy)
+    SyncHealthLevel.PENDING -> stringResource(R.string.sync_health_pending)
+    SyncHealthLevel.NEEDS_KEY -> stringResource(R.string.sync_health_needs_key)
+    SyncHealthLevel.RETRYABLE_ERROR -> stringResource(R.string.sync_health_retryable)
+    SyncHealthLevel.ACTION_REQUIRED -> stringResource(R.string.sync_health_action_required)
+}
+
+@Composable
+private fun syncRecoveryHint(action: SyncRecoveryAction): String = when (action) {
+    SyncRecoveryAction.NONE -> stringResource(R.string.sync_health_hint_none)
+    SyncRecoveryAction.SYNC_NOW -> stringResource(R.string.sync_health_hint_sync_now)
+    SyncRecoveryAction.IMPORT_KEY -> stringResource(R.string.sync_health_hint_import_key)
+    SyncRecoveryAction.CHECK_LINK -> stringResource(R.string.sync_health_hint_check_link)
+}
 
 private fun copySensitiveText(context: Context, label: String, value: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -918,19 +1016,14 @@ private fun copySensitiveText(context: Context, label: String, value: String) {
     clipboard.setPrimaryClip(clip)
 }
 
-private fun formatLogPretty(raw: String, formatter: DateTimeFormatter): String {
-    val array = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
-    if (array.length() <= 0) return raw
-    val out = ArrayList<String>(array.length())
-    for (i in 0 until array.length()) {
-        val obj = array.optJSONObject(i) ?: continue
-        val ts = obj.optLong("ts", 0L)
-        val phase = obj.optString("phase", "").orEmpty()
-        val msg = obj.optString("msg", "").orEmpty()
-        val whenText = if (ts > 0L) formatter.format(Instant.ofEpochMilli(ts)) else ""
-        out.add(listOf(whenText, phase, msg).filter { it.isNotBlank() }.joinToString(" • "))
+private fun formatLogPretty(entries: List<CloudSyncLogEntry>, formatter: DateTimeFormatter): String {
+    if (entries.isEmpty()) return "[]"
+    return entries.asReversed().joinToString("\n") { item ->
+        val whenText = if (item.epochMs > 0L) formatter.format(Instant.ofEpochMilli(item.epochMs)) else ""
+        listOf(whenText, item.phase, item.message)
+            .filter(String::isNotBlank)
+            .joinToString(" • ")
     }
-    return out.joinToString("\n")
 }
 
 @Composable

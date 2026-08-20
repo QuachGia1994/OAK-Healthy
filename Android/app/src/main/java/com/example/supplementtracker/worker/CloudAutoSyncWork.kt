@@ -6,6 +6,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.example.supplementtracker.service.PerformanceBudgets
 import java.util.concurrent.TimeUnit
 
 object CloudAutoSyncWork {
@@ -20,7 +21,10 @@ object CloudAutoSyncWork {
         wm.enqueueUniquePeriodicWork(
             UNIQUE_PERIODIC,
             ExistingPeriodicWorkPolicy.UPDATE,
-            PeriodicWorkRequestBuilder<CloudAutoSyncWorker>(15, TimeUnit.MINUTES)
+            PeriodicWorkRequestBuilder<CloudAutoSyncWorker>(
+                PerformanceBudgets.BACKGROUND_SYNC_MINUTES,
+                TimeUnit.MINUTES
+            )
                 .setConstraints(defaultConstraints())
                 .build()
         )

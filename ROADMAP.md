@@ -5,24 +5,40 @@ cross-platform reliability rather than by a fixed delivery date.
 
 ## Current
 
-- Stabilize Android/iOS two-way sync and conflict handling.
-- Keep encrypted payload fixtures compatible across CryptoKit and Android JCA.
-- Improve accessibility, localization, and responsive layouts across the three
-  primary tabs.
-- Establish repeatable releases with Android and iOS CI evidence.
+- Continue product development without requiring paid Apple/Google developer accounts; store execution remains deferred.
+- P9.1 Data Recovery 2.0 and P9.2 Reminder Reliability 3.0 are implemented and carried by the pushed P9.3 baseline.
+- P9.3 Sync Engine 2.0 is pushed on `f14d4b4`: durable dirty-part queue, sanitized operation journal, deterministic conflict preview, local-first stale-delete protection and observable retry/backoff.
+- P9.4 Coach Workspace 3.0 and P9.5 Activation & Retention 2.0 are pushed on `db30562` with Android Build, iOS Build and Quality Gates green.
+- P10 is closed on green baseline `7f5945c`: Android Build, iOS Build and Quality Gates all pass, including fail-closed verification for the known xcodebuild post-suite exit anomaly.
+- P11.1 UX Polish 4.0 plus the Warm Editorial native redesign are closed on green baseline `f96a826` across Android Build, iOS Build and Quality Gates.
+- P11.2–P11.10 are implemented as the pre-store completion batch: corrected dark contrast, accessibility/touch targets, reduced-motion and responsive behavior, failure-safe Sync UX, denser History/Coach signals, progressive technical diagnostics, post-redesign render-cost cleanup and explicit synthetic presentation fixtures.
+- P11-CLOSE is defined by `scripts/p11_completion_gate.py`, the unified P8–P11 regression matrix and exact-SHA Android/iOS/Quality CI.
+
+## Current store activation
+
+- P12 repository activation is implemented: Android API 36/AGP 8.10.1/Gradle 8.11.1, current-stable Xcode with an enforced Xcode 26+ floor, explicit no-upload readiness mode, fail-closed credential checks, stable subscription catalog validation and P12 CI gates.
+- P12-CLOSE requires Android Build, iOS Build, Quality Gates and the Release readiness-only workflow to be green on the same candidate commit.
+
+## Active design checkpoint
+
+- UI-R1 Health & Wellness foundation is closed on green baseline `5b3789c`: shared tokens, flat shell, progress-led Home and continuous tracking form are aligned cross-platform.
+- UI-R2 History & Trends Scanability is closed on green baseline `1325897`: completion/trend hierarchy, unified chart styling and continuous History rows are aligned cross-platform.
+- Stage A Complete Product UI Redesign is closed on green baseline `736e495`: Stack, Coach, Settings/Profile, Onboarding, Plan Access, Sync/Recovery, notification diagnostics and Safe Mode share the same wellness hierarchy without changing health/business behavior.
+- Stage B Final UI/UX Release Candidate is closed on the pushed Stage B baseline and follow-up fixes (`9d75b5f` → `3d43907`): cross-screen consistency, compact/large-text fallbacks, finite/reduced launch motion, dead presentation cleanup and the synthetic screenshot/demo pack are locked by `scripts/stage_b_ui_rc_gate.py`; Android/iOS/Quality verification is green.
+- Health-data ownership/correctness hardening is closed on source-tested baseline `6ed2007`: canonical intake status/timing/day boundaries, explicit iOS mutation owners, stable-ID recovery and focused persistence/date tests are protected by `scripts/health_data_integrity_gate.py`.
+- App Shell Closure is implemented as the final presentation bug-fix batch: Android single-inset `Scaffold.bottomBar`, scroll-minimized 80dp→56dp primary navigation, native iOS 26 iPhone tab minimization with iOS 17+ fallback, and iOS token SSoT relocation. Closure requires exact-SHA Android/iOS/Quality CI before `main` is fast-forwarded.
 
 ## Next
 
-- Add migration tests for long-lived local databases and sync payload versions.
-- Add opt-in diagnostics that contain no health records or sync secrets.
-- Expand contributor documentation and reproducible issue examples.
-- Validate notification and background-sync behavior on a wider device matrix.
+- No further small UI redesign stages are planned after App Shell Closure. Continue only with bug fixes/regressions or explicitly requested product work.
+- Store execution remains at the external gate unless developer accounts are intentionally enabled. When enabled, run TestFlight/Sandbox + Play Internal and complete real P4.1 evidence before any production promotion.
+- After real store activation, production commerce hardening remains the next commerce stage: Google Play server-side purchase-token verification/acknowledgement plus RTDN lifecycle processing.
 
-## Later
+## External gate
 
-- Evaluate end-to-end encrypted multi-device recovery without placing keys on
-  the application server.
-- Evaluate import/export formats that preserve user ownership and portability.
+- Apple Developer Program / App Store Connect credentials are not fabricated by repository work.
+- Google Play Console enrollment, app signing/service account and billing credentials are not fabricated by repository work.
+- TestFlight/Play purchase evidence, live subscriptions and production rollout remain external execution until those accounts are enabled.
 
 Please use a feature request to propose a user problem. Roadmap items are not a
 promise of delivery and may change after security, platform, or user feedback.

@@ -4,14 +4,15 @@ import UIKit
 
 public struct SyncCenterView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \ClientProfile.createdAt) private var clients: [ClientProfile]
     
     @AppStorage("isNotificationEnabledByUser") private var isNotificationEnabledByUser: Bool = false
     @AppStorage("isAutoSyncEnabled") private var isAutoSyncEnabled: Bool = false
-    @AppStorage("cloudSyncHostedBinId") private var hostedBinId: String = ""
-    @AppStorage("cloudSyncLinkedBinId") private var linkedBinId: String = ""
     @AppStorage("oakSafeModeEnabled") private var isSafeModeEnabled: Bool = false
-    
+
+    @State private var hostedBinId: String = ""
+    @State private var linkedBinId: String = ""
     @State private var selectedTab: SyncCenterTab = .host
     @State private var linkCodeInput: String = ""
     @State private var isInputCodeVisible: Bool = false
@@ -27,6 +28,8 @@ public struct SyncCenterView: View {
     @State private var logPhaseFilter: String = "ALL"
     @State private var syncPhase: SyncPhase = .idle
     @State private var isManifestPartsVisible: Bool = false
+    @State private var isStatusDiagnosticsVisible: Bool = false
+    @State private var isLogsVisible: Bool = false
     
     @State private var importErrorMessage: String = ""
     @State private var showImportErrorAlert: Bool = false
@@ -43,6 +46,7 @@ public struct SyncCenterView: View {
     @State private var logEntries: [CloudSyncLogEntry] = []
     
     public let activeClientManager: ActiveClientManager
+    private let cloudSyncProfileStore = CloudSyncProfileStore()
     
     public init(activeClientManager: ActiveClientManager) {
         self.activeClientManager = activeClientManager
@@ -59,6 +63,7 @@ public struct SyncCenterView: View {
                 logsSection
             }
             .scrollContentBackground(.hidden)
+            .listSectionSpacing(20)
         }
         .navigationTitle("sync_center_title".localized)
         .navigationBarTitleDisplayMode(.inline)
@@ -68,7 +73,7 @@ public struct SyncCenterView: View {
         }
         .task {
             DebugReporter.report("sync_center_task_boot", fields: [
-                "currentClientId": activeClientManager.currentClientId?.uuidString ?? "",
+                "hasClient": String(activeClientManager.currentClientId != nil),
                 "clientsCount": String(clients.count)
             ])
             guard activeClientManager.currentClientId == nil else { return }
@@ -77,15 +82,16 @@ public struct SyncCenterView: View {
         }
         .task(id: activeClientManager.currentClientId) {
             DebugReporter.report("sync_center_task_reload_caches", fields: [
-                "clientId": activeClientManager.currentClientId?.uuidString ?? ""
+                "hasClient": String(activeClientManager.currentClientId != nil)
             ])
+            loadProfileCloudLinks()
             await reloadCaches()
         }
         .task(id: activeBinId) {
             DebugReporter.report("sync_center_task_load_logs", fields: [
-                "binId": activeBinId
+                "hasLink": String(!activeBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             ])
-            logEntries = loadLogEntries(binId: activeBinId)
+            logEntries = CloudSyncLogStore.load(manifestId: activeBinId)
             let trimmed = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             guard isAutoSyncEnabled else { return }
@@ -147,43 +153,51 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_onboarding_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
     @ViewBuilder
     private var statusSection: some View {
         Section {
             if !activeBinId.isEmpty {
-                let lastSyncKey = "cloudSyncLastSyncEpochMs_\(activeBinId)"
-                let lastAttemptKey = "cloudSyncLastAttemptEpochMs_\(activeBinId)"
-                let retryKey = "cloudSyncConflictRetryCount_\(activeBinId)"
-                let bytesDownKey = "cloudSyncBytesDownloaded_\(activeBinId)"
-                let bytesUpKey = "cloudSyncBytesUploaded_\(activeBinId)"
-                let pullMsKey = "cloudSyncPullMs_\(activeBinId)"
-                let mergeMsKey = "cloudSyncMergeMs_\(activeBinId)"
-                let pushMsKey = "cloudSyncPushMs_\(activeBinId)"
-                let totalMsKey = "cloudSyncTotalMs_\(activeBinId)"
-                let lastErrorKey = "cloudSyncLastError_\(activeBinId)"
-                let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: lastSyncKey))
-                let lastAttemptEpochMs = Int64(UserDefaults.standard.double(forKey: lastAttemptKey))
-                let retryCount = UserDefaults.standard.integer(forKey: retryKey)
-                let bytesDown = UserDefaults.standard.integer(forKey: bytesDownKey)
-                let bytesUp = UserDefaults.standard.integer(forKey: bytesUpKey)
-                let pullMs = UserDefaults.standard.integer(forKey: pullMsKey)
-                let mergeMs = UserDefaults.standard.integer(forKey: mergeMsKey)
-                let pushMs = UserDefaults.standard.integer(forKey: pushMsKey)
-                let totalMs = UserDefaults.standard.integer(forKey: totalMsKey)
-                let hasPendingChanges = activeClientManager.currentClientId.map {
-                    hasLocalChangesSince(clientId: $0, lastSyncEpochMs: lastSyncEpochMs)
-                } ?? false
-                let lastError = (UserDefaults.standard.string(forKey: lastErrorKey) ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                let stackId = (UserDefaults.standard.string(forKey: "cloudSyncStackBinId_\(activeBinId)") ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                let historyId = (UserDefaults.standard.string(forKey: "cloudSyncHistoryBinId_\(activeBinId)") ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let status = SyncCenterStatusReader.read(
+                    manifestId: activeBinId,
+                    clientId: activeClientManager.currentClientId,
+                    modelContext: modelContext
+                )
+                let lastSyncEpochMs = status.lastSyncEpochMs
+                let lastAttemptEpochMs = status.lastAttemptEpochMs
+                let retryCount = status.conflict.retryCount
+                let bytesDown = status.transfer.bytesDownloaded
+                let bytesUp = status.transfer.bytesUploaded
+                let pullMs = status.transfer.pullMs
+                let mergeMs = status.transfer.mergeMs
+                let pushMs = status.transfer.pushMs
+                let totalMs = status.transfer.totalMs
+                let queuedMutationCount = status.queuedMutationCount
+                let nextRetryEpochMs = status.nextRetryEpochMs
+                let conflictRemoteWins = status.conflict.remoteWins
+                let conflictLocalWins = status.conflict.localWins
+                let conflictTieLocalWins = status.conflict.tieLocalWins
+                let journalCount = status.journalCount
+                let hasPendingChanges = status.hasPendingChanges
+                let lastError = status.lastError ?? ""
+                let health = SyncHealthEvaluator.evaluate(
+                    SyncHealthInput(
+                        hasLink: true,
+                        autoSyncEnabled: isAutoSyncEnabled,
+                        hasPendingChanges: hasPendingChanges,
+                        lastSyncEpochMs: lastSyncEpochMs,
+                        lastAttemptEpochMs: lastAttemptEpochMs,
+                        lastError: status.lastError,
+                        encryptionEnabled: isCloudEncryptionEnabled
+                    )
+                )
+                let stackId = status.stackBinId
+                let historyId = status.historyBinId
                 
                 VStack(alignment: .leading, spacing: 6) {
+                    syncHealthSummary(health)
                     if lastSyncEpochMs > 0 {
                         let date = Date(timeIntervalSince1970: Double(lastSyncEpochMs) / 1000.0)
                         Text(
@@ -229,6 +243,52 @@ public struct SyncCenterView: View {
                     )
                         .font(.caption)
                         .foregroundStyle(hasPendingChanges ? .orange : .secondary)
+                    if !lastError.isEmpty {
+                        Text("sync_center_failure_safe_body".localized)
+                            .font(.caption)
+                            .foregroundStyle(OAKPalette.missed(for: colorScheme))
+                    }
+                    Button(
+                        isStatusDiagnosticsVisible
+                            ? "sync_center_diagnostics_hide".localized
+                            : "sync_center_diagnostics_show".localized
+                    ) {
+                        isStatusDiagnosticsVisible.toggle()
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .oakTouchTarget()
+
+                    if isStatusDiagnosticsVisible {
+                    Text(String(format: "sync_center_queue_format".localized, queuedMutationCount))
+                        .font(.caption)
+                        .oakSecondaryText()
+                    if nextRetryEpochMs > Int64(Date().timeIntervalSince1970 * 1000) {
+                        let retryDate = Date(timeIntervalSince1970: Double(nextRetryEpochMs) / 1000)
+                        Text(
+                            String(
+                                format: "sync_center_retry_after_format".localized,
+                                retryDate.formatted(date: .abbreviated, time: .shortened)
+                            )
+                        )
+                        .font(.caption)
+                        .oakSecondaryText()
+                    }
+                    if conflictRemoteWins + conflictLocalWins + conflictTieLocalWins > 0 {
+                        Text(
+                            String(
+                                format: "sync_center_conflict_preview_format".localized,
+                                conflictRemoteWins,
+                                conflictLocalWins,
+                                conflictTieLocalWins
+                            )
+                        )
+                        .font(.caption)
+                        .oakSecondaryText()
+                    }
+                    Text(String(format: "sync_center_journal_count_format".localized, journalCount))
+                        .font(.caption)
+                        .oakSecondaryText()
                     
                     if retryCount > 0 {
                         Text(String(format: "sync_center_conflict_retry_format".localized, retryCount))
@@ -279,6 +339,7 @@ public struct SyncCenterView: View {
                                     .accessibilityLabel(isManifestPartsVisible ? "hide_details".localized : "show_details".localized)
                             }
                             .buttonStyle(.borderless)
+                            .oakTouchTarget()
                         }
                     }
                     
@@ -300,7 +361,7 @@ public struct SyncCenterView: View {
                     if !lastError.isEmpty {
                         Text(String(format: "sync_center_last_error_format".localized, lastError))
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(OAKPalette.missed(for: colorScheme))
                             .lineLimit(3)
                         let isTransient = lastError.localizedCaseInsensitiveContains("522") ||
                             lastError.localizedCaseInsensitiveContains("quá thời gian") ||
@@ -326,6 +387,7 @@ public struct SyncCenterView: View {
                                 .lineLimit(3)
                         }
                     }
+                    }
                 }
                 
                 Button("sync_center_sync_now".localized) {
@@ -340,9 +402,49 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_status_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
+    @ViewBuilder
+    private func syncHealthSummary(_ report: SyncHealthReport) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(syncHealthTitle(report.level)).font(.subheadline.weight(.semibold))
+                Text(syncRecoveryHint(report.action)).font(.caption).oakSecondaryText()
+            }
+            Spacer()
+            if report.action == .syncNow {
+                Button("sync_center_sync_now".localized) {
+                    Task { await syncNow(label: "MANUAL") }
+                }
+                .buttonStyle(.borderless)
+                .disabled(isCloudSyncLoading)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func syncHealthTitle(_ level: SyncHealthLevel) -> String {
+        switch level {
+        case .unlinked: return "sync_health_unlinked".localized
+        case .idle: return "sync_health_idle".localized
+        case .healthy: return "sync_health_healthy".localized
+        case .pending: return "sync_health_pending".localized
+        case .needsKey: return "sync_health_needs_key".localized
+        case .retryableError: return "sync_health_retryable".localized
+        case .actionRequired: return "sync_health_action_required".localized
+        }
+    }
+
+    private func syncRecoveryHint(_ action: SyncRecoveryAction) -> String {
+        switch action {
+        case .none: return "sync_health_hint_none".localized
+        case .syncNow: return "sync_health_hint_sync_now".localized
+        case .importKey: return "sync_health_hint_import_key".localized
+        case .checkLink: return "sync_health_hint_check_link".localized
+        }
+    }
+
     @ViewBuilder
     private var tabSection: some View {
         Section {
@@ -361,7 +463,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_device_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
     @ViewBuilder
@@ -473,11 +575,7 @@ public struct SyncCenterView: View {
 
         if !linkedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Button("sync_center_unlink_action".localized, role: .destructive) {
-                linkedBinId = ""
-                linkCodeInput = ""
-                if hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    isAutoSyncEnabled = false
-                }
+                unlinkCurrentProfile()
             }
             .disabled(isCloudSyncLoading)
         }
@@ -602,7 +700,7 @@ public struct SyncCenterView: View {
         } header: {
             Text("sync_center_security_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
     }
     
     @ViewBuilder
@@ -613,65 +711,71 @@ public struct SyncCenterView: View {
                     .font(.caption)
                     .oakSecondaryText()
             } else {
-                TextField("sync_center_logs_search_placeholder".localized, text: $logQuery)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                
-                Picker("sync_center_logs_phase".localized, selection: $logPhaseFilter) {
-                    Text("sync_center_logs_phase_all".localized).tag("ALL")
-                    ForEach(availableLogPhases, id: \.self) { phase in
-                        Text(CloudSyncLogEntry.displayText(for: phase)).tag(phase)
+                Button {
+                    isLogsVisible.toggle()
+                } label: {
+                    HStack {
+                        Text("sync_center_logs_header".localized)
+                        Spacer()
+                        Image(systemName: isLogsVisible ? "chevron.up" : "chevron.down")
                     }
                 }
-                .pickerStyle(.menu)
-                .font(.caption)
-                
-                HStack {
-                    ShareLink(item: prettyLogText) {
-                        Text("sync_center_logs_export".localized)
-                    }
-                    .font(.caption)
-                    .buttonStyle(.borderless)
-                    
-                    Spacer()
-                    Button(role: .destructive) { isShowingClearLogConfirm = true } label: {
-                        Text("sync_center_logs_clear".localized)
-                    }
-                    .confirmationDialog(
-                        "sync_center_clear_log_confirm".localized,
-                        isPresented: $isShowingClearLogConfirm,
-                        titleVisibility: .visible
-                    ) {
-                        Button("sync_center_clear_log_action".localized, role: .destructive) {
-                            clearLogs()
+                .buttonStyle(.plain)
+                .oakTouchTarget()
+                if isLogsVisible {
+                    logControls
+                    if filteredLogEntries.isEmpty {
+                        Text("sync_center_no_logs".localized)
+                            .font(.caption)
+                            .oakSecondaryText()
+                    } else {
+                        ForEach(filteredLogEntries) { entry in
+                            VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+                                Text(entry.title).font(.caption).oakSecondaryText()
+                                Text(entry.message).font(.caption)
+                            }
+                            .padding(.vertical, OAKSpacing.xs)
                         }
-                        Button("cancel".localized, role: .cancel) {}
-                    }
-                    .buttonStyle(.borderless)
-                }
-                
-                if filteredLogEntries.isEmpty {
-                    Text("sync_center_no_logs".localized)
-                        .font(.caption)
-                        .oakSecondaryText()
-                } else {
-                    ForEach(filteredLogEntries) { entry in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(entry.title)
-                                .font(.caption)
-                                .oakSecondaryText()
-                            Text(entry.message)
-                                .font(.caption)
-                        }
-                        .padding(.vertical, 2)
                     }
                 }
             }
-        } header: {
-            Text("sync_center_logs_header".localized)
         }
-        .listRowBackground(glassRowBackground)
+        .listRowBackground(syncRowBackground)
+    }
+
+    private var logControls: some View {
+        VStack(alignment: .leading, spacing: OAKSpacing.sm) {
+            TextField("sync_center_logs_search_placeholder".localized, text: $logQuery)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Picker("sync_center_logs_phase".localized, selection: $logPhaseFilter) {
+                Text("sync_center_logs_phase_all".localized).tag("ALL")
+                ForEach(availableLogPhases, id: \.self) { phase in
+                    Text(CloudSyncLogEntry.displayText(for: phase)).tag(phase)
+                }
+            }
+            .pickerStyle(.menu)
+            .font(.caption)
+            HStack {
+                ShareLink(item: prettyLogText) { Text("sync_center_logs_export".localized) }
+                    .font(.caption)
+                    .buttonStyle(.borderless)
+                Spacer()
+                Button(role: .destructive) { isShowingClearLogConfirm = true } label: {
+                    Text("sync_center_logs_clear".localized)
+                }
+                .confirmationDialog(
+                    "sync_center_clear_log_confirm".localized,
+                    isPresented: $isShowingClearLogConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("sync_center_clear_log_action".localized, role: .destructive) { clearLogs() }
+                    Button("cancel".localized, role: .cancel) {}
+                }
+                .buttonStyle(.borderless)
+            }
+        }
     }
     
     private var availableLogPhases: [String] {
@@ -690,14 +794,6 @@ public struct SyncCenterView: View {
         }
     }
     
-    private var rawLogJsonString: String {
-        let id = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !id.isEmpty else { return "[]" }
-        let key = "cloudSyncLog_\(id)"
-        guard let data = UserDefaults.standard.data(forKey: key) else { return "[]" }
-        return String(data: data, encoding: .utf8) ?? "[]"
-    }
-    
     private var prettyLogText: String {
         guard !logEntries.isEmpty else { return "[]" }
         return logEntries.map { "\($0.title) — \($0.message)" }.joined(separator: "\n")
@@ -711,8 +807,8 @@ public struct SyncCenterView: View {
 
     private var hasActiveCloudLink: Bool { !activeBinId.isEmpty }
 
-    private var glassRowBackground: some View {
-        Color.clear.background(.ultraThinMaterial)
+    private var syncRowBackground: some View {
+        OAKPalette.surface(for: colorScheme)
     }
     
     private var importKeyConfirmText: String {
@@ -732,18 +828,22 @@ public struct SyncCenterView: View {
     }
     
     private func hostData() async {
-        guard activeClientManager.currentClientId != nil else {
+        guard let clientId = activeClientManager.currentClientId else {
             showToast("sync_center_toast_missing_client".localized)
             return
         }
         await withLoading {
             await reloadCaches()
+            guard activeClientManager.currentClientId == clientId else { return }
             isBinIdVisible = false
             do {
                 let old = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-                try await revokeOldHostedBinIfNeeded(oldBinId: old)
                 let newId = try await uploadHostedBackup()
-                hostedBinId = newId
+                cloudSyncProfileStore.setHostedBinId(newId, clientId: clientId)
+                if activeClientManager.currentClientId == clientId { hostedBinId = newId }
+                if !old.isEmpty, old != newId {
+                    try? await revokeOldHostedBinIfNeeded(oldBinId: old)
+                }
                 appendLog(binId: newId, phase: "HOST", message: "DONE")
                 showToast("sync_center_toast_host_success".localized)
             } catch {
@@ -753,6 +853,7 @@ public struct SyncCenterView: View {
     }
     
     private func revokeHostedBin() async {
+        guard let clientId = activeClientManager.currentClientId else { return }
         let binId = hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !binId.isEmpty else { return }
         
@@ -768,7 +869,8 @@ public struct SyncCenterView: View {
             if !stack.isEmpty { try? await CloudSyncManager.shared.deleteBackup(binId: stack) }
             if !history.isEmpty { try? await CloudSyncManager.shared.deleteBackup(binId: history) }
             try await CloudSyncManager.shared.deleteBackup(binId: binId)
-            hostedBinId = ""
+            cloudSyncProfileStore.setHostedBinId(nil, clientId: clientId)
+            if activeClientManager.currentClientId == clientId { hostedBinId = "" }
             isBinIdVisible = false
             appendLog(binId: binId, phase: "HOST", message: "REVOKE DONE")
             showToast("sync_center_toast_revoke_done".localized)
@@ -790,12 +892,9 @@ public struct SyncCenterView: View {
             return
         }
         await withLoading {
-            await reloadCaches()
-            guard let client = clients.first(where: { $0.id == clientId }) ?? clients.first else {
-                showToast("sync_center_toast_missing_client".localized)
-                return
-            }
-            if await runSyncFlow(binId: binId, client: client, label: "LINK") {
+            if await runSyncFlow(binId: binId, clientId: clientId, label: "LINK") {
+                guard activeClientManager.currentClientId == clientId else { return }
+                cloudSyncProfileStore.setLinkedBinId(binId, clientId: clientId)
                 linkedBinId = binId
             }
         }
@@ -806,206 +905,11 @@ public struct SyncCenterView: View {
         guard let clientId = activeClientManager.currentClientId else { return }
         let id = activeBinId
         guard !id.isEmpty else { return }
-        guard let client = clients.first(where: { $0.id == clientId }) ?? clients.first else { return }
         await withLoading {
-            await reloadCaches()
-            await runSyncFlow(binId: id, client: client, label: label)
+            _ = await runSyncFlow(binId: id, clientId: clientId, label: label)
         }
     }
     
-    @MainActor
-    private func syncTwoWay(binId: String, client: ClientProfile) async throws {
-        let manifestId = binId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !manifestId.isEmpty else { throw CloudSyncError.invalidBinId }
-        let keys = SyncKeys(binId: manifestId)
-        let startedAt = Date()
-        let lastSyncEpochMs = Int64(UserDefaults.standard.double(forKey: keys.lastSync))
-        let localStackChanged = hasLocalStackChangesSince(clientId: client.id, lastSyncEpochMs: lastSyncEpochMs)
-        let localHistoryChanged = hasLocalHistoryChangesSince(clientId: client.id, lastSyncEpochMs: lastSyncEpochMs)
-        
-        do {
-            resetSyncMetrics(keys: keys)
-            markAttempt(keys: keys)
-            syncPhase = .pulling
-            appendLog(binId: manifestId, phase: "PULL", message: "START")
-            let pullStartedAt = Date()
-            let parts: CloudSyncManifest
-            do {
-                parts = try await resolveManifestParts(manifestId: manifestId)
-            } catch CloudSyncError.invalidResponse {
-                try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
-                return
-            } catch CloudSyncError.manifestCodec(let error) where error == .decodeFailed {
-                try await syncTwoWayLegacy(binId: manifestId, client: client, keys: keys, startedAt: startedAt, lastSyncEpochMs: lastSyncEpochMs)
-                return
-            }
-            async let stackDataTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.stackBinId)
-            async let historyDataTask = CloudSyncManager.shared.downloadBackupIfChangedWithRevision(binId: parts.historyBinId)
-            let (stackData, historyData) = try await (stackDataTask, historyDataTask)
-            UserDefaults.standard.set(Int(pullStartedAt.distance(to: Date()) * 1000), forKey: keys.pullMs)
-            UserDefaults.standard.set((stackData.data?.count ?? 0) + (historyData.data?.count ?? 0), forKey: keys.bytesDown)
-            
-            if stackData.data != nil || historyData.data != nil {
-                syncPhase = .merging
-                appendLog(binId: manifestId, phase: "MERGE", message: "START")
-                let mergeStartedAt = Date()
-                if let stackData = stackData.data { try await SupplementExportCodec.mergeBackupCooperatively(data: stackData, client: client, context: modelContext) }
-                if let historyData = historyData.data { try await SupplementExportCodec.mergeBackupCooperatively(data: historyData, client: client, context: modelContext) }
-                UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
-                appendLog(binId: manifestId, phase: "MERGE", message: "DONE")
-            }
-            await commitRevisionIfDownloaded(stackData, binId: parts.stackBinId)
-            await commitRevisionIfDownloaded(historyData, binId: parts.historyBinId)
-            
-            if !localStackChanged && !localHistoryChanged {
-                finalizeSuccess(keys: keys, startedAt: startedAt)
-                return
-            }
-            
-            syncPhase = .pushing
-            appendLog(binId: manifestId, phase: "PUSH", message: "START")
-            let pushStartedAt = Date()
-            var bytesUp = 0
-            if localStackChanged {
-                let payload = try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: [])
-                bytesUp += payload.count
-                try await upsertWithConflictRetry(
-                    binId: parts.stackBinId,
-                    client: client,
-                    payload: payload,
-                    retryPayload: { try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: []) },
-                    keys: keys
-                )
-            }
-            if localHistoryChanged {
-                let payload = try SupplementExportCodec.encodeBackup(supplements: [], records: cachedRecords)
-                bytesUp += payload.count
-                try await upsertWithConflictRetry(
-                    binId: parts.historyBinId,
-                    client: client,
-                    payload: payload,
-                    retryPayload: { try SupplementExportCodec.encodeBackup(supplements: [], records: cachedRecords) },
-                    keys: keys
-                )
-            }
-            UserDefaults.standard.set(bytesUp, forKey: keys.bytesUp)
-            UserDefaults.standard.set(Int(pushStartedAt.distance(to: Date()) * 1000), forKey: keys.pushMs)
-            appendLog(binId: manifestId, phase: "PUSH", message: "DONE")
-            finalizeSuccess(keys: keys, startedAt: startedAt)
-        } catch {
-            finalizeError(keys: keys, error: error)
-            throw error
-        }
-    }
-
-    private func commitRevisionIfDownloaded(_ download: CloudSyncDownload, binId: String) async {
-        guard download.data != nil else { return }
-        await CloudSyncManager.shared.commitRevision(download.revision, binId: binId)
-    }
-
-    @MainActor
-    private func resolveManifestParts(manifestId: String) async throws -> CloudSyncManifest {
-        let stackKey = "cloudSyncStackBinId_\(manifestId)"
-        let historyKey = "cloudSyncHistoryBinId_\(manifestId)"
-        let storedStack = (UserDefaults.standard.string(forKey: stackKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let storedHistory = (UserDefaults.standard.string(forKey: historyKey) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !storedStack.isEmpty, !storedHistory.isEmpty {
-            return CloudSyncManifest(v: 1, stackBinId: storedStack, historyBinId: storedHistory)
-        }
-        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: manifestId)
-        guard let manifestData = downloaded.data else { throw CloudSyncError.invalidResponse }
-        let decoded: CloudSyncManifest
-        do {
-            decoded = try CloudSyncManifestCodec.decode(manifestData)
-        } catch let error as CloudSyncManifestCodecError {
-            throw CloudSyncError.manifestCodec(error)
-        }
-        let stackId = decoded.stackBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        let historyId = decoded.historyBinId.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !stackId.isEmpty, !historyId.isEmpty else { throw CloudSyncError.invalidResponse }
-        UserDefaults.standard.set(stackId, forKey: stackKey)
-        UserDefaults.standard.set(historyId, forKey: historyKey)
-        await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: manifestId)
-        return decoded
-    }
-
-    @MainActor
-    private func syncTwoWayLegacy(
-        binId: String,
-        client: ClientProfile,
-        keys: SyncKeys,
-        startedAt: Date,
-        lastSyncEpochMs: Int64
-    ) async throws {
-        let localChanged = hasLocalChangesSince(clientId: client.id, lastSyncEpochMs: lastSyncEpochMs)
-        let pullStartedAt = Date()
-        let downloaded = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
-        UserDefaults.standard.set(Int(pullStartedAt.distance(to: Date()) * 1000), forKey: keys.pullMs)
-        UserDefaults.standard.set(downloaded.data?.count ?? 0, forKey: keys.bytesDown)
-        if let data = downloaded.data {
-            syncPhase = .merging
-            let mergeStartedAt = Date()
-            try await SupplementExportCodec.mergeBackupCooperatively(data: data, client: client, context: modelContext)
-            UserDefaults.standard.set(Int(mergeStartedAt.distance(to: Date()) * 1000), forKey: keys.mergeMs)
-            await CloudSyncManager.shared.commitRevision(downloaded.revision, binId: binId)
-        }
-        guard localChanged else {
-            finalizeSuccess(keys: keys, startedAt: startedAt)
-            return
-        }
-        syncPhase = .pushing
-        let pushStartedAt = Date()
-        let payload = try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: cachedRecords)
-        UserDefaults.standard.set(payload.count, forKey: keys.bytesUp)
-        try await upsertWithConflictRetry(
-            binId: binId,
-            client: client,
-            payload: payload,
-            retryPayload: { try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: cachedRecords) },
-            keys: keys
-        )
-        UserDefaults.standard.set(Int(pushStartedAt.distance(to: Date()) * 1000), forKey: keys.pushMs)
-        finalizeSuccess(keys: keys, startedAt: startedAt)
-    }
-    
-    private func hasLocalChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
-        guard lastSyncEpochMs > 0 else { return true }
-        if hasLocalStackChangesSince(clientId: clientId, lastSyncEpochMs: lastSyncEpochMs) { return true }
-        return hasLocalHistoryChangesSince(clientId: clientId, lastSyncEpochMs: lastSyncEpochMs)
-    }
-    
-    private func hasLocalStackChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
-        guard lastSyncEpochMs > 0 else { return true }
-        do {
-            var descriptor = FetchDescriptor<UserSupplement>(
-                predicate: #Predicate {
-                    $0.updatedAtEpochMs > lastSyncEpochMs ||
-                        ($0.deletedAtEpochMs != nil && $0.deletedAtEpochMs! > lastSyncEpochMs)
-                }
-            )
-            descriptor.fetchLimit = 50
-            let changed = try modelContext.fetch(descriptor)
-            return changed.contains(where: { $0.client?.id == clientId })
-        } catch {
-            return true
-        }
-    }
-    
-    private func hasLocalHistoryChangesSince(clientId: UUID, lastSyncEpochMs: Int64) -> Bool {
-        guard lastSyncEpochMs > 0 else { return true }
-        do {
-            var descriptor = FetchDescriptor<IntakeRecord>(
-                predicate: #Predicate { $0.updatedAtEpochMs > lastSyncEpochMs },
-                sortBy: [SortDescriptor(\IntakeRecord.updatedAtEpochMs, order: .reverse)]
-            )
-            descriptor.fetchLimit = 100
-            let changed = try modelContext.fetch(descriptor)
-            return changed.contains(where: { $0.supplement?.client?.id == clientId })
-        } catch {
-            return true
-        }
-    }
-
     @MainActor
     private func withLoading(_ work: () async -> Void) async {
         guard !isCloudSyncLoading else { return }
@@ -1030,48 +934,60 @@ public struct SyncCenterView: View {
         UserDefaults.standard.removeObject(forKey: "cloudSyncEtagStackV2_\(oldBinId)")
         UserDefaults.standard.removeObject(forKey: "cloudSyncEtagHistoryV2_\(oldBinId)")
         UserDefaults.standard.removeObject(forKey: "cloudSyncLastSeenRevV2_\(oldBinId)")
-        hostedBinId = ""
     }
     
     @MainActor
     private func uploadHostedBackup() async throws -> String {
         let stackPayload = try SupplementExportCodec.encodeBackup(supplements: cachedSupplements, records: [])
         let historyPayload = try SupplementExportCodec.encodeBackup(supplements: [], records: cachedRecords)
-        let stackId = try await CloudSyncManager.shared.uploadBackup(jsonData: stackPayload)
-        let historyId = try await CloudSyncManager.shared.uploadBackup(jsonData: historyPayload)
-        let manifest: Data
+        var createdIds: [String] = []
         do {
-            manifest = try CloudSyncManifestCodec.encode(stackBinId: stackId, historyBinId: historyId)
-        } catch let error as CloudSyncManifestCodecError {
-            throw CloudSyncError.manifestCodec(error)
+            let stackId = try await CloudSyncManager.shared.uploadBackup(jsonData: stackPayload)
+            createdIds.append(stackId)
+            let historyId = try await CloudSyncManager.shared.uploadBackup(jsonData: historyPayload)
+            createdIds.append(historyId)
+            let manifest: Data
+            do {
+                manifest = try CloudSyncManifestCodec.encode(stackBinId: stackId, historyBinId: historyId)
+            } catch let error as CloudSyncManifestCodecError {
+                throw CloudSyncError.manifestCodec(error)
+            }
+            let manifestId = try await CloudSyncManager.shared.uploadBackup(jsonData: manifest)
+            UserDefaults.standard.set(stackId, forKey: "cloudSyncStackBinId_\(manifestId)")
+            UserDefaults.standard.set(historyId, forKey: "cloudSyncHistoryBinId_\(manifestId)")
+            UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: "cloudSyncLastSyncEpochMs_\(manifestId)")
+            return manifestId
+        } catch {
+            for id in createdIds.reversed() { try? await CloudSyncManager.shared.deleteBackup(binId: id) }
+            throw error
         }
-        let manifestId = try await CloudSyncManager.shared.uploadBackup(jsonData: manifest)
-        UserDefaults.standard.set(stackId, forKey: "cloudSyncStackBinId_\(manifestId)")
-        UserDefaults.standard.set(historyId, forKey: "cloudSyncHistoryBinId_\(manifestId)")
-        UserDefaults.standard.set(Double(Date().timeIntervalSince1970 * 1000), forKey: "cloudSyncLastSyncEpochMs_\(manifestId)")
-        return manifestId
     }
     
     @MainActor
     @discardableResult
-    private func runSyncFlow(binId: String, client: ClientProfile, label: String) async -> Bool {
+    private func runSyncFlow(binId: String, clientId: UUID, label: String) async -> Bool {
         appendLog(binId: binId, phase: "DIAG", message: FirebaseBootstrap.firebaseDiag)
-        do {
-            appendLog(binId: binId, phase: "SYNC", message: "\(label) START")
-            try await syncTwoWay(binId: binId, client: client)
-            activeClientManager.setCurrentClientId(client.id)
+        appendLog(binId: binId, phase: "SYNC", message: "\(label) START")
+        syncPhase = .pulling
+        let result = await CloudSyncAutoSync.syncNow(
+            modelContext: modelContext,
+            clientId: clientId,
+            binId: binId
+        )
+        switch result {
+        case .success:
+            activeClientManager.setCurrentClientId(clientId)
             isSafeModeEnabled = false
+            syncPhase = .done
+            await reloadCaches()
             await rescheduleNotificationsIfEnabled()
             appendLog(binId: binId, phase: "SYNC", message: "\(label) DONE")
-            if label != "AUTO" {
-                showToast("sync_center_toast_sync_success".localized)
-            }
+            if label != "AUTO" { showToast("sync_center_toast_sync_success".localized) }
             return true
-        } catch {
+        case .failure(let error):
+            syncPhase = .error
             appendLog(binId: binId, phase: "SYNC", message: "\(label) ERROR: \(error.localizedDescription)")
-            if label != "AUTO" {
-                showSyncFailure(error)
-            }
+            if label != "AUTO" { showSyncFailure(error) }
             return false
         }
     }
@@ -1099,68 +1015,6 @@ public struct SyncCenterView: View {
         }
         let active = cachedSupplements.filter { $0.deletedAtEpochMs == nil }
         await NotificationService.shared.replaceAllSchedules(supplements: active)
-    }
-    
-    @MainActor
-    private func resetSyncMetrics(keys: SyncKeys) {
-        UserDefaults.standard.set(0, forKey: keys.bytesDown)
-        UserDefaults.standard.set(0, forKey: keys.bytesUp)
-        UserDefaults.standard.set(0, forKey: keys.pullMs)
-        UserDefaults.standard.set(0, forKey: keys.mergeMs)
-        UserDefaults.standard.set(0, forKey: keys.pushMs)
-        UserDefaults.standard.set(0, forKey: keys.totalMs)
-        UserDefaults.standard.set(0, forKey: keys.retryCount)
-    }
-    
-    @MainActor
-    private func markAttempt(keys: SyncKeys) {
-        let now = Double(Date().timeIntervalSince1970 * 1000)
-        UserDefaults.standard.set(now, forKey: keys.lastAttempt)
-    }
-    
-    @MainActor
-    private func upsertWithConflictRetry(
-        binId: String,
-        client: ClientProfile,
-        payload: Data,
-        retryPayload: () throws -> Data,
-        keys: SyncKeys
-    ) async throws {
-        do {
-            let etagKey = "cloudSyncEtagV2_\(binId)"
-            let etag = UserDefaults.standard.string(forKey: etagKey)
-            try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: etag)
-        } catch CloudSyncError.serverError(let statusCode, _) where statusCode == 409 || statusCode == 412 {
-            syncPhase = .retryingConflict
-            UserDefaults.standard.set(1, forKey: keys.retryCount)
-            appendLog(binId: binId, phase: "CONFLICT", message: "RETRY START")
-            let latest = try await CloudSyncManager.shared.downloadBackupWithRevision(binId: binId)
-            guard let data = latest.data else { throw CloudSyncError.invalidResponse }
-            try await SupplementExportCodec.mergeBackupCooperatively(data: data, client: client, context: modelContext)
-            await CloudSyncManager.shared.commitRevision(latest.revision, binId: binId)
-            let payload = try retryPayload()
-            let etagKey = "cloudSyncEtagV2_\(binId)"
-            let retryEtag = UserDefaults.standard.string(forKey: etagKey)
-            try await CloudSyncManager.shared.upsertBackup(binId: binId, jsonData: payload, ifMatchEtag: retryEtag)
-        }
-    }
-    
-    @MainActor
-    private func finalizeSuccess(keys: SyncKeys, startedAt: Date) {
-        UserDefaults.standard.removeObject(forKey: keys.lastError)
-        let now = Double(Date().timeIntervalSince1970 * 1000)
-        UserDefaults.standard.set(now, forKey: keys.lastSync)
-        UserDefaults.standard.set(now, forKey: "oakLastSyncEpochMs")
-        UserDefaults.standard.set(Int(startedAt.distance(to: Date()) * 1000), forKey: keys.totalMs)
-        syncPhase = .done
-        appendLog(binId: keys.binId, phase: "SYNC", message: "DONE")
-    }
-    
-    @MainActor
-    private func finalizeError(keys: SyncKeys, error: Error) {
-        UserDefaults.standard.set(error.localizedDescription, forKey: keys.lastError)
-        syncPhase = .error
-        appendLog(binId: keys.binId, phase: "SYNC", message: "ERROR: \(error.localizedDescription)")
     }
     
     @MainActor
@@ -1199,8 +1053,7 @@ public struct SyncCenterView: View {
     @MainActor
     private func reloadCaches() async {
         guard let clientId = activeClientManager.currentClientId else {
-            cachedSupplements = []
-            cachedRecords = []
+            clearCaches()
             return
         }
         let container = modelContext.container
@@ -1208,26 +1061,47 @@ public struct SyncCenterView: View {
         do {
             let (suppIds, recordIds) = try await Task.detached {
                 let ctx = ModelContext(container)
-                let supplementsAll = try ctx.fetch(
-                    FetchDescriptor<UserSupplement>(sortBy: [SortDescriptor(\UserSupplement.name)])
+                let supplements = try ClientScopedStore.supplements(
+                    modelContext: ctx,
+                    clientId: clientId
                 )
-                let suppIds = supplementsAll.filter { $0.client?.id == clientId }.map { $0.persistentModelID }
-
-                var recordsDescriptor = FetchDescriptor<IntakeRecord>(
-                    sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
+                let records = try ClientScopedStore.recentHistoryRecords(
+                    modelContext: ctx,
+                    clientId: clientId,
+                    cutoff: cutoff,
+                    limit: 5_000
                 )
-                recordsDescriptor.fetchLimit = 5_000
-                let recordsAll = try ctx.fetch(recordsDescriptor)
-                let recordIds = recordsAll.filter { $0.supplement?.client?.id == clientId && $0.date >= cutoff }.map { $0.persistentModelID }
-                return (suppIds, recordIds)
+                return (supplements.map(\.persistentModelID), records.map(\.persistentModelID))
             }.value
 
             cachedSupplements = suppIds.compactMap { modelContext.model(for: $0) as? UserSupplement }
             cachedRecords = recordIds.compactMap { modelContext.model(for: $0) as? IntakeRecord }
         } catch {
-            cachedSupplements = []
-            cachedRecords = []
+            clearCaches()
         }
+    }
+
+    private func loadProfileCloudLinks() {
+        let links = cloudSyncProfileStore.links(clientId: activeClientManager.currentClientId)
+        hostedBinId = links.hostedBinId ?? ""
+        linkedBinId = links.linkedBinId ?? ""
+        linkCodeInput = linkedBinId
+    }
+
+    private func unlinkCurrentProfile() {
+        guard let clientId = activeClientManager.currentClientId else { return }
+        cloudSyncProfileStore.setLinkedBinId(nil, clientId: clientId)
+        linkedBinId = ""
+        linkCodeInput = ""
+        if hostedBinId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            isAutoSyncEnabled = false
+            CloudSyncAutoSync.stopRealtimeSync()
+        }
+    }
+
+    private func clearCaches() {
+        cachedSupplements = []
+        cachedRecords = []
     }
     
     @MainActor
@@ -1248,34 +1122,13 @@ public struct SyncCenterView: View {
     private func appendLog(binId: String, phase: String, message: String) {
         let resolvedBinId = binId == "pending" ? activeBinId : binId
         guard !resolvedBinId.isEmpty else { return }
-        var current = loadLogEntries(binId: resolvedBinId)
-        let entry = CloudSyncLogEntry(epochMs: nowEpochMs(), phase: phase, message: message)
-        if let first = current.first,
-           first.phase == entry.phase,
-           first.message == entry.message,
-           (entry.epochMs - first.epochMs) < 15_000 {
-            return
-        }
-        current.insert(entry, at: 0)
-        if current.count > 30 { current = Array(current.prefix(30)) }
-        saveLogEntries(binId: resolvedBinId, entries: current)
+        let current = CloudSyncLogStore.append(
+            manifestId: resolvedBinId,
+            phase: phase,
+            message: message,
+            nowEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
+        )
         if activeBinId == resolvedBinId { logEntries = current }
-    }
-    
-    private func loadLogEntries(binId: String) -> [CloudSyncLogEntry] {
-        let key = "cloudSyncLog_\(binId)"
-        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
-        return (try? JSONDecoder().decode([CloudSyncLogEntry].self, from: data)) ?? []
-    }
-    
-    private func saveLogEntries(binId: String, entries: [CloudSyncLogEntry]) {
-        let key = "cloudSyncLog_\(binId)"
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        UserDefaults.standard.set(data, forKey: key)
-    }
-    
-    private func nowEpochMs() -> Int64 {
-        Int64(Date().timeIntervalSince1970 * 1000.0)
     }
 
     @MainActor
@@ -1296,7 +1149,7 @@ public struct SyncCenterView: View {
     private func clearLogs() {
         let id = activeBinId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { return }
-        UserDefaults.standard.removeObject(forKey: "cloudSyncLog_\(id)")
+        CloudSyncLogStore.clear(manifestId: id)
         logEntries = []
         showToast("sync_center_toast_log_cleared".localized)
     }
@@ -1307,42 +1160,7 @@ private enum SyncCenterTab: String {
     case link
 }
 
-private struct SyncKeys {
-    let binId: String
-    let lastSync: String
-    let lastAttempt: String
-    let retryCount: String
-    let bytesDown: String
-    let bytesUp: String
-    let pullMs: String
-    let mergeMs: String
-    let pushMs: String
-    let totalMs: String
-    let lastError: String
-    let etag: String
-    
-    init(binId: String) {
-        self.binId = binId
-        lastSync = "cloudSyncLastSyncEpochMs_\(binId)"
-        lastAttempt = "cloudSyncLastAttemptEpochMs_\(binId)"
-        retryCount = "cloudSyncConflictRetryCount_\(binId)"
-        bytesDown = "cloudSyncBytesDownloaded_\(binId)"
-        bytesUp = "cloudSyncBytesUploaded_\(binId)"
-        pullMs = "cloudSyncPullMs_\(binId)"
-        mergeMs = "cloudSyncMergeMs_\(binId)"
-        pushMs = "cloudSyncPushMs_\(binId)"
-        totalMs = "cloudSyncTotalMs_\(binId)"
-        lastError = "cloudSyncLastError_\(binId)"
-        etag = "cloudSyncEtagV2_\(binId)"
-    }
-}
-
-private struct CloudSyncLogEntry: Codable, Identifiable {
-    var id: String { "\(epochMs)_\(phase)" }
-    let epochMs: Int64
-    let phase: String
-    let message: String
-    
+private extension CloudSyncLogEntry {
     static func displayText(for phase: String) -> String {
         switch phase.uppercased() {
         case "HOST":

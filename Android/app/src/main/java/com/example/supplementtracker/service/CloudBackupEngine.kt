@@ -10,12 +10,13 @@ import com.example.supplementtracker.domain.export.OAKBackupSchema
 import com.example.supplementtracker.domain.export.OAKBackupSupplementDTO
 import com.example.supplementtracker.domain.export.SupplementExportCycleDTO
 import com.example.supplementtracker.domain.model.UserSupplement
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.util.DoseEventKey
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
+import java.util.UUID
 
 /**
  * Application service responsible for building backup payloads used by local export and cloud sync/hosting.
@@ -24,24 +25,28 @@ import java.util.Locale
 class CloudBackupEngine(
     private val context: Context,
     private val repository: SupplementRepository,
-    private val currentClientId: () -> Any?
+    private val currentClientId: () -> UUID?
 ) {
-    suspend fun buildStackBackupJson(): Result<String> =
-        buildBackupJson(includeStack = true, includeHistory = false)
+    suspend fun buildStackBackupJson(clientId: UUID? = currentClientId()): Result<String> {
+        return buildBackupJson(clientId, includeStack = true, includeHistory = false)
+    }
 
-    suspend fun buildHistoryBackupJson(): Result<String> =
-        buildBackupJson(includeStack = false, includeHistory = true)
+    suspend fun buildHistoryBackupJson(clientId: UUID? = currentClientId()): Result<String> {
+        return buildBackupJson(clientId, includeStack = false, includeHistory = true)
+    }
 
-    suspend fun buildFullBackupJson(): Result<String> =
-        buildBackupJson(includeStack = true, includeHistory = true)
+    suspend fun buildFullBackupJson(clientId: UUID? = currentClientId()): Result<String> {
+        return buildBackupJson(clientId, includeStack = true, includeHistory = true)
+    }
 
     private suspend fun buildBackupJson(
+        clientId: UUID?,
         includeStack: Boolean,
         includeHistory: Boolean
     ): Result<String> = runCatching {
-        val clientId = currentClientId()
+        val resolvedClientId = clientId
             ?: error(context.getString(R.string.missing_active_client))
-        val clientIdString = clientId.toString()
+        val clientIdString = resolvedClientId.toString()
         val deviceId = resolveDeviceId()
         val now = System.currentTimeMillis()
         val stack = if (includeStack) mapStack(clientIdString) else emptyList()

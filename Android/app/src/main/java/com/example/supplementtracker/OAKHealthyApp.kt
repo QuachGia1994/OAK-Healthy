@@ -5,6 +5,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import com.example.supplementtracker.service.DiagnosticsReporter
 
 class OAKHealthyApp : Application() {
     override fun onCreate() {
@@ -17,5 +18,6 @@ class OAKHealthyApp : Application() {
             appCheck.installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
         }
         appCheck.setTokenAutoRefreshEnabled(true)
+        DiagnosticsReporter.applyStoredConsent(this)
     }
 }

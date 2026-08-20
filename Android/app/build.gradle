@@ -6,6 +6,7 @@ plugins {
     id 'androidx.baselineprofile'
     id 'jacoco'
     id 'com.google.gms.google-services'
+    id 'com.google.firebase.crashlytics'
 }
 
 def properties = new Properties()
@@ -15,6 +16,14 @@ if (localPropertiesFile.exists()) {
 }
 def jsonbinApiKeyRaw = properties.getProperty('JSONBIN_API_KEY', '')
 def jsonbinApiKeyEscaped = jsonbinApiKeyRaw.replace('\\', '\\\\').replace('"', '\\"')
+def playBillingPublicKeyRaw = properties.getProperty('PLAY_BILLING_PUBLIC_KEY', '')
+def playBillingPublicKeyEscaped = playBillingPublicKeyRaw.replace('\\', '\\\\').replace('"', '\\"')
+def baseVersionCode = 2
+def storeBuildNumberRaw = System.getenv('STORE_BUILD_NUMBER')?.trim()
+def resolvedVersionCode = storeBuildNumberRaw ? Integer.parseInt(storeBuildNumberRaw) : baseVersionCode
+if (resolvedVersionCode <= 0 || resolvedVersionCode > 2_100_000_000) {
+    throw new GradleException('STORE_BUILD_NUMBER must be between 1 and 2100000000')
+}
 
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('keystore.properties')
@@ -24,7 +33,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace 'com.example.supplementtracker'
-    compileSdk 34
+    compileSdk 36
 
     signingConfigs {
         release {
@@ -40,11 +49,12 @@ android {
     defaultConfig {
         applicationId "com.phongqk.oakhealthy"
         minSdk 26
-        targetSdk 34
-        versionCode 2
+        targetSdk 36
+        versionCode resolvedVersionCode
         versionName "1.0.1"
         resConfigs "en", "vi"
         buildConfigField "String", "JSONBIN_API_KEY", "\"${jsonbinApiKeyEscaped}\""
+        buildConfigField "String", "PLAY_BILLING_PUBLIC_KEY", "\"${playBillingPublicKeyEscaped}\""
         buildConfigField "String", "EXPECTED_CERT_SHA256", "\"\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -100,6 +110,8 @@ android {
 configurations.configureEach {
     resolutionStrategy {
         force 'com.google.firebase:firebase-auth:23.1.0'
+        force 'androidx.core:core:1.12.0'
+        force 'androidx.core:core-ktx:1.12.0'
     }
 }
 
@@ -121,6 +133,8 @@ dependencies {
     implementation 'com.google.firebase:firebase-auth'
     implementation 'com.google.firebase:firebase-database'
     implementation 'com.google.firebase:firebase-appcheck-playintegrity'
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-crashlytics'
     debugImplementation 'com.google.firebase:firebase-appcheck-debug'
     
     // Navigation
@@ -137,6 +151,7 @@ dependencies {
 
     // EncryptedSharedPreferences
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
+    implementation "com.android.billingclient:billing:9.1.0"
 
     // Lifecycle
     implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2"
@@ -163,10 +178,9 @@ jacoco {
 
 def minCoverage = (project.findProperty("minCoverage") ?: "0.80") as BigDecimal
 def jacocoCoreIncludes = [
-    '**/service/CloudSyncManifest*.class',
-    '**/service/CloudSyncManifest*$*.class',
-    '**/service/CloudSyncPayloadCodec*.class',
-    '**/service/CloudSyncPayloadCodec*$*.class'
+    // Gate executable codec logic only; exclude Kotlin DTO/generated/synthetic classes.
+    '**/service/CloudSyncManifestCodec.class',
+    '**/service/CloudSyncPayloadCodec.class'
 ]
 
 tasks.register("jacocoTestReport", JacocoReport) {

@@ -4,7 +4,7 @@ import com.example.supplementtracker.domain.model.ClientProfile
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -19,6 +19,7 @@ import java.util.UUID
 private class RecordingSupplementRepository : SupplementRepository {
     val insertedRecords = mutableListOf<IntakeRecord>()
     val updatedSupplements = mutableListOf<UserSupplement>()
+    val deletedSupplements = mutableListOf<UserSupplement>()
     var supplement: UserSupplement? = null
 
     override suspend fun saveClient(profile: ClientProfile) = Unit
@@ -30,7 +31,9 @@ private class RecordingSupplementRepository : SupplementRepository {
         updatedSupplements += supplement
         this.supplement = supplement
     }
-    override suspend fun deleteSupplement(supplement: UserSupplement) = Unit
+    override suspend fun deleteSupplement(supplement: UserSupplement) {
+        deletedSupplements += supplement
+    }
     override suspend fun getSupplementById(id: String): UserSupplement? =
         supplement?.takeIf { it.id.toString() == id }
     override fun getAllSupplements(clientId: String): Flow<List<UserSupplement>> = emptyFlow()
@@ -59,6 +62,8 @@ private class RecordingSupplementRepository : SupplementRepository {
     override suspend fun getAllRecordsByClient(clientId: String): List<IntakeRecord> = emptyList()
     override suspend fun getAllSupplementsForSync(clientId: String): List<UserSupplement> = emptyList()
     override suspend fun getAllRecordsForSync(clientId: String): List<IntakeRecord> = emptyList()
+    override suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean = false
+    override suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean = false
     override suspend fun deleteAllSupplementsByClient(clientId: String) = Unit
     override suspend fun deleteAllIntakeRecordsByClient(clientId: String) = Unit
     override suspend fun importBackupAtomic(
@@ -66,6 +71,36 @@ private class RecordingSupplementRepository : SupplementRepository {
         supplements: List<UserSupplement>,
         records: List<IntakeRecord>
     ) = Unit
+}
+
+class SupplementMutationUseCaseTest {
+    private val repository = RecordingSupplementRepository()
+    private val useCase = SupplementMutationUseCase(repository)
+    private val supplement = UserSupplement(
+        id = UUID.fromString("22222222-2222-2222-2222-222222222222"),
+        clientId = UUID.fromString("11111111-1111-1111-1111-111111111111"),
+        name = "Magnesium",
+        startDate = java.time.LocalDate.of(2026, 8, 1),
+        cycleConfig = CycleConfig.Continuous,
+        dailyDose = "1",
+        intakeTime = "08:00, 20:00"
+    )
+
+    @Test
+    fun updateIntakeTimes_routesThroughRepositoryWithNewTimestamp() = kotlinx.coroutines.runBlocking {
+        useCase.updateIntakeTimes(supplement, "20:00")
+
+        val updated = repository.updatedSupplements.single()
+        assertEquals("20:00", updated.intakeTime)
+        assertTrue(updated.updatedAtEpochMs >= supplement.updatedAtEpochMs)
+    }
+
+    @Test
+    fun softDeleteRoutine_routesThroughRepository() = kotlinx.coroutines.runBlocking {
+        useCase.softDeleteRoutine(supplement)
+
+        assertEquals(listOf(supplement), repository.deletedSupplements)
+    }
 }
 
 class RecordDoseUseCaseTest {

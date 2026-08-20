@@ -4,7 +4,7 @@ import android.content.Context
 import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.export.OAKBackupDataDTO
 import com.example.supplementtracker.domain.export.OAKBackupHistoryDTO
@@ -32,9 +32,9 @@ class CloudSyncEngine(
     private val context: Context,
     private val repository: SupplementRepository,
     private val currentClientId: () -> java.util.UUID?,
-    private val buildFullBackupJson: suspend () -> Result<String>,
-    private val buildStackBackupJson: suspend () -> Result<String>,
-    private val buildHistoryBackupJson: suspend () -> Result<String>,
+    private val buildFullBackupJson: suspend (java.util.UUID) -> Result<String>,
+    private val buildStackBackupJson: suspend (java.util.UUID) -> Result<String>,
+    private val buildHistoryBackupJson: suspend (java.util.UUID) -> Result<String>,
     private val updateUi: suspend (String) -> Unit,
     private val setLoading: (Boolean) -> Unit,
     private val rescheduleNotifications: suspend () -> Unit,
@@ -69,14 +69,31 @@ class CloudSyncEngine(
         prefs.edit().putString(phaseKey, SyncPhase.ERROR.name).apply()
         prefs.edit().putLong(stageMsKey, SystemClock.elapsedRealtime() - stageStartedAt).apply()
         prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
-        prefs.edit().putLong("cloudSyncLastFailureEpochMs", System.currentTimeMillis()).apply()
+        recordFailureState(prefs, manifestId)
         appendLog(prefs, manifestId, "ERROR", logMessage)
-        if (errorMessage.startsWith("Missing cloud sync key:", ignoreCase = true)) {
-            prefs.edit().putBoolean("isAutoSyncEnabled", false).apply()
-            disableAutoSync()
-        }
+        disableAutoSyncForMissingKey(prefs, errorMessage)
         setLoading(false)
         updateUi(manifestId)
+    }
+
+    private fun recordFailureState(prefs: android.content.SharedPreferences, manifestId: String) {
+        val epochMs = System.currentTimeMillis()
+        prefs.edit().putLong("cloudSyncLastFailureEpochMs", epochMs).apply()
+        val retry = SyncRetryStore(prefs).recordFailure(manifestId, epochMs)
+        SyncOperationJournalStore(prefs).append(
+            manifestId,
+            SyncJournalEntry(
+                epochMs, SyncJournalEvent.FAILURE,
+                retryCount = retry.failureCount,
+                nextRetryEpochMs = retry.nextRetryEpochMs
+            )
+        )
+    }
+
+    private fun disableAutoSyncForMissingKey(prefs: android.content.SharedPreferences, errorMessage: String) {
+        if (!errorMessage.startsWith("Missing cloud sync key:", ignoreCase = true)) return
+        prefs.edit().putBoolean("isAutoSyncEnabled", false).apply()
+        disableAutoSync()
     }
 
     private fun totalMsKeyFor(manifestId: String): String {
@@ -90,12 +107,15 @@ class CloudSyncEngine(
         lastSyncKey: String,
         lastErrorKey: String,
         phaseKey: String,
+        clientId: java.util.UUID,
+        syncStartedEpochMs: Long,
         startedAt: Long
     ) {
         prefs.edit().putLong(lastSyncKey, System.currentTimeMillis()).apply()
         prefs.edit().remove(lastErrorKey).apply()
         prefs.edit().putString(phaseKey, SyncPhase.DONE.name).apply()
         prefs.edit().putLong(totalMsKeyFor(manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
+        recordSyncSuccess(prefs, manifestId, clientId, syncStartedEpochMs)
         markSyncActivity()
         setLoading(false)
         appendLog(prefs, manifestId, "DONE", "No changes")
@@ -103,11 +123,17 @@ class CloudSyncEngine(
         rescheduleNotifications()
     }
 
-    suspend fun syncTwoWay(binId: String): Boolean {
+    suspend fun syncTwoWay(binId: String, force: Boolean = false): Boolean {
+        val id = binId.trim()
+        if (id.isEmpty()) return false
+        val prefs = OakPrefs.get(context)
+        val retryState = SyncRetryStore(prefs).state(id)
+        if (!force && !SyncBackoffPolicy.canAttempt(retryState, System.currentTimeMillis())) {
+            recordBackoff(prefs, id, retryState)
+            return false
+        }
         syncMutex.lock()
         try {
-            val id = binId.trim()
-            val prefs = OakPrefs.get(context)
             val attemptKey = "cloudSyncLastAttemptEpochMs_$id"
             val phaseKey = "cloudSyncPhase_$id"
             val lastErrorKey = "cloudSyncLastError_$id"
@@ -157,6 +183,12 @@ class CloudSyncEngine(
         val remoteChanged: Boolean
     )
 
+    private data class LocalSyncChanges(
+        val stackChanged: Boolean,
+        val historyChanged: Boolean,
+        val syncStartedEpochMs: Long
+    )
+
     private suspend fun performSyncTwoWay(binId: String) {
         val clientId = currentClientId() ?: return
         val prefs = OakPrefs.get(context)
@@ -164,27 +196,40 @@ class CloudSyncEngine(
         if (manifestId.isEmpty()) return
         setLoading(true)
         val keys = SyncKeys(manifestId)
-        val lastSyncEpochMs = prefs.getLong(keys.lastSync, 0L)
-        val localStackChanged = hasLocalStackChangesSince(clientId, lastSyncEpochMs)
-        val localHistoryChanged = hasLocalHistoryChangesSince(clientId, lastSyncEpochMs)
+        val changes = detectLocalSyncChanges(prefs, keys, clientId)
         val startedAt = SystemClock.elapsedRealtime()
         initSyncAttempt(prefs, keys)
+        recordSyncStart(prefs, keys.manifestId, changes.stackChanged, changes.historyChanged, changes.syncStartedEpochMs)
         val resolved = resolveManifestIds(
-            prefs, keys, clientId, localStackChanged, localHistoryChanged, startedAt
+            prefs, keys, clientId, changes.stackChanged, changes.historyChanged, startedAt
         ) ?: return
         val pullOutcome = pullStackAndHistory(prefs, keys, resolved, startedAt) ?: return
         if (!mergePulledPayloads(prefs, keys, pullOutcome, clientId, startedAt)) return
-        if (!pullOutcome.remoteChanged && !localStackChanged && !localHistoryChanged) {
+        if (!pullOutcome.remoteChanged && !changes.stackChanged && !changes.historyChanged) {
             finishCloudSyncNoChanges(
-                prefs, keys.manifestId, keys.lastSync, keys.lastError, keys.phase, startedAt
+                prefs, keys.manifestId, keys.lastSync, keys.lastError, keys.phase,
+                clientId, changes.syncStartedEpochMs, startedAt
             )
             return
         }
         pushChangedParts(
             prefs, keys, resolved.stackId, resolved.historyId,
-            localStackChanged, localHistoryChanged,
-            pullOutcome.bytesDown, clientId, startedAt
+            changes.stackChanged, changes.historyChanged,
+            pullOutcome.bytesDown, clientId, changes.syncStartedEpochMs, startedAt
         )
+    }
+
+    private suspend fun detectLocalSyncChanges(
+        prefs: android.content.SharedPreferences,
+        keys: SyncKeys,
+        clientId: java.util.UUID
+    ): LocalSyncChanges {
+        val lastSyncEpochMs = prefs.getLong(keys.lastSync, 0L)
+        val stackChanged = hasLocalStackChangesSince(clientId, lastSyncEpochMs)
+        val historyChanged = hasLocalHistoryChangesSince(clientId, lastSyncEpochMs)
+        val epochMs = System.currentTimeMillis()
+        recordPendingMutations(prefs, clientId, stackChanged, historyChanged, epochMs)
+        return LocalSyncChanges(stackChanged, historyChanged, epochMs)
     }
 
     private suspend fun initSyncAttempt(
@@ -365,11 +410,12 @@ class CloudSyncEngine(
         val remoteChanged = manifestJson.isNotBlank()
         if (!remoteChanged && !localStackChanged && !localHistoryChanged) {
             finishCloudSyncNoChanges(
-                prefs, keys.manifestId, keys.lastSync, keys.lastError, keys.phase, startedAt
+                prefs, keys.manifestId, keys.lastSync, keys.lastError, keys.phase,
+                clientId, prefs.getLong(keys.lastAttempt, System.currentTimeMillis()), startedAt
             )
             return
         }
-        pushLegacyFullPayload(prefs, keys, manifestEtag, bytesDown, startedAt)
+        pushLegacyFullPayload(prefs, keys, manifestEtag, bytesDown, clientId, startedAt)
     }
 
     private suspend fun mergeLegacyPayload(
@@ -403,26 +449,31 @@ class CloudSyncEngine(
         keys: SyncKeys,
         manifestEtag: String,
         bytesDown: Int,
+        clientId: java.util.UUID,
         startedAt: Long
     ) {
         prefs.edit().putString(keys.phase, SyncPhase.PUSHING.name).apply()
         updateUi(keys.manifestId)
         val pushStartedAt = SystemClock.elapsedRealtime()
-        val fullEnc = buildAndEncryptFullBackup(prefs, keys, pushStartedAt, startedAt) ?: return
+        val fullEnc = buildAndEncryptFullBackup(prefs, keys, clientId, pushStartedAt, startedAt) ?: return
         val bytesUp = fullEnc.toByteArray(Charsets.UTF_8).size.toLong()
         prefs.edit().putLong(keys.bytesUp, bytesUp).apply()
         if (!upsertLegacyManifest(prefs, keys, fullEnc, manifestEtag, pushStartedAt, startedAt)) return
         prefs.edit().putLong(keys.pushMs, SystemClock.elapsedRealtime() - pushStartedAt).apply()
-        finishCloudSyncSuccess(prefs, keys, bytesUp, bytesDown, startedAt)
+        finishCloudSyncSuccess(
+            prefs, keys, bytesUp, bytesDown, clientId,
+            prefs.getLong(keys.lastAttempt, System.currentTimeMillis()), startedAt
+        )
     }
 
     private suspend fun buildAndEncryptFullBackup(
         prefs: android.content.SharedPreferences,
         keys: SyncKeys,
+        clientId: java.util.UUID,
         pushStartedAt: Long,
         startedAt: Long
     ): String? {
-        val fullPlain = buildFullBackupJson().getOrElse {
+        val fullPlain = buildFullBackupJson(clientId).getOrElse {
             abortCloudSync(
                 prefs, keys.manifestId, keys.lastError, keys.phase, keys.pushMs,
                 pushStartedAt, startedAt, it.message ?: "Export failed", "Export failed"
@@ -599,25 +650,43 @@ class CloudSyncEngine(
         localHistoryChanged: Boolean,
         bytesDown: Int,
         clientId: java.util.UUID,
+        syncStartedEpochMs: Long,
         startedAt: Long
     ) {
         prefs.edit().putString(keys.phase, SyncPhase.PUSHING.name).apply()
         updateUi(keys.manifestId)
         val pushStartedAt = SystemClock.elapsedRealtime()
-        val cloud = CloudSyncManager()
         val mergeMutex = kotlinx.coroutines.sync.Mutex()
         try {
             val bytesUp = executeParallelPush(
-                cloud, prefs, keys, stackId, historyId,
+                CloudSyncManager(), prefs, keys, stackId, historyId,
                 localStackChanged, localHistoryChanged, clientId, mergeMutex
             )
-            prefs.edit().putLong(keys.bytesUp, bytesUp)
-                .putLong(keys.pushMs, SystemClock.elapsedRealtime() - pushStartedAt).apply()
-            finishCloudSyncSuccess(prefs, keys, bytesUp, bytesDown, startedAt)
+            finishSuccessfulPush(
+                prefs, keys, bytesUp, bytesDown, clientId,
+                syncStartedEpochMs, startedAt, pushStartedAt
+            )
         } catch (t: Throwable) {
             abortCloudSync(prefs, keys.manifestId, keys.lastError, keys.phase, keys.pushMs,
                 pushStartedAt, startedAt, t.message ?: "Upload failed", "Upload failed")
         }
+    }
+
+    private suspend fun finishSuccessfulPush(
+        prefs: android.content.SharedPreferences,
+        keys: SyncKeys,
+        bytesUp: Long,
+        bytesDown: Int,
+        clientId: java.util.UUID,
+        syncStartedEpochMs: Long,
+        startedAt: Long,
+        pushStartedAt: Long
+    ) {
+        prefs.edit().putLong(keys.bytesUp, bytesUp)
+            .putLong(keys.pushMs, SystemClock.elapsedRealtime() - pushStartedAt).apply()
+        finishCloudSyncSuccess(
+            prefs, keys, bytesUp, bytesDown, clientId, syncStartedEpochMs, startedAt
+        )
     }
 
     private suspend fun executeParallelPush(
@@ -634,12 +703,12 @@ class CloudSyncEngine(
         val (stackResult, historyResult) = coroutineScope {
             val stackDeferred = async(Dispatchers.IO) {
                 if (localStackChanged) {
-                    pushPart(cloud, prefs, keys, stackId, keys.etagStack, { buildStackBackupJson() }, "STACK", clientId, mergeMutex)
+                    pushPart(cloud, prefs, keys, stackId, keys.etagStack, { buildStackBackupJson(clientId) }, "STACK", clientId, mergeMutex)
                 } else null
             }
             val historyDeferred = async(Dispatchers.IO) {
                 if (localHistoryChanged) {
-                    pushPart(cloud, prefs, keys, historyId, keys.etagHistory, { buildHistoryBackupJson() }, "HISTORY", clientId, mergeMutex)
+                    pushPart(cloud, prefs, keys, historyId, keys.etagHistory, { buildHistoryBackupJson(clientId) }, "HISTORY", clientId, mergeMutex)
                 } else null
             }
             stackDeferred.await() to historyDeferred.await()
@@ -692,20 +761,33 @@ class CloudSyncEngine(
         updateUi(keys.manifestId)
         appendLog(prefs, keys.manifestId, "ERROR", "$label conflict, retry")
         val latest = cloud.downloadBackupAlways(partId).getOrThrow()
-        if (!latest.json.isNullOrBlank()) {
-            val prepared = decryptAndPrepare(latest.json.orEmpty())
-            mergeMutex.lock()
-            try {
-                check(mergeRemoteIntoLocal(prepared, clientId)) { "$label payload merge failed" }
-            } finally {
-                mergeMutex.unlock()
-            }
-        }
+        mergeLatestConflictPayload(
+            latest.json, prefs, keys.manifestId, label, clientId, mergeMutex
+        )
         val retryPlain = build().getOrThrow()
         val retryEnc = encryptAndPrepare(retryPlain)
         val extraBytes = retryEnc.toByteArray(Charsets.UTF_8).size.toLong()
-        cloud.upsertBackup(partId, retryEnc, latest.etag).getOrThrow()
-        return latest.etag to extraBytes
+        val retryEtag = cloud.upsertBackup(partId, retryEnc, latest.etag).getOrThrow()
+        return retryEtag to extraBytes
+    }
+
+    private suspend fun mergeLatestConflictPayload(
+        json: String?,
+        prefs: android.content.SharedPreferences,
+        manifestId: String,
+        label: String,
+        clientId: java.util.UUID,
+        mergeMutex: kotlinx.coroutines.sync.Mutex
+    ) {
+        if (json.isNullOrBlank()) return
+        val prepared = decryptAndPrepare(json)
+        recordConflictPreview(prefs, manifestId, previewRemoteConflict(prepared, clientId))
+        mergeMutex.lock()
+        try {
+            check(mergeRemoteIntoLocal(prepared, clientId)) { "$label payload merge failed" }
+        } finally {
+            mergeMutex.unlock()
+        }
     }
 
     private suspend fun finishCloudSyncSuccess(
@@ -713,12 +795,15 @@ class CloudSyncEngine(
         keys: SyncKeys,
         bytesUp: Long,
         bytesDown: Int,
+        clientId: java.util.UUID,
+        syncStartedEpochMs: Long,
         startedAt: Long
     ) {
         prefs.edit().putLong(keys.lastSync, System.currentTimeMillis()).apply()
         prefs.edit().remove(keys.lastError).apply()
         prefs.edit().putString(keys.phase, SyncPhase.DONE.name).apply()
         prefs.edit().putLong(totalMsKeyFor(keys.manifestId), SystemClock.elapsedRealtime() - startedAt).apply()
+        recordSyncSuccess(prefs, keys.manifestId, clientId, syncStartedEpochMs)
         markSyncActivity()
         setLoading(false)
         val total = prefs.getLong(totalMsKeyFor(keys.manifestId), 0L)
@@ -780,10 +865,11 @@ class CloudSyncEngine(
         remoteUpdatedAt: Long,
         remoteDeletedAt: Long
     ) {
-        val localDeletedAt = local?.deletedAtEpochMs ?: 0L
-        if (remoteDeletedAt > localDeletedAt) {
+        val remoteTs = maxOf(remoteUpdatedAt, remoteDeletedAt)
+        val localTs = local?.let { maxOf(it.updatedAtEpochMs, it.deletedAtEpochMs ?: 0L) }
+        if (localTs == null || SyncConflictPolicy.remoteMayApply(localTs, remoteTs)) {
             val updated = (local ?: makeLocalFromRemote(remote, clientId)).copy(
-                updatedAtEpochMs = maxOf(remoteUpdatedAt, remoteDeletedAt),
+                updatedAtEpochMs = remoteTs,
                 deletedAtEpochMs = remoteDeletedAt
             )
             repository.saveSupplement(updated)
@@ -793,8 +879,7 @@ class CloudSyncEngine(
     private fun shouldUpdateSupplement(remote: OAKBackupSupplementDTO, local: UserSupplement): Boolean {
         val remoteUpdatedAt = remote.updatedAtEpochMs
         val localTs = maxOf(local.updatedAtEpochMs, local.deletedAtEpochMs ?: 0L)
-        val fields = remote.modifiedFields
-        return if (fields != null) remoteUpdatedAt > local.updatedAtEpochMs else remoteUpdatedAt > localTs
+        return remoteUpdatedAt > localTs
     }
 
     private fun buildUpdatedSupplement(
@@ -957,16 +1042,105 @@ class CloudSyncEngine(
 
     private suspend fun hasLocalStackChangesSince(clientId: java.util.UUID, lastSyncEpochMs: Long): Boolean {
         if (lastSyncEpochMs <= 0L) return true
-        val clientIdString = clientId.toString()
-        val supplements = repository.getAllSupplementsForSync(clientIdString)
-        return supplements.any { maxOf(it.updatedAtEpochMs, it.deletedAtEpochMs ?: 0L) > lastSyncEpochMs }
+        return repository.hasSupplementChangesSince(clientId.toString(), lastSyncEpochMs)
     }
 
     private suspend fun hasLocalHistoryChangesSince(clientId: java.util.UUID, lastSyncEpochMs: Long): Boolean {
         if (lastSyncEpochMs <= 0L) return true
-        val clientIdString = clientId.toString()
-        val records = repository.getAllRecordsForSync(clientIdString)
-        return records.any { it.updatedAtEpochMs > lastSyncEpochMs }
+        return repository.hasHistoryChangesSince(clientId.toString(), lastSyncEpochMs)
+    }
+
+    private suspend fun previewRemoteConflict(
+        json: String,
+        clientId: java.util.UUID
+    ): SyncConflictPreview {
+        val decoded = OAKBackupJson.decodeCompat(json).getOrElse { return SyncConflictPreview() }
+        val clientKey = clientId.toString()
+        val supplements = repository.getAllSupplementsForSync(clientKey)
+            .associateBy { it.id.toString().lowercase(Locale.ROOT) }
+        val records = repository.getAllRecordsForSync(clientKey)
+        val byId = records.associateBy { it.id.lowercase(Locale.ROOT) }
+        val byDoseKey = records.groupBy { DoseEventKey.make(it.supplementId, it.date) }
+            .mapNotNull { (key, list) -> list.maxByOrNull { it.updatedAtEpochMs }?.let { key to it } }
+            .toMap()
+        return SyncConflictAnalyzer.analyze(decoded, supplements, byId, byDoseKey)
+    }
+
+    private fun recordConflictPreview(
+        prefs: android.content.SharedPreferences,
+        manifestId: String,
+        preview: SyncConflictPreview
+    ) {
+        prefs.edit()
+            .putInt("cloudSyncConflictRemoteWins_$manifestId", preview.remoteWins)
+            .putInt("cloudSyncConflictLocalWins_$manifestId", preview.localWins)
+            .putInt("cloudSyncConflictTieLocalWins_$manifestId", preview.tieLocalWins)
+            .apply()
+        SyncOperationJournalStore(prefs).append(
+            manifestId,
+            SyncJournalEntry(
+                System.currentTimeMillis(), SyncJournalEvent.CONFLICT,
+                remoteWins = preview.remoteWins, localWins = preview.localWins,
+                tieLocalWins = preview.tieLocalWins
+            )
+        )
+    }
+
+    private fun recordPendingMutations(
+        prefs: android.content.SharedPreferences,
+        clientId: java.util.UUID,
+        stackDirty: Boolean,
+        historyDirty: Boolean,
+        epochMs: Long
+    ) {
+        val queue = SyncMutationQueue(prefs)
+        val clientKey = clientId.toString()
+        if (stackDirty) queue.markDirty(clientKey, SyncMutationPart.STACK, epochMs)
+        if (historyDirty) queue.markDirty(clientKey, SyncMutationPart.HISTORY, epochMs)
+    }
+
+    private fun recordSyncStart(
+        prefs: android.content.SharedPreferences,
+        manifestId: String,
+        stackDirty: Boolean,
+        historyDirty: Boolean,
+        epochMs: Long
+    ) {
+        SyncOperationJournalStore(prefs).append(
+            manifestId,
+            SyncJournalEntry(epochMs, SyncJournalEvent.START, stackDirty, historyDirty)
+        )
+    }
+
+    private fun recordBackoff(
+        prefs: android.content.SharedPreferences,
+        manifestId: String,
+        state: SyncRetryState
+    ) {
+        SyncOperationJournalStore(prefs).append(
+            manifestId,
+            SyncJournalEntry(
+                System.currentTimeMillis(), SyncJournalEvent.BACKOFF,
+                retryCount = state.failureCount,
+                nextRetryEpochMs = state.nextRetryEpochMs
+            )
+        )
+    }
+
+    private fun recordSyncSuccess(
+        prefs: android.content.SharedPreferences,
+        manifestId: String,
+        clientId: java.util.UUID,
+        syncStartedEpochMs: Long
+    ) {
+        SyncRetryStore(prefs).clear(manifestId)
+        SyncMutationQueue(prefs).clearSynced(
+            clientId.toString(), SyncMutationPart.entries.toSet(), syncStartedEpochMs
+        )
+        SyncOperationJournalStore(prefs).append(
+            manifestId,
+            SyncJournalEntry(System.currentTimeMillis(), SyncJournalEvent.SUCCESS)
+        )
     }
 
     private fun markSyncActivity() {

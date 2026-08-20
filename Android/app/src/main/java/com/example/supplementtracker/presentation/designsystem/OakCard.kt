@@ -13,56 +13,69 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 enum class OakCardVariant {
-    Glass,
+    Paper,
     Surface
 }
 
 @Composable
 fun OakCard(
     modifier: Modifier = Modifier,
-    variant: OakCardVariant = OakCardVariant.Glass,
+    variant: OakCardVariant = OakCardVariant.Paper,
     accent: Color? = null,
-    shape: Shape = RoundedCornerShape(20.dp),
+    shape: Shape = RoundedCornerShape(14.dp),
     contentPadding: PaddingValues = PaddingValues(16.dp),
-    elevation: Dp = 2.dp,
+    elevation: Dp = 0.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     when (variant) {
-        OakCardVariant.Glass -> {
-            val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-            val base = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.62f) }
-            val stroke = remember(isDark, accent) { (accent ?: Color.White).copy(alpha = if (isDark) 0.24f else 0.28f) }
-            Box(
-                modifier = modifier
-                    .background(base, shape)
-                    .border(1.dp, stroke, shape)
-                    .clip(shape)
-                    .padding(contentPadding)
-            ) {
-                Column(content = content)
-            }
-        }
-        OakCardVariant.Surface -> {
-            val border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            Card(
-                modifier = modifier,
-                shape = shape,
-                border = border,
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                elevation = CardDefaults.cardElevation(defaultElevation = elevation)
-            ) {
-                Column(modifier = Modifier.padding(contentPadding), content = content)
-            }
-        }
+        OakCardVariant.Paper -> PaperCard(modifier, accent, shape, contentPadding, content)
+        OakCardVariant.Surface -> SurfaceCard(modifier, shape, contentPadding, elevation, content)
+    }
+}
+
+@Composable
+private fun PaperCard(
+    modifier: Modifier,
+    accent: Color?,
+    shape: Shape,
+    contentPadding: PaddingValues,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val stroke = accent?.copy(alpha = 0.24f) ?: MaterialTheme.colorScheme.outlineVariant
+    Box(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface, shape)
+            .border(1.dp, stroke, shape)
+            .clip(shape)
+            .padding(contentPadding)
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun SurfaceCard(
+    modifier: Modifier,
+    shape: Shape,
+    contentPadding: PaddingValues,
+    elevation: Dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = shape,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation.coerceAtMost(1.dp))
+    ) {
+        Column(modifier = Modifier.padding(contentPadding), content = content)
     }
 }

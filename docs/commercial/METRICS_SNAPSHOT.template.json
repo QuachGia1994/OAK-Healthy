@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "period_start": "2026-08-01",
+  "period_end": "2026-08-31",
+  "funnel": {
+    "plan_access_views": 0,
+    "purchase_starts": 0,
+    "purchase_successes": 0,
+    "purchase_failures": 0,
+    "restore_starts": 0,
+    "restore_successes": 0
+  },
+  "store": {
+    "active_start": 0,
+    "active_end": 0,
+    "new_paid": 0,
+    "cancellations": 0,
+    "refunds": 0,
+    "renewals": 0
+  },
+  "active_product_mix": {
+    "pro_monthly": 0,
+    "pro_annual": 0,
+    "coach_monthly": 0,
+    "coach_annual": 0
+  },
+  "support": {
+    "purchase_tickets": 0,
+    "restore_tickets": 0
+  }
+}

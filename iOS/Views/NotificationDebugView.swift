@@ -16,6 +16,7 @@ public struct NotificationDebugScreen: View {
     @State private var shadowErrorCount: Int = 0
     @State private var isRepairingShadow = false
     @State private var didAutoRepairShadow = false
+    @State private var isTechnicalDetailsVisible = false
     
     public let activeClientManager: ActiveClientManager
     
@@ -41,36 +42,51 @@ public struct NotificationDebugScreen: View {
     private var listContent: some View {
         List {
             Section {
-                Text(diagnosisTitle)
-                    .font(.headline)
-                
-                Text(diagnosisHint)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                
-                LabeledContent("onboarding_permission_status".localized) { Text(authorizationStatusText) }
-                LabeledContent("notification_debug_enabled_user_label".localized) { Text(enabledText) }
-                LabeledContent("notification_debug_active_client_label".localized) { Text(activeClientText) }
-                LabeledContent("notification_debug_active_supplements_label".localized) { Text("\(activeSupplementCount)") }
-                LabeledContent("notification_debug_pending_os_label".localized) { Text("\(pendingEntries.count)") }
-                LabeledContent("notification_debug_shadow_label".localized) { Text("\(shadowEntries.count)") }
-                LabeledContent("notification_debug_pending_only_label".localized) { Text("\(pendingOnlyCount)") }
-                LabeledContent("notification_debug_shadow_only_label".localized) { Text("\(shadowOnlyCount)") }
-                LabeledContent("notification_debug_shadow_errors_label".localized) { Text("\(shadowErrorCount)") }
-                
-                if shouldShowRepairShadow {
-                    Button("notification_debug_repair_shadow".localized) {
-                        Task { await repairShadow() }
+                VStack(alignment: .leading, spacing: OAKSpacing.md) {
+                    Text(diagnosisTitle)
+                        .font(.oakDisplay(size: 24))
+                    Text(diagnosisHint)
+                        .font(.footnote)
+                        .oakSecondaryText()
+                    Divider()
+                    LabeledContent("onboarding_permission_status".localized) { Text(authorizationStatusText) }
+                    LabeledContent("notification_debug_enabled_user_label".localized) { Text(enabledText) }
+                    LabeledContent("notification_debug_active_client_label".localized) { Text(activeClientText) }
+                    LabeledContent("notification_debug_active_supplements_label".localized) { Text("\(activeSupplementCount)") }
+                    LabeledContent("notification_debug_pending_os_label".localized) { Text("\(pendingEntries.count)") }
+                    LabeledContent("notification_reliability_health".localized) { Text(reliabilityLevelText) }
+                    LabeledContent("notification_reliability_mismatch".localized) { Text("\(reliabilityReport.mismatchCount)") }
+                    if reliabilityReport.shouldOfferRepair {
+                        Button("notification_reliability_rebuild".localized) { Task { await rebuildSchedules() } }
+                            .disabled(isRepairingShadow)
                     }
-                    .disabled(isRepairingShadow)
+                    if shouldShowRepairShadow {
+                        Button("notification_debug_repair_shadow".localized) { Task { await repairShadow() } }
+                            .disabled(isRepairingShadow)
+                    }
                 }
+                .padding(OAKSpacing.lg)
+                .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
             
-            Section("notification_debug_diagnostics_section".localized) {
-                Text(diagnosticsText)
-                    .font(.system(.footnote, design: .monospaced))
-                    .textSelection(.enabled)
-                    .foregroundStyle(.secondary)
+            Section {
+                DisclosureGroup(
+                    "notification_debug_diagnostics_section".localized,
+                    isExpanded: $isTechnicalDetailsVisible
+                ) {
+                    VStack(alignment: .leading, spacing: OAKSpacing.sm) {
+                        LabeledContent("notification_debug_shadow_label".localized) { Text("\(shadowEntries.count)") }
+                        LabeledContent("notification_debug_pending_only_label".localized) { Text("\(pendingOnlyCount)") }
+                        LabeledContent("notification_debug_shadow_only_label".localized) { Text("\(shadowOnlyCount)") }
+                        LabeledContent("notification_debug_shadow_errors_label".localized) { Text("\(shadowErrorCount)") }
+                        Text(diagnosticsText)
+                            .font(.system(.footnote, design: .monospaced))
+                            .textSelection(.enabled)
+                            .oakSecondaryText()
+                    }
+                }
             }
             
             if groupedItems.isEmpty {
@@ -87,6 +103,7 @@ public struct NotificationDebugScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .listSectionSpacing(20)
         .refreshable {
             await refresh()
         }
@@ -98,16 +115,17 @@ public struct NotificationDebugScreen: View {
         let settings = await center.notificationSettings()
         let pending = await NotificationService.shared.pendingRequestSnapshots()
         let shadowRaw = await NotificationService.shared.shadowScheduledTimes()
-        let parsedPending = NotificationDebugEntry.parseMany(pending)
+        var parsedPending = NotificationDebugEntry.parseMany(pending)
         var parsedShadow = NotificationDebugEntry.parseMany(shadowRaw)
-        let supplementCount = fetchActiveSupplementCount(clientId: activeClientManager.currentClientId)
+        let supplements = fetchActiveSupplements(clientId: activeClientManager.currentClientId)
+        let supplementCount = supplements.count
         var (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
         
         if shouldAutoRepairShadow(settings: settings, pendingOnly: pendingOnly, shadowOnly: shadowOnly, errorCount: errorCount) {
             didAutoRepairShadow = true
-            await NotificationService.shared.rebuildShadowFromPendingRequests()
-            let shadowRaw2 = await NotificationService.shared.shadowScheduledTimes()
-            parsedShadow = NotificationDebugEntry.parseMany(shadowRaw2)
+            _ = await NotificationService.shared.reconcileSchedulesIfNeeded(supplements: supplements)
+            parsedPending = NotificationDebugEntry.parseMany(await NotificationService.shared.pendingRequestSnapshots())
+            parsedShadow = NotificationDebugEntry.parseMany(await NotificationService.shared.shadowScheduledTimes())
             (pendingOnly, shadowOnly, errorCount) = computeReconciliation(pending: parsedPending, shadow: parsedShadow)
         }
         
@@ -122,6 +140,21 @@ public struct NotificationDebugScreen: View {
     }
     
     @MainActor
+    private func rebuildSchedules() async {
+        guard let clientId = activeClientManager.currentClientId else { return }
+        do {
+            let supplements = try ClientScopedStore.activeSupplements(
+                modelContext: modelContext,
+                clientId: clientId
+            )
+            await NotificationService.shared.replaceAllSchedules(supplements: supplements)
+            await refresh()
+        } catch {
+            return
+        }
+    }
+
+    @MainActor
     private func repairShadow() async {
         guard !isRepairingShadow else { return }
         isRepairingShadow = true
@@ -130,6 +163,30 @@ public struct NotificationDebugScreen: View {
         await refresh()
     }
     
+    private var reliabilityReport: NotificationReliabilityReport {
+        NotificationReliabilityEvaluator.evaluate(
+            NotificationReliabilityInput(
+                permissionGranted: authorizationStatus == .authorized || authorizationStatus == .provisional,
+                enabledByUser: isNotificationEnabledByUser,
+                hasActiveClient: activeClientManager.currentClientId != nil,
+                activeSupplementCount: activeSupplementCount,
+                pendingCount: pendingEntries.count,
+                pendingOnlyCount: pendingOnlyCount,
+                shadowOnlyCount: shadowOnlyCount,
+                shadowErrorCount: shadowErrorCount
+            )
+        )
+    }
+
+    private var reliabilityLevelText: String {
+        switch reliabilityReport.level {
+        case .healthy: return "notification_reliability_healthy".localized
+        case .degraded: return "notification_reliability_degraded".localized
+        case .needsRepair: return "notification_reliability_needs_repair".localized
+        case .inactive: return "notification_reliability_inactive".localized
+        }
+    }
+
     private var shouldShowRepairShadow: Bool {
         isNotificationEnabledByUser &&
             (authorizationStatus == .authorized || authorizationStatus == .provisional) &&
@@ -162,15 +219,12 @@ public struct NotificationDebugScreen: View {
     }
     
     @MainActor
-    private func fetchActiveSupplementCount(clientId: UUID?) -> Int {
-        guard let clientId else { return 0 }
-        do {
-            let descriptor = FetchDescriptor<UserSupplement>()
-            let supplements = try modelContext.fetch(descriptor)
-            return supplements.filter { $0.deletedAtEpochMs == nil && $0.client?.id == clientId }.count
-        } catch {
-            return 0
-        }
+    private func fetchActiveSupplements(clientId: UUID?) -> [UserSupplement] {
+        guard let clientId else { return [] }
+        return (try? ClientScopedStore.activeSupplements(
+            modelContext: modelContext,
+            clientId: clientId
+        )) ?? []
     }
     
     private func entryKey(_ entry: NotificationDebugEntry) -> String {
@@ -204,7 +258,7 @@ public struct NotificationDebugScreen: View {
         [
             "permission=\(authorizationStatusText)",
             "enabledByUser=\(enabledText)",
-            "activeClient=\(activeClientManager.currentClientId?.uuidString ?? "nil")",
+            "activeClient=\(activeClientManager.currentClientId == nil ? "no" : "yes")",
             "activeSupplements=\(activeSupplementCount)",
             "pendingCount=\(pendingEntries.count)",
             "shadowCount=\(shadowEntries.count)",

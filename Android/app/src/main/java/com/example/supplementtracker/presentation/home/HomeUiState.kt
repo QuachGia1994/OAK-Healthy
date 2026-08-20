@@ -11,7 +11,8 @@ sealed class HomeUiState {
     data class Success(
         val activeSupplements: Map<String, List<SupplementUiItem>>,
         val restingSupplements: List<RestingSupplementInfo>,
-        val streakDays: Int
+        val streakDays: Int,
+        val hasAnyIntakeRecord: Boolean
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }

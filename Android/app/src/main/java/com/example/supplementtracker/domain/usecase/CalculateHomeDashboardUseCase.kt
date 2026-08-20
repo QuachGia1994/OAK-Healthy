@@ -1,9 +1,11 @@
 package com.example.supplementtracker.domain.usecase
 
 import com.example.supplementtracker.domain.model.CycleStatus
+import com.example.supplementtracker.domain.model.IntakeStatus
 import com.example.supplementtracker.domain.model.UserSupplement
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.util.DoseEventKey
+import com.example.supplementtracker.domain.util.DoseTimingPolicy
 import com.example.supplementtracker.domain.util.TimeStrings
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,7 +36,8 @@ class CalculateHomeDashboardUseCase(
     data class Result(
         val activeDoses: Map<String, List<ActiveDose>>,
         val restingSupplements: List<RestingSupplement>,
-        val streakDays: Int
+        val streakDays: Int,
+        val hasAnyIntakeRecord: Boolean
     )
 
     private val intakeTimesCache = ConcurrentHashMap<String, List<String>>()
@@ -48,12 +51,13 @@ class CalculateHomeDashboardUseCase(
     ): Result {
         val recordIndex = buildRecordIndex(records)
         val liveSupplements = supplements.filter { it.deletedAtEpochMs == null && !isExpired(it, today) }
-        if (liveSupplements.isEmpty()) return Result(emptyMap(), emptyList(), 0)
+        val hasAnyRecord = records.isNotEmpty() || liveSupplements.any { it.lastTakenLocalDate != null }
+        if (liveSupplements.isEmpty()) return Result(emptyMap(), emptyList(), 0, hasAnyRecord)
 
         val streakDays = computeStreakDays(today, liveSupplements, recordIndex.hasRecordByDose, zoneId)
         val activeDoses = buildActiveDoses(liveSupplements, today, nowEpochMs, recordIndex.statusByDose, zoneId)
         val resting = buildRestingList(liveSupplements, today)
-        return Result(activeDoses, resting, streakDays)
+        return Result(activeDoses, resting, streakDays, hasAnyRecord)
     }
 
     fun isExpired(supplement: UserSupplement, today: LocalDate): Boolean =
@@ -126,14 +130,10 @@ class CalculateHomeDashboardUseCase(
         val scheduledAt = scheduledAtEpochMs(today, time, zoneId) ?: 0L
         val status = statusByDose[DoseEventKey.make(supplement.id.toString(), scheduledAt)]
         val doseStatus = doseStatus(scheduledAt, status, nowEpochMs)
-        val dueSoonMs = 20 * 60 * 1000L
-        val missedAfter = scheduledAt + (2 * 60 * 60 * 1000L)
         val isDueSoon = doseStatus == DoseStatus.PLANNED &&
-            scheduledAt > nowEpochMs &&
-            scheduledAt - nowEpochMs <= dueSoonMs
+            DoseTimingPolicy.isDueSoon(scheduledAt, nowEpochMs)
         val isMissedSoon = doseStatus == DoseStatus.PLANNED &&
-            scheduledAt > 0L &&
-            nowEpochMs in (missedAfter - dueSoonMs) until missedAfter
+            DoseTimingPolicy.isMissedSoon(scheduledAt, nowEpochMs)
         return ActiveDose(supplement, time, scheduledAt, doseStatus, isDueSoon, isMissedSoon)
     }
 
@@ -144,7 +144,7 @@ class CalculateHomeDashboardUseCase(
         .filter {
             val duration = it.cycleConfig.durationMonths
             val unlimited = duration == null || duration <= 0
-            unlimited && !isExpired(it, today) &&
+            unlimited && !today.isBefore(it.startDate) && !isExpired(it, today) &&
                 calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF
         }
         .map { RestingSupplement(it, calculateDaysRemaining(it, today)) }
@@ -178,10 +178,13 @@ class CalculateHomeDashboardUseCase(
     }
 
     private fun doseStatus(scheduledAtEpochMs: Long, recordedStatus: String?, nowEpochMs: Long): DoseStatus {
-        if (recordedStatus == "Skipped") return DoseStatus.SKIPPED
-        if (recordedStatus == "Taken") return DoseStatus.TAKEN
+        when (IntakeStatus.fromStorage(recordedStatus)) {
+            IntakeStatus.SKIPPED -> return DoseStatus.SKIPPED
+            IntakeStatus.TAKEN -> return DoseStatus.TAKEN
+            null -> Unit
+        }
         if (scheduledAtEpochMs <= 0L) return DoseStatus.PLANNED
-        return if (nowEpochMs > scheduledAtEpochMs + (2 * 60 * 60 * 1000L)) DoseStatus.MISSED else DoseStatus.PLANNED
+        return if (DoseTimingPolicy.isMissed(scheduledAtEpochMs, nowEpochMs)) DoseStatus.MISSED else DoseStatus.PLANNED
     }
 
     private fun parseTimes(raw: String): List<String> {

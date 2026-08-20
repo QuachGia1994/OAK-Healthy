@@ -5,6 +5,8 @@ import SwiftData
 /// Màn hình lịch sử uống với biểu đồ (iOS).
 public struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(EntitlementManager.self) private var entitlementManager
     @AppStorage("oakLastSyncEpochMs") private var lastSyncEpochMs: Double = 0
     @State private var viewModel = HistoryViewModel()
     @State private var sections: [HistorySectionModel] = []
@@ -14,6 +16,9 @@ public struct HistoryView: View {
     @State private var filter: HistoryFilter = .all
     @State private var rebuildTask: Task<Void, Never>? = nil
     @State private var isShowingSettingsSheet: Bool = false
+    @State private var isLoadingHistory: Bool = true
+    @State private var historyLoadFailed: Bool = false
+    @State private var reloadVersion: Int = 0
     
     public let activeClientManager: ActiveClientManager
     
@@ -27,17 +32,27 @@ public struct HistoryView: View {
                 Color.clear.oakBackground()
                 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        InsightsTrendCard(
-                            trend7: viewModel.trend7,
-                            trend30: viewModel.trend30,
-                            insights7: viewModel.insights7,
-                            insights30: viewModel.insights30
-                        )
+                    VStack(alignment: .leading, spacing: OAKSpacing.section) {
+                        if entitlementManager.canUse(.adherenceAnalytics) {
+                            InsightsTrendCard(
+                                trend7: viewModel.trend7,
+                                trend30: viewModel.trend30,
+                                insights7: viewModel.insights7,
+                                insights30: viewModel.insights30
+                            )
+                        } else {
+                            NavigationLink {
+                                PlanAccessView()
+                            } label: {
+                                Label("plan_unlock_analytics".localized, systemImage: "lock.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
 
                         VStack(alignment: .leading, spacing: 14) {
                             Text("intake_frequency_last_7".localized)
-                                .font(.title3.weight(.semibold))
+                                .font(.system(size: OAKTypeScale.sectionTitle, weight: .semibold))
                             
                             Chart {
                                 ForEach(viewModel.weeklyData) { data in
@@ -45,11 +60,11 @@ public struct HistoryView: View {
                                         x: .value("chart_axis_day".localized, data.date, unit: .day),
                                         y: .value("chart_axis_count".localized, data.count)
                                     )
-                                    .foregroundStyle(Color.blue.gradient)
+                                    .foregroundStyle(OAKPalette.accent)
                                     .cornerRadius(4)
                                 }
                             }
-                            .frame(height: 200)
+                            .frame(height: 168)
                             .chartXAxis {
                                 AxisMarks(values: .stride(by: .day)) { _ in
                                     AxisValueLabel(format: .dateTime.weekday(.abbreviated))
@@ -67,44 +82,49 @@ public struct HistoryView: View {
                                 }
                             }
                         }
-                        .padding(18)
-                        .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.07, shadowRadius: 10, shadowY: 4)
+                        .padding(.vertical, OAKSpacing.sm)
                         
                         VStack(alignment: .leading, spacing: 14) {
-                            Text("log_details".localized)
-                                .font(.title3.weight(.semibold))
-                            
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("log_details".localized)
+                                    .font(.system(size: OAKTypeScale.sectionTitle, weight: .semibold))
+                                Spacer()
+                                Text(String.localizedStringWithFormat("history_results_count_format".localized, visibleRecordCount))
+                                    .font(.caption)
+                                    .oakSecondaryText()
+                            }
                             HistoryFilterBar(searchText: $searchText, filter: $filter)
-                                .padding(.top, 8)
                             
-                            if recordsCount == 0 {
-                                VStack(spacing: 10) {
-                                    Image(systemName: "clock")
-                                        .font(.title2)
-                                        .oakSecondaryText()
-                                    Text("no_logs_yet".localized)
-                                        .font(.subheadline.weight(.semibold))
-                                        .oakSecondaryText()
-                                        .multilineTextAlignment(.center)
-                                    Text("history_search_placeholder".localized)
-                                        .font(.caption)
-                                        .oakSecondaryText()
-                                        .multilineTextAlignment(.center)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 24)
-                                .oakCardStyle(.glass, cornerRadius: 20, strokeOpacity: 0.12, shadowOpacity: 0.04, shadowRadius: 7, shadowY: 3)
+                            if activeClientManager.currentClientId == nil {
+                                OAKFeedbackView(
+                                    title: "client_management".localized,
+                                    message: "add_client_to_start".localized,
+                                    actionTitle: "settings_title".localized,
+                                    action: { isShowingSettingsSheet = true }
+                                )
+                            } else if recordsCount == 0 {
+                                OAKFeedbackView(
+                                    title: "history_empty_title".localized,
+                                    message: "history_empty_body".localized
+                                )
+                            } else if sections.isEmpty {
+                                OAKFeedbackView(
+                                    title: "history_no_matches_title".localized,
+                                    message: "history_no_matches_body".localized
+                                )
                             } else {
-                                LazyVStack(alignment: .leading, spacing: 12) {
+                                LazyVStack(alignment: .leading, spacing: OAKSpacing.xl) {
                                     ForEach(sections) { section in
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            Text(section.title)
-                                                .font(.headline)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                .padding(.horizontal, 12)
-                                                .padding(.vertical, 8)
-                                                .background(OAKPalette.accent.opacity(0.10))
-                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        VStack(alignment: .leading, spacing: 0) {
+                                            HStack {
+                                                Text(section.title)
+                                                    .font(.subheadline.weight(.semibold))
+                                                Spacer()
+                                                Text(section.rows.count, format: .number)
+                                                    .font(.caption)
+                                                    .oakSecondaryText()
+                                            }
+                                            .padding(.vertical, OAKSpacing.md)
                                             
                                             ForEach(section.rows) { row in
                                                 HistoryRow(row: row)
@@ -116,16 +136,32 @@ public struct HistoryView: View {
                             }
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.top, 8)
+                    .frame(maxWidth: 760)
+                    .padding(.horizontal, OAKSpacing.lg)
+                    .padding(.top, OAKSpacing.sm)
                     .padding(.bottom, 96)
+                    .frame(maxWidth: .infinity)
+                }
+                .opacity(isLoadingHistory || historyLoadFailed ? 0 : 1)
+                .overlay {
+                    if isLoadingHistory {
+                        ProgressView()
+                    } else if historyLoadFailed {
+                        OAKFeedbackView(
+                            title: "history_load_failed_title".localized,
+                            message: "history_load_failed_body".localized,
+                            actionTitle: "retry".localized,
+                            action: { reloadVersion += 1 }
+                        )
+                        .padding(24)
+                    }
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("history_title".localized)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(OAKPalette.background(for: colorScheme), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -140,9 +176,16 @@ public struct HistoryView: View {
             .sheet(isPresented: $isShowingSettingsSheet) {
                 SettingsView(activeClientManager: activeClientManager)
             }
-            .task(id: ReloadKey(clientId: activeClientManager.currentClientId, syncEpochMs: lastSyncEpochMs)) {
+            .task(id: ReloadKey(
+                clientId: activeClientManager.currentClientId,
+                syncEpochMs: lastSyncEpochMs,
+                plan: entitlementManager.snapshot.plan,
+                reloadVersion: reloadVersion
+            )) {
+                isLoadingHistory = true
+                historyLoadFailed = false
                 DebugReporter.report("history_task_start", fields: [
-                    "clientId": activeClientManager.currentClientId?.uuidString ?? ""
+                    "has_client": String(activeClientManager.currentClientId != nil)
                 ])
                 await reload()
             }
@@ -161,39 +204,56 @@ public struct HistoryView: View {
     @MainActor
     private func reload() async {
         guard let clientId = activeClientManager.currentClientId else {
-            recordsCount = 0
-            allRecords = []
-            sections = []
-            viewModel.processHistory(records: [])
+            clearHistoryState()
+            isLoadingHistory = false
+            historyLoadFailed = false
             DebugReporter.report("history_reload_no_client")
             return
         }
-        DebugReporter.report("history_reload_start", fields: [
-            "clientId": clientId.uuidString
-        ])
+        DebugReporter.report("history_reload_start", fields: ["has_client": "true"])
         do {
-            var descriptor = FetchDescriptor<IntakeRecord>(
-                sortBy: [SortDescriptor(\IntakeRecord.date, order: .reverse)]
-            )
-            descriptor.fetchLimit = 5_000
-            let fetched = try modelContext.fetch(descriptor)
-            let filtered = fetched.filter { $0.supplement?.client?.id == clientId }
-            recordsCount = filtered.count
-            allRecords = filtered
-            rebuildSections()
-            viewModel.processHistory(records: filtered)
-            DebugReporter.report("history_reload_success", fields: [
-                "count": String(filtered.count)
-            ])
+            let records = try fetchRecentHistory(clientId: clientId)
+            applyHistory(records)
+            isLoadingHistory = false
+            historyLoadFailed = false
+            DebugReporter.report("history_reload_success")
         } catch {
-            recordsCount = 0
-            allRecords = []
-            sections = []
-            viewModel.processHistory(records: [])
+            clearHistoryState()
+            isLoadingHistory = false
+            historyLoadFailed = true
             DebugReporter.report("history_reload_failed", fields: [
-                "error": String(describing: error)
+                "error_type": String(describing: type(of: error))
             ])
         }
+    }
+
+    @MainActor
+    private func fetchRecentHistory(clientId: UUID) throws -> [IntakeRecord] {
+        let cutoff = Calendar.current.date(
+            byAdding: .day,
+            value: -(entitlementManager.historyDays - 1),
+            to: .now
+        ) ?? .now
+        return try ClientScopedStore.recentHistoryRecords(
+            modelContext: modelContext,
+            clientId: clientId,
+            cutoff: cutoff,
+            limit: 5_000
+        )
+    }
+
+    private func applyHistory(_ records: [IntakeRecord]) {
+        recordsCount = records.count
+        allRecords = records
+        rebuildSections()
+        viewModel.processHistory(records: records)
+    }
+
+    private func clearHistoryState() {
+        recordsCount = 0
+        allRecords = []
+        sections = []
+        viewModel.processHistory(records: [])
     }
 
     @MainActor
@@ -227,9 +287,15 @@ public struct HistoryView: View {
         HistorySectionBuilder.makeSections(records: records)
     }
 
+    private var visibleRecordCount: Int {
+        sections.reduce(0) { $0 + $1.rows.count }
+    }
+
     private struct ReloadKey: Hashable {
         let clientId: UUID?
         let syncEpochMs: Double
+        let plan: CommercialPlan
+        let reloadVersion: Int
     }
 }
 
@@ -262,105 +328,147 @@ private struct InsightsTrendCard: View {
         let completion = Int(((summary?.completionRate ?? 0) * 100).rounded())
         let lateCount = summary?.lateCount ?? 0
 
-        VStack(alignment: .leading, spacing: 12) {
-                ZStack {
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(
-                        LinearGradient(
-                            colors: [OAKPalette.heroStart, OAKPalette.heroEnd],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                    Text("insights_total_title".localized)
-                        .font(.subheadline.weight(.semibold))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        Spacer()
-                        Button {
-                            guard summary != nil else { return }
-                            isDetailsPresented = true
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.white.opacity(summary == nil ? 0.35 : 0.70))
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Text(formattedNumber(total))
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .minimumScaleFactor(0.6)
-
-                    HStack(spacing: 12) {
-                        InsightsChip(text: String.localizedStringWithFormat("insights_completion_chip_format".localized, completion))
-                        InsightsChip(text: String.localizedStringWithFormat("insights_late_chip_format".localized, lateCount), tint: Color.red.opacity(0.35))
-                    }
-
-                    Chart {
-                        ForEach(trend) { point in
-                            LineMark(
-                                x: .value("chart_axis_day".localized, point.date, unit: .day),
-                                y: .value("taken".localized, point.takenCount)
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(Color.white)
-                            .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
-                        }
-                        ForEach(trend) { point in
-                            LineMark(
-                                x: .value("chart_axis_day".localized, point.date, unit: .day),
-                                y: .value("dose_status_skipped".localized, point.skippedCount)
-                            )
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(OAKPalette.skipped(for: colorScheme))
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                        }
-                    }
-                    .chartXAxis(.hidden)
-                    .chartYAxis(.hidden)
-                    .chartLegend(.hidden)
-                    .frame(height: 110)
-                    .padding(.top, 4)
-
-                    Picker("", selection: $window) {
-                        ForEach(InsightsWindow.allCases, id: \.self) { item in
-                            Text(item.title).tag(item)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .tint(.white.opacity(0.8))
-                }
-                .padding(16)
+        VStack(alignment: .leading, spacing: OAKSpacing.lg) {
+            insightsHeader(enabled: summary != nil)
+            windowPicker
+            HistoryCompletionOverview(completion: completion, total: total, late: lateCount)
+            Text(signalText(completion: completion, late: lateCount))
+                .font(.caption)
+                .oakSecondaryText()
+            trendChart(trend)
+            if summary == nil {
+                Text("insights_no_data".localized)
+                    .font(.caption)
+                    .oakSecondaryText()
             }
-            .frame(maxWidth: .infinity)
-            .shadow(color: OAKPalette.heroEnd.opacity(0.22), radius: 16, x: 0, y: 9)
         }
+        .padding(OAKSpacing.xl)
+        .frame(maxWidth: .infinity)
+        .oakCardStyle(.paper, cornerRadius: OAKRadius.lg)
         .sheet(isPresented: $isDetailsPresented) {
             InsightsDetailsView(summary: summary)
         }
     }
 
-    private func formattedNumber(_ value: Int) -> String {
-        value.formatted(.number)
+    private func insightsHeader(enabled: Bool) -> some View {
+        HStack {
+            Text("insights_title".localized)
+                .font(.oakDisplay(size: OAKTypeScale.sectionTitle))
+            Spacer()
+            Button { if enabled { isDetailsPresented = true } } label: {
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.secondary.opacity(enabled ? 0.9 : 0.35))
+            }
+            .buttonStyle(.plain)
+            .oakTouchTarget()
+        }
+    }
+
+    private var windowPicker: some View {
+        Picker("", selection: $window) {
+            ForEach(InsightsWindow.allCases, id: \.self) { item in
+                Text(item.title).tag(item)
+            }
+        }
+        .pickerStyle(.segmented)
+        .tint(OAKPalette.taken(for: colorScheme))
+    }
+
+    private func signalText(completion: Int, late: Int) -> String {
+        String.localizedStringWithFormat(
+            "history_signal_window_format".localized,
+            window == .days7 ? 7 : 30,
+            completion,
+            late
+        )
+    }
+
+    private func trendChart(_ trend: [InsightsTrendPoint]) -> some View {
+        Chart {
+            ForEach(trend) { point in
+                LineMark(
+                    x: .value("chart_axis_day".localized, point.date, unit: .day),
+                    y: .value("taken".localized, point.takenCount)
+                )
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(OAKPalette.taken(for: colorScheme))
+                .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+            }
+            ForEach(trend) { point in
+                LineMark(
+                    x: .value("chart_axis_day".localized, point.date, unit: .day),
+                    y: .value("dose_status_skipped".localized, point.skippedCount)
+                )
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(OAKPalette.skipped(for: colorScheme))
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartLegend(.hidden)
+        .frame(height: 140)
     }
 }
 
-private struct InsightsChip: View {
-    let text: String
-    var tint: Color = Color.black.opacity(0.25)
+private struct HistoryCompletionOverview: View {
+    let completion: Int
+    let total: Int
+    let late: Int
 
     var body: some View {
-        Text(text)
-            .font(.subheadline)
-            .fontWeight(.semibold)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(tint, in: Capsule())
+        HStack(spacing: OAKSpacing.xl) {
+            HistoryCompletionRing(completion: completion)
+            VStack(alignment: .leading, spacing: OAKSpacing.lg) {
+                HistoryMetric(label: "history_metric_recorded".localized, value: total.formatted(.number))
+                HistoryMetric(label: "history_metric_late".localized, value: late.formatted(.number))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+private struct HistoryCompletionRing: View {
+    let completion: Int
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let progress = min(max(Double(completion) / 100, 0), 1)
+        ZStack {
+            Circle()
+                .stroke(OAKPalette.mutedSurface(for: colorScheme), lineWidth: 9)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(
+                    OAKPalette.taken(for: colorScheme),
+                    style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 2) {
+                Text("\(completion)%")
+                    .font(.oakDisplay(size: OAKTypeScale.heroNumber))
+                    .monospacedDigit()
+                Text("history_completion_title".localized)
+                    .font(.caption2)
+                    .oakSecondaryText()
+            }
+        }
+        .frame(width: 112, height: 112)
+        .accessibilityLabel("\("history_completion_title".localized), \(completion)%")
+    }
+}
+
+private struct HistoryMetric: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+            Text(label).font(.caption).oakSecondaryText()
+            Text(value)
+                .font(.oakDisplay(size: OAKTypeScale.metric))
+                .monospacedDigit()
+        }
     }
 }
 
@@ -414,25 +522,25 @@ private struct HistoryRow: View, Equatable {
     
     var body: some View {
         let isSkipped = row.status == IntakeStatus.skipped.rawValue
-        HStack(spacing: 12) {
-            Capsule()
-                .fill(isSkipped ? OAKPalette.skipped(for: colorScheme) : OAKPalette.taken(for: colorScheme))
-                .frame(width: 4, height: 38)
-            Text(row.timeText)
-                .font(.caption)
-                .monospacedDigit()
-                .oakSecondaryText()
-                .frame(width: 50, alignment: .leading)
-            
-            Text(row.supplementName)
-                .font(.callout)
-                .fontWeight(.medium)
-            Spacer()
-            Image(systemName: isSkipped ? "xmark.seal.fill" : "checkmark.seal.fill")
-                .foregroundStyle(isSkipped ? OAKPalette.skipped(for: colorScheme) : OAKPalette.taken(for: colorScheme))
+        let accent = isSkipped ? OAKPalette.skipped(for: colorScheme) : OAKPalette.taken(for: colorScheme)
+        VStack(spacing: 0) {
+            HStack(spacing: OAKSpacing.md) {
+                Circle().fill(accent).frame(width: 8, height: 8)
+                Text(row.timeText)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .oakSecondaryText()
+                    .frame(width: 48, alignment: .leading)
+                Text(row.supplementName)
+                    .font(.callout.weight(.medium))
+                Spacer()
+                Image(systemName: isSkipped ? "xmark.circle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(accent)
+                    .font(.system(size: 20))
+            }
+            .padding(.vertical, OAKSpacing.md)
+            Divider().overlay(OAKPalette.divider(for: colorScheme))
         }
-        .padding(14)
-        .oakCardStyle(.glass, cornerRadius: 17, strokeOpacity: 0.12, shadowOpacity: 0, shadowRadius: 0, shadowY: 0)
         .accessibilityElement(children: .combine)
     }
 
@@ -459,25 +567,30 @@ private struct HistoryFilterBar: View {
     @Binding var searchText: String
     @Binding var filter: HistoryFilter
     
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: OAKSpacing.md) {
+            HStack(spacing: OAKSpacing.sm) {
                 Image(systemName: "magnifyingglass")
                     .oakSecondaryText()
                 TextField("history_search_placeholder".localized, text: $searchText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             }
-            .padding(12)
-            .oakCardStyle(.glass, cornerRadius: 14, strokeOpacity: 0.12, shadowOpacity: 0.03, shadowRadius: 5, shadowY: 2)
-            
+            .padding(.horizontal, OAKSpacing.md)
+            .frame(minHeight: 48)
+            .background(
+                OAKPalette.mutedSurface(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: OAKRadius.md, style: .continuous)
+            )
             Picker("", selection: $filter) {
                 ForEach(HistoryFilter.allCases, id: \.self) { item in
                     Text(item.title).tag(item)
                 }
             }
             .pickerStyle(.segmented)
-            .tint(OAKPalette.accent)
+            .tint(OAKPalette.taken(for: colorScheme))
         }
     }
 }
@@ -560,5 +673,6 @@ enum HistoryFormatters {
 
 #Preview {
     HistoryView(activeClientManager: ActiveClientManager())
+        .environment(EntitlementManager())
         .modelContainer(for: [ClientProfile.self, UserSupplement.self, IntakeRecord.self], inMemory: true)
 }

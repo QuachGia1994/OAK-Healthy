@@ -23,6 +23,7 @@ data class AddSupplementState(
     val isIntervalDaysEnabled: Boolean = false,
     val intervalDays: String = "2",
     val suggestions: List<SupplementReference> = emptyList(),
+    val advancedCyclesAllowed: Boolean = false,
     val isLoading: Boolean = false,
     val error: String? = null
 )

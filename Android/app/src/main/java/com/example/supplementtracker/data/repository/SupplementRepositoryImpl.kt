@@ -12,14 +12,14 @@ import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.UserSupplementTakenToday
 import com.example.supplementtracker.domain.model.ClientProfile
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import java.time.ZoneId
+import com.example.supplementtracker.domain.util.HealthDayBoundary
 import java.util.UUID
 
 /**
@@ -78,9 +78,9 @@ class SupplementRepositoryImpl(
     override fun getSupplementsWithTakenToday(
         clientId: String,
         startOfDay: Long,
-        endOfDay: Long
+        endExclusive: Long
     ): Flow<List<UserSupplementTakenToday>> {
-        return dao.getSupplementsWithTakenToday(clientId, startOfDay, endOfDay).map { rows ->
+        return dao.getSupplementsWithTakenToday(clientId, startOfDay, endExclusive).map { rows ->
             rows.map { row -> row.toTakenToday() }
         }
     }
@@ -172,13 +172,12 @@ class SupplementRepositoryImpl(
     }
 
     override suspend fun removeIntake(supplementId: String, date: Long) = withContext(Dispatchers.IO) {
-        val startOfDay = LocalDate.now().atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val endOfDay = LocalDate.now().plusDays(1).atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        dao.deleteRecordByDate(supplementId, startOfDay, endOfDay)
+        val range = HealthDayBoundary.rangeFor(date)
+        dao.deleteRecordByDate(supplementId, range.startInclusive, range.endExclusive)
     }
 
-    override fun getRecordsByDateRange(clientId: String, startDate: Long, endDate: Long): Flow<List<IntakeRecord>> {
-        return dao.getRecordsByDateRange(clientId, startDate, endDate).map { records ->
+    override fun getRecordsByDateRange(clientId: String, startDate: Long, endExclusive: Long): Flow<List<IntakeRecord>> {
+        return dao.getRecordsByDateRange(clientId, startDate, endExclusive).map { records ->
             records.map { it.toDomain() }
         }
     }
@@ -208,6 +207,12 @@ class SupplementRepositoryImpl(
             )
         }
     }
+
+    override suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean =
+        withContext(Dispatchers.IO) { dao.hasSupplementChangesSince(clientId, sinceEpochMs) }
+
+    override suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean =
+        withContext(Dispatchers.IO) { dao.hasHistoryChangesSince(clientId, sinceEpochMs) }
 
     override suspend fun deleteAllSupplementsByClient(clientId: String) = withContext(Dispatchers.IO) {
         dao.deleteAllSupplementsByClient(clientId)

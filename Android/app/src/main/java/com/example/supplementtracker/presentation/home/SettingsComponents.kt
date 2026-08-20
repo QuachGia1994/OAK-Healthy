@@ -5,7 +5,6 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.supplementtracker.R
@@ -35,6 +35,7 @@ import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.presentation.designsystem.OakCard
 import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.designsystem.rememberOakAdaptiveLayout
 import com.example.supplementtracker.domain.model.ClientProfile
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -46,27 +47,27 @@ internal fun SettingsSection(
     title: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title != null) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = primaryTextColor,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        OakCard(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            variant = OakCardVariant.Glass,
-            shape = RoundedCornerShape(28.dp),
-            contentPadding = PaddingValues(16.dp),
-            elevation = 2.dp,
-            content = content
-        )
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            tonalElevation = 0.dp
+        ) {
+            Column(modifier = Modifier.padding(14.dp), content = content)
+        }
     }
 }
 
@@ -85,14 +86,14 @@ internal fun StepChip(label: String, done: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .background(
-                color = if (done) Color(0x3322C55E) else MaterialTheme.colorScheme.surfaceVariant,
+                color = if (done) OakColors.Done.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(999.dp)
             )
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Icon(
             imageVector = if (done) Icons.Default.CheckCircle else Icons.Default.KeyboardArrowRight,
-            contentDescription = if (done) "Done" else "Pending",
+            contentDescription = null,
             tint = if (done) OakColors.Done else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(16.dp)
         )
@@ -118,12 +119,24 @@ internal fun SettingsRow(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(text = title, style = MaterialTheme.typography.bodyLarge, color = primaryTextColor)
-        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+            color = primaryTextColor,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
         if (trailing != null) {
-            Text(text = trailing, color = secondaryTextColor)
+            Text(
+                text = trailing,
+                color = secondaryTextColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -141,8 +154,14 @@ internal fun SettingsSwitchRow(
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = title, style = MaterialTheme.typography.bodyLarge, color = primaryTextColor)
-        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f).padding(end = 12.dp),
+            style = MaterialTheme.typography.bodyLarge,
+            color = primaryTextColor,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
@@ -152,7 +171,7 @@ internal fun AppearanceCard(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
 
@@ -183,9 +202,8 @@ internal fun AppThemeSegmentedControl(
     appTheme: AppTheme,
     onThemeChange: (AppTheme) -> Unit
 ) {
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val outerColor = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFFF2F2F7)
-    val selectedColor = if (isDark) Color.White.copy(alpha = 0.22f) else Color.White
+    val outerColor = MaterialTheme.colorScheme.surfaceVariant
+    val selectedColor = MaterialTheme.colorScheme.surface
 
     val items = listOf(
         Triple(stringResource(R.string.appearance_light), AppTheme.LIGHT, appTheme == AppTheme.LIGHT),
@@ -193,32 +211,46 @@ internal fun AppThemeSegmentedControl(
         Triple(stringResource(R.string.appearance_system), AppTheme.SYSTEM, appTheme == AppTheme.SYSTEM)
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(outerColor, RoundedCornerShape(14.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        items.forEach { (label, theme, selected) ->
-            val pillShape = RoundedCornerShape(12.dp)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .background(if (selected) selectedColor else Color.Transparent, pillShape)
-            ) {
-                TextButton(
-                    onClick = { onThemeChange(theme) },
-                    colors = ButtonDefaults.textButtonColors(containerColor = Color.Transparent),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = label,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isDark) Color.White else Color(0xFF111111)
-                    )
-                }
+    val adaptive = rememberOakAdaptiveLayout()
+    val containerModifier = Modifier
+        .fillMaxWidth()
+        .background(outerColor, RoundedCornerShape(14.dp))
+        .padding(4.dp)
+    if (adaptive.stackMetrics) {
+        Column(modifier = containerModifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            items.forEach { (label, theme, selected) ->
+                ThemeOption(label, selected, selectedColor) { onThemeChange(theme) }
             }
+        }
+    } else {
+        Row(modifier = containerModifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items.forEach { (label, theme, selected) ->
+                ThemeOption(label, selected, selectedColor, Modifier.weight(1f)) { onThemeChange(theme) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeOption(
+    label: String,
+    selected: Boolean,
+    selectedColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier = modifier.background(if (selected) selectedColor else Color.Transparent, shape)) {
+        TextButton(
+            onClick = onClick,
+            colors = ButtonDefaults.textButtonColors(containerColor = Color.Transparent),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = label,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -254,7 +286,7 @@ internal fun getCycleSummary(
 
 @Composable
 internal fun InfoCard(title: String, content: String, isOffCycle: Boolean = false) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
     val alpha = if (isOffCycle) 0.55f else 1f
 
@@ -289,7 +321,7 @@ internal fun ExpandableInfoCard(
     expanded: Boolean,
     onToggle: () -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
@@ -317,7 +349,7 @@ internal fun ExpandableInfoCard(
                     contentDescription = stringResource(if (expanded) R.string.a11y_hide else R.string.a11y_show)
                 )
             }
-            AnimatedVisibility(visible = expanded) {
+            if (expanded) {
                 Column {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
@@ -337,9 +369,9 @@ internal fun InfoCardNavigationRow(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
-    val subtitleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+    val subtitleColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Card(
         modifier = Modifier
@@ -375,7 +407,7 @@ internal fun ClientManagementCard(
     onEdit: (ClientProfile) -> Unit,
     onDelete: (ClientProfile) -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(
@@ -462,7 +494,7 @@ internal fun ClientManagementCard(
 
 @Composable
 internal fun LogoCard() {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(14.dp)
     val containerColor = MaterialTheme.colorScheme.surfaceVariant
 
     Card(

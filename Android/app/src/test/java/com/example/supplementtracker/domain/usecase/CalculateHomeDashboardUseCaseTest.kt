@@ -4,7 +4,7 @@ import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.CycleStatus
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.domain.util.DoseEventKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -22,6 +22,13 @@ class CalculateCycleUseCaseTest {
         val start = LocalDate.of(2026, 1, 1)
         val status = useCase(start, CycleConfig.Continuous, LocalDate.of(2026, 6, 1))
         assertEquals(CycleStatus.ON, status)
+    }
+
+    @Test
+    fun futureStart_isOff_untilStartDate() {
+        val start = LocalDate.of(2026, 9, 1)
+        assertEquals(CycleStatus.OFF, useCase(start, CycleConfig.Continuous, start.minusDays(1)))
+        assertEquals(CycleStatus.ON, useCase(start, CycleConfig.Continuous, start))
     }
 
     @Test
@@ -94,6 +101,17 @@ class CalculateHomeDashboardUseCaseTest {
         assertEquals(emptyMap<String, List<*>>(), result.activeDoses)
         assertTrue(result.restingSupplements.isEmpty())
         assertEquals(0, result.streakDays)
+    }
+
+    @Test
+    fun futureStart_isExcludedFromActiveAndResting() {
+        val today = LocalDate.of(2026, 8, 20)
+        val supp = supplement(start = today.plusDays(3), config = CycleConfig.Continuous)
+
+        val result = useCase(listOf(supp), emptyList(), today, zoneId = zone)
+
+        assertTrue(result.activeDoses.isEmpty())
+        assertTrue(result.restingSupplements.isEmpty())
     }
 
     @Test

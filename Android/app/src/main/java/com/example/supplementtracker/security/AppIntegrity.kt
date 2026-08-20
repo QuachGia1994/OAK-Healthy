@@ -83,10 +83,10 @@ object AppIntegrity {
                 val info = pm.getPackageInfo(pkg, PackageManager.GET_SIGNING_CERTIFICATES)
                 val signing = info.signingInfo ?: return null
                 val certs = if (signing.hasMultipleSigners()) signing.apkContentsSigners else signing.signingCertificateHistory
-                certs
+                certs ?: return null
             } else {
                 @Suppress("DEPRECATION")
-                pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES).signatures
+                pm.getPackageInfo(pkg, PackageManager.GET_SIGNATURES).signatures ?: return null
             }
             val first = signatures.firstOrNull() ?: return null
             val md = MessageDigest.getInstance("SHA-256")

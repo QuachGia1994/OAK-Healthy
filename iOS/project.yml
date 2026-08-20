@@ -12,9 +12,6 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
-    configFiles:
-      Debug: Secrets.xcconfig
-      Release: Secrets.xcconfig
     sources:
       - path: SupplementTrackerApp.swift
       - path: Assets.xcassets
@@ -38,6 +35,7 @@ targets:
         SWIFT_OPTIMIZATION_LEVEL: "-O"
         DEAD_CODE_STRIPPING: YES
         DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+        OTHER_LDFLAGS: "$(inherited) -ObjC"
         STRIP_INSTALLED_PRODUCT: YES
         STRIP_SWIFT_SYMBOLS: YES
         DEPLOYMENT_POSTPROCESSING: YES
@@ -58,7 +56,8 @@ targets:
           - en
           - vi
         NSUserNotificationsUsageDescription: "OAK Healthy cần quyền gửi thông báo để nhắc nhở bạn uống đúng giờ."
-        JSONBIN_API_KEY: "$(JSONBIN_API_KEY)"
+        FIREBASE_ANALYTICS_COLLECTION_ENABLED: false
+        FirebaseCrashlyticsCollectionEnabled: false
         UIApplicationSceneManifest:
           UISceneConfigurations: {}
         UILaunchStoryboardName: LaunchScreen
@@ -71,6 +70,25 @@ targets:
         product: FirebaseDatabase
       - package: Firebase
         product: FirebaseAppCheck
+      - package: Firebase
+        product: FirebaseAnalytics
+      - package: Firebase
+        product: FirebaseCrashlytics
+    postBuildScripts:
+      - name: Upload Crashlytics dSYMs
+        script: |
+          if [ "${CONFIGURATION}" != "Release" ] || [ "${PLATFORM_NAME}" != "iphoneos" ] || [ "${CODE_SIGNING_ALLOWED}" != "YES" ]; then
+            echo "Skipping Crashlytics dSYM upload for non-store build."
+            exit 0
+          fi
+          "${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"
+        inputFiles:
+          - "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}"
+          - "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}"
+          - "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist"
+          - "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist"
+          - "$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)"
+        basedOnDependencyAnalysis: false
   OAKHealthyTests:
     type: bundle.unit-test
     platform: iOS

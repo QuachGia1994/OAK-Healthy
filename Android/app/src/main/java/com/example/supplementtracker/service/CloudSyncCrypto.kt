@@ -85,6 +85,13 @@ object CloudSyncCrypto {
         return keyId
     }
 
+    fun clearLocalKeyMaterial(): Result<Unit> = runCatching {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        if (keyStore.containsAlias(keystoreAlias)) {
+            keyStore.deleteEntry(keystoreAlias)
+        }
+    }
+
     private fun rotateKey(context: Context): String {
         val prefs = OakPrefs.get(context)
         val old = prefs.getString(currentKeyIdKey, null)?.trim().orEmpty()

@@ -4,6 +4,7 @@ import com.example.supplementtracker.presentation.designsystem.OakColors
 import com.example.supplementtracker.presentation.designsystem.oakBackgroundBrush
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -25,9 +26,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -43,9 +44,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import com.example.supplementtracker.R
-import com.example.supplementtracker.domain.repository.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeStatus
+import com.example.supplementtracker.domain.model.IntakeRecord
 import com.example.supplementtracker.presentation.designsystem.OakCard
-import com.example.supplementtracker.presentation.designsystem.OakCardVariant
+import com.example.supplementtracker.presentation.designsystem.OakFeedbackCard
+import com.example.supplementtracker.presentation.designsystem.OakRadius
+import com.example.supplementtracker.presentation.designsystem.OakSpacing
+import com.example.supplementtracker.presentation.designsystem.OakTypeScale
+import com.example.supplementtracker.presentation.designsystem.OakTypography
+import com.example.supplementtracker.presentation.designsystem.oakTouchTarget
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -61,12 +68,11 @@ private val historyTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatter
 @Composable
 fun HistoryScreen(
     viewModel: HistoryViewModel,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToPlanAccess: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
-    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
-
     val backgroundBrush = oakBackgroundBrush()
 
     Box(
@@ -92,15 +98,17 @@ fun HistoryScreen(
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 when (val state = uiState) {
                     is HistoryUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                    is HistoryUiState.Success -> HistoryContent(state)
+                    is HistoryUiState.Success -> HistoryContent(state, onNavigateToPlanAccess)
+                    is HistoryUiState.Error -> HistoryLoadError(viewModel::retryHistory)
                     is HistoryUiState.NoClient -> {
-                        Text(
-                            text = stringResource(R.string.add_client_to_start),
+                        OakFeedbackCard(
+                            title = stringResource(R.string.client_management),
+                            body = stringResource(R.string.add_client_to_start),
                             modifier = Modifier
                                 .align(Alignment.Center)
                                 .padding(horizontal = 24.dp),
-                            textAlign = TextAlign.Center,
-                            color = secondaryTextColor
+                            actionLabel = stringResource(R.string.settings_title),
+                            onAction = onNavigateToSettings
                         )
                     }
                 }
@@ -111,9 +119,10 @@ fun HistoryScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HistoryContent(state: HistoryUiState.Success) {
-    val shape = RoundedCornerShape(20.dp)
-    val containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+private fun HistoryContent(
+    state: HistoryUiState.Success,
+    onNavigateToPlanAccess: () -> Unit
+) {
     val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val listState = rememberLazyListState()
     val zoneId = remember { ZoneId.systemDefault() }
@@ -123,8 +132,9 @@ private fun HistoryContent(state: HistoryUiState.Success) {
         val query = searchText.trim().lowercase(Locale.ROOT)
         state.sections.mapNotNull { section ->
             val records = section.records.filter { record ->
-                if (filter == HistoryFilter.TAKEN && record.status != "Taken") return@filter false
-                if (filter == HistoryFilter.SKIPPED && record.status != "Skipped") return@filter false
+                val status = IntakeStatus.fromStorage(record.status)
+                if (filter == HistoryFilter.TAKEN && status != IntakeStatus.TAKEN) return@filter false
+                if (filter == HistoryFilter.SKIPPED && status != IntakeStatus.SKIPPED) return@filter false
                 if (query.isEmpty()) return@filter true
                 val name = record.supplementName?.lowercase(Locale.ROOT).orEmpty()
                 name.contains(query)
@@ -134,43 +144,51 @@ private fun HistoryContent(state: HistoryUiState.Success) {
         }
     }
 
+    val hasAnyRecords = state.sections.any { it.records.isNotEmpty() }
+    val visibleRecordCount = filteredSections.sumOf { it.records.size }
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(
+            start = OakSpacing.Lg,
+            top = OakSpacing.Sm,
+            end = OakSpacing.Lg,
+            bottom = 112.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(OakSpacing.Section)
     ) {
         item(
             key = "insights_trend",
             contentType = "insights_trend"
         ) {
-            InsightsTrendCard(
-                trend7 = state.trend7,
-                trend30 = state.trend30,
-                insights7 = state.insights7,
-                insights30 = state.insights30
-            )
+            if (state.analyticsAvailable) {
+                InsightsTrendCard(
+                    trend7 = state.trend7,
+                    trend30 = state.trend30,
+                    insights7 = state.insights7,
+                    insights30 = state.insights30
+                )
+            } else {
+                OutlinedButton(
+                    onClick = onNavigateToPlanAccess,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.plan_unlock_analytics))
+                }
+            }
         }
 
         item(
             key = "chart",
             contentType = "chart"
         ) {
-            Text(
-                stringResource(R.string.intake_frequency_last_7),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = primaryTextColor
-            )
-                OakCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp),
-                    variant = OakCardVariant.Glass,
-                    shape = shape,
-                contentPadding = PaddingValues(0.dp),
-                elevation = 2.dp
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Md)) {
+                Text(
+                    stringResource(R.string.intake_frequency_last_7),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = OakTypeScale.SectionTitle),
+                    fontWeight = FontWeight.SemiBold,
+                    color = primaryTextColor
+                )
                 PremiumBarChart(data = state.chartData)
             }
         }
@@ -179,12 +197,20 @@ private fun HistoryContent(state: HistoryUiState.Success) {
             key = "details_title",
             contentType = "title"
         ) {
-            Text(
-                stringResource(R.string.log_details),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = primaryTextColor
-            )
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(R.string.log_details),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = OakTypeScale.SectionTitle),
+                    fontWeight = FontWeight.SemiBold,
+                    color = primaryTextColor,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    stringResource(R.string.history_results_count_format, visibleRecordCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         
         item(
@@ -205,28 +231,26 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                 contentType = "empty"
             ) {
                 val muted = MaterialTheme.colorScheme.onSurfaceVariant
-                val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-                val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
-                Card(
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = base),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    shape = RoundedCornerShape(OakRadius.Lg),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    tonalElevation = 0.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(18.dp),
+                        modifier = Modifier.padding(OakSpacing.Xl),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
                     ) {
                         Icon(Icons.Default.Search, contentDescription = stringResource(R.string.a11y_search), tint = muted)
                         Text(
-                            stringResource(R.string.no_logs_yet),
+                            stringResource(if (hasAnyRecords) R.string.history_no_matches_title else R.string.history_empty_title),
                             color = muted,
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.titleSmall
                         )
                         Text(
-                            stringResource(R.string.history_search_placeholder),
+                            stringResource(if (hasAnyRecords) R.string.history_no_matches_body else R.string.history_empty_body),
                             color = muted,
                             textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodySmall
@@ -242,20 +266,27 @@ private fun HistoryContent(state: HistoryUiState.Success) {
                     contentType = "header"
                 ) {
                     Surface(
-                        color = containerColor,
-                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.background,
                         tonalElevation = 0.dp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = historySectionTitle(date),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = primaryTextColor,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(vertical = OakSpacing.Md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = historySectionTitle(date),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primaryTextColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = section.records.size.toString(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 
@@ -272,6 +303,18 @@ private fun HistoryContent(state: HistoryUiState.Success) {
 }
 
 @Composable
+private fun HistoryLoadError(onRetry: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        OakFeedbackCard(
+            title = stringResource(R.string.history_load_failed_title),
+            body = stringResource(R.string.history_load_failed_body),
+            actionLabel = stringResource(R.string.retry),
+            onAction = onRetry
+        )
+    }
+}
+
+@Composable
 private fun InsightsTrendCard(
     trend7: List<InsightsTrendPoint>,
     trend30: List<InsightsTrendPoint>,
@@ -280,108 +323,124 @@ private fun InsightsTrendCard(
 ) {
     var window by rememberSaveable { mutableStateOf(30) }
     var isDetailsVisible by rememberSaveable { mutableStateOf(false) }
-    val primaryTextColor = MaterialTheme.colorScheme.onSurface
     val summary = if (window == 7) insights7 else insights30
     val trend = if (window == 7) trend7 else trend30
-    val total = (summary?.takenCount ?: 0) + (summary?.skippedCount ?: 0)
     val completion = ((summary?.completionRate ?: 0f) * 100f).toInt()
+    val total = (summary?.takenCount ?: 0) + (summary?.skippedCount ?: 0)
     val late = summary?.lateCount ?: 0
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    OakCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(OakRadius.Lg),
+        contentPadding = PaddingValues(OakSpacing.Xl)
+    ) {
+        HistoryInsightsHeader(summary != null) { isDetailsVisible = true }
+        Spacer(modifier = Modifier.height(OakSpacing.Md))
+        SegmentedDaysPicker(window, { window = it }, Modifier.fillMaxWidth())
+        Spacer(modifier = Modifier.height(OakSpacing.Xl))
+        HistoryCompletionOverview(completion, total, late)
+        Spacer(modifier = Modifier.height(OakSpacing.Lg))
         Text(
-            stringResource(R.string.insights_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = primaryTextColor
+            text = stringResource(R.string.history_signal_window_format, window, completion, late),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(listOf(OakColors.InsightCardStart, OakColors.InsightCardEnd)),
-                    RoundedCornerShape(24.dp)
-                )
-                .padding(16.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = stringResource(R.string.insights_total_title),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
-                        onClick = { isDetailsVisible = true },
-                        enabled = summary != null
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = stringResource(R.string.a11y_more_options),
-                            tint = Color.White.copy(alpha = if (summary != null) 0.75f else 0.35f)
-                        )
-                    }
-                }
-                Text(
-                    text = NumberFormat.getInstance().format(total),
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    InsightsChip(
-                        text = stringResource(R.string.insights_completion_chip_format, completion),
-                        background = Color.Black.copy(alpha = 0.25f)
-                    )
-                    InsightsChip(
-                        text = stringResource(R.string.insights_late_chip_format, late),
-                        background = OakColors.SkippedBg.copy(alpha = 0.35f)
-                    )
-                }
-                TrendLineChart(
-                    points = trend,
-                    takenColor = Color.White,
-                    skippedColor = OakColors.SkippedDark,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(110.dp)
-                )
-                SegmentedDaysPicker(
-                    selected = window,
-                    onSelected = { window = it },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (summary == null) {
-                    Text(
-                        text = stringResource(R.string.insights_no_data),
-                        color = Color.White.copy(alpha = 0.80f),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
+        Spacer(modifier = Modifier.height(OakSpacing.Md))
+        TrendLineChart(
+            points = trend,
+            takenColor = MaterialTheme.colorScheme.primary,
+            skippedColor = if (isDark) OakColors.SkippedDark else OakColors.Skipped,
+            modifier = Modifier.fillMaxWidth().height(140.dp)
+        )
+        if (summary == null) {
+            Text(
+                text = stringResource(R.string.insights_no_data),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
     }
     if (isDetailsVisible && summary != null) {
-        InsightsDetailsDialog(
-            summary = summary,
-            onDismiss = { isDetailsVisible = false }
-        )
+        InsightsDetailsDialog(summary = summary, onDismiss = { isDetailsVisible = false })
     }
 }
 
 @Composable
-private fun InsightsChip(text: String, background: Color) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = Color.White,
-        modifier = Modifier
-            .background(background, RoundedCornerShape(99.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    )
+private fun HistoryInsightsHeader(enabled: Boolean, onOpenDetails: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            stringResource(R.string.insights_title),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = OakTypography.Display,
+                fontSize = OakTypeScale.SectionTitle
+            ),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onOpenDetails, enabled = enabled) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = stringResource(R.string.a11y_more_options),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.4f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryCompletionOverview(completion: Int, total: Int, late: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(OakSpacing.Xl)
+    ) {
+        HistoryCompletionRing(completion)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(OakSpacing.Lg)) {
+            HistoryMetric(stringResource(R.string.history_metric_recorded), NumberFormat.getInstance().format(total))
+            HistoryMetric(stringResource(R.string.history_metric_late), NumberFormat.getInstance().format(late))
+        }
+    }
+}
+
+@Composable
+private fun HistoryCompletionRing(completion: Int) {
+    val progress = completion.coerceIn(0, 100) / 100f
+    Box(modifier = Modifier.size(112.dp), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            strokeWidth = 9.dp
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                "$completion%",
+                fontFamily = OakTypography.Display,
+                fontSize = OakTypeScale.HeroNumber,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                stringResource(R.string.history_completion_title),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryMetric(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            value,
+            fontFamily = OakTypography.Display,
+            fontSize = OakTypeScale.Metric,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
 }
 
 @Composable
@@ -444,25 +503,22 @@ private fun SegmentedDaysPicker(
     onSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val outer = Color.White.copy(alpha = 0.18f)
-    val selectedColor = Color.White.copy(alpha = 0.24f)
     Row(
         modifier = modifier
-            .background(outer, RoundedCornerShape(18.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .clip(RoundedCornerShape(OakRadius.Md))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(OakSpacing.Xs),
+        horizontalArrangement = Arrangement.spacedBy(OakSpacing.Xs)
     ) {
         SegmentedDaysPill(
             label = stringResource(R.string.insights_last_7),
             selected = selected == 7,
-            selectedColor = selectedColor,
             modifier = Modifier.weight(1f),
             onClick = { onSelected(7) }
         )
         SegmentedDaysPill(
             label = stringResource(R.string.insights_last_30),
             selected = selected == 30,
-            selectedColor = selectedColor,
             modifier = Modifier.weight(1f),
             onClick = { onSelected(30) }
         )
@@ -473,27 +529,26 @@ private fun SegmentedDaysPicker(
 private fun SegmentedDaysPill(
     label: String,
     selected: Boolean,
-    selectedColor: Color,
     modifier: Modifier,
     onClick: () -> Unit
 ) {
     Box(
         modifier = modifier
-            .background(if (selected) selectedColor else Color.Transparent, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(OakRadius.Sm))
+            .background(if (selected) MaterialTheme.colorScheme.surface else Color.Transparent)
+            .clickable(onClick = onClick)
+            .oakTouchTarget(),
+        contentAlignment = Alignment.Center
     ) {
-        TextButton(
-            onClick = onClick,
-            colors = ButtonDefaults.textButtonColors(containerColor = Color.Transparent),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = label,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = OakSpacing.Md, vertical = OakSpacing.Sm)
+        )
     }
 }
 
@@ -556,73 +611,72 @@ private fun HistoryFilterBar(
     onFilterChange: (HistoryFilter) -> Unit
 ) {
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val base = if (isDark) Color.White.copy(alpha = 0.10f) else Color.White.copy(alpha = 0.62f)
-    val shape = RoundedCornerShape(18.dp)
-    val primaryTextColor = MaterialTheme.colorScheme.onSurface
-    val secondaryTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val secondaryTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Md)) {
         OutlinedTextField(
             value = searchText,
             onValueChange = onSearchTextChange,
-            placeholder = { Text(stringResource(R.string.history_search_placeholder), color = secondaryTextColor) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.a11y_search), tint = secondaryTextColor) },
+            placeholder = { Text(stringResource(R.string.history_search_placeholder)) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.a11y_search)) },
             singleLine = true,
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = primaryTextColor),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = primaryTextColor,
-                unfocusedTextColor = primaryTextColor,
-                focusedPlaceholderColor = secondaryTextColor,
-                unfocusedPlaceholderColor = secondaryTextColor,
-                focusedLeadingIconColor = secondaryTextColor,
-                unfocusedLeadingIconColor = secondaryTextColor,
                 focusedBorderColor = Color.Transparent,
                 unfocusedBorderColor = Color.Transparent,
-                disabledBorderColor = Color.Transparent
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                focusedLeadingIconColor = secondaryTextColor,
+                unfocusedLeadingIconColor = secondaryTextColor
             ),
+            shape = RoundedCornerShape(OakRadius.Md),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(base, shape)
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            HistoryFilterChip(
-                label = stringResource(R.string.history_filter_all),
-                selected = filter == HistoryFilter.ALL,
-                tint = MaterialTheme.colorScheme.primary,
-                onClick = { onFilterChange(HistoryFilter.ALL) }
-            )
-            HistoryFilterChip(
-                label = stringResource(R.string.notif_action_taken),
-                selected = filter == HistoryFilter.TAKEN,
-                tint = if (isDark) OakColors.TakenDark else OakColors.Taken,
-                onClick = { onFilterChange(HistoryFilter.TAKEN) }
-            )
-            HistoryFilterChip(
-                label = stringResource(R.string.notif_action_skip),
-                selected = filter == HistoryFilter.SKIPPED,
-                tint = if (isDark) OakColors.SkippedDark else OakColors.Skipped,
-                onClick = { onFilterChange(HistoryFilter.SKIPPED) }
-            )
+                .clip(RoundedCornerShape(OakRadius.Md))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(OakSpacing.Xs),
+            horizontalArrangement = Arrangement.spacedBy(OakSpacing.Xs)
+        ) {
+            HistoryFilterSegment(stringResource(R.string.history_filter_all), filter == HistoryFilter.ALL, MaterialTheme.colorScheme.primary, Modifier.weight(1f)) {
+                onFilterChange(HistoryFilter.ALL)
+            }
+            HistoryFilterSegment(stringResource(R.string.notif_action_taken), filter == HistoryFilter.TAKEN, if (isDark) OakColors.TakenDark else OakColors.Taken, Modifier.weight(1f)) {
+                onFilterChange(HistoryFilter.TAKEN)
+            }
+            HistoryFilterSegment(stringResource(R.string.notif_action_skip), filter == HistoryFilter.SKIPPED, if (isDark) OakColors.SkippedDark else OakColors.Skipped, Modifier.weight(1f)) {
+                onFilterChange(HistoryFilter.SKIPPED)
+            }
         }
     }
 }
 
 @Composable
-private fun HistoryFilterChip(label: String, selected: Boolean, tint: Color, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = tint.copy(alpha = 0.16f),
-            selectedLabelColor = tint
-        ),
-        border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected,
-            borderColor = MaterialTheme.colorScheme.outlineVariant,
-            selectedBorderColor = tint.copy(alpha = 0.55f)
+private fun HistoryFilterSegment(
+    label: String,
+    selected: Boolean,
+    tint: Color,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(OakRadius.Sm))
+            .background(if (selected) MaterialTheme.colorScheme.surface else Color.Transparent)
+            .clickable(onClick = onClick)
+            .oakTouchTarget(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) tint else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = OakSpacing.Sm, vertical = OakSpacing.Sm)
         )
-    )
+    }
 }
 
 @Composable
@@ -635,14 +689,13 @@ private fun PremiumBarChart(data: List<HistoryChartData>) {
         ChartAxis(maxCount = maxCount, maxAxis = maxAxis, yLabels = yLabels)
     }
 
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val gridColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.22f) }
-    val axisTextColor = remember(isDark) { if (isDark) Color.White.copy(alpha = 0.75f) else OakColors.TextSecondary }
-    val barColor = remember(isDark) { if (isDark) OakColors.ChartBarDark else OakColors.ChartBar }
-    val axisWidth = 40.dp
-    val chartHeight = 180.dp
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f)
+    val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val barColor = MaterialTheme.colorScheme.primary
+    val axisWidth = 36.dp
+    val chartHeight = 168.dp
 
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().height(chartHeight)) {
             Column(
                 modifier = Modifier.width(axisWidth).fillMaxHeight(),
@@ -748,45 +801,40 @@ private fun HistoryRecordItem(record: IntakeRecord, zoneId: ZoneId) {
 
     val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    val isSkipped = record.status == "Skipped"
+    val isSkipped = IntakeStatus.fromStorage(record.status) == IntakeStatus.SKIPPED
 
     val accent = if (isSkipped) {
         if (isDark) OakColors.SkippedDark else OakColors.Skipped
     } else {
         if (isDark) OakColors.TakenDark else OakColors.Taken
     }
-    OakCard(
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-        accent = accent,
-        shape = RoundedCornerShape(20.dp),
-        contentPadding = PaddingValues(0.dp)
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(width = 4.dp, height = 38.dp)
-                    .background(accent, RoundedCornerShape(2.dp))
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+    Column(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = OakSpacing.Md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.size(8.dp).background(accent, RoundedCornerShape(OakRadius.Pill)))
+            Spacer(modifier = Modifier.width(OakSpacing.Md))
             Text(
                 text = displayTime,
                 style = MaterialTheme.typography.bodySmall,
                 color = muted,
-                modifier = Modifier.width(56.dp)
+                modifier = Modifier.width(52.dp)
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = record.supplementName ?: stringResource(R.string.history_not_available),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            Text(
+                text = record.supplementName ?: stringResource(R.string.history_not_available),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
             Icon(
                 imageVector = if (isSkipped) Icons.Default.Cancel else Icons.Default.CheckCircle,
                 contentDescription = stringResource(if (isSkipped) R.string.dose_status_skipped else R.string.home_confirm_intake_action),
-                tint = accent
+                tint = accent,
+                modifier = Modifier.size(22.dp)
             )
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 

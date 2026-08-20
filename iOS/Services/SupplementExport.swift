@@ -48,6 +48,7 @@ struct OAKBackupData: Codable, Sendable {
     var stack: [OAKBackupSupplement]
     var history: [OAKBackupHistory]
     var historyZlibBase64: String?
+    var integrity: OAKBackupIntegrity?
 
     enum CodingKeys: String, CodingKey {
         case version
@@ -55,6 +56,7 @@ struct OAKBackupData: Codable, Sendable {
         case stack = "supplements"
         case history = "historyLogs"
         case historyZlibBase64
+        case integrity
     }
 
     enum LegacyCodingKeys: String, CodingKey {
@@ -62,12 +64,20 @@ struct OAKBackupData: Codable, Sendable {
         case history
     }
 
-    init(version: String, meta: OAKBackupMeta?, stack: [OAKBackupSupplement], history: [OAKBackupHistory], historyZlibBase64: String?) {
+    init(
+        version: String,
+        meta: OAKBackupMeta?,
+        stack: [OAKBackupSupplement],
+        history: [OAKBackupHistory],
+        historyZlibBase64: String?,
+        integrity: OAKBackupIntegrity? = nil
+    ) {
         self.version = version
         self.meta = meta
         self.stack = stack
         self.history = history
         self.historyZlibBase64 = historyZlibBase64
+        self.integrity = integrity
     }
 
     init(from decoder: Decoder) throws {
@@ -77,6 +87,18 @@ struct OAKBackupData: Codable, Sendable {
         self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.1"
         self.meta = try? container.decodeIfPresent(OAKBackupMeta.self, forKey: .meta)
         self.historyZlibBase64 = try? container.decodeIfPresent(String.self, forKey: .historyZlibBase64)
+        if container.contains(.integrity) {
+            if try container.decodeNil(forKey: .integrity) {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .integrity,
+                    in: container,
+                    debugDescription: "Integrity manifest cannot be null"
+                )
+            }
+            self.integrity = try container.decode(OAKBackupIntegrity.self, forKey: .integrity)
+        } else {
+            self.integrity = nil
+        }
 
         if let supplements = try container.decodeIfPresent([OAKBackupSupplement].self, forKey: .stack) {
             self.stack = supplements
@@ -99,6 +121,7 @@ struct OAKBackupData: Codable, Sendable {
             mergedHistory.append(contentsOf: try ZlibBase64Codec.decodeArray(base64: historyZlibBase64))
         }
         self.history = ZlibBase64Codec.dedupeByIdKeepingNewest(items: mergedHistory)
+        if let integrity { try OAKBackupIntegrityCodec.validate(self, manifest: integrity) }
     }
 }
 
@@ -285,7 +308,7 @@ struct OAKBackupHistory: Codable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let supplementId = try c.decodeIfPresent(String.self, forKey: .supplementId) ?? ""
         let dateEpochMs = try c.decodeIfPresent(Int64.self, forKey: .dateEpochMs) ?? 0
-        let status = try c.decodeIfPresent(String.self, forKey: .status) ?? "Taken"
+        let status = try c.decodeIfPresent(String.self, forKey: .status) ?? IntakeStatus.taken.rawValue
         let updatedAtEpochMs = try c.decodeIfPresent(Int64.self, forKey: .updatedAtEpochMs) ?? 0
         let rawId = (try c.decodeIfPresent(String.self, forKey: .id) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if rawId.isEmpty {
@@ -305,11 +328,97 @@ enum SupplementExportError: Error {
     case invalidJSON
     case missingActiveClient
     case invalidDate
+    case orphanHistory
     case writeFailed
 }
 
 @MainActor
 struct SupplementExportCodec {
+    nonisolated private static let supportedBackupVersions = Set(["1.1", "2.0"])
+
+    static func previewBackup(_ data: Data) throws -> OAKBackupPreview {
+        let backup = try decodeBackupCompat(data: data)
+        return makeImportPreview(
+            backup: backup,
+            sourceSchema: try sourceSchema(data),
+            existingSupplementCount: 0,
+            existingHistoryCount: 0,
+            remappedSupplementIdCount: 0
+        )
+    }
+
+    static func previewBackup(
+        _ data: Data,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws -> OAKBackupPreview {
+        let backup = try decodeBackupCompat(data: data)
+        let supplements = try context.fetch(FetchDescriptor<UserSupplement>())
+        let records = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let owners = supplementOwnersById(supplements)
+        let remapped = remappedSupplementCount(backup, clientId: client.id, owners: owners)
+        return makeImportPreview(
+            backup: backup,
+            sourceSchema: try sourceSchema(data),
+            existingSupplementCount: supplements.filter { $0.client?.id == client.id }.count,
+            existingHistoryCount: records.filter { $0.supplement?.client?.id == client.id }.count,
+            remappedSupplementIdCount: remapped
+        )
+    }
+
+    private static func makeImportPreview(
+        backup: OAKBackupData,
+        sourceSchema: String,
+        existingSupplementCount: Int,
+        existingHistoryCount: Int,
+        remappedSupplementIdCount: Int
+    ) -> OAKBackupPreview {
+        let sourceIds = backup.stack.map { normalizedId($0.id) }
+        let duplicates = sourceIds.count - Set(sourceIds).count
+        let validIds = Set(sourceIds)
+        let linkedHistory = backup.history.filter { validIds.contains(normalizedId($0.supplementId)) }
+        let orphanCount = backup.history.count - linkedHistory.count
+        let doseKeys = linkedHistory.map { "\(normalizedId($0.supplementId))|\($0.dateEpochMs)" }
+        let duplicateHistory = doseKeys.count - Set(doseKeys).count
+        return OAKBackupPreview(
+            version: backup.version, sourceSchema: sourceSchema,
+            supplementCount: backup.stack.count, historyCount: backup.history.count,
+            existingSupplementCount: existingSupplementCount, existingHistoryCount: existingHistoryCount,
+            remappedSupplementIdCount: remappedSupplementIdCount,
+            duplicateSupplementIdCount: duplicates, duplicateHistoryCount: duplicateHistory,
+            orphanHistoryCount: orphanCount, integrityVerified: backup.integrity != nil,
+            canRestore: duplicates == 0 && duplicateHistory == 0 && orphanCount == 0
+        )
+    }
+
+    private static func remappedSupplementCount(
+        _ backup: OAKBackupData,
+        clientId: UUID,
+        owners: [UUID: UUID?]
+    ) -> Int {
+        Set(backup.stack.compactMap { dto -> UUID? in
+            guard let id = UUID(uuidString: dto.id), let owner = owners[id] else { return nil }
+            return owner == clientId ? nil : id
+        }).count
+    }
+
+    nonisolated private static func sourceSchema(_ data: Data) throws -> String {
+        let object = try JSONSerialization.jsonObject(with: data)
+        if object is [Any] { return "legacy-array" }
+        guard let dictionary = object as? [String: Any] else { throw SupplementExportError.invalidJSON }
+        if dictionary["schemaVersion"] != nil, dictionary["version"] == nil {
+            guard dictionary["schemaVersion"] as? Int == 1 else { throw SupplementExportError.invalidSchema }
+            return "export-v1"
+        }
+        let version = (dictionary["version"] as? String) ?? "1.1"
+        guard supportedBackupVersions.contains(version) else { throw SupplementExportError.invalidSchema }
+        return "oak-\(version)"
+    }
+
+    nonisolated private static func normalizedId(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
     static func encodeBackup(
         supplements: [UserSupplement],
         records: [IntakeRecord]
@@ -318,13 +427,14 @@ struct SupplementExportCodec {
         let deviceId = loadOrCreateDeviceId()
         let stack = makeBackupStack(from: supplements)
         let history = makeBackupHistory(from: records)
-        let file = OAKBackupData(
+        var file = OAKBackupData(
             version: "2.0",
             meta: OAKBackupMeta(schemaVersion: 2, updatedAtEpochMs: now, deviceId: deviceId),
             stack: stack,
             history: history,
             historyZlibBase64: nil
         )
+        file.integrity = OAKBackupIntegrityCodec.create(file)
         return try JSONEncoder().encode(file)
     }
 
@@ -396,11 +506,66 @@ struct SupplementExportCodec {
     }
     
     nonisolated static func decodeBackupCompat(data: Data) throws -> OAKBackupData {
-        if let decoded = tryDecodeBackupData(data: data) { return decoded }
-        if let stack = tryDecodeBackupStack(data: data) {
-            return OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
+        if hasIntegrityManifest(data) {
+            let decoded = try JSONDecoder().decode(OAKBackupData.self, from: data)
+            return try validateSupportedVersion(decoded)
         }
-        return convertLegacyToBackup(try decode(data: data))
+        if let decoded = tryDecodeBackupData(data: data) {
+            return try validateSupportedVersion(decoded)
+        }
+        if let stack = tryDecodeBackupStack(data: data) {
+            return try validateSupportedVersion(
+                OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
+            )
+        }
+        return try validateSupportedVersion(convertLegacyToBackup(try decode(data: data)))
+    }
+
+    nonisolated private static func validateSupportedVersion(
+        _ backup: OAKBackupData
+    ) throws -> OAKBackupData {
+        guard supportedBackupVersions.contains(backup.version) else {
+            throw SupplementExportError.invalidSchema
+        }
+        try validateSemanticPayload(backup)
+        return backup
+    }
+
+    nonisolated private static func validateSemanticPayload(_ backup: OAKBackupData) throws {
+        for supplement in backup.stack {
+            let cycle = supplement.cycle
+            if !cycle.isContinuous {
+                guard cycle.daysOn > 0, cycle.daysOff >= 0 else {
+                    throw SupplementExportError.invalidSchema
+                }
+            }
+            if let intervalDays = cycle.intervalDays, intervalDays < 2 {
+                throw SupplementExportError.invalidSchema
+            }
+            let hasWeekly = cycle.weeklyWeekdaysMask != nil ||
+                cycle.weeklyIntervalWeeks != nil || cycle.weeklyAnchorDate != nil
+            if hasWeekly {
+                guard let mask = cycle.weeklyWeekdaysMask,
+                      let interval = cycle.weeklyIntervalWeeks,
+                      let anchor = cycle.weeklyAnchorDate,
+                      (1...127).contains(mask), interval >= 1,
+                      !anchor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw SupplementExportError.invalidSchema
+                }
+            }
+        }
+        for record in backup.history {
+            guard record.dateEpochMs > 0,
+                  IntakeStatus(rawValue: record.status) != nil else {
+                throw SupplementExportError.invalidSchema
+            }
+        }
+    }
+
+    nonisolated private static func hasIntegrityManifest(_ data: Data) -> Bool {
+        guard let object = try? JSONSerialization.jsonObject(with: data),
+              let dictionary = object as? [String: Any] else { return false }
+        return dictionary["integrity"] != nil
     }
 
     nonisolated static func decodeBackupOffMain(data: Data) async throws -> OAKBackupData {
@@ -462,6 +627,8 @@ struct SupplementExportCodec {
         client: ClientProfile,
         context: ModelContext
     ) throws {
+        let preview = try previewBackup(data, client: client, context: context)
+        guard preview.canRestore else { throw BackupRestoreError.blockedByPreview }
         let backup = try decodeBackupCompat(data: data)
         try importBackupData(backup, client: client, context: context)
     }
@@ -475,22 +642,70 @@ struct SupplementExportCodec {
         try mergeBackupDataSafely(backup, client: client, context: context)
     }
     
-    static func importBackupData(_ backup: OAKBackupData, client: ClientProfile, context: ModelContext) throws {
+    static func importBackupData(
+        _ backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws {
+        try validateSemanticPayload(backup)
+        let preview = makeImportPreview(
+            backup: backup,
+            sourceSchema: "oak-\(backup.version)",
+            existingSupplementCount: 0,
+            existingHistoryCount: 0,
+            remappedSupplementIdCount: 0
+        )
+        guard preview.canRestore else { throw BackupRestoreError.blockedByPreview }
+        let snapshot = try snapshotBackup(clientId: client.id, context: context)
+        try BackupRestoreTransaction.run(
+            snapshot: snapshot,
+            apply: { try replaceClientData(backup, client: client, context: context) },
+            rollback: { saved in
+                context.rollback()
+                try replaceClientData(saved, client: client, context: context)
+            }
+        )
+    }
+
+    private static func snapshotBackup(
+        clientId: UUID,
+        context: ModelContext
+    ) throws -> OAKBackupData {
+        let supplements = try context.fetch(FetchDescriptor<UserSupplement>())
+            .filter { $0.client?.id == clientId }
+        let records = try context.fetch(FetchDescriptor<IntakeRecord>())
+            .filter { $0.supplement?.client?.id == clientId }
+        return OAKBackupData(
+            version: "2.0", meta: nil,
+            stack: makeBackupStack(from: supplements),
+            history: makeBackupHistory(from: records),
+            historyZlibBase64: nil
+        )
+    }
+
+    private static func replaceClientData(
+        _ backup: OAKBackupData,
+        client: ClientProfile,
+        context: ModelContext
+    ) throws {
         let allSupplements = try context.fetch(FetchDescriptor<UserSupplement>())
         let allRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
         try deleteClientData(clientId: client.id, allSupplements: allSupplements, allRecords: allRecords, context: context)
-
         let supplementOwners = supplementOwnersById(allSupplements)
         var takenSupplementIds = Set(supplementOwners.keys)
-
-        let allExistingRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
-        let recordOwners = recordOwnersById(allExistingRecords)
+        let existingRecords = try context.fetch(FetchDescriptor<IntakeRecord>())
+        let recordOwners = recordOwnersById(existingRecords)
         var takenRecordIds = Set(recordOwners.keys)
-
-        let (supplementById, supplementIdMap) = try importSupplements(backup: backup, client: client, ownersById: supplementOwners, taken: &takenSupplementIds, context: context)
+        let imported = try importSupplements(
+            backup: backup, client: client, ownersById: supplementOwners,
+            taken: &takenSupplementIds, context: context
+        )
         try context.save()
-
-        try importRecordsBatched(backup: backup, clientId: client.id, supplementById: supplementById, supplementIdMap: supplementIdMap, recordOwners: recordOwners, takenRecordIds: &takenRecordIds, context: context)
+        try importRecordsBatched(
+            backup: backup, clientId: client.id,
+            supplementById: imported.0, supplementIdMap: imported.1,
+            recordOwners: recordOwners, takenRecordIds: &takenRecordIds, context: context
+        )
     }
 
     private static func deleteClientData(
@@ -532,6 +747,7 @@ struct SupplementExportCodec {
     }
 
     static func mergeBackupDataSafely(_ backup: OAKBackupData, client: ClientProfile, context: ModelContext) throws {
+        try validateSemanticPayload(backup)
         let supplements = try prepareSupplementMerge(backup: backup, client: client, context: context)
         guard !backup.history.isEmpty else { return }
         var state = try prepareHistoryMerge(clientId: client.id, supplements: supplements, context: context)
@@ -543,6 +759,7 @@ struct SupplementExportCodec {
         client: ClientProfile,
         context: ModelContext
     ) async throws {
+        try validateSemanticPayload(backup)
         let supplements = try prepareSupplementMerge(backup: backup, client: client, context: context)
         guard !backup.history.isEmpty else { return }
         await Task.yield()
@@ -654,12 +871,9 @@ struct SupplementExportCodec {
     }
 
     private static func shouldUpdate(local: UserSupplement, remote: OAKBackupSupplement) -> Bool {
-        if remote.modifiedFields == nil {
-            let localTs = max(local.updatedAtEpochMs, local.deletedAtEpochMs ?? 0)
-            let remoteTs = max(remote.updatedAtEpochMs, remote.deletedAtEpochMs ?? 0)
-            return remoteTs > localTs
-        }
-        return remote.updatedAtEpochMs > local.updatedAtEpochMs
+        let localTs = max(local.updatedAtEpochMs, local.deletedAtEpochMs ?? 0)
+        let remoteTs = max(remote.updatedAtEpochMs, remote.deletedAtEpochMs ?? 0)
+        return remoteTs > localTs
     }
 
     private static func dedupeByDoseKey(
@@ -700,7 +914,7 @@ struct SupplementExportCodec {
         context: ModelContext,
         state: inout MergeBackupState
     ) throws {
-        let history = Array(backup.history.suffix(5_000))
+        let history = backup.history
         var index = 0
         while index < history.count {
             let end = min(index + 100, history.count)
@@ -721,7 +935,7 @@ struct SupplementExportCodec {
         context: ModelContext,
         state: inout MergeBackupState
     ) async throws {
-        let history = Array(backup.history.suffix(5_000))
+        let history = backup.history
         var index = 0
         while index < history.count {
             let end = min(index + 100, history.count)
@@ -813,12 +1027,12 @@ struct SupplementExportCodec {
         takenRecordIds: inout Set<UUID>,
         context: ModelContext
     ) throws {
-        let history = Array(backup.history.suffix(5_000))
+        let history = backup.history
         var index = 0
         while index < history.count {
             let end = min(index + 500, history.count)
             for dto in history[index..<end] {
-                importHistoryRecord(
+                try importHistoryRecord(
                     dto: dto,
                     clientId: clientId,
                     supplementById: supplementById,
@@ -841,9 +1055,11 @@ struct SupplementExportCodec {
         recordOwners: [UUID: UUID?],
         takenRecordIds: inout Set<UUID>,
         context: ModelContext
-    ) {
+    ) throws {
         let supplementId = UUID(uuidString: dto.supplementId).flatMap { supplementIdMap[$0] ?? $0 }
-        guard let supplementId, let supplement = supplementById[supplementId] else { return }
+        guard let supplementId, let supplement = supplementById[supplementId] else {
+            throw SupplementExportError.orphanHistory
+        }
         let (remoteUpdatedAt, date, intakeTime, doseKey) = recordPayload(dto: dto, supplementId: supplementId)
         let stableRecordId = DoseEventKey.stableUUID(from: doseKey)
         let recordId = resolvedImportId(rawUUIDString: stableRecordId.uuidString, clientId: clientId, ownersById: recordOwners, taken: &takenRecordIds)
@@ -860,7 +1076,7 @@ struct SupplementExportCodec {
             id: id,
             name: dto.name,
             startDate: try dayDate(from: dto.startDate),
-            cycleConfig: cycleConfig(from: dto.cycle),
+            cycleConfig: try cycleConfig(from: dto.cycle),
             dailyDose: dto.dailyDose,
             intakeTime: dto.intakeTime,
             lastTakenLocalDate: dto.lastTakenLocalDate,
@@ -876,15 +1092,19 @@ struct SupplementExportCodec {
         client: ClientProfile
     ) throws {
         let fields = dto.modifiedFields
-        if fields == nil || fields!.contains("name") { supplement.name = dto.name }
-        if fields == nil || fields!.contains("startDate") { supplement.startDate = try dayDate(from: dto.startDate) }
-        if fields == nil || fields!.contains("cycle") { supplement.cycleConfig = cycleConfig(from: dto.cycle) }
-        if fields == nil || fields!.contains("dailyDose") { supplement.dailyDose = dto.dailyDose }
-        if fields == nil || fields!.contains("intakeTime") { supplement.intakeTime = dto.intakeTime }
-        if fields == nil || fields!.contains("lastTakenLocalDate") { supplement.lastTakenLocalDate = dto.lastTakenLocalDate }
+        if shouldApply("name", fields: fields) { supplement.name = dto.name }
+        if shouldApply("startDate", fields: fields) { supplement.startDate = try dayDate(from: dto.startDate) }
+        if shouldApply("cycle", fields: fields) { supplement.cycleConfig = try cycleConfig(from: dto.cycle) }
+        if shouldApply("dailyDose", fields: fields) { supplement.dailyDose = dto.dailyDose }
+        if shouldApply("intakeTime", fields: fields) { supplement.intakeTime = dto.intakeTime }
+        if shouldApply("lastTakenLocalDate", fields: fields) { supplement.lastTakenLocalDate = dto.lastTakenLocalDate }
         supplement.updatedAtEpochMs = dto.updatedAtEpochMs
         supplement.deletedAtEpochMs = dto.deletedAtEpochMs
         supplement.client = client
+    }
+
+    private static func shouldApply(_ field: String, fields: Set<String>?) -> Bool {
+        fields == nil || fields?.contains(field) == true
     }
 
     private static func recordPayload(dto: OAKBackupHistory, supplementId: UUID) -> (Int64, Date, String, String) {
@@ -941,20 +1161,6 @@ struct SupplementExportCodec {
         return file
     }
     
-    static func importFile(
-        _ file: SupplementExportFile,
-        client: ClientProfile,
-        context: ModelContext
-    ) throws {
-        for dto in file.supplements {
-            let existing = try findSupplement(named: dto.name, for: client, context: context)
-            let target = try existing ?? createSupplement(from: dto, client: client)
-            if existing == nil { context.insert(target) }
-            try apply(dto: dto, to: target, client: client)
-        }
-        try context.save()
-    }
-    
     static func renderShareImageData(
         supplements: [UserSupplement],
         colorScheme: ColorScheme
@@ -969,59 +1175,39 @@ struct SupplementExportCodec {
         return try pngData(from: cgImage)
     }
     
-    private static func findSupplement(
-        named name: String,
-        for client: ClientProfile,
-        context: ModelContext
-    ) throws -> UserSupplement? {
-        let all = try context.fetch(FetchDescriptor<UserSupplement>())
-        return all.first { $0.client?.id == client.id && $0.name == name }
-    }
-    
-    private static func createSupplement(
-        from dto: SupplementExportSupplement,
-        client: ClientProfile
-    ) throws -> UserSupplement {
-        UserSupplement(
-            name: dto.name,
-            startDate: try dayDate(from: dto.startDate),
-            cycleConfig: cycleConfig(from: dto.cycle),
-            dailyDose: dto.dailyDose,
-            intakeTime: dto.intakeTime,
-            lastTakenLocalDate: dto.lastTakenLocalDate,
-            client: client
+    private static func cycleConfig(from dto: SupplementExportCycle) throws -> CycleConfig {
+        if !dto.isContinuous {
+            guard dto.daysOn > 0, dto.daysOff >= 0 else { throw SupplementExportError.invalidSchema }
+        }
+        if let intervalDays = dto.intervalDays, intervalDays < 2 {
+            throw SupplementExportError.invalidSchema
+        }
+        return CycleConfig(
+            daysOn: dto.isContinuous ? 1 : dto.daysOn,
+            daysOff: dto.isContinuous ? 0 : dto.daysOff,
+            isContinuous: dto.isContinuous,
+            durationMonths: dto.durationMonths.flatMap { $0 > 0 ? min(3650, $0) : nil },
+            weeklyRecurrence: try weeklyRecurrence(from: dto),
+            intervalDays: dto.intervalDays.map { min(3650, $0) }
         )
     }
-    
-    private static func apply(
-        dto: SupplementExportSupplement,
-        to supplement: UserSupplement,
-        client: ClientProfile
-    ) throws {
-        supplement.name = dto.name
-        supplement.dailyDose = dto.dailyDose
-        supplement.intakeTime = dto.intakeTime
-        supplement.startDate = try dayDate(from: dto.startDate)
-        supplement.cycleConfig = cycleConfig(from: dto.cycle)
-        supplement.lastTakenLocalDate = dto.lastTakenLocalDate
-        supplement.client = client
-    }
-    
-    private static func cycleConfig(from dto: SupplementExportCycle) -> CycleConfig {
-        let weekly: WeeklyRecurrenceConfig? = {
-            guard let mask = dto.weeklyWeekdaysMask else { return nil }
-            guard let interval = dto.weeklyIntervalWeeks else { return nil }
-            guard let anchorString = dto.weeklyAnchorDate else { return nil }
-            guard let anchorDate = try? dayDate(from: anchorString) else { return nil }
-            return WeeklyRecurrenceConfig(weekdaysMask: mask, intervalWeeks: interval, anchorDate: anchorDate)
-        }()
-        return CycleConfig(
-            daysOn: dto.daysOn,
-            daysOff: dto.daysOff,
-            isContinuous: dto.isContinuous,
-            durationMonths: dto.durationMonths,
-            weeklyRecurrence: weekly,
-            intervalDays: dto.intervalDays
+
+    private static func weeklyRecurrence(
+        from dto: SupplementExportCycle
+    ) throws -> WeeklyRecurrenceConfig? {
+        let hasWeeklyValue = dto.weeklyWeekdaysMask != nil ||
+            dto.weeklyIntervalWeeks != nil || dto.weeklyAnchorDate != nil
+        guard hasWeeklyValue else { return nil }
+        guard let mask = dto.weeklyWeekdaysMask,
+              let interval = dto.weeklyIntervalWeeks,
+              let anchorString = dto.weeklyAnchorDate,
+              (1...127).contains(mask), interval >= 1 else {
+            throw SupplementExportError.invalidSchema
+        }
+        return WeeklyRecurrenceConfig(
+            weekdaysMask: mask,
+            intervalWeeks: min(52, interval),
+            anchorDate: try dayDate(from: anchorString)
         )
     }
     
@@ -1042,21 +1228,11 @@ struct SupplementExportCodec {
     }
     
     private static func dayString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
+        LocalDayCodec.string(from: date)
     }
     
     private static func dayDate(from string: String) throws -> Date {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        guard let date = formatter.date(from: string) else { throw SupplementExportError.invalidDate }
+        guard let date = LocalDayCodec.date(from: string) else { throw SupplementExportError.invalidDate }
         return date
     }
 }

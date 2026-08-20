@@ -22,6 +22,13 @@ class CloudSyncCryptoInteropTest {
     }
 
     @Test
+    fun rejectsTamperedCiphertext() {
+        val replacement = if (ciphertext.last() == 'A') 'B' else 'A'
+        val tampered = ciphertext.dropLast(1) + replacement
+        assertThrows(CloudSyncCryptoError.CryptoFailed::class.java) { decrypt(envelope(tampered)) }
+    }
+
+    @Test
     fun rejectsInvalidKeyIdentifierBeforeKeyLookup() {
         val payload = envelope(ciphertext).replace("interop-key", "../key")
         assertThrows(CloudSyncCryptoError.InvalidPayload::class.java) { decrypt(payload) }

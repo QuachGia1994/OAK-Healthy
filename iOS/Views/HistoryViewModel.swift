@@ -115,8 +115,7 @@ public final class HistoryViewModel {
             }
         }
         if taken == 0, skipped == 0 { return nil }
-        let denom = max(1, taken + skipped)
-        let completionRate = Double(taken) / Double(denom)
+        guard let completionRate = DoseTimingPolicy.completionRate(taken: taken, skipped: skipped) else { return nil }
         return InsightsSummary(
             windowDays: windowDays,
             takenCount: taken,
@@ -130,11 +129,11 @@ public final class HistoryViewModel {
     }
 
     private func isLateTaken(_ record: IntakeRecord) -> Bool {
-        guard record.status == IntakeStatus.taken.rawValue else { return false }
-        guard record.updatedAtEpochMs > 0 else { return false }
-        let scheduled = Int64(record.date.timeIntervalSince1970 * 1000)
-        let threshold = scheduled + 20 * 60 * 1000
-        return record.updatedAtEpochMs > threshold
+        DoseTimingPolicy.isLateTaken(
+            status: record.status,
+            scheduledAtEpochMs: Int64(record.date.timeIntervalSince1970 * 1_000),
+            updatedAtEpochMs: record.updatedAtEpochMs
+        )
     }
 
     private func topItemsFromCounts(_ counts: [String: Int]) -> [InsightsItem] {

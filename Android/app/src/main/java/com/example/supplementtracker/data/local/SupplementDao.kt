@@ -42,9 +42,18 @@ interface SupplementDao {
     
     @Query("SELECT * FROM supplements WHERE clientId = :clientId ORDER BY name ASC")
     suspend fun getSupplementsByClientForSync(clientId: String): List<SupplementEntity>
-    
-    @Query("SELECT * FROM supplements WHERE deletedAtEpochMs IS NULL ORDER BY name ASC")
-    suspend fun getAllActiveSupplements(): List<SupplementEntity>
+
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM supplements
+            WHERE clientId = :clientId
+            AND (updatedAtEpochMs > :sinceEpochMs OR COALESCE(deletedAtEpochMs, 0) > :sinceEpochMs)
+            LIMIT 1
+        )
+        """
+    )
+    suspend fun hasSupplementChangesSince(clientId: String, sinceEpochMs: Long): Boolean
 
     // --- Intake Records ---
 
@@ -69,21 +78,21 @@ interface SupplementDao {
         INNER JOIN supplements s ON s.id = r.supplementId
         WHERE s.clientId = :clientId
         AND r.date >= :startDate
-        AND r.date <= :endDate
+        AND r.date < :endExclusive
         ORDER BY r.date DESC
         """
     )
     fun getRecordsByDateRange(
         clientId: String,
         startDate: Long,
-        endDate: Long
+        endExclusive: Long
     ): Flow<List<IntakeRecordWithSupplementEntity>>
 
     @Query("SELECT * FROM intake_records WHERE supplementId = :supplementId ORDER BY date DESC")
     fun getRecordsBySupplement(supplementId: String): Flow<List<IntakeRecordEntity>>
 
-    @Query("DELETE FROM intake_records WHERE supplementId = :supplementId AND date >= :startOfDay AND date <= :endOfDay")
-    suspend fun deleteRecordByDate(supplementId: String, startOfDay: Long, endOfDay: Long)
+    @Query("DELETE FROM intake_records WHERE supplementId = :supplementId AND date >= :startOfDay AND date < :endExclusive")
+    suspend fun deleteRecordByDate(supplementId: String, startOfDay: Long, endExclusive: Long)
 
     @Query("DELETE FROM intake_records WHERE supplementId = :supplementId AND date = :date AND id != :keepId")
     suspend fun deleteDuplicateIntakeRecords(supplementId: String, date: Long, keepId: String)
@@ -111,7 +120,7 @@ interface SupplementDao {
                 FROM intake_records r
                 WHERE r.supplementId = s.id
                 AND r.date >= :startOfDay
-                AND r.date <= :endOfDay
+                AND r.date < :endExclusive
                 ORDER BY r.updatedAtEpochMs DESC
                 LIMIT 1
             ) AS todayStatus,
@@ -121,7 +130,7 @@ interface SupplementDao {
                     FROM intake_records r
                     WHERE r.supplementId = s.id
                     AND r.date >= :startOfDay
-                    AND r.date <= :endOfDay
+                    AND r.date < :endExclusive
                 ) THEN 1
                 ELSE 0
             END AS isTakenToday
@@ -134,7 +143,7 @@ interface SupplementDao {
     fun getSupplementsWithTakenToday(
         clientId: String,
         startOfDay: Long,
-        endOfDay: Long
+        endExclusive: Long
     ): Flow<List<SupplementWithTakenTodayEntity>>
 
     @Query(
@@ -166,6 +175,19 @@ interface SupplementDao {
         """
     )
     suspend fun getAllRecordsByClientForSync(clientId: String): List<IntakeRecordEntity>
+
+    @Query(
+        """
+        SELECT EXISTS(
+            SELECT 1 FROM intake_records r
+            INNER JOIN supplements s ON s.id = r.supplementId
+            WHERE s.clientId = :clientId
+            AND r.updatedAtEpochMs > :sinceEpochMs
+            LIMIT 1
+        )
+        """
+    )
+    suspend fun hasHistoryChangesSince(clientId: String, sinceEpochMs: Long): Boolean
 
     @Query(
         """
