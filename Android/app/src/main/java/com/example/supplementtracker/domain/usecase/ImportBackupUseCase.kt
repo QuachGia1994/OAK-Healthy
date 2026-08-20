@@ -7,6 +7,7 @@ import com.example.supplementtracker.domain.model.CycleConfig
 import com.example.supplementtracker.domain.model.UserSupplement
 import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import com.example.supplementtracker.domain.model.IntakeRecord
+import com.example.supplementtracker.domain.model.IntakeStatus
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.util.DoseEventKey
 import com.example.supplementtracker.domain.util.StableId
@@ -190,14 +191,7 @@ class ImportBackupUseCase(
         clientId: UUID,
         resolvedId: UUID
     ): UserSupplement {
-        val cycle = CycleConfig(
-            daysOn = dto.cycle.daysOn,
-            daysOff = dto.cycle.daysOff,
-            isContinuous = dto.cycle.isContinuous,
-            durationMonths = dto.cycle.durationMonths,
-            weeklyRecurrence = mapWeeklyRecurrence(dto),
-            intervalDays = dto.cycle.intervalDays
-        )
+        val cycle = validatedCycle(dto)
         val startDate = LocalDate.parse(dto.startDate)
         val lastTakenLocalDate = dto.lastTakenLocalDate?.let(LocalDate::parse)
         return UserSupplement(
@@ -214,6 +208,23 @@ class ImportBackupUseCase(
         )
     }
 
+    private fun validatedCycle(dto: OAKBackupSupplementDTO): CycleConfig {
+        val cycle = dto.cycle
+        if (!cycle.isContinuous) {
+            require(cycle.daysOn > 0) { "Cycle daysOn must be positive" }
+            require(cycle.daysOff >= 0) { "Cycle daysOff must not be negative" }
+        }
+        require(cycle.intervalDays == null || cycle.intervalDays >= 2) { "Interval days must be at least 2" }
+        return CycleConfig(
+            daysOn = if (cycle.isContinuous) 1 else cycle.daysOn.coerceAtMost(3650),
+            daysOff = if (cycle.isContinuous) 0 else cycle.daysOff.coerceAtMost(3650),
+            isContinuous = cycle.isContinuous,
+            durationMonths = cycle.durationMonths?.takeIf { it > 0 }?.coerceAtMost(3650),
+            weeklyRecurrence = mapWeeklyRecurrence(dto),
+            intervalDays = cycle.intervalDays?.coerceAtMost(3650)
+        )
+    }
+
     private fun mapWeeklyRecurrence(dto: OAKBackupSupplementDTO): WeeklyRecurrenceConfig? {
         val cycle = dto.cycle
         val hasWeeklyField = cycle.weeklyWeekdaysMask != null ||
@@ -223,7 +234,9 @@ class ImportBackupUseCase(
         val mask = requireNotNull(cycle.weeklyWeekdaysMask) { "Missing weekly weekday mask" }
         val interval = requireNotNull(cycle.weeklyIntervalWeeks) { "Missing weekly interval" }
         val anchor = LocalDate.parse(requireNotNull(cycle.weeklyAnchorDate) { "Missing weekly anchor" })
-        return WeeklyRecurrenceConfig(mask, interval, anchor)
+        require(mask in 1..127) { "Weekly weekday mask must be between 1 and 127" }
+        require(interval >= 1) { "Weekly interval must be positive" }
+        return WeeklyRecurrenceConfig(mask, interval.coerceAtMost(52), anchor)
     }
 
     private suspend fun resolveSupplementId(
@@ -267,11 +280,15 @@ class ImportBackupUseCase(
                 orphanCount += 1
                 return@mapNotNull null
             }
+            require(record.dateEpochMs > 0L) { "History date must be positive" }
+            val status = requireNotNull(IntakeStatus.fromStorage(record.status)) {
+                "Unsupported intake status: ${record.status}"
+            }
             IntakeRecord(
                 id = DoseEventKey.make(supplementId, record.dateEpochMs),
                 supplementId = supplementId,
                 date = record.dateEpochMs,
-                status = record.status,
+                status = status.storageValue,
                 updatedAtEpochMs = record.updatedAtEpochMs.takeIf { it > 0L } ?: record.dateEpochMs
             )
         }

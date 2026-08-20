@@ -14,6 +14,7 @@ import com.example.supplementtracker.domain.model.WeeklyRecurrenceConfig
 import com.example.supplementtracker.domain.repository.SupplementRepository
 import com.example.supplementtracker.domain.usecase.SaveSupplementUseCase
 import com.example.supplementtracker.domain.usecase.SearchSupplementUseCase
+import com.example.supplementtracker.domain.usecase.SupplementMutationUseCase
 import com.example.supplementtracker.presentation.navigation.ActiveClientManager
 import com.example.supplementtracker.service.CommercialFeature
 import com.example.supplementtracker.service.EntitlementManager
@@ -43,6 +44,7 @@ class AddSupplementViewModel(
 ) : ViewModel() {
 
     private val searchUseCase: SearchSupplementUseCase = SearchSupplementUseCase(context)
+    private val supplementMutationUseCase = SupplementMutationUseCase(repository)
     private val _state = MutableStateFlow(AddSupplementState())
     val state = _state.asStateFlow()
 
@@ -320,7 +322,7 @@ class AddSupplementViewModel(
                     com.example.supplementtracker.service.ActivationRetentionStore(context)
                         .mark(com.example.supplementtracker.service.ActivationMilestone.ROUTINE_READY)
                 } else {
-                    repository.updateSupplement(supplement)
+                    supplementMutationUseCase.updateRoutine(supplement)
                 }
                 
                 // Enqueue Worker để kiểm tra chu kỳ hàng ngày

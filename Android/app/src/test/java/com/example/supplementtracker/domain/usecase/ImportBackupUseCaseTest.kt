@@ -263,6 +263,34 @@ class ImportBackupUseCaseTest {
     }
 
     @Test
+    fun unknownIntakeStatus_returnsFailureWithoutImporting() = kotlinx.coroutines.runBlocking {
+        val json = """
+            {"version":"2.0","supplements":[{"id":"$supplementId","name":"Imported","dailyDose":"1",
+            "intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":true,"daysOn":1,"daysOff":0}}],
+            "historyLogs":[{"id":"bad-status","supplementId":"$supplementId","dateEpochMs":1000,"status":"Maybe","updatedAtEpochMs":2000}]}
+        """.trimIndent()
+
+        val result = useCase(json, clientId)
+
+        assertTrue(result.isFailure)
+        assertEquals(0, repository.importAttempts)
+    }
+
+    @Test
+    fun invalidRecurrence_returnsFailureWithoutImporting() = kotlinx.coroutines.runBlocking {
+        val json = """
+            {"version":"2.0","supplements":[{"id":"$supplementId","name":"Imported","dailyDose":"1",
+            "intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":false,"daysOn":0,"daysOff":2}}],
+            "historyLogs":[]}
+        """.trimIndent()
+
+        val result = useCase(json, clientId)
+
+        assertTrue(result.isFailure)
+        assertEquals(0, repository.importAttempts)
+    }
+
+    @Test
     fun invalidJson_returnsFailureWithoutImporting() = kotlinx.coroutines.runBlocking {
         val result = useCase("not-json", clientId)
 

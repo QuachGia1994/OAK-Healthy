@@ -23,6 +23,39 @@ final class DoseEventKeyTests: XCTestCase {
     }
 }
 
+final class CycleCalculatorTests: XCTestCase {
+    func testFutureStartIsOffUntilStartDate() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = calendar.date(from: DateComponents(year: 2026, month: 9, day: 1))!
+        let beforeStart = calendar.date(byAdding: .day, value: -1, to: start)!
+        let calculator = CycleCalculator()
+
+        XCTAssertEqual(try calculator.determineStatus(for: start, config: .continuous, at: beforeStart), .off)
+        XCTAssertEqual(try calculator.determineStatus(for: start, config: .continuous, at: start), .on)
+    }
+}
+
+@MainActor
+final class HomeFutureStartTests: XCTestCase {
+    func testFutureRoutineIsNeitherActiveNorResting() throws {
+        let futureStart = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 2, to: .now))
+        let supplement = UserSupplement(
+            name: "Future",
+            startDate: futureStart,
+            cycleConfig: .continuous,
+            dailyDose: "1",
+            intakeTime: "08:00"
+        )
+        let viewModel = HomeViewModel()
+
+        viewModel.processSupplements([supplement])
+
+        XCTAssertTrue(viewModel.activeSupplements.isEmpty)
+        XCTAssertTrue(viewModel.restingSupplements.isEmpty)
+    }
+}
+
 final class TimeStringsTests: XCTestCase {
     func testNormalizeListTrimsSortsAndDedups() {
         let result = TimeStrings.normalizeList(" 7:05, 07:05 ; 21:30 | 21:30 ")

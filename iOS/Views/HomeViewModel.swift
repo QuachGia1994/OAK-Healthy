@@ -354,15 +354,14 @@ public final class HomeViewModel {
         notificationService: NotificationService
     ) async {
         let remainingTimes = TimeStrings.removingTime(timeString, from: supplement.intakeTime)
-        let previousIntakeTime = supplement.intakeTime
-        let previousUpdatedAt = supplement.updatedAtEpochMs
-        supplement.intakeTime = remainingTimes.joined(separator: ", ")
-        supplement.updatedAtEpochMs = Int64(Date().timeIntervalSince1970 * 1000)
         do {
-            try context.save()
+            try SupplementRoutineMutationStore.updateIntakeTime(
+                supplement,
+                intakeTime: remainingTimes.joined(separator: ", "),
+                at: Int64(Date().timeIntervalSince1970 * 1000),
+                in: context
+            )
         } catch {
-            supplement.intakeTime = previousIntakeTime
-            supplement.updatedAtEpochMs = previousUpdatedAt
             errorMessage = error.localizedDescription
             return
         }
@@ -390,10 +389,8 @@ public final class HomeViewModel {
         notificationService: NotificationService
     ) async {
         let now = Int64(Date().timeIntervalSince1970 * 1000)
-        supplement.deletedAtEpochMs = now
-        supplement.updatedAtEpochMs = now
         do {
-            try context.save()
+            try SupplementHistoryMutationStore.softDelete(supplement, at: now, in: context)
         } catch {
             errorMessage = error.localizedDescription
             return
@@ -441,6 +438,7 @@ public final class HomeViewModel {
                     todayStatus[record.id] = record.status
                 }
             }
+            if todayStart < calendarCurrent.startOfDay(for: supplement.startDate) { continue }
             let status = try? cycleEngine.determineStatus(
                 for: supplement.startDate,
                 config: supplement.cycleConfig,

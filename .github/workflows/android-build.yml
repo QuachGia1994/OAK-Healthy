@@ -2,7 +2,7 @@ name: Android Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 'ci/**' ]
     paths:
       - Android/**
       - scripts/**
@@ -56,11 +56,13 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Setup JDK 17
+      - name: Setup JetBrains JDK 21
         uses: actions/setup-java@v5
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: '21'
+          distribution: 'jetbrains'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
@@ -121,11 +123,13 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Setup JDK 17
+      - name: Setup JetBrains JDK 21
         uses: actions/setup-java@v5
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: '21'
+          distribution: 'jetbrains'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6

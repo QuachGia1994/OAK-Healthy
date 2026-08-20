@@ -514,9 +514,11 @@ struct SupplementExportCodec {
             return try validateSupportedVersion(decoded)
         }
         if let stack = tryDecodeBackupStack(data: data) {
-            return OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
+            return try validateSupportedVersion(
+                OAKBackupData(version: "2.0", meta: nil, stack: stack, history: [], historyZlibBase64: nil)
+            )
         }
-        return convertLegacyToBackup(try decode(data: data))
+        return try validateSupportedVersion(convertLegacyToBackup(try decode(data: data)))
     }
 
     nonisolated private static func validateSupportedVersion(
@@ -525,7 +527,39 @@ struct SupplementExportCodec {
         guard supportedBackupVersions.contains(backup.version) else {
             throw SupplementExportError.invalidSchema
         }
+        try validateSemanticPayload(backup)
         return backup
+    }
+
+    nonisolated private static func validateSemanticPayload(_ backup: OAKBackupData) throws {
+        for supplement in backup.stack {
+            let cycle = supplement.cycle
+            if !cycle.isContinuous {
+                guard cycle.daysOn > 0, cycle.daysOff >= 0 else {
+                    throw SupplementExportError.invalidSchema
+                }
+            }
+            if let intervalDays = cycle.intervalDays, intervalDays < 2 {
+                throw SupplementExportError.invalidSchema
+            }
+            let hasWeekly = cycle.weeklyWeekdaysMask != nil ||
+                cycle.weeklyIntervalWeeks != nil || cycle.weeklyAnchorDate != nil
+            if hasWeekly {
+                guard let mask = cycle.weeklyWeekdaysMask,
+                      let interval = cycle.weeklyIntervalWeeks,
+                      let anchor = cycle.weeklyAnchorDate,
+                      (1...127).contains(mask), interval >= 1,
+                      !anchor.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw SupplementExportError.invalidSchema
+                }
+            }
+        }
+        for record in backup.history {
+            guard record.dateEpochMs > 0,
+                  IntakeStatus(rawValue: record.status) != nil else {
+                throw SupplementExportError.invalidSchema
+            }
+        }
     }
 
     nonisolated private static func hasIntegrityManifest(_ data: Data) -> Bool {
@@ -613,6 +647,7 @@ struct SupplementExportCodec {
         client: ClientProfile,
         context: ModelContext
     ) throws {
+        try validateSemanticPayload(backup)
         let preview = makeImportPreview(
             backup: backup,
             sourceSchema: "oak-\(backup.version)",
@@ -712,6 +747,7 @@ struct SupplementExportCodec {
     }
 
     static func mergeBackupDataSafely(_ backup: OAKBackupData, client: ClientProfile, context: ModelContext) throws {
+        try validateSemanticPayload(backup)
         let supplements = try prepareSupplementMerge(backup: backup, client: client, context: context)
         guard !backup.history.isEmpty else { return }
         var state = try prepareHistoryMerge(clientId: client.id, supplements: supplements, context: context)
@@ -723,6 +759,7 @@ struct SupplementExportCodec {
         client: ClientProfile,
         context: ModelContext
     ) async throws {
+        try validateSemanticPayload(backup)
         let supplements = try prepareSupplementMerge(backup: backup, client: client, context: context)
         guard !backup.history.isEmpty else { return }
         await Task.yield()
@@ -1139,13 +1176,19 @@ struct SupplementExportCodec {
     }
     
     private static func cycleConfig(from dto: SupplementExportCycle) throws -> CycleConfig {
-        CycleConfig(
-            daysOn: dto.daysOn,
-            daysOff: dto.daysOff,
+        if !dto.isContinuous {
+            guard dto.daysOn > 0, dto.daysOff >= 0 else { throw SupplementExportError.invalidSchema }
+        }
+        if let intervalDays = dto.intervalDays, intervalDays < 2 {
+            throw SupplementExportError.invalidSchema
+        }
+        return CycleConfig(
+            daysOn: dto.isContinuous ? 1 : dto.daysOn,
+            daysOff: dto.isContinuous ? 0 : dto.daysOff,
             isContinuous: dto.isContinuous,
-            durationMonths: dto.durationMonths,
+            durationMonths: dto.durationMonths.flatMap { $0 > 0 ? min(3650, $0) : nil },
             weeklyRecurrence: try weeklyRecurrence(from: dto),
-            intervalDays: dto.intervalDays
+            intervalDays: dto.intervalDays.map { min(3650, $0) }
         )
     }
 
@@ -1157,12 +1200,13 @@ struct SupplementExportCodec {
         guard hasWeeklyValue else { return nil }
         guard let mask = dto.weeklyWeekdaysMask,
               let interval = dto.weeklyIntervalWeeks,
-              let anchorString = dto.weeklyAnchorDate else {
+              let anchorString = dto.weeklyAnchorDate,
+              (1...127).contains(mask), interval >= 1 else {
             throw SupplementExportError.invalidSchema
         }
         return WeeklyRecurrenceConfig(
             weekdaysMask: mask,
-            intervalWeeks: interval,
+            intervalWeeks: min(52, interval),
             anchorDate: try dayDate(from: anchorString)
         )
     }

@@ -25,6 +25,13 @@ class CalculateCycleUseCaseTest {
     }
 
     @Test
+    fun futureStart_isOff_untilStartDate() {
+        val start = LocalDate.of(2026, 9, 1)
+        assertEquals(CycleStatus.OFF, useCase(start, CycleConfig.Continuous, start.minusDays(1)))
+        assertEquals(CycleStatus.ON, useCase(start, CycleConfig.Continuous, start))
+    }
+
+    @Test
     fun onOffCycle_returnsOff_duringOffWindow() {
         val start = LocalDate.of(2026, 1, 1)
         val config = CycleConfig(daysOn = 5, daysOff = 2, isContinuous = false)
@@ -94,6 +101,17 @@ class CalculateHomeDashboardUseCaseTest {
         assertEquals(emptyMap<String, List<*>>(), result.activeDoses)
         assertTrue(result.restingSupplements.isEmpty())
         assertEquals(0, result.streakDays)
+    }
+
+    @Test
+    fun futureStart_isExcludedFromActiveAndResting() {
+        val today = LocalDate.of(2026, 8, 20)
+        val supp = supplement(start = today.plusDays(3), config = CycleConfig.Continuous)
+
+        val result = useCase(listOf(supp), emptyList(), today, zoneId = zone)
+
+        assertTrue(result.activeDoses.isEmpty())
+        assertTrue(result.restingSupplements.isEmpty())
     }
 
     @Test

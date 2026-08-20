@@ -198,6 +198,22 @@ final class HealthDataIntegrityTests: XCTestCase {
         XCTAssertThrowsError(try CoachCheckInStore.entries(clientId: clientId, defaults: defaults))
     }
 
+    func testBackupDecodeRejectsUnknownIntakeStatus() throws {
+        let data = Data("""
+        {"version":"2.0","supplements":[{"id":"22222222-2222-2222-2222-222222222222","name":"Imported","dailyDose":"1","intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":true,"daysOn":1,"daysOff":0}}],"historyLogs":[{"id":"bad","supplementId":"22222222-2222-2222-2222-222222222222","dateEpochMs":1000,"status":"Maybe","updatedAtEpochMs":2000}]}
+        """.utf8)
+
+        XCTAssertThrowsError(try SupplementExportCodec.decodeBackupCompat(data: data))
+    }
+
+    func testBackupDecodeRejectsInvalidRecurrence() throws {
+        let data = Data("""
+        {"version":"2.0","supplements":[{"id":"22222222-2222-2222-2222-222222222222","name":"Imported","dailyDose":"1","intakeTime":"08:00","startDate":"2026-08-10","cycle":{"isContinuous":false,"daysOn":0,"daysOff":2}}],"historyLogs":[]}
+        """.utf8)
+
+        XCTAssertThrowsError(try SupplementExportCodec.decodeBackupCompat(data: data))
+    }
+
     func testLegacyExportProducesStableDistinctIdsInsteadOfNameMerge() throws {
         let first = SupplementExportSupplement(
             name: "Magnesium",

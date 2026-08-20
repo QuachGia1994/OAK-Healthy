@@ -27,14 +27,14 @@ class CalculateCycleUseCase {
         config: CycleConfig,
         currentDate: LocalDate = LocalDate.now()
     ): CycleStatus {
-        // 1. Kiểm tra thời hạn (Duration)
+        // Chưa tới ngày bắt đầu thì routine chưa hoạt động.
+        if (currentDate.isBefore(startDate)) return CycleStatus.OFF
+
+        // Kiểm tra thời hạn (Duration).
         if (isExpired(startDate, config, currentDate)) return CycleStatus.OFF
 
-        // 2. Early return cho uống liên tục
+        // Continuous chỉ ON từ startDate trở đi.
         if (config.isContinuous) return CycleStatus.ON
-        
-        // 3. Early return nếu ngày kiểm tra trước ngày bắt đầu
-        if (currentDate.isBefore(startDate)) return CycleStatus.ON
         
         val daysElapsed = ChronoUnit.DAYS.between(startDate, currentDate).toInt()
         val totalCycleDays = config.daysOn + config.daysOff

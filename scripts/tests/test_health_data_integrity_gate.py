@@ -13,6 +13,9 @@ class HealthDataIntegrityGateTests(unittest.TestCase):
     def test_ios_health_data_contracts(self) -> None:
         self.assertEqual(gate.check_ios_contracts(), [])
 
+    def test_android_presentation_does_not_mutate_repository_directly(self) -> None:
+        self.assertEqual(gate.check_android_presentation_persistence_boundary(), [])
+
     def test_ios_views_do_not_mutate_swiftdata_directly(self) -> None:
         self.assertEqual(gate.check_ios_view_persistence_boundary(), [])
 

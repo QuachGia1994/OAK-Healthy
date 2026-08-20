@@ -58,6 +58,17 @@ public enum SupplementRoutineMutationStore {
         return SupplementRoutinePersistenceResult(supplement: created, wasEditing: false)
     }
 
+    public static func updateIntakeTime(
+        _ supplement: UserSupplement,
+        intakeTime: String,
+        at epochMs: Int64,
+        in context: ModelContext
+    ) throws {
+        supplement.intakeTime = intakeTime
+        supplement.updatedAtEpochMs = epochMs
+        try saveOrRollback(context)
+    }
+
     private static func apply(
         draft: SupplementRoutineDraft,
         to existing: UserSupplement,

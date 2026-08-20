@@ -144,7 +144,7 @@ class CalculateHomeDashboardUseCase(
         .filter {
             val duration = it.cycleConfig.durationMonths
             val unlimited = duration == null || duration <= 0
-            unlimited && !isExpired(it, today) &&
+            unlimited && !today.isBefore(it.startDate) && !isExpired(it, today) &&
                 calculateCycleUseCase(it.startDate, it.cycleConfig, today) == CycleStatus.OFF
         }
         .map { RestingSupplement(it, calculateDaysRemaining(it, today)) }

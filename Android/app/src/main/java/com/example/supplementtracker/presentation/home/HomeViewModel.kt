@@ -12,6 +12,7 @@ import com.example.supplementtracker.domain.usecase.CalculateHomeDashboardUseCas
 import com.example.supplementtracker.domain.usecase.ClientProfileUseCase
 import com.example.supplementtracker.domain.usecase.ImportBackupUseCase
 import com.example.supplementtracker.domain.usecase.RecordDoseUseCase
+import com.example.supplementtracker.domain.usecase.SupplementMutationUseCase
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -151,6 +152,7 @@ class HomeViewModel(
     private val importBackupUseCase = ImportBackupUseCase(repository)
     private var pendingBackupImportPlan: BackupImportPlan? = null
     private val recordDoseUseCase = RecordDoseUseCase(repository)
+    private val supplementMutationUseCase = SupplementMutationUseCase(repository)
     private val notificationScheduleEngine = NotificationScheduleEngine(
         context,
         repository,
@@ -416,7 +418,7 @@ class HomeViewModel(
                 val id = supplement.id.toString()
                 if (!expiredCleanupIds.add(id)) continue
                 try {
-                    repository.deleteSupplement(supplement)
+                    supplementMutationUseCase.softDeleteRoutine(supplement)
                     removed += supplement
                 } finally {
                     expiredCleanupIds.remove(id)
@@ -473,7 +475,7 @@ class HomeViewModel(
 
     fun deleteItem(supplement: UserSupplement) {
         viewModelScope.launch {
-            repository.deleteSupplement(supplement)
+            supplementMutationUseCase.softDeleteRoutine(supplement)
             rescheduleNotificationsNow()
             val binId = activeAutoSyncBinId()
             if (binId != null) {
@@ -485,11 +487,9 @@ class HomeViewModel(
     fun deleteDoseTime(supplement: UserSupplement, timeString: String) {
         viewModelScope.launch {
             val remainingTimes = TimeStrings.removingTime(timeString, from = supplement.intakeTime)
-            repository.updateSupplement(
-                supplement.copy(
-                    intakeTime = remainingTimes.joinToString(", "),
-                    updatedAtEpochMs = System.currentTimeMillis()
-                )
+            supplementMutationUseCase.updateIntakeTimes(
+                supplement,
+                remainingTimes.joinToString(", ")
             )
             rescheduleNotificationsNow()
             activeAutoSyncBinId()?.let { requestAutoSyncDebounced(it) }
@@ -499,7 +499,7 @@ class HomeViewModel(
     fun deleteItem(supplementId: String) {
         viewModelScope.launch {
             val supplement = repository.getSupplementById(supplementId) ?: return@launch
-            repository.deleteSupplement(supplement)
+            supplementMutationUseCase.softDeleteRoutine(supplement)
             rescheduleNotificationsNow()
             val binId = activeAutoSyncBinId()
             if (binId != null) {

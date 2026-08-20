@@ -40,18 +40,16 @@ public struct CycleCalculator: CycleCalculating {
         at currentDate: Date = .now
     ) throws(CycleError) -> CycleStatus {
         let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: startDate)
+        let currentDay = calendar.startOfDay(for: currentDate)
+        guard currentDay >= startDay else { return .off }
 
         if let endDate = endDateIfNeeded(startDate: startDate, config: config, calendar: calendar) {
-            let currentDay = calendar.startOfDay(for: currentDate)
             let endDay = calendar.startOfDay(for: endDate)
             guard currentDay < endDay else { return .off }
         }
 
         guard !config.isContinuous else { return .on }
-        
-        let startDay = calendar.startOfDay(for: startDate)
-        let currentDay = calendar.startOfDay(for: currentDate)
-        guard currentDay >= startDay else { return .on }
         
         let daysElapsed = try daysElapsed(from: startDay, to: currentDay, calendar: calendar)
         return calculateStatus(daysElapsed: daysElapsed, config: config)
