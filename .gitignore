@@ -37,3 +37,7 @@ Android/app/google-services.json
 # Android secrets
 Android/local.properties
 Android/keystore.properties
+
+# Build/test log dumps (transient)
+Android/phrase*.txt
+Android/compile_run*.txt
