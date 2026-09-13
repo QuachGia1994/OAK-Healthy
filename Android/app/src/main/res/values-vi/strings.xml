@@ -230,6 +230,9 @@
     <string name="add_a_client">Thêm học viên</string>
     <string name="client_name_label">Tên</string>
     <string name="student_prefix">Học viên: %1$s</string>
+    <string name="coach_viewing_banner">Xem: %1$s</string>
+    <string name="coach_switch_client">Chuyển</string>
+    <string name="a11y_coach_banner">Đang xem hồ sơ %1$s. Nhấn Chuyển để đổi.</string>
     <string name="select">Chuyển</string>
     <string name="add_client_to_start">Thêm học viên để bắt đầu.</string>
 

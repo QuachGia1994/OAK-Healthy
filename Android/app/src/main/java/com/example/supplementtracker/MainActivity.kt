@@ -22,6 +22,7 @@ import com.example.supplementtracker.presentation.home.HomeViewModel
 import com.example.supplementtracker.presentation.designsystem.OakBackground
 import com.example.supplementtracker.presentation.designsystem.OakDarkColorScheme
 import com.example.supplementtracker.presentation.designsystem.OakLightColorScheme
+import com.example.supplementtracker.presentation.designsystem.OakTypographySystem
 import com.example.supplementtracker.presentation.navigation.AppNavigation
 import com.example.supplementtracker.presentation.navigation.AppTheme
 import com.example.supplementtracker.service.OakPrefs
@@ -147,7 +148,7 @@ class MainActivity : ComponentActivity() {
     private fun AppRoot(initialTheme: AppTheme, prefs: android.content.SharedPreferences) {
         val integrityVerdict = remember { AppIntegrity.evaluate(applicationContext) }
         if (!integrityVerdict.ok) {
-            MaterialTheme(colorScheme = lightColorScheme()) {
+            MaterialTheme(colorScheme = lightColorScheme(), typography = OakTypographySystem) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     IntegrityBlockedScreen(onExit = { finish() })
                 }
@@ -171,7 +172,10 @@ class MainActivity : ComponentActivity() {
                 }
         }
         val darkTheme = resolveDarkTheme(appTheme)
-        MaterialTheme(colorScheme = if (darkTheme) OakDarkColorScheme else OakLightColorScheme) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) OakDarkColorScheme else OakLightColorScheme,
+            typography = OakTypographySystem
+        ) {
             OakBackground {
                 StartupContent(dependencies, initError, appTheme) { newTheme ->
                     appTheme = newTheme

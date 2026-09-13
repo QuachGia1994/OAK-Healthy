@@ -33,7 +33,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,15 +60,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.supplementtracker.R
 import com.example.supplementtracker.domain.model.SupplementReference
@@ -206,14 +214,13 @@ private fun DetailsSection(state: AddSupplementState, viewModel: AddSupplementVi
         subtitle = stringResource(R.string.supplement_details_body),
         icon = Icons.Default.AddCircle
     ) {
-        OutlinedTextField(
-            value = state.name,
-            onValueChange = viewModel::onNameChange,
-            label = { Text(stringResource(R.string.name_hint)) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+        SuggestionDropdown(
+            query = state.name,
+            suggestions = state.suggestions,
+            onQueryChange = viewModel::onNameChange,
+            onSelect = viewModel::onSuggestionClick,
+            modifier = Modifier.fillMaxWidth()
         )
-        SuggestionRow(state.suggestions, viewModel::onSuggestionClick)
         OutlinedTextField(
             value = state.dailyDose,
             onValueChange = viewModel::onDailyDoseChange,
@@ -225,33 +232,111 @@ private fun DetailsSection(state: AddSupplementState, viewModel: AddSupplementVi
     }
 }
 
+/**
+ * Name field + auto-suggest dropdown gắn trực tiếp dưới TextField.
+ * Highlight phần text khớp query, hiện dose hint, auto-fill khi chọn.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SuggestionRow(
+private fun SuggestionDropdown(
+    query: String,
     suggestions: List<SupplementReference>,
-    onSelect: (SupplementReference) -> Unit
+    onQueryChange: (String) -> Unit,
+    onSelect: (SupplementReference) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    if (suggestions.isEmpty()) return
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(suggestions, key = { it.name }) { suggestion ->
-            Card(
-                onClick = { onSelect(suggestion) },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface
+    var isExpanded by remember { mutableStateOf(false) }
+    val hasResults = suggestions.isNotEmpty() && query.length >= 2
+
+    // Đồng bộ trạng thái mở theo kết quả tìm kiếm
+    LaunchedEffect(hasResults) {
+        isExpanded = hasResults
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = isExpanded && hasResults,
+        onExpandedChange = { isExpanded = it && hasResults },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = {
+                onQueryChange(it)
+                isExpanded = true
+            },
+            label = { Text(stringResource(R.string.name_hint)) },
+            singleLine = true,
+            trailingIcon = {
+                if (hasResults) ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor()
+        )
+
+        ExposedDropdownMenu(
+            expanded = isExpanded && hasResults,
+            onDismissRequest = { isExpanded = false }
+        ) {
+            suggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = highlightMatch(suggestion.name, query),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = suggestion.advice
+                                    ?: stringResource(R.string.suggested, suggestion.preferredTime),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    },
+                    trailingIcon = suggestion.preferredDose?.let { dose ->
+                        {
+                            Text(
+                                text = dose,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    onClick = {
+                        onSelect(suggestion)
+                        isExpanded = false
+                    },
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                 )
-            ) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(suggestion.name, style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        suggestion.advice ?: stringResource(R.string.suggested, suggestion.preferredTime),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
             }
         }
     }
+}
+
+/**
+ * Dựng AnnotatedString highlight phần khớp query (case-insensitive) bằng bold + màu primary.
+ */
+@Composable
+private fun highlightMatch(text: String, query: String) = buildAnnotatedString {
+    val trimmed = query.trim()
+    val matchIndex = if (trimmed.isEmpty()) -1
+        else text.indexOf(trimmed, ignoreCase = true)
+    if (matchIndex < 0) {
+        append(text)
+        return@buildAnnotatedString
+    }
+    append(text.substring(0, matchIndex))
+    withStyle(
+        SpanStyle(
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    ) {
+        append(text.substring(matchIndex, matchIndex + trimmed.length))
+    }
+    append(text.substring(matchIndex + trimmed.length))
 }
 
 @Composable

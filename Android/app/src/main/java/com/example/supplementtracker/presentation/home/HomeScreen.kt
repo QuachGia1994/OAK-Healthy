@@ -16,6 +16,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -62,6 +66,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.example.supplementtracker.R
 import com.example.supplementtracker.service.UpdateService
@@ -227,6 +232,18 @@ fun HomeScreen(
             }
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                // Coach context banner — chỉ hiện khi có nhiều hơn 1 client
+                if (clients.size > 1) {
+                    currentClientName?.let { name ->
+                        ClientContextBanner(
+                            clientName = name,
+                            onSwitchClick = { isClientMenuExpanded = true },
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .zIndex(1f)
+                        )
+                    }
+                }
                 when (val state = uiState) {
                     is HomeUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                     is HomeUiState.Success -> {
@@ -348,6 +365,15 @@ private fun HomeContent(
         ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (state.streakDays > 0) {
+            item(
+                key = "streak_hero",
+                contentType = "streak_hero"
+            ) {
+                StreakHeroCard(days = state.streakDays)
+            }
+        }
+
         item(
             key = "today_dashboard",
             contentType = "dashboard"
@@ -771,6 +797,150 @@ private fun todayCounts(items: List<SupplementUiItem>, nowEpochMs: Long = System
         }
     }
     return counts
+}
+
+// ── Coach Context Banner ────────────────────────────────────────────────────
+
+@Composable
+private fun ClientContextBanner(
+    clientName: String,
+    onSwitchClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val reduceMotion = rememberOakReduceMotion()
+    AnimatedVisibility(
+        visible = true,
+        enter = if (reduceMotion) fadeIn() else
+            slideInVertically(initialOffsetY = { -it }, animationSpec = tween(280)) + fadeIn(tween(280)),
+        exit = if (reduceMotion) fadeOut() else
+            slideOutVertically(targetOffsetY = { -it }, animationSpec = tween(220)) + fadeOut(tween(220)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(
+                        bottomStart = OakRadius.Md,
+                        bottomEnd = OakRadius.Md
+                    )
+                )
+                .semantics(mergeDescendants = true) {}
+                .padding(horizontal = OakSpacing.Lg, vertical = OakSpacing.Sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = stringResource(R.string.coach_viewing_banner, clientName),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics {
+                        contentDescription = clientName
+                    }
+            )
+            TextButton(
+                onClick = onSwitchClick,
+                contentPadding = PaddingValues(horizontal = OakSpacing.Sm, vertical = 0.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.coach_switch_client),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+// ── Streak Hero Card ─────────────────────────────────────────────────────────
+
+@Composable
+private fun StreakHeroCard(days: Int) {
+    val isMilestone = days % 7 == 0 || days % 30 == 0
+    val accentColor = MaterialTheme.colorScheme.primary
+    val pulse = remember { Animatable(1f) }
+
+    LaunchedEffect(days) {
+        if (days > 0) {
+            pulse.animateTo(1.08f, animationSpec = tween(300))
+            pulse.animateTo(1f, animationSpec = tween(200))
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                    colors = listOf(
+                        accentColor,
+                        accentColor.copy(alpha = 0.82f)
+                    )
+                ),
+                shape = RoundedCornerShape(OakRadius.Lg)
+            )
+            .padding(horizontal = OakSpacing.Xl, vertical = OakSpacing.Xl)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(OakSpacing.Xs)) {
+                Text(
+                    text = if (isMilestone)
+                        stringResource(R.string.streak_hero_milestone)
+                    else
+                        stringResource(R.string.streak_hero_keep_going),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f)
+                )
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(OakSpacing.Sm)
+                ) {
+                    Text(
+                        text = days.toString(),
+                        style = MaterialTheme.typography.displayLarge.copy(
+                            fontFamily = OakTypography.Display,
+                            fontSize = OakTypeScale.HeroNumber
+                        ),
+                        fontWeight = FontWeight.ExtraBold,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.graphicsLayer(
+                            scaleX = pulse.value,
+                            scaleY = pulse.value
+                        )
+                    )
+                    Text(
+                        text = stringResource(R.string.streak_hero_label),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            }
+            Text(
+                text = if (isMilestone) "🏆" else "🔥",
+                fontSize = OakTypeScale.HeroNumber,
+                modifier = Modifier.graphicsLayer(
+                    scaleX = pulse.value,
+                    scaleY = pulse.value
+                )
+            )
+        }
+    }
 }
 
 @Composable

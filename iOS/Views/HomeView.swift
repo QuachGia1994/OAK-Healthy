@@ -297,13 +297,29 @@ public struct HomeView: View {
         let now = renderNow
         let overdue = cachedOverdue
         return VStack(spacing: 0) {
+            // Coach context banner — chỉ hiện khi có nhiều hơn 1 client
+            if permittedClients.count > 1, let name = activeClient?.name {
+                ClientContextBanner(
+                    clientName: name,
+                    clients: permittedClients,
+                    onSelect: { activeClientManager.setCurrentClientId($0.id) }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            if viewModel.cachedStreakDays > 0 {
+                StreakHeroCard(days: viewModel.cachedStreakDays)
+                    .padding(.horizontal, OAKSpacing.lg)
+                    .padding(.top, OAKSpacing.md)
+            }
+
             HomeSummaryPanel(
                 filter: $doseFilter,
                 counts: viewModel.cachedTodayCounts,
                 streakDays: viewModel.cachedStreakDays
             )
             .padding(.horizontal, OAKSpacing.lg)
-            .padding(.top, OAKSpacing.md)
+            .padding(.top, viewModel.cachedStreakDays > 0 ? OAKSpacing.sm : OAKSpacing.md)
 
             if !activationProgress.firstValueReached {
                 firstValueCard
@@ -1010,6 +1026,163 @@ private struct RestingSupplementRow: View {
         }
         .padding()
         .oakCardStyle(.paper, cornerRadius: OAKRadius.md)
+    }
+}
+
+// MARK: - Client Context Banner
+
+private struct ClientContextBanner: View {
+    let clientName: String
+    let clients: [ClientProfile]
+    let onSelect: (ClientProfile) -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: OAKSpacing.sm) {
+            Image(systemName: "person.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(OAKPalette.accent)
+
+            Text(String.localizedStringWithFormat(
+                "coach_viewing_banner".localized,
+                clientName
+            ))
+            .font(OAKFont.labelMedium)
+            .foregroundStyle(OAKPalette.primaryText(for: colorScheme))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Switch menu — inline Menu, không cần boolean state
+            Menu {
+                ForEach(clients) { client in
+                    Button {
+                        withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.7)) {
+                            onSelect(client)
+                        }
+                    } label: {
+                        Label(client.name, systemImage: "person.circle")
+                    }
+                }
+            } label: {
+                Text("coach_switch_client".localized)
+                    .font(OAKFont.labelMedium)
+                    .foregroundStyle(OAKPalette.accent)
+                    .padding(.horizontal, OAKSpacing.sm)
+                    .padding(.vertical, OAKSpacing.xs)
+                    .background(
+                        Capsule()
+                            .fill(OAKPalette.accent.opacity(0.10))
+                    )
+            }
+        }
+        .padding(.horizontal, OAKSpacing.lg)
+        .padding(.vertical, OAKSpacing.sm)
+        .background(
+            OAKPalette.mutedSurface(for: colorScheme)
+                .ignoresSafeArea(edges: .top)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            String.localizedStringWithFormat(
+                "coach_viewing_banner".localized,
+                clientName
+            )
+        )
+        .accessibilityHint("coach_switch_client".localized)
+    }
+}
+
+// MARK: - Streak Hero Card
+
+private struct StreakHeroCard: View {
+    let days: Int
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulseScale: CGFloat = 1.0
+
+    private var isMilestone: Bool { days % 7 == 0 || days % 30 == 0 }
+
+    var body: some View {
+        ZStack {
+            // Gradient background
+            LinearGradient(
+                colors: [
+                    OAKPalette.accent,
+                    OAKPalette.accent.opacity(0.82)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: OAKRadius.lg, style: .continuous))
+
+            HStack(alignment: .center, spacing: OAKSpacing.lg) {
+                // Left: label + number
+                VStack(alignment: .leading, spacing: OAKSpacing.xs) {
+                    Text(isMilestone
+                         ? "streak_hero_milestone".localized
+                         : "streak_hero_keep_going".localized)
+                        .font(OAKFont.labelMedium)
+                        .foregroundStyle(.white.opacity(0.80))
+
+                    HStack(alignment: .lastTextBaseline, spacing: OAKSpacing.sm) {
+                        Text("\(days)")
+                            .font(OAKFont.heroNumber)
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
+                            .scaleEffect(pulseScale)
+                            .animation(
+                                reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.55),
+                                value: pulseScale
+                            )
+
+                        Text("streak_hero_label".localized)
+                            .font(OAKFont.bodyMedium)
+                            .foregroundStyle(.white.opacity(0.75))
+                            .padding(.bottom, 8)
+                    }
+                }
+
+                Spacer()
+
+                // Right: emoji
+                Text(isMilestone ? "🏆" : "🔥")
+                    .font(.system(size: OAKTypeScale.heroNumber))
+                    .scaleEffect(pulseScale)
+                    .animation(
+                        reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.55),
+                        value: pulseScale
+                    )
+            }
+            .padding(.horizontal, OAKSpacing.xl)
+            .padding(.vertical, OAKSpacing.xl)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            String.localizedStringWithFormat(
+                "%d %@",
+                days,
+                "streak_hero_label".localized
+            )
+        )
+        .onAppear {
+            guard !reduceMotion else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                pulseScale = 1.08
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    pulseScale = 1.0
+                }
+            }
+        }
+        .onChange(of: days) { _, _ in
+            guard !reduceMotion else { return }
+            pulseScale = 1.08
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                pulseScale = 1.0
+            }
+        }
     }
 }
 

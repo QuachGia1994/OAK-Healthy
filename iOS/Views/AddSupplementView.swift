@@ -118,34 +118,70 @@ public struct AddSupplementView: View {
         if viewModel.isLoading {
             ProgressView().frame(maxWidth: .infinity, alignment: .leading)
         } else if !viewModel.suggestions.isEmpty {
-            ScrollView(.horizontal) {
-                HStack(spacing: 10) {
-                    ForEach(viewModel.suggestions) { suggestion in
-                        suggestionButton(suggestion)
+            // Inline dropdown gắn ngay dưới name field
+            VStack(spacing: 0) {
+                ForEach(Array(viewModel.suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                    suggestionRow(suggestion)
+                    if index < viewModel.suggestions.count - 1 {
+                        Divider().opacity(0.35)
                     }
                 }
             }
-            .scrollIndicators(.hidden)
+            .background(
+                OAKPalette.mutedSurface(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: OAKRadius.md)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: OAKRadius.md)
+                    .stroke(OAKPalette.divider(for: colorScheme), lineWidth: 0.75)
+            )
+            .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
 
-    private func suggestionButton(_ suggestion: SupplementReference) -> some View {
+    private func suggestionRow(_ suggestion: SupplementReference) -> some View {
         Button { viewModel.selectSuggestion(suggestion) } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: OAKSpacing.sm) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(suggestion.name).font(.subheadline.weight(.semibold))
+                    highlightedName(suggestion.name)
+                        .font(.subheadline)
                     Text(suggestionCaption(suggestion))
                         .font(.caption)
                         .oakSecondaryText()
                         .lineLimit(1)
                 }
+                Spacer(minLength: OAKSpacing.sm)
+                if let dose = suggestion.preferredDose, !dose.isEmpty {
+                    Text(dose)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(OAKPalette.accent)
+                }
                 Image(systemName: "plus.circle.fill")
                     .foregroundStyle(OAKPalette.accent)
             }
-            .padding(12)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, OAKSpacing.md)
+            .padding(.vertical, OAKSpacing.sm)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(suggestion.name)
+        .accessibilityHint(suggestionCaption(suggestion))
+    }
+
+    /// Highlight phần tên khớp query hiện tại (case-insensitive) bằng bold + màu accent.
+    private func highlightedName(_ name: String) -> Text {
+        let query = viewModel.name.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty,
+              let range = name.range(of: query, options: .caseInsensitive) else {
+            return Text(name).fontWeight(.semibold)
+        }
+        let before = String(name[name.startIndex..<range.lowerBound])
+        let match = String(name[range])
+        let after = String(name[range.upperBound..<name.endIndex])
+        return Text(before).fontWeight(.semibold)
+            + Text(match).fontWeight(.bold).foregroundColor(OAKPalette.accent)
+            + Text(after).fontWeight(.semibold)
     }
 
     private var doseField: some View {

@@ -95,6 +95,9 @@
     <string name="add_a_client">Add a Client</string>
     <string name="client_name_label">Name</string>
     <string name="student_prefix">Student: %1$s</string>
+    <string name="coach_viewing_banner">Viewing: %1$s</string>
+    <string name="coach_switch_client">Switch</string>
+    <string name="a11y_coach_banner">Currently viewing client %1$s. Tap Switch to change.</string>
     <string name="select">Select</string>
     <string name="add_client_to_start">Add a Client to start.</string>
 
@@ -420,6 +423,9 @@
     <string name="home_streak_format">Streak: %1$d</string>
     <string name="home_rhythm_days_format">Recent rhythm · %1$d day(s)</string>
     <string name="home_rhythm_fresh_start">Fresh start today</string>
+    <string name="streak_hero_label">Day streak</string>
+    <string name="streak_hero_keep_going">Keep it up! 🔥</string>
+    <string name="streak_hero_milestone">Milestone reached! 🏆</string>
     <string name="activation_first_value_title">Get to your first useful routine</string>
     <string name="activation_progress_format">%1$d of %2$d first-value steps ready</string>
     <string name="activation_milestone_client">Choose your profile</string>
