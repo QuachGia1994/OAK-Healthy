@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -129,6 +130,7 @@ class MainActivity : ComponentActivity() {
         val prefs = OakPrefs.get(applicationContext)
         val initialTheme = AppStartupPolicy.storedTheme(prefs.getString("appTheme", null))
         applySavedNightMode(initialTheme)
+        enableEdgeToEdge()
         installSplashScreen()
         super.onCreate(savedInstanceState)
         capturePendingIntakeAction(intent)

@@ -89,6 +89,29 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
+internal inline fun <R, T> useAndRelease(
+    resource: R,
+    release: (R) -> Unit,
+    block: (R) -> T,
+): T {
+    return try {
+        block(resource)
+    } finally {
+        release(resource)
+    }
+}
+
+internal inline fun <T> useAndRecycleBitmap(bitmap: Bitmap, block: (Bitmap) -> T): T =
+    useAndRelease(
+        resource = bitmap,
+        release = { transientBitmap ->
+            if (!transientBitmap.isRecycled) {
+                transientBitmap.recycle()
+            }
+        },
+        block = block,
+    )
+
 @Composable
 private fun SettingsBrandHeader(secondaryTextColor: Color) {
     Column(
@@ -434,14 +457,16 @@ fun SettingsScreen(
                                         )
 
                                         val imageFile = withContext(Dispatchers.IO) {
-                                            val cachePath = File(context.cacheDir, "shared_images")
-                                            cachePath.mkdirs()
-                                            val target = File(cachePath, "oak_stack_${System.currentTimeMillis()}.png")
-                                            FileOutputStream(target).use { stream ->
-                                                bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-                                                stream.flush()
+                                            useAndRecycleBitmap(bitmap) { transientBitmap ->
+                                                val cachePath = File(context.cacheDir, "shared_images")
+                                                cachePath.mkdirs()
+                                                val target = File(cachePath, "oak_stack_${System.currentTimeMillis()}.png")
+                                                FileOutputStream(target).use { stream ->
+                                                    transientBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+                                                    stream.flush()
+                                                }
+                                                target
                                             }
-                                            target
                                         }
 
                                         val uri = FileProvider.getUriForFile(

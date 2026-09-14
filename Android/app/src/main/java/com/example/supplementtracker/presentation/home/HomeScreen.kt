@@ -122,6 +122,9 @@ fun HomeScreen(
     val dateHeaderFormatter = remember { DateTimeFormatter.ofPattern("EEEE, dd MMMM") }
     val activationStore = remember(context) { ActivationRetentionStore(context.applicationContext) }
     var activationProgress by remember { mutableStateOf(activationStore.progress()) }
+    val hasAnyRoutine = (uiState as? HomeUiState.Success)?.let { state ->
+        state.activeSupplements.isNotEmpty() || state.restingSupplements.isNotEmpty()
+    } == true
 
     LaunchedEffect(Unit) {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -226,8 +229,10 @@ fun HomeScreen(
                 )
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = onNavigateToAdd) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_supplement_title))
+                if (hasAnyRoutine) {
+                    FloatingActionButton(onClick = onNavigateToAdd) {
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_supplement_title))
+                    }
                 }
             }
         ) { padding ->
@@ -397,7 +402,9 @@ private fun HomeContent(
             }
         }
         
-        if (state.activeSupplements.isEmpty()) {
+        if (state.activeSupplements.isEmpty() &&
+            (state.restingSupplements.isNotEmpty() || activationProgress.firstValueReached)
+        ) {
             item(
                 key = "today_empty",
                 contentType = "empty"
