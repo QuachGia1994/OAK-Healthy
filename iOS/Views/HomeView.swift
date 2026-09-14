@@ -330,11 +330,13 @@ public struct HomeView: View {
             List {
                 if viewModel.activeSupplements.isEmpty {
                     if supplementsForActiveClient.isEmpty {
-                        actionableEmptyRow(
-                            title: "activation_no_routine_title".localized,
-                            body: "activation_no_routine_body".localized,
-                            action: "activation_add_routine_action".localized
-                        ) { isShowingAddSheet = true }
+                        if activationProgress.firstValueReached {
+                            actionableEmptyRow(
+                                title: "activation_no_routine_title".localized,
+                                body: "activation_no_routine_body".localized,
+                                action: "activation_add_routine_action".localized
+                            ) { isShowingAddSheet = true }
+                        }
                     } else {
                         Text("activation_rest_day_body".localized)
                             .oakSecondaryText()

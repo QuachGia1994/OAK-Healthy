@@ -561,6 +561,12 @@ struct MainTabView: View {
                     Label("tab_history".localized, systemImage: "clock.fill")
                 }
                 .tag(2)
+
+            SettingsView(activeClientManager: activeClientManager)
+                .tabItem {
+                    Label("tab_settings".localized, systemImage: "gearshape.fill")
+                }
+                .tag(3)
         }
         .tint(colorScheme == .dark ? OAKPalette.accentDark : OAKPalette.accent)
         .toolbarBackground(OAKPalette.surface(for: colorScheme), for: .tabBar)
