@@ -153,7 +153,7 @@ fun AppNavigation(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val items = remember { listOf(Screen.Home, Screen.MyStack, Screen.History) }
+    val items = remember { listOf(Screen.Home, Screen.MyStack, Screen.History, Screen.Settings) }
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val overdueCount by remember(homeUiState) {
         derivedStateOf {
