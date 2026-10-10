@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-taken: #1F6B4D;
+  --color-taken-soft: #E5F0EA;
+  --color-due: #466A8D;
+  --color-due-soft: #E6EDF4;
+  --color-skipped: #9A661F;
+  --color-skipped-soft: #F5EDDF;
+  --color-missed: #B5473F;
+  --color-missed-soft: #F6E4E2;
+  --animate-fade-in: fade-in 0.2s ease-out;
+  @keyframes fade-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+}
+
+:root { color-scheme: light; }
+.dark { color-scheme: dark;
+  --color-taken-soft: #16352A; --color-due-soft: #1D2B3A; --color-skipped-soft: #3A2C17; --color-missed-soft: #3D1F1C; }
+
+html, body { height: 100%; }
+body { @apply bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100; font-feature-settings: "ss01", "cv11"; }
+@layer components {
+.tabular { font-variant-numeric: tabular-nums; }
+.card { @apply rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900; }
+.btn { @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-800 shadow-[0_1px_0_rgba(0,0,0,0.03)] transition hover:bg-neutral-50 active:scale-[0.98] disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800; }
+.btn-primary { @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-neutral-900 px-3 text-sm font-medium text-white transition hover:bg-neutral-800 active:scale-[0.98] disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200; }
+.input { @apply h-9 w-full rounded-lg border border-neutral-200 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-400 focus:border-neutral-500 focus:ring-4 focus:ring-neutral-200 dark:border-neutral-800 dark:bg-neutral-900 dark:focus:border-neutral-500 dark:focus:ring-neutral-800; }
+.label { @apply mb-1.5 block text-xs font-medium text-neutral-600 dark:text-neutral-400; }
+.kbd { @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-neutral-200 bg-neutral-50 px-1 font-mono text-[10px] text-neutral-500 dark:border-neutral-700 dark:bg-neutral-800; }
+.chip { @apply inline-flex h-6 items-center gap-1 rounded-md border px-2 text-xs font-medium; }
+.grid-bg { background-image: radial-gradient(circle at 1px 1px, rgb(0 0 0 / 0.06) 1px, transparent 0); background-size: 18px 18px; }
+.dark .grid-bg { background-image: radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.06) 1px, transparent 0); }}

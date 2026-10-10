@@ -12,10 +12,9 @@
 
 ## Validation
 
-- [ ] Android unit tests pass when Android code changed.
-- [ ] Android lint and debug build pass when Android code changed.
-- [ ] iOS tests and simulator build pass when iOS code changed.
-- [ ] Android/iOS sync fixture remains compatible when sync code changed.
+- [ ] `npm test` passes.
+- [ ] `npm run build` passes.
+- [ ] Vault / share blob format stays backward compatible when sync code changed.
 - [ ] User guidance and localized strings were updated when behavior changed.
 - [ ] No Link Code, Sync Key, health data, signing key, or server credential is included.
 

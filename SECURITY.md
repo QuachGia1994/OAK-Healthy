@@ -1,49 +1,22 @@
 # Security Policy
 
-## Supported versions
+## Reporting
 
-Security fixes are applied to the latest commit on `main`. Until the first
-stable release, older commits and locally modified builds are not supported.
+Report vulnerabilities privately to the maintainer (@QuachGia1994) via GitHub Security Advisories.
+Do not include sync keys, share links, health data or screenshots containing them in public issues.
 
-## Reporting a vulnerability
+## Model
 
-Please use [GitHub private vulnerability reporting](https://github.com/QuachGia1994/OAK-Healthy/security/advisories/new).
-Do not open a public issue for suspected vulnerabilities and do not include
-Link Codes, Sync Keys, Firebase credentials, health data, or screenshots that
-contain private information.
+- All data lives in the browser's IndexedDB. Nothing leaves the device unless sync or share is used.
+- **Sync key**: 120 random bits, shown as `OAK-XXXX-…`. HKDF-SHA-256 derives three independent values:
+  `vault-id` (128-bit, public locator), `vault-auth` (256-bit bearer secret), `vault-enc` (AES-256-GCM key).
+- The Worker stores `{id, rev, blob, sha256(auth)}`. It never sees the key or plaintext. The first write binds the auth hash; later reads and writes must match it.
+- Writes use optimistic concurrency (`baseRev` → `rev + 1`); conflicts return 409 and the client pulls, merges (last-writer-wins per record, tombstones for deletes) and retries.
+- **Share links**: a fresh random AES-128-GCM key per share, placed in the URL `#fragment` (never sent in HTTP requests). Shares expire after 365 days.
+- Losing the sync key means the vault cannot be recovered by anyone. Use JSON export for backups.
+- Limits: vault blob ≤ 1.5 MB, share blob ≤ 200 KB, ids validated by regex, all D1 queries parameterized.
 
-The maintainer will acknowledge a complete report within seven days, assess
-severity, and coordinate a fix before public disclosure. Include affected
-platforms, reproduction steps, impact, and a minimal proof of concept when it
-is safe to do so.
+## Known gaps
 
-## Security model
-
-- Health records are local by default and are uploaded only after the user
-  creates or joins a sync link.
-- Optional cloud encryption uses AES-256-GCM. The Sync Key must be transferred
-  separately from the Link Code.
-- Android wraps the Sync Key with Android Keystore. iOS stores it in Keychain
-  with `WhenUnlockedThisDeviceOnly` accessibility.
-- Firebase writes use transactions with monotonic revisions. Database rules
-  validate the payload shape, size, and revision increase.
-- Firebase Anonymous Authentication limits access to authenticated app clients.
-  App Check enforcement must also be enabled in the production Firebase
-  console to reject untrusted clients.
-- A Link Code is an unguessable capability, not a password. Anyone who obtains
-  it may attempt to read, replace, or delete its cloud record; AES-GCM protects
-  confidentiality but cannot prevent denial of service.
-- Local application databases rely on the operating-system sandbox and device
-  file protection. OAK Healthy does not currently claim SQLCipher protection.
-
-## Deployment checklist
-
-1. Enable Firebase App Check enforcement for Realtime Database.
-2. Deploy [`firebase/database.rules.json`](firebase/database.rules.json).
-3. Keep signing keys, service-account credentials, `Secrets.xcconfig`, and
-   `keystore.properties` outside the repository.
-4. Review dependency alerts and GitHub Actions results before every release.
-
-Firebase client configuration files contain public client identifiers. They do
-not grant server-admin access, but their associated services must still be
-restricted in Firebase and Google Cloud consoles.
+- No per-IP rate limiting yet (add Cloudflare WAF rate-limit rules for `/api/*` in production).
+- The sync key is stored in IndexedDB on linked devices; anyone with access to the unlocked browser profile can read it.

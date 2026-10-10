@@ -1,103 +1,62 @@
 # OAK Healthy
 
-[![Android Build](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/android-build.yml/badge.svg)](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/android-build.yml)
-[![iOS Build](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/ios-build.yml/badge.svg)](https://github.com/QuachGia1994/OAK-Healthy/actions/workflows/ios-build.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-0F6B4F.svg)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-173F35.svg)](#build-và-test)
+Offline-first, end-to-end encrypted supplement & routine tracker on the web.
+Installable as a PWA, synced across devices with a zero-knowledge vault.
 
-OAK Healthy là ứng dụng theo dõi lịch dùng thực phẩm bổ sung trên Android và iOS. Ứng dụng hỗ trợ nhiều hồ sơ, lịch uống linh hoạt, thông báo, lịch sử Taken/Skipped/Overdue và đồng bộ hai chiều qua Firebase Realtime Database.
+**Live:** https://oak-healthy.kim-phong619.workers.dev
 
-## Tải bản build mới nhất
+> v2.0 replaces the native Android/iOS apps with a single cloud web app.
+> The mobile code stays in git history (tag/commit before `v2.0.0`) but is no longer maintained.
 
-| Nền tảng | Artifact | Workflow đã kiểm tra | Định dạng |
-| --- | --- | --- | --- |
-| Android | [Tải OAKHealthy-Android-APK](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32090785985/artifacts/9308323202) | [Android Build #32090785985](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32090785985) | APK Debug `1.0.1` |
-| iOS | [Tải OAKHealthy-iOS-IPA](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32090795491/artifacts/9308309806) | [iOS Build #32090795491](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32090795491) | IPA unsigned `1.0.1` |
+## Features
 
-Các artifact hiện tại được build từ hardened baseline `6ed20075edd317a0aa3a34b77848df65e93b7f14` ngày 18/08/2026 UTC và còn hạn đến 16/11/2026 UTC. Có thể cần đăng nhập GitHub để tải. APK dùng cho debug/test; IPA chưa ký nên cần ký lại hoặc dùng quy trình sideload phù hợp, không thể cài trực tiếp như bản App Store. Nếu artifact hết hạn, mở workflow tương ứng và tải artifact từ lần chạy thành công mới nhất. Quality Gates của baseline này: [#32090806825](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32090806825).
+- **Today**: bento dashboard with adherence ring, next-dose countdown with one-tap *Take now*, 7-day sparkline, streak and a Morning / Midday / Evening / Bedtime timeline. Every action has an **Undo** toast.
+- **Stack**: links-table style manager. Press `/` to search, `C` to create, filter by category and status (Active / Off-cycle / Paused), edit in a side drawer (bottom sheet on mobile).
+- **Insights**: 12-month heatmap, when-you-actually-take-it histogram, per-routine 30-day adherence, history log.
+- **Smart stack engine**: clash detection (iron × calcium, zinc × copper, caffeine × iron…), synergy hints (D3 + K2, iron + vitamin C), chrono-timing warnings (stimulants late, calming supplements in the morning). Dictionary autofill for time, dose and cycle.
+- **Inventory**: pills-left auto-decrements on *Taken*, restores on Undo, low-stock warning at ≤ 7 days.
+- **Cycles**: N days on / M days off, fixed duration, pause.
+- **Profiles**: track family members from one device.
+- **Encrypted sync**: AES-256-GCM on device, server stores ciphertext only (see [SECURITY.md](SECURITY.md)).
+- **Shareable stacks**: `/s/<id>#<key>` links; the key lives in the URL fragment and never reaches the server. Recipients can copy the stack into their own.
+- **Command menu**: `⌘K` / `Ctrl+K` to log doses, navigate, edit routines, switch profile, toggle dark mode.
+- **PWA**: install, works fully offline (IndexedDB + service worker), JSON export / import.
 
-## Tính năng chính
+## Stack
 
-- Giao diện 3 tab đồng nhất: Dashboard, Stack và History.
-- Lịch liên tục, chu kỳ On/Off, cách N ngày và lặp theo tuần.
-- Thao tác Đã uống/Bỏ qua từ ứng dụng hoặc thông báo. Trên iOS, nhấn giữ hoặc mở rộng thông báo liều để hiện các nút thao tác.
-- Bộ lọc trạng thái 4 màu dễ nhận biết trên Android và iOS.
-- Auto-Sync hai chiều với merge theo thời gian cập nhật và retry khi xung đột.
-- Mã hóa cloud tùy chọn bằng AES-256-GCM, tương thích chéo Android/iOS.
-- Giao diện tiếng Anh và tiếng Việt, hỗ trợ Light/Dark/System theme.
+Next.js 15 (static export) · React 19 · Tailwind CSS v4 · Radix · cmdk · vaul · sonner · Motion · Geist ·
+Dexie (IndexedDB) · Web Crypto · Cloudflare Workers (static assets + API) · D1.
 
-## Đồng bộ hai chiều
-
-Thiết bị Host tạo một Link Code. Thiết bị Link nhập mã này để tải, merge và tiếp tục đồng bộ cùng bộ dữ liệu.
-
-1. Trên Host, chọn chế độ mã hóa trước khi tạo Link Code.
-2. Nếu mã hóa được bật, chuyển Sync Key sang thiết bị Link bằng kênh riêng tư.
-3. Trên thiết bị Link, import key trước, dán Link Code và bấm Tải về một lần.
-4. Bật Auto-Sync trên cả hai thiết bị.
-
-Khi app được mở hoặc quay lại foreground, sync chạy ngay. Thay đổi cục bộ được gom trong khoảng debounce ngắn trước khi upload. Realtime khi app đang hoạt động dùng Firebase revision listeners; tốc độ chạy nền vẫn phụ thuộc mạng, giới hạn pin và cơ chế scheduling của từng hệ điều hành.
-
-Firebase writes dùng transaction nguyên tử và revision tăng đơn điệu để tránh hai thiết bị cùng vượt qua kiểm tra rồi ghi đè dữ liệu của nhau. Payload và revision cũng được đọc trong cùng một snapshot để không ghép nhầm nội dung mới với revision cũ.
-
-## Mã hóa và bảo mật
-
-- Payload mã hóa dùng AES-256-GCM với nonce ngẫu nhiên 12 byte và authentication tag 16 byte.
-- Android bọc Sync Key bằng khóa AES trong Android Keystore.
-- iOS lưu Sync Key trong Keychain với `WhenUnlockedThisDeviceOnly`.
-- Key ID và Link Code được giới hạn bằng mẫu `[A-Za-z0-9_-]{1,64}` trước mọi thao tác Firebase.
-- Sync Key được ẩn mặc định. Clipboard iOS tự hết hạn sau 2 phút; Android đánh dấu nội dung là dữ liệu nhạy cảm.
-- Link Code là capability khó đoán, không phải mật khẩu. Không đăng Link Code hoặc Sync Key trong ảnh chụp, issue, log hay chat công khai.
-- Chế độ mã hóa bị khóa trong thời gian Link Code đang hoạt động. Nếu key bị lộ hoặc cần đổi chế độ, hãy thu hồi Link Code, tạo key/link mới rồi liên kết lại thiết bị.
-- Ứng dụng dùng Firebase Anonymous Auth và App Check: Play Integrity trên Android, App Attest trên iOS. Production cần bật enforcement cho Realtime Database trong Firebase Console.
-- `GoogleService-Info.plist` và `google-services.json` chứa định danh Firebase client, không thay thế server secret. Không commit service-account key, signing key, `Secrets.xcconfig` hoặc `keystore.properties`.
-
-Firebase Rules trong [`firebase/database.rules.json`](firebase/database.rules.json) giới hạn payload 1 MB, yêu cầu node đầy đủ và chỉ chấp nhận revision tăng. Deploy rules bằng:
+## Develop
 
 ```bash
-firebase deploy --only database --project oak-healthy
+npm install
+npm run dev        # http://localhost:3000 (UI only, no API)
+npm test           # domain unit tests (Node ≥ 22.6)
+npm run preview    # build + wrangler dev with local D1 (UI + API)
 ```
 
-## Cấu trúc dự án
+First-time local D1: `npx wrangler d1 execute oak-healthy --local --file worker/schema.sql`.
 
-- `Android/`: Kotlin, Jetpack Compose, Room, WorkManager và Firebase.
-- `iOS/`: Swift, SwiftUI, SwiftData, CryptoKit và Firebase.
-- `firebase/`: Realtime Database Rules và script deploy.
-- `.github/workflows/`: build/test Android và iOS trên GitHub Actions.
-- `DESIGN.md`: quy tắc thiết kế dùng chung cho hai nền tảng.
-- `docs/`: architecture, recovery, QA và release notes; [`docs/arch/HEALTH_DATA_FLOW.md`](docs/arch/HEALTH_DATA_FLOW.md) mô tả owner của input → persistence → history/insight → backup/recovery.
+## Deploy
 
-## Build và test
-
-### Android
-
-Yêu cầu JDK 17 và Android SDK.
-
-```powershell
-cd Android
-./gradlew testDebugUnitTest assembleDebug lintDebug
+```bash
+npx wrangler d1 create oak-healthy        # once; put the id in wrangler.jsonc
+npm run db:init                           # apply worker/schema.sql remotely
+npm run deploy                            # next build && wrangler deploy
 ```
 
-### iOS
+## Layout
 
-Yêu cầu macOS, Xcode và Swift Package Manager. Dự án dùng `project.yml`/XcodeGen và iOS deployment target 17.0. Trên máy Windows, dùng workflow iOS của GitHub Actions thay cho `xcodebuild` cục bộ.
+```
+app/            routes: / (Today), /stack, /insights, /settings, /s (share viewer)
+components/     UI (shell, command menu, drawer, dashboard, tables, charts)
+lib/domain/     pure domain logic: day codec, cycles, dose timing policy, schedule, knowledge engine
+lib/            IndexedDB store, crypto, sync
+worker/         Cloudflare Worker API (vault + share) and D1 schema
+tests/          node:test suites for lib/domain
+```
 
-Các test sync bao gồm codec, manifest, Link Code validation, revision monotonic và fixture AES-GCM dùng chung cho Android/iOS.
+See [docs/arch/system-boundaries.md](docs/arch/system-boundaries.md) and [docs/arch/HEALTH_DATA_FLOW.md](docs/arch/HEALTH_DATA_FLOW.md).
 
-Hardened baseline hiện tại đã vượt qua Android lint, unit tests/JaCoCo và APK assembly; iOS chạy trên Xcode 26+, vượt qua unit tests/coverage, archive unsigned và đóng gói Firebase configuration. Quality Gates cũng đã xanh trên cùng baseline, bao gồm health-data ownership/integrity gate. Các file debug symbol iOS mới nhất có tại [OAKHealthy-iOS-dSYMs](https://github.com/QuachGia1994/OAK-Healthy/actions/runs/32090795491/artifacts/9308308981).
-
-## Quyền riêng tư
-
-Dữ liệu sức khỏe được lưu cục bộ và chỉ upload khi người dùng chủ động Host/Link. Mã hóa cloud là tùy chọn nhưng được khuyến nghị. OAK Healthy không thay thế tư vấn, chẩn đoán hoặc điều trị y khoa.
-
-## Tác giả và bản quyền
-
-Tác giả: **Quach Gia (Phong QK)**
-
-Mã nguồn được cấp phép theo [Apache License 2.0](LICENSE). Tên và logo OAK
-Healthy không được cấp quyền sử dụng như nhãn hiệu theo giấy phép này.
-
-Quy trình cộng đồng: [Contributing](CONTRIBUTING.md) ·
-[Governance](GOVERNANCE.md) · [Roadmap](ROADMAP.md) ·
-[Changelog](CHANGELOG.md) · [Security](SECURITY.md)
-
-Copyright © 2026 Quach Gia / OAK Healthy.
+OAK Healthy is not a medical device and does not give medical advice.

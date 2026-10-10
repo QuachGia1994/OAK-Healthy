@@ -6,8 +6,8 @@
 maintainer, release manager, and security contact for OAK Healthy.
 
 The maintainer is responsible for issue triage, pull-request review, release
-decisions, dependency and security updates, Firebase schema compatibility, and
-Android/iOS interoperability.
+decisions, dependency and security updates, vault/share format compatibility, and
+the Cloudflare deployment.
 
 ## Decision process
 
@@ -21,7 +21,7 @@ and records the tradeoff in the issue or pull request.
 
 Releases follow semantic versioning where practical. A release requires:
 
-1. Passing Android and iOS build workflows.
+1. Passing Web workflow (tests + build).
 2. Passing sync interoperability fixtures on both platforms.
 3. Updated user guidance and `CHANGELOG.md` for behavior changes.
 4. Review of open security and dependency alerts.

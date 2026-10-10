@@ -6,6 +6,30 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-10
+
+### Changed
+
+- OAK Healthy is now a single cloud web app / PWA (Next.js 15, React 19, Tailwind v4) deployed on Cloudflare Workers at https://oak-healthy.kim-phong619.workers.dev. Native Android and iOS apps, Firebase sync, store billing and mobile CI/QA gates are removed (still available in git history).
+- Sync is rebuilt as a zero-knowledge vault: HKDF-derived vault id / auth / AES-256-GCM key, ciphertext stored in D1 with optimistic revisions and last-writer-wins merge with tombstones.
+
+### Added
+
+- Dub.co-style UI: Today bento dashboard (adherence ring, next-dose countdown, 7-day sparkline, streak, slot timeline), Stack manager table (search `/`, create `C`, category/status filters, drawer editor), Insights (12-month heatmap, time-of-day histogram, per-routine adherence, history), Settings.
+- `⌘K` command menu, Undo toasts, dark mode, multi-profile switcher.
+- Interaction engine (clashes, synergies, chrono-timing warnings) and dictionary autofill.
+- Inventory tracking with auto-decrement and low-stock warnings.
+- Encrypted shareable stack links (`/s/<id>#<key>`) with copy-to-my-stack.
+- Offline support via IndexedDB and a service worker; JSON export/import.
+- TypeScript ports of DoseTimingPolicy, CalculateCycleUseCase and the local-day boundary with node:test coverage.
+
+### Removed
+
+- `Android/`, `iOS/`, `firebase/`, `fixtures/`, `scripts/` (mobile release gates), mobile workflows, store/QA/commercial docs, build logs and IDE caches.
+
+## [1.x mobile] - archived, never released from Unreleased
+
+
 ### Added
 
 - App Shell Closure adds cross-platform scroll-minimized primary navigation: Android collapses the 80dp icon+label bar to a 56dp icon-only bar on downward user scroll and restores it on upward scroll, while iPhone on iOS 26+ uses the native `tabBarMinimizeBehavior(.onScrollDown)` with an iOS 17+ fallback and an automated shell/inset/token gate.
