@@ -418,4 +418,9 @@ export const VI: Record<string, string> = {
   "Light mode": "Chế độ sáng",
   "No more doses due today": "Không còn liều nào hôm nay",
   "{n} missed: tap ✓ in the timeline if you took them": "{n} liều bị lỡ: bấm ✓ trong lịch nếu bạn đã uống",
+  "Good morning": "Chào buổi sáng",
+  "Good afternoon": "Chào buổi chiều",
+  "Good evening": "Chào buổi tối",
+  "Notifications": "Thông báo",
+  "My stack": "Danh mục của tôi",
 };

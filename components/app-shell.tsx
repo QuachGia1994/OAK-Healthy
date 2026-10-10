@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   const active = (href: string) => (href === "/" ? path === "/" : path?.startsWith(href.replace(/\/$/, "")));
 
-  if (bare) return (<>{children}<Toaster position="bottom-right" /></>);
+  if (bare) return (<>{children}<Toaster position="bottom-right" customAriaLabel={t("Notifications")} /></>);
 
   return (
     <div className="flex min-h-dvh bg-neutral-50 dark:bg-neutral-950">
@@ -73,7 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <CommandMenu />
       <SyncAgent />
       <RoutineDrawer />
-      <Toaster position="bottom-right" mobileOffset={{ bottom: "calc(76px + env(safe-area-inset-bottom))" }} toastOptions={{ className: "!rounded-xl !border-neutral-200 !font-sans" }} />
+      <Toaster position="bottom-right" customAriaLabel={t("Notifications")} mobileOffset={{ bottom: "calc(76px + env(safe-area-inset-bottom))" }} toastOptions={{ className: "!rounded-xl !border-neutral-200 !font-sans" }} />
     </div>
   );
 }

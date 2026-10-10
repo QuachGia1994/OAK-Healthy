@@ -6,25 +6,26 @@ export interface Reference { name: string; time: string; dose?: string; cycle: C
 
 const C: CycleConfig = { daysOn: 1, daysOff: 0, continuous: true };
 const ODS = (slug: string) => `https://ods.od.nih.gov/factsheets/${slug}-HealthProfessional/`;
+const EXAMINE = (path: string) => `https://examine.com/${path}/`;
 
-// Timing traits feed the chrono engine; `source` points at a public fact sheet (NIH ODS where one exists).
+// Timing traits feed the chrono engine; every entry cites a public fact sheet (NIH ODS / NCCIH / MedlinePlus, else Examine.com).
 export const DICTIONARY: Reference[] = [
   { name: "Ashwagandha", time: "21:00", cycle: { daysOn: 28, daysOff: 7, continuous: false }, category: "herb", advice: "Adaptogen; cycle 4 weeks on, 1 off.", calming: true, food: "any", aliases: ["withania"], source: ODS("Ashwagandha") },
   { name: "Boron", time: "08:00", cycle: { daysOn: 14, daysOff: 7, continuous: false }, category: "mineral", advice: "Cycle 2 weeks on, 1 off.", food: "with", source: ODS("Boron") },
-  { name: "Caffeine", time: "07:30", dose: "200 mg", cycle: C, category: "nootropic", advice: "Avoid after 14:00 to protect sleep.", stimulating: true, food: "any", aliases: ["coffee"] },
+  { name: "Caffeine", time: "07:30", dose: "200 mg", cycle: C, category: "nootropic", advice: "Avoid after 14:00 to protect sleep.", stimulating: true, food: "any", aliases: ["coffee"], source: "https://medlineplus.gov/caffeine.html" },
   { name: "Vitamin D3", time: "08:00", dose: "2000 IU", cycle: C, category: "vitamin", advice: "Take with a meal that contains fat.", fatSoluble: true, food: "with", aliases: ["cholecalciferol", "vitamin d"], source: ODS("VitaminD") },
   { name: "Vitamin K2", time: "08:00", dose: "100 mcg", cycle: C, category: "vitamin", advice: "Pairs with D3.", fatSoluble: true, food: "with", aliases: ["menaquinone", "mk-7", "mk7"], source: ODS("VitaminK") },
   { name: "Omega-3", time: "12:00", dose: "1 g", cycle: C, category: "other", advice: "With lunch to reduce fishy burps.", fatSoluble: true, food: "with", aliases: ["fish oil", "epa", "dha"], source: ODS("Omega3FattyAcids") },
-  { name: "CoQ10", time: "12:00", dose: "100 mg", cycle: C, category: "other", advice: "Fat-soluble; can be energizing.", fatSoluble: true, stimulating: true, food: "with", aliases: ["ubiquinol", "coenzyme q10"] },
-  { name: "Creatine", time: "12:00", dose: "5 g", cycle: C, category: "other", advice: "Daily consistency matters more than timing.", food: "any", aliases: ["creatine monohydrate"] },
-  { name: "NAC", time: "22:00", dose: "600 mg", cycle: C, category: "other", advice: "Take away from meals.", food: "empty", aliases: ["n-acetyl cysteine", "n-acetylcysteine"] },
+  { name: "CoQ10", time: "12:00", dose: "100 mg", cycle: C, category: "other", advice: "Fat-soluble; can be energizing.", fatSoluble: true, stimulating: true, food: "with", aliases: ["ubiquinol", "coenzyme q10"], source: "https://www.nccih.nih.gov/health/coenzyme-q10" },
+  { name: "Creatine", time: "12:00", dose: "5 g", cycle: C, category: "other", advice: "Daily consistency matters more than timing.", food: "any", aliases: ["creatine monohydrate"], source: ODS("ExerciseAndAthleticPerformance") },
+  { name: "NAC", time: "22:00", dose: "600 mg", cycle: C, category: "other", advice: "Take away from meals.", food: "empty", aliases: ["n-acetyl cysteine", "n-acetylcysteine"], source: EXAMINE("supplements/n-acetylcysteine") },
   { name: "Magnesium", time: "21:00", dose: "200 mg", cycle: C, category: "mineral", advice: "Glycinate form supports sleep.", calming: true, food: "any", aliases: ["magnesium glycinate", "magnesium citrate"], source: ODS("Magnesium") },
   { name: "Zinc", time: "21:00", dose: "15 mg", cycle: C, category: "mineral", advice: "Long-term use: balance with copper.", food: "with", aliases: ["zinc picolinate"], source: ODS("Zinc") },
   { name: "Iron", time: "10:00", dose: "18 mg", cycle: C, category: "mineral", advice: "Take with vitamin C, away from calcium and coffee.", food: "empty", aliases: ["ferrous", "iron bisglycinate"], source: ODS("Iron") },
   { name: "Calcium", time: "20:00", dose: "500 mg", cycle: C, category: "mineral", advice: "Split doses above 500 mg.", food: "with", aliases: ["calcium carbonate", "calcium citrate"], source: ODS("Calcium") },
   { name: "Vitamin C", time: "10:00", dose: "500 mg", cycle: C, category: "vitamin", advice: "Boosts non-heme iron absorption.", food: "any", aliases: ["ascorbic acid"], source: ODS("VitaminC") },
-  { name: "Vitamin B Complex", time: "08:00", cycle: C, category: "vitamin", advice: "Morning; can disturb sleep at night.", stimulating: true, food: "with", aliases: ["b complex", "b-complex"] },
-  { name: "L-Theanine", time: "21:00", dose: "200 mg", cycle: C, category: "nootropic", advice: "Calming; pairs with caffeine in the morning too.", calming: true, food: "any", aliases: ["theanine"] },
+  { name: "Vitamin B Complex", time: "08:00", cycle: C, category: "vitamin", advice: "Morning; can disturb sleep at night.", stimulating: true, food: "with", aliases: ["b complex", "b-complex"], source: "https://medlineplus.gov/bvitamins.html" },
+  { name: "L-Theanine", time: "21:00", dose: "200 mg", cycle: C, category: "nootropic", advice: "Calming; pairs with caffeine in the morning too.", calming: true, food: "any", aliases: ["theanine"], source: EXAMINE("supplements/theanine") },
   { name: "Copper", time: "12:00", dose: "1 mg", cycle: C, category: "mineral", advice: "Balance against long-term zinc.", food: "with", source: ODS("Copper") },
   { name: "Melatonin", time: "22:00", dose: "0.5 mg", cycle: C, category: "other", advice: "Low dose 30–60 minutes before bed works for most people.", calming: true, food: "any", source: "https://www.nccih.nih.gov/health/melatonin-what-you-need-to-know" },
   { name: "Vitamin B12", time: "08:00", dose: "500 mcg", cycle: C, category: "vitamin", advice: "Morning; important on plant-based diets.", stimulating: true, food: "any", aliases: ["methylcobalamin", "cyanocobalamin", "b12"], source: ODS("VitaminB12") },
@@ -35,17 +36,17 @@ export const DICTIONARY: Reference[] = [
   { name: "Iodine", time: "08:00", dose: "150 mcg", cycle: C, category: "mineral", advice: "Thyroid support; check with a doctor if you have thyroid disease.", food: "any", source: ODS("Iodine") },
   { name: "Potassium", time: "12:00", cycle: C, category: "mineral", advice: "Take with food and water.", food: "with", source: ODS("Potassium") },
   { name: "Probiotic", time: "07:30", cycle: C, category: "other", advice: "Before breakfast; keep 2 hours away from antibiotics.", food: "empty", aliases: ["lactobacillus", "bifidobacterium"], source: ODS("Probiotics") },
-  { name: "Psyllium", time: "19:00", dose: "5 g", cycle: C, category: "other", advice: "Fiber; drink a full glass of water and keep 2 hours from other pills.", food: "any", aliases: ["fiber", "fibre", "metamucil"] },
+  { name: "Psyllium", time: "19:00", dose: "5 g", cycle: C, category: "other", advice: "Fiber; drink a full glass of water and keep 2 hours from other pills.", food: "any", aliases: ["fiber", "fibre", "metamucil"], source: "https://medlineplus.gov/dietaryfiber.html" },
   { name: "Turmeric", time: "12:00", dose: "500 mg", cycle: C, category: "herb", advice: "Curcumin absorbs better with fat and black pepper.", fatSoluble: true, food: "with", aliases: ["curcumin"], source: "https://www.nccih.nih.gov/health/turmeric" },
-  { name: "Rhodiola", time: "08:00", dose: "200 mg", cycle: { daysOn: 42, daysOff: 14, continuous: false }, category: "herb", advice: "Energizing adaptogen; take in the morning.", stimulating: true, food: "empty", aliases: ["rhodiola rosea"] },
-  { name: "Glycine", time: "22:00", dose: "3 g", cycle: C, category: "other", advice: "Before bed for sleep quality.", calming: true, food: "any" },
-  { name: "Collagen", time: "08:00", dose: "10 g", cycle: C, category: "other", advice: "Pair with vitamin C.", food: "any", aliases: ["collagen peptides"] },
-  { name: "Lion's Mane", time: "08:00", dose: "1 g", cycle: C, category: "nootropic", advice: "Morning, with or without food.", food: "any", aliases: ["lions mane", "hericium"] },
+  { name: "Rhodiola", time: "08:00", dose: "200 mg", cycle: { daysOn: 42, daysOff: 14, continuous: false }, category: "herb", advice: "Energizing adaptogen; take in the morning.", stimulating: true, food: "empty", aliases: ["rhodiola rosea"], source: "https://www.nccih.nih.gov/health/rhodiola" },
+  { name: "Glycine", time: "22:00", dose: "3 g", cycle: C, category: "other", advice: "Before bed for sleep quality.", calming: true, food: "any", source: EXAMINE("faq/what-are-glycines-main-benefits") },
+  { name: "Collagen", time: "08:00", dose: "10 g", cycle: C, category: "other", advice: "Pair with vitamin C.", food: "any", aliases: ["collagen peptides"], source: EXAMINE("faq/what-are-collagen-peptides-main-benefits") },
+  { name: "Lion's Mane", time: "08:00", dose: "1 g", cycle: C, category: "nootropic", advice: "Morning, with or without food.", food: "any", aliases: ["lions mane", "hericium"], source: EXAMINE("supplements/lionsmane") },
   { name: "Ginkgo", time: "08:00", dose: "120 mg", cycle: C, category: "herb", advice: "May thin the blood; avoid with anticoagulants.", food: "with", aliases: ["ginkgo biloba"], source: "https://www.nccih.nih.gov/health/ginkgo" },
   { name: "Green Tea Extract", time: "10:00", cycle: C, category: "herb", advice: "Contains caffeine; take with food to protect the liver.", stimulating: true, food: "with", aliases: ["egcg", "green tea"], source: "https://www.nccih.nih.gov/health/green-tea" },
-  { name: "Berberine", time: "12:00", dose: "500 mg", cycle: C, category: "herb", advice: "With meals; may lower blood sugar.", food: "with" },
+  { name: "Berberine", time: "12:00", dose: "500 mg", cycle: C, category: "herb", advice: "With meals; may lower blood sugar.", food: "with", source: EXAMINE("supplements/berberine") },
   { name: "Biotin", time: "08:00", cycle: C, category: "vitamin", advice: "Stop 2–3 days before blood tests: it skews many lab results.", food: "any", aliases: ["vitamin b7"], source: ODS("Biotin") },
-  { name: "Quercetin", time: "12:00", dose: "500 mg", cycle: C, category: "other", advice: "With a meal for better absorption.", food: "with" },
+  { name: "Quercetin", time: "12:00", dose: "500 mg", cycle: C, category: "other", advice: "With a meal for better absorption.", food: "with", source: EXAMINE("supplements/quercetin") },
 ];
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/[’']/g, "'");
@@ -62,8 +63,11 @@ export function suggest(q: string): Reference[] {
 
 /** Find dictionary entries mentioned anywhere in free text (e.g. OCR output of a supplement label). */
 export function matchInText(text: string): Reference[] {
-  const n = " " + norm(text).replace(/[^a-z0-9' -]+/g, " ").replace(/\s+/g, " ") + " ";
-  const hit = (w: string) => n.includes(" " + w + " ") || n.includes(" " + w.replace(/-/g, " ") + " ");
+  // Compare with spaces and hyphens removed, on word boundaries, so "Vitamin D-3" and "Omega 3" match "Vitamin D3" / "Omega-3".
+  const words = norm(text).replace(/[^a-z0-9']+/g, " ").trim().split(" ");
+  const grams = new Set<string>();
+  for (let i = 0; i < words.length; i++) for (let j = i + 1; j <= Math.min(i + 5, words.length); j++) grams.add(words.slice(i, j).join(""));
+  const hit = (w: string) => grams.has(w.replace(/[^a-z0-9']+/g, ""));
   return DICTIONARY.filter((r) => hit(norm(r.name)) || r.aliases?.some(hit));
 }
 

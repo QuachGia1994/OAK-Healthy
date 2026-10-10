@@ -65,7 +65,7 @@ export function StackManager() {
   const share = async () => {
     const tid = toast.loading(t("Creating encrypted share link…"));
     try {
-      await shareStack(t("{name}'s stack", { name: profile?.name ?? "My" }), rows.length ? rows : routines);
+      await shareStack(profile?.name ? t("{name}'s stack", { name: profile.name }) : t("My stack"), rows.length ? rows : routines);
       toast.success(t("Share link copied"), { id: tid, description: t("The decryption key is in the link, never on our server.") });
     } catch (e) { toast.error(String((e as Error).message), { id: tid }); }
   };

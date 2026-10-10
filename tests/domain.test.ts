@@ -67,7 +67,7 @@ import { byMarker, markerStatus } from "../lib/domain/biomarkers.ts";
 test("knowledge base: aliases, sources and new clashes", () => {
   assert.ok(DICTIONARY.length >= 35);
   assert.equal(findReference("cholecalciferol")?.name, "Vitamin D3");
-  assert.ok(DICTIONARY.filter((r) => r.source).every((r) => r.source!.startsWith("https://")));
+  assert.ok(DICTIONARY.every((r) => r.source?.startsWith("https://")), "every entry cites a source");
   const out = analyze([R({ id: "a", name: "Psyllium", time: "19:00" }), R({ id: "b", name: "Magnesium", time: "19:30" })]);
   assert.ok(out.some((i) => i.level === "clash" && i.ids.includes("a") && i.ids.includes("b")));
   assert.ok(analyze([R({ id: "z", name: "Zinc", time: "23:00" })]).some((i) => i.level === "timing"));
@@ -80,6 +80,10 @@ test("label OCR parsing finds name, dose and count", () => {
   assert.equal(g.stock, 120);
   assert.equal(g.perDose, 1);
   assert.equal(matchInText("Magnesium Glycinate 200 mg")[0]?.name, "Magnesium");
+  assert.equal(parseLabel("Vitamin D-3 5000 IU\n60 Softgels").name, "Vitamin D3");
+  assert.equal(parseLabel("Omega 3 Fish Oil 1000 mg").name, "Omega-3");
+  assert.equal(parseLabel("Lion's Mane 500 mg").name, "Lion's Mane");
+  assert.equal(matchInText("Vitamin D3 2000 IU").length, 1);
 });
 
 test("biomarker status and grouping", () => {

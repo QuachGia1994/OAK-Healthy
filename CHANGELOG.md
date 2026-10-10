@@ -6,6 +6,12 @@ versioning where practical.
 
 ## [Unreleased]
 
+### Fixed
+
+- Label scan matches names regardless of spaces and hyphens ("Vitamin D-3", "Omega 3").
+- Every knowledge-base entry now cites a source (13 entries had none).
+- Vietnamese UI: greeting, toast region label and the default shared-stack title are translated.
+
 ## [2.1.0] - 2026-10-10
 
 ### Added
