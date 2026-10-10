@@ -1,3 +1,0 @@
-include ':app'
-include ':baselineprofile'
-rootProject.name = "SupplementTracker"

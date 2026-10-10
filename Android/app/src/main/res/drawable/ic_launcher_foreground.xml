@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- The source mark is optically 4dp low; translate without resizing it. -->
-    <item
-        android:bottom="4dp"
-        android:drawable="@drawable/oak_app_icon"
-        android:top="-4dp" />
-</layer-list>
