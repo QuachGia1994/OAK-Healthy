@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible Android or iOS defect.
+description: Report a reproducible OAK Healthy web defect.
 title: "[Bug]: "
 labels:
   - bug
@@ -12,18 +12,18 @@ body:
   - type: dropdown
     id: platform
     attributes:
-      label: Platform
+      label: Browser / device
       options:
-        - Android
-        - iOS
-        - Android and iOS
+        - Desktop browser
+        - Mobile browser
+        - Installed PWA
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: App version and OS version
-      placeholder: OAK Healthy 1.0.1, Android 16 or iOS 18.5
+      placeholder: OAK Healthy 2.0.0, Chrome 140 on Windows 11
     validations:
       required: true
   - type: textarea

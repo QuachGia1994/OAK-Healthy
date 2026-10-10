@@ -21,11 +21,11 @@ body:
   - type: dropdown
     id: platform
     attributes:
-      label: Platform scope
+      label: Area
       options:
-        - Android and iOS
-        - Android
-        - iOS
+        - UI
+        - Sync / share
+        - Insights / engine
         - Documentation or infrastructure
     validations:
       required: true

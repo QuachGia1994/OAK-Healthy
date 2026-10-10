@@ -1,43 +1,22 @@
-Android/.gradle/
-Android/.kotlin/
-Android/local.properties
-Android/build/
-Android/app/build/
-Android/gradle/gradle-daemon-jvm.properties
-Android/.idea/
-Android/**/*.iml
-Android/**/.cxx/
-Android/**/.externalNativeBuild/
-Android/**/build/
-Android/_tmp_*/
-Android/_tmp_*.*
-.trae/
-IOS Build.txt
+# Dependencies & build output
+node_modules/
+.next/
+out/
+.wrangler/
+next-env.d.ts
+*.tsbuildinfo
+
+# Local env / secrets
+.env*
+.dev.vars*
+
+# OS / IDE / tooling noise
 **/.DS_Store
-**/node_modules/
-**/*.xcconfig
-**/__pycache__/
-**/*.pyc
-backups/
-*Build*.txt
-*build error*.txt
-
-*.ips
-Data/
-*.log
-/Info.plist
-.iOS Build.txt
-
-# Firebase config files
-Android/app/google-services.json
-
-# Debug files with internal IPs
+.idea/
+.vscode/
+.trae/
 .dbg/
-
-# Android secrets
-Android/local.properties
-Android/keystore.properties
-
-# Build/test log dumps (transient)
-Android/phrase*.txt
-Android/compile_run*.txt
+**/__pycache__/
+*.log
+*Build*.txt
+backups/

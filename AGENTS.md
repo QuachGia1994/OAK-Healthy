@@ -102,17 +102,17 @@ Access control • Business logic • Race conditions • Injection • Auth •
 
 ---
 
-## Swift / SwiftUI Specific Rules (APPLE-TRADER)
+## Web / TypeScript Specific Rules (OAK Healthy web)
 
-When working with Swift/SwiftUI (especially trading/financial apps):
+When working on this Next.js + Cloudflare Workers app:
 
-- **Tech Stack**: Swift 6.2+, SwiftUI + @Observable, Protocol-Oriented Programming, value types (struct/enum) for models and state. async/await only. No UIKit.
-- **Performance**: Use Span & inline arrays for hot paths.
-- **Clean Code**: Mandatory early returns with `guard`. Max ~30 lines per function. Descriptive naming. DocC for public APIs. No dead code.
-- **Error Handling**: Define explicit `Error` enums. Use `do-catch` or `Result`. **No `try!`**. No silent failures.
-- **Architecture**: Apply Clean Architecture (Robert C. Martin) + Thinking in SwiftUI patterns (Chris Eidhof). Keep UI layer thin.
-- **Minimalism + Taste**: Combine Ponytail + Design Dials. Prefer native SwiftUI modifiers and small `ViewModifier`s over new custom views.
-- **Security**: Pay special attention to state manipulation, concurrency (actors/MainActor), local storage, and auth flows.
+- **Tech Stack**: Next.js 15 static export, React 19, TypeScript strict, Tailwind CSS v4, Radix / cmdk / vaul / sonner, Dexie (IndexedDB), Web Crypto, Cloudflare Workers + D1. Node ≥ 22.6.
+- **Domain first**: date, cycle, timing, adherence and interaction rules live only in `lib/domain/` as pure functions with `node:test` coverage in `tests/`. UI never re-implements them.
+- **Local-first**: writes go through `lib/db.ts` helpers in Dexie transactions; every record has `updatedAt` and a `deletedAt` tombstone. Never hard-delete synced records.
+- **Zero-knowledge**: the Worker only stores ciphertext. Never send plaintext health data, keys or share fragments to the server or logs.
+- **Clean Code**: early returns, small functions (~30 lines), descriptive names, no `any`, no dead code, explicit error states (no silent failures).
+- **UI Taste**: Dub.co-style neutrals with OAK semantic colors (see `DESIGN.md`). Every mutation gives feedback; reversible ones offer Undo. Keyboard-first (`⌘K`, `C`, `/`).
+- **Security**: validate ids and body sizes in the Worker, parameterize all D1 queries, use optimistic revisions for concurrent writes.
 
 ---
 
