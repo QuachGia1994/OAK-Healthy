@@ -6,6 +6,10 @@ versioning where practical.
 
 ## [Unreleased]
 
+### Added
+
+- Public `/privacy` page (English + Vietnamese) linked from the sign-in screens; required by the Google sign-in consent screen.
+
 ### Fixed
 
 - Label scan matches names regardless of spaces and hyphens ("Vitamin D-3", "Omega 3").

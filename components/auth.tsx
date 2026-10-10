@@ -25,6 +25,7 @@ function Shell({ title, sub, children, foot }: { title: string; sub?: string; ch
         <div className="card p-5">{children}</div>
         {foot && <div className="mt-5 text-center text-sm text-neutral-600 dark:text-neutral-400">{foot}</div>}
         <p className="mt-6 flex items-start justify-center gap-1.5 text-center text-xs text-neutral-500"><ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-taken" />{t("Your password never leaves this device. It unlocks your encrypted vault; we can't read your data.")}</p>
+        <p className="mt-1 text-center text-xs"><Link href="/privacy/" className="inline-flex min-h-11 items-center text-neutral-500 underline-offset-4 hover:underline">{t("Privacy")}</Link></p>
       </main>
     </div>
   );
@@ -263,5 +264,48 @@ export function AccountView() {
         <button className="btn text-missed" onClick={() => { if (confirm(t("Delete your account?"))) void run(async () => { await deleteAccount(); router.push("/"); }, "Account deleted"); }}>{t("Delete")}</button>
       </section>
     </div>
+  );
+}
+
+const PRIVACY: [string, string][] = [
+  [
+    "On this device",
+    "Profiles, supplements, doses, schedules, cycles, inventory, intake history and biomarker results are stored in your browser. By default nothing is sent to any server. Label photos are read on your device and never uploaded."
+  ],
+  [
+    "Account (optional)",
+    "If you create an account we store your email address, a random salt, a hash of a value derived from your password, and your sync key encrypted with a key only your password can produce. If you sign in with Google or GitHub we also store that account id and your verified email. We never receive your password or your unencrypted data."
+  ],
+  [
+    "Encrypted sync, shares and circles (optional)",
+    "Synced data, shared stacks and circle views are encrypted on your device. The server stores only ciphertext and technical identifiers; we cannot read the content. Anyone with a full share or circle link can view it until it expires or you revoke it."
+  ],
+  [
+    "Reminders (optional)",
+    "If you turn on reminders we store your browser's push endpoint and the times to notify you. Notifications carry no health data."
+  ],
+  [
+    "Email",
+    "Password-reset emails are sent through our email provider (Resend) to the address you enter."
+  ],
+  [
+    "What we do not do",
+    "No analytics, no advertising identifiers, no selling or sharing of data. Cloudflare processes standard request metadata (IP address, user agent) to run and protect the service; IPs are used briefly for rate limiting."
+  ],
+  [
+    "Deletion",
+    "Delete your account in Account → Delete account. Clear site data in your browser to delete local data. Turn off reminders or revoke circles in Settings."
+  ]
+];
+
+export function PrivacyView() {
+  const t = useT();
+  return (
+    <Shell title={t("Privacy policy")} sub={t("OAK Healthy is a supplement and routine tracker, not a medical device.")}>
+      <div className="space-y-4 text-sm">
+        {PRIVACY.map(([h, p]) => (<section key={h}><h2 className="font-medium">{t(h)}</h2><p className="mt-1 text-neutral-600 dark:text-neutral-400">{t(p)}</p></section>))}
+        <p className="text-neutral-500">{t("Contact")}: <a href="mailto:kim.phong619@gmail.com" className="inline-flex min-h-11 items-center underline-offset-4 hover:underline">kim.phong619@gmail.com</a></p>
+      </div>
+    </Shell>
   );
 }

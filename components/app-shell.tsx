@@ -24,7 +24,7 @@ export const NAV = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const t = useT();
-  const bare = /^\/(s|c|login|signup|forgot|reset)(\/|$)/.test(path ?? "");
+  const bare = /^\/(s|c|login|signup|forgot|reset|privacy)(\/|$)/.test(path ?? "");
   const create = useCallback(() => openRoutine(null), []);
   useHotkey("c", create);
   useEffect(() => { const l = getLang(); document.documentElement.lang = l; void setMeta("lang", l); }, []);
