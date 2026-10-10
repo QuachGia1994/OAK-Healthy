@@ -54,13 +54,13 @@ export function RoutineDrawer() {
   const apply = (name: string) => {
     const s = findReference(name);
     if (!s) return;
-    setR({ ...r, name: s.name, time: s.time, dose: s.dose ?? r.dose, cycle: { ...s.cycle, durationDays: r.cycle.durationDays ?? null }, category: s.category, note: r.note || s.advice });
+    setR({ ...r, name: s.name, time: s.time, dose: s.dose ?? r.dose, cycle: { ...s.cycle, durationDays: r.cycle.durationDays ?? null }, category: s.category, note: r.note || t(s.advice) });
     setFocus(false);
   };
   const fromLabel = (g: LabelGuess) => {
     const s = g.ref;
     setR({ ...r, name: s?.name ?? r.name, time: s?.time ?? r.time, dose: g.dose ?? r.dose, category: s?.category ?? r.category,
-      cycle: s ? { ...s.cycle, durationDays: r.cycle.durationDays ?? null } : r.cycle, note: r.note || s?.advice || "",
+      cycle: s ? { ...s.cycle, durationDays: r.cycle.durationDays ?? null } : r.cycle, note: r.note || (s ? t(s.advice) : ""),
       stock: g.stock ?? r.stock, perDose: g.perDose ?? r.perDose });
   };
   const save = async () => {

@@ -10,7 +10,8 @@ versioning where practical.
 
 - Label scan matches names regardless of spaces and hyphens ("Vitamin D-3", "Omega 3").
 - Every knowledge-base entry now cites a source (13 entries had none).
-- Vietnamese UI: greeting, toast region label and the default shared-stack title are translated.
+- Vietnamese UI: greeting, toast region label, the default shared-stack title and the Notes prefill (dictionary advice) are translated.
+- Label scan reads Vietnamese labels too (`eng+vie` OCR) when the UI is in Vietnamese.
 
 ## [2.1.0] - 2026-10-10
 

@@ -62,12 +62,16 @@ test("interaction engine flags clashes and late stimulants", () => {
 
 import { matchInText, findReference, DICTIONARY } from "../lib/domain/knowledge.ts";
 import { parseLabel } from "../lib/domain/label.ts";
+import { VI } from "../lib/i18n-vi.ts";
 import { byMarker, markerStatus } from "../lib/domain/biomarkers.ts";
 
 test("knowledge base: aliases, sources and new clashes", () => {
   assert.ok(DICTIONARY.length >= 35);
   assert.equal(findReference("cholecalciferol")?.name, "Vitamin D3");
-  assert.ok(DICTIONARY.every((r) => r.source?.startsWith("https://")), "every entry cites a source");
+  const hosts = new Set(["ods.od.nih.gov", "www.nccih.nih.gov", "medlineplus.gov", "examine.com"]);
+  assert.ok(DICTIONARY.every((r) => r.source?.startsWith("https://") && hosts.has(new URL(r.source).host)), "every entry cites a source on an allowed host");
+  assert.equal(new Set(DICTIONARY.map((r) => r.source)).size, DICTIONARY.length, "sources are distinct");
+  assert.deepEqual(DICTIONARY.filter((r) => !VI[r.advice]).map((r) => r.name), [], "every advice has a Vietnamese translation");
   const out = analyze([R({ id: "a", name: "Psyllium", time: "19:00" }), R({ id: "b", name: "Magnesium", time: "19:30" })]);
   assert.ok(out.some((i) => i.level === "clash" && i.ids.includes("a") && i.ids.includes("b")));
   assert.ok(analyze([R({ id: "z", name: "Zinc", time: "23:00" })]).some((i) => i.level === "timing"));

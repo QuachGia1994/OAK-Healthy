@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Camera, Loader2 } from "lucide-react";
 import { parseLabel, type LabelGuess } from "@/lib/domain/label";
-import { useT } from "@/lib/i18n";
+import { getLang, useT } from "@/lib/i18n";
 
 /** On-device OCR (tesseract.js, lazy-loaded). The photo is never uploaded. */
 export function LabelScan({ onResult }: { onResult: (g: LabelGuess) => void }) {
@@ -15,7 +15,7 @@ export function LabelScan({ onResult }: { onResult: (g: LabelGuess) => void }) {
     setBusy(true); setPct(0);
     try {
       const { createWorker } = await import("tesseract.js");
-      const w = await createWorker("eng", 1, { logger: (m: { status: string; progress: number }) => { if (m.status === "recognizing text") setPct(Math.round(m.progress * 100)); } });
+      const w = await createWorker(getLang() === "vi" ? "eng+vie" : "eng", 1, { logger: (m: { status: string; progress: number }) => { if (m.status === "recognizing text") setPct(Math.round(m.progress * 100)); } });
       const { data } = await w.recognize(f);
       await w.terminate();
       const g = parseLabel(data.text);
