@@ -1,18 +1,10 @@
 // OAK Healthy edge API: zero-knowledge vault + encrypted share links. Static app served from ./out.
-interface Env { ASSETS: Fetcher; DB: D1Database }
+import { auth, keys, oauth } from "./auth";
+import { armClock, push, remind } from "./push";
+export { ReminderClock } from "./push";
+import { type Env, json, sameOrigin, sha256, shortId, validId } from "./util";
 
-const MAX_VAULT = 1_500_000, MAX_SHARE = 200_000, SHARE_TTL_MS = 365 * 864e5;
-const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-
-async function sha256(s: string) {
-  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
-  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-function shortId(n = 10) {
-  const a = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => a[b % a.length]).join("");
-}
-const validId = (s: string) => /^[A-Za-z0-9_-]{8,64}$/.test(s);
+const MAX_VAULT = 1_500_000, MAX_SHARE = 200_000, MAX_CIRCLE = 400_000, SHARE_TTL_MS = 365 * 864e5;
 
 async function vault(req: Request, env: Env, id: string) {
   if (!validId(id)) return json({ error: "bad id" }, 400);
@@ -61,12 +53,56 @@ async function share(req: Request, env: Env, id?: string) {
   return json({ error: "method" }, 405);
 }
 
+/** Circles: a live, read-only, end-to-end encrypted view of one profile for family or a coach.
+ * The publisher holds a write token; viewers hold only the decryption key in the URL fragment. */
+async function circle(req: Request, env: Env, id?: string) {
+  const token = req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
+  if (req.method === "POST" && !id) {
+    const b = (await req.json().catch(() => null)) as { blob?: string } | null;
+    if (!b || typeof b.blob !== "string" || !b.blob.includes(".") || token.length < 20) return json({ error: "bad body" }, 400);
+    if (b.blob.length > MAX_CIRCLE) return json({ error: "too large" }, 413);
+    const cid = shortId(12);
+    await env.DB.prepare("INSERT INTO circles (id, blob, write_hash, updated_at) VALUES (?, ?, ?, ?)").bind(cid, b.blob, await sha256(token), Date.now()).run();
+    return json({ id: cid }, 201);
+  }
+  if (!id || !validId(id)) return json({ error: "bad id" }, 400);
+  if (req.method === "GET") {
+    const row = await env.DB.prepare("SELECT blob, updated_at FROM circles WHERE id = ?").bind(id).first<{ blob: string; updated_at: number }>();
+    return row ? json({ blob: row.blob, updatedAt: row.updated_at }) : json({ error: "not found" }, 404);
+  }
+  const wh = await sha256(token);
+  if (req.method === "PUT") {
+    const b = (await req.json().catch(() => null)) as { blob?: string } | null;
+    if (!b || typeof b.blob !== "string" || b.blob.length > MAX_CIRCLE) return json({ error: "bad body" }, 400);
+    const r = await env.DB.prepare("UPDATE circles SET blob = ?, updated_at = ? WHERE id = ? AND write_hash = ?").bind(b.blob, Date.now(), id, wh).run();
+    return r.meta.changes ? json({ ok: true }) : json({ error: "forbidden" }, 403);
+  }
+  if (req.method === "DELETE") {
+    await env.DB.prepare("DELETE FROM circles WHERE id = ? AND write_hash = ?").bind(id, wh).run();
+    return json({ ok: true });
+  }
+  return json({ error: "method" }, 405);
+}
+
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const p = url.pathname;
     try {
-      if (p === "/api/health") return json({ ok: true, service: "oak-healthy", time: Date.now() });
+      if (p === "/api/health") { ctx.waitUntil(armClock(env).catch(() => {})); return json({ ok: true, service: "oak-healthy", time: Date.now() }); }
+      if (p.startsWith("/api/auth/") || p.startsWith("/api/keys")) {
+        if (!sameOrigin(req, env, url)) return json({ error: "bad origin" }, 403);
+        let a = p.match(/^\/api\/auth\/oauth\/([a-z]+)\/(start|callback)$/);
+        if (a) return await oauth(req, env, url, a[1], a[2]);
+        a = p.match(/^\/api\/auth\/([a-z]+)$/);
+        if (a) return await auth(req, env, url, a[1]);
+        a = p.match(/^\/api\/keys(?:\/([A-Za-z0-9-]{8,64}))?$/);
+        if (a) return await keys(req, env, a[1]);
+      }
+      let pm = p.match(/^\/api\/push\/([a-z]+)$/);
+      if (pm) return await push(req, env, pm[1]);
+      pm = p.match(/^\/api\/circle(?:\/([^/]+))?$/);
+      if (pm) return await circle(req, env, pm[1]);
       let m = p.match(/^\/api\/vault\/([^/]+)$/);
       if (m) return await vault(req, env, m[1]);
       if (p === "/api/share") return await share(req, env);
@@ -74,13 +110,19 @@ export default {
       if (m) return await share(req, env, m[1]);
       if (p.startsWith("/api/")) return json({ error: "not found" }, 404);
       // Pretty share URL /s/<id> → static share viewer (key stays in #fragment, client-side only).
-      if (/^\/s\/[^/]+\/?$/.test(p)) {
-        const res = await env.ASSETS.fetch(new Request(new URL("/s/", url), req));
+      const pretty = p.match(/^\/(s|c)\/[^/]+\/?$/);
+      if (pretty) {
+        const res = await env.ASSETS.fetch(new Request(new URL(`/${pretty[1]}/`, url), req));
         return new Response(res.body, res);
       }
       return env.ASSETS.fetch(req);
     } catch (e) {
-      return json({ error: "server", detail: String(e) }, 500);
+      console.error("unhandled", p, e);
+      return json({ error: "server" }, 500);
     }
+  },
+  // Optional: if the account has a free cron slot, a "* * * * *" trigger also works; the DO clock is the default.
+  async scheduled(_c: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(remind(env).then((n) => { if (n) console.log("reminders sent", n); }));
   },
 } satisfies ExportedHandler<Env>;

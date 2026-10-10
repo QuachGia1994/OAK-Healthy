@@ -6,6 +6,25 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-10
+
+### Added
+
+- Accounts: email + password sign-up / sign-in / sign-out, forgot and reset password (Resend email, 30-minute single-use token), Google and GitHub sign-in (OAuth code + PKCE), account deletion. Zero-knowledge: PBKDF2 (600k) on device wraps the sync key; the sync key is the recovery code.
+- Passkey vault unlock via WebAuthn PRF.
+- Web Push reminders (VAPID, Worker cron every minute, payload-free pushes composed by the service worker).
+- Label scan: on-device OCR (tesseract.js) prefills name, dose, pill count and serving size.
+- Biomarkers on Insights: 14 markers with typical ranges, status chips and trend lines; synced in the vault.
+- Family & coach circles: live read-only encrypted profile views at `/c/<id>#<key>`, revocable.
+- Knowledge base grows to 37 entries with aliases, food timing, sources and new clashes / synergies.
+- Vietnamese UI with automatic detection and a language toggle.
+
+### Changed
+
+- Mobile layout for iPhone 16 Plus and Meizu Lucky 08: 44 px touch targets, ≥ 12 px text, 16 px inputs (no iOS zoom), single-column cards, safe-area padding, toasts above the bottom nav, Duplicate available in the drawer.
+- Worker split into `auth.ts`, `push.ts`, `util.ts`; CSRF Origin check, D1 rate limits; 500 responses no longer include error details.
+- D1 schema extended (expand-only): users, identities, sessions, reset_tokens, oauth_states, rate_limits, wrapped_keys, push_subs, circles.
+
 ## [2.0.0] - 2026-10-10
 
 ### Changed

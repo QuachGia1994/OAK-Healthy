@@ -6,20 +6,28 @@ OAK Healthy is a supplement and routine tracker. It is not a medical device and 
 
 ## Data on your device
 
-Profile names, supplement names, doses, schedules, cycles, inventory counts and intake history are stored in your browser (IndexedDB) on your device. By default nothing is sent to any server.
+Profiles, supplements, doses, schedules, cycles, inventory, intake history and biomarker results are stored in your browser (IndexedDB). By default nothing is sent to any server. Label photos are read on your device and never uploaded.
 
-## Encrypted sync (optional)
+## Account (optional)
 
-If you turn on sync, your data is encrypted on your device with AES-256-GCM using a key only you hold. OAK Healthy's server (Cloudflare Workers + D1) stores the encrypted blob, a revision number, a random vault identifier and a hash of an access token. We cannot read your data and cannot recover it if you lose your key.
+If you create an account we store your email address, a random salt, a hash of a value derived from your password, and your sync key encrypted with a key only your password can produce. If you sign in with Google or GitHub we also store the provider's account id. We never receive your password or your unencrypted data.
 
-## Share links (optional)
+## Encrypted sync, share links and circles (optional)
 
-When you share a stack, the selected routines (name, dose, time, cycle, category, note) are encrypted with a one-time key that is placed in the link's `#` fragment. The server stores only ciphertext; anyone with the full link can read the shared stack. Shares expire after 365 days.
+Synced data, shared stacks and circle views are encrypted on your device (AES-GCM). The server stores ciphertext plus technical identifiers (vault id, revision, hashed access tokens). We cannot read the content. Anyone with a full share or circle link can view it until it expires (shares: 365 days) or you revoke it (circles).
+
+## Reminders (optional)
+
+If you enable reminders we store your browser's push endpoint and the minutes of the day to notify you. We do not know what you take.
+
+## Email
+
+Password-reset emails are sent through our email provider (Resend) to the address you enter.
 
 ## What we do not do
 
-No accounts, no analytics, no advertising identifiers, no selling or sharing of data. Cloudflare may process standard request metadata (IP address, user agent) to operate and protect the service.
+No analytics, no advertising identifiers, no selling or sharing of data. Cloudflare may process standard request metadata (IP address, user agent) to operate and protect the service; IPs are used briefly for rate limiting.
 
 ## Deletion
 
-Clear the site data in your browser to delete local data. Turning off sync stops uploads; contact the maintainer to delete a vault, or delete it with the API using your sync key.
+Delete your account from **Account → Delete account**. Clear site data in your browser to delete local data. Turn off reminders or revoke circles in Settings; contact the maintainer to delete a vault.

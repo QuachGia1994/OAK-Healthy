@@ -42,3 +42,17 @@ export interface Intake {
   updatedAt: number;
   deletedAt?: number | null;
 }
+
+export interface Biomarker {
+  id: string;
+  clientId: string;
+  /** Key into BIOMARKERS reference table, or a custom name. */
+  marker: string;
+  value: number;
+  unit: string;
+  /** Calendar day of the lab draw, YYYY-MM-DD. */
+  date: string;
+  note?: string;
+  updatedAt: number;
+  deletedAt?: number | null;
+}

@@ -59,3 +59,37 @@ test("interaction engine flags clashes and late stimulants", () => {
   assert.ok(out.some((i) => i.level === "clash" && i.title.includes("Iron")));
   assert.ok(out.some((i) => i.level === "timing" && i.title.includes("Caffeine")));
 });
+
+import { matchInText, findReference, DICTIONARY } from "../lib/domain/knowledge.ts";
+import { parseLabel } from "../lib/domain/label.ts";
+import { byMarker, markerStatus } from "../lib/domain/biomarkers.ts";
+
+test("knowledge base: aliases, sources and new clashes", () => {
+  assert.ok(DICTIONARY.length >= 35);
+  assert.equal(findReference("cholecalciferol")?.name, "Vitamin D3");
+  assert.ok(DICTIONARY.filter((r) => r.source).every((r) => r.source!.startsWith("https://")));
+  const out = analyze([R({ id: "a", name: "Psyllium", time: "19:00" }), R({ id: "b", name: "Magnesium", time: "19:30" })]);
+  assert.ok(out.some((i) => i.level === "clash" && i.ids.includes("a") && i.ids.includes("b")));
+  assert.ok(analyze([R({ id: "z", name: "Zinc", time: "23:00" })]).some((i) => i.level === "timing"));
+});
+
+test("label OCR parsing finds name, dose and count", () => {
+  const g = parseLabel("NOW Foods\nVitamin D-3 (as cholecalciferol) 5,000 IU\n120 Softgels\nServing size: 1 softgel");
+  assert.equal(g.name, "Vitamin D3");
+  assert.equal(g.dose, "5000 IU");
+  assert.equal(g.stock, 120);
+  assert.equal(g.perDose, 1);
+  assert.equal(matchInText("Magnesium Glycinate 200 mg")[0]?.name, "Magnesium");
+});
+
+test("biomarker status and grouping", () => {
+  assert.equal(markerStatus({ marker: "vitd", value: 18, unit: "ng/mL" }), "low");
+  assert.equal(markerStatus({ marker: "vitd", value: 45, unit: "ng/mL" }), "normal");
+  assert.equal(markerStatus({ marker: "vitd", value: 45, unit: "nmol/L" }), "unknown");
+  const g = byMarker([
+    { id: "1", clientId: "p", marker: "vitd", value: 18, unit: "ng/mL", date: "2026-01-01", updatedAt: 1 },
+    { id: "2", clientId: "p", marker: "vitd", value: 40, unit: "ng/mL", date: "2026-06-01", updatedAt: 2 },
+  ]);
+  assert.equal(g[0].latest.value, 40);
+  assert.equal(g[0].series.length, 2);
+});

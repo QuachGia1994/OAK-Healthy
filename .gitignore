@@ -20,3 +20,5 @@ next-env.d.ts
 *.log
 *Build*.txt
 backups/
+worker/worker-configuration.d.ts
+.dev.vars

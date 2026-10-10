@@ -7,10 +7,12 @@
     "directory": "./out",
     "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "run_worker_first": ["/api/*", "/s/*"]
+    "run_worker_first": ["/api/*", "/s/*", "/c/*"]
   },
   "d1_databases": [
     { "binding": "DB", "database_name": "oak-healthy", "database_id": "eeb4ba1d-667c-41b0-8ca6-7402b4879d4d" }
   ],
+  "durable_objects": { "bindings": [{ "name": "CLOCK", "class_name": "ReminderClock" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReminderClock"] }],
   "observability": { "enabled": true }
 }

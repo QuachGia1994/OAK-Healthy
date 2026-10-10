@@ -1,5 +1,6 @@
 "use client";
 import type { DoseState } from "@/lib/domain/timing";
+import { useT } from "@/lib/i18n";
 
 export function Logo({ size = 24 }: { size?: number }) {
   return (
@@ -22,7 +23,8 @@ export const STATE_STYLE: Record<DoseState, { label: string; cls: string; dot: s
 
 export function StatusBadge({ state }: { state: DoseState }) {
   const s = STATE_STYLE[state];
-  return <span className={`chip ${s.cls}`}><span className={`size-1.5 rounded-full ${s.dot}`} />{s.label}</span>;
+  const t = useT();
+  return <span className={`chip shrink-0 ${s.cls}`}><span className={`size-1.5 rounded-full ${s.dot}`} />{t(s.label)}</span>;
 }
 
 export function Ring({ value, size = 112, stroke = 10, label }: { value: number | null; size?: number; stroke?: number; label?: string }) {
@@ -36,7 +38,7 @@ export function Ring({ value, size = 112, stroke = 10, label }: { value: number 
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-2xl font-semibold tracking-tight tabular">{value == null ? "—" : `${Math.round(v * 100)}%`}</span>
-        {label && <span className="text-[11px] text-neutral-500">{label}</span>}
+        {label && <span className="text-xs text-neutral-500">{label}</span>}
       </div>
     </div>
   );
@@ -58,8 +60,8 @@ export function Sparkline({ values, height = 48 }: { values: (number | null)[]; 
 export function PageHeader({ title, sub, children }: { title: string; sub?: string; children?: React.ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-      <div><h1 className="text-2xl font-semibold tracking-tight">{title}</h1>{sub && <p className="mt-1 text-sm text-neutral-500">{sub}</p>}</div>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+      <div className="min-w-0"><h1 className="text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">{title}</h1>{sub && <p className="mt-1 text-sm text-neutral-500">{sub}</p>}</div>
+      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>
   );
 }

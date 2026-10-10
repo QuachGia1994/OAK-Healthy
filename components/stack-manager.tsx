@@ -1,4 +1,5 @@
 "use client";
+import { useT } from "@/lib/i18n";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Copy, Pause, Play, Plus, Search, Share2 } from "lucide-react";
@@ -11,7 +12,7 @@ import { analyze } from "@/lib/domain/knowledge";
 import { sealShare } from "@/lib/crypto";
 import type { Category, Routine } from "@/lib/domain/types";
 import { Empty, PageHeader } from "./ui";
-import { CATEGORIES, openRoutine } from "./routine-drawer";
+import { CATEGORIES, openRoutine, duplicateRoutine } from "./routine-drawer";
 
 type StatusFilter = "all" | "active" | "off" | "paused";
 
@@ -41,6 +42,7 @@ export async function shareStack(name: string, routines: Routine[]) {
 
 export function StackManager() {
   const { routines, profile } = useOak();
+  const t = useT();
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<Category | "all">("all");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -61,50 +63,50 @@ export function StackManager() {
   const counts = Object.fromEntries(CATEGORIES.map((c) => [c, routines.filter((r) => r.category === c).length]));
 
   const share = async () => {
-    const t = toast.loading("Creating encrypted share link…");
+    const tid = toast.loading(t("Creating encrypted share link…"));
     try {
-      await shareStack(`${profile?.name ?? "My"}'s stack`, rows.length ? rows : routines);
-      toast.success("Share link copied", { id: t, description: "The decryption key is in the link, never on our server." });
-    } catch (e) { toast.error(String((e as Error).message), { id: t }); }
+      await shareStack(t("{name}'s stack", { name: profile?.name ?? "My" }), rows.length ? rows : routines);
+      toast.success(t("Share link copied"), { id: tid, description: t("The decryption key is in the link, never on our server.") });
+    } catch (e) { toast.error(String((e as Error).message), { id: tid }); }
   };
   const togglePause = async (r: Routine) => {
     await saveRoutine({ ...r, paused: !r.paused });
-    toast(`${r.name} ${r.paused ? "resumed" : "paused"}`, { action: { label: "Undo", onClick: () => saveRoutine({ ...r }) } });
+    toast(`${r.name} · ${t(r.paused ? "resumed" : "paused")}`, { action: { label: t("Undo"), onClick: () => saveRoutine({ ...r }) } });
   };
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title="Stack" sub={`${routines.length} routines · ${routines.filter((r) => routineStatus(r, today) === "active").length} active today`}>
-        <button onClick={share} disabled={!routines.length} className="btn"><Share2 className="size-4" /> Share</button>
-        <button onClick={() => openRoutine(null)} className="btn-primary"><Plus className="size-4" /> Create <span className="kbd border-white/20 bg-white/10 text-white/70 dark:text-neutral-600">C</span></button>
+      <PageHeader title={t("Stack")} sub={t("{n} routines · {a} active today", { n: routines.length, a: routines.filter((r) => routineStatus(r, today) === "active").length })}>
+        <button onClick={share} disabled={!routines.length} className="btn"><Share2 className="size-4" /> {t("Share")}</button>
+        <button onClick={() => openRoutine(null)} className="btn-primary hidden md:inline-flex"><Plus className="size-4" /> {t("Create")} <span className="kbd border-white/20 bg-white/10 text-white/70 dark:text-neutral-600">C</span></button>
       </PageHeader>
 
       {routines.length === 0 ? (
-        <Empty title="No routines yet" sub="Press C anywhere to add one. Try “Vitamin D3” or “Magnesium” to auto-fill the best time and cycle." action={<button onClick={() => openRoutine(null)} className="btn-primary"><Plus className="size-4" /> Create routine</button>} />
+        <Empty title={t("No routines yet")} sub={t("Press C anywhere to add one. Try “Vitamin D3” or “Magnesium” to auto-fill the best time and cycle.")} action={<button onClick={() => openRoutine(null)} className="btn-primary"><Plus className="size-4" /> {t("Create routine")}</button>} />
       ) : (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" />
-              <input ref={search} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search routines" className="input pl-9 pr-8" />
-              <span className="kbd absolute right-2 top-1/2 -translate-y-1/2">/</span>
+              <input ref={search} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search routines")} className="input pl-9 pr-8" />
+              <span className="kbd absolute hidden md:inline-flex right-2 top-1/2 -translate-y-1/2">/</span>
             </div>
-            <div className="flex rounded-lg border border-neutral-200 bg-white p-0.5 text-sm dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="flex w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white p-0.5 text-sm sm:w-auto dark:border-neutral-800 dark:bg-neutral-900">
               {(["all", "active", "off", "paused"] as StatusFilter[]).map((s) => (
-                <button key={s} onClick={() => setStatus(s)} className={`h-7 rounded-md px-2.5 capitalize transition ${status === s ? "bg-neutral-100 font-medium dark:bg-neutral-800" : "text-neutral-500"}`}>{s === "off" ? "Off-cycle" : s}</button>
+                <button key={s} onClick={() => setStatus(s)} className={`h-11 flex-1 whitespace-nowrap rounded-md px-2.5 transition md:h-7 md:flex-none ${status === s ? "bg-neutral-100 font-medium dark:bg-neutral-800" : "text-neutral-500"}`}>{t(s === "off" ? "Off-cycle" : s === "all" ? "All" : s === "active" ? "Active" : "Paused")}</button>
               ))}
             </div>
           </div>
           <div className="mb-4 flex flex-wrap gap-1.5">
-            <button onClick={() => setCat("all")} className={`chip ${cat === "all" ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>All {routines.length}</button>
+            <button onClick={() => setCat("all")} className={`chip chip-btn ${cat === "all" ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{t("All")} {routines.length}</button>
             {CATEGORIES.filter((c) => counts[c]).map((c) => (
-              <button key={c} onClick={() => setCat(c)} className={`chip capitalize ${cat === c ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{c} <span className="opacity-60">{counts[c]}</span></button>
+              <button key={c} onClick={() => setCat(c)} className={`chip chip-btn ${cat === c ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{t(c)} <span className="opacity-60">{counts[c]}</span></button>
             ))}
           </div>
 
           <div className="card overflow-hidden">
             <div className="hidden grid-cols-[1fr_90px_140px_110px_110px_76px] gap-3 border-b border-neutral-100 bg-neutral-50/60 px-4 py-2 text-xs font-medium text-neutral-500 md:grid dark:border-neutral-800 dark:bg-neutral-900">
-              <span>Name</span><span>Time</span><span>Cycle</span><span>Inventory</span><span>Status</span><span />
+              <span>{t("Name")}</span><span>{t("Time")}</span><span>{t("Cycle")}</span><span>{t("Inventory")}</span><span>{t("Status")}</span><span />
             </div>
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {rows.map((r) => {
@@ -115,23 +117,23 @@ export function StackManager() {
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800">{r.name.slice(0, 2)}</span>
                       <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 truncate text-sm font-medium">{r.name}{clashIds.has(r.id) && <AlertTriangle className="size-3.5 text-missed" aria-label="Interaction" />}</p>
-                        <p className="truncate text-xs text-neutral-500"><span className="capitalize">{r.category}</span> · {r.dose || "—"} <span className="md:hidden">· {r.time}</span></p>
+                        <p className="flex items-center gap-1.5 truncate text-sm font-medium">{r.name}{clashIds.has(r.id) && <AlertTriangle className="size-3.5 text-missed" aria-label={t("Interaction")} />}</p>
+                        <p className="truncate text-xs text-neutral-500"><span>{t(r.category)}</span> · {r.dose || "—"} <span className="md:hidden">· {r.time}</span></p>
                       </div>
                     </div>
                     <span className="hidden font-mono text-sm text-neutral-600 md:block dark:text-neutral-400">{r.time}</span>
                     <span className="hidden text-sm text-neutral-600 md:block dark:text-neutral-400">{cycleLabel(r.cycle)}{r.cycle.durationDays ? ` · ${r.cycle.durationDays}d` : ""}</span>
                     <span className="hidden text-sm md:block">{left == null ? <span className="text-neutral-400">—</span> : <span className={`tabular ${left <= 7 ? "font-medium text-skipped" : "text-neutral-600 dark:text-neutral-400"}`}>{r.stock} · {left}d</span>}</span>
-                    <span className="hidden md:block"><span className={`chip ${STATUS_CLS[s]}`}>{STATUS_LABEL[s]}</span></span>
+                    <span className="hidden md:block"><span className={`chip ${STATUS_CLS[s]}`}>{t(STATUS_LABEL[s])}</span></span>
                     <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                      <span className={`chip md:hidden ${STATUS_CLS[s]}`}>{STATUS_LABEL[s]}</span>
-                      <button aria-label={r.paused ? "Resume" : "Pause"} onClick={() => togglePause(r)} className="hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800">{r.paused ? <Play className="size-4" /> : <Pause className="size-4" />}</button>
-                      <button aria-label="Duplicate" onClick={() => { void saveRoutine({ ...r, id: crypto.randomUUID(), name: `${r.name} (copy)` }); toast.success("Duplicated"); }} className="hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800"><Copy className="size-4" /></button>
+                      <span className={`chip md:hidden ${STATUS_CLS[s]}`}>{t(STATUS_LABEL[s])}</span>
+                      <button aria-label={t(r.paused ? "Resume" : "Pause")} onClick={() => togglePause(r)} className="hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800">{r.paused ? <Play className="size-4" /> : <Pause className="size-4" />}</button>
+                      <button aria-label={t("Duplicate")} onClick={() => duplicateRoutine(r)} className="hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800"><Copy className="size-4" /></button>
                     </div>
                   </li>
                 );
               })}
-              {rows.length === 0 && <li className="px-4 py-10 text-center text-sm text-neutral-500">No routines match these filters.</li>}
+              {rows.length === 0 && <li className="px-4 py-10 text-center text-sm text-neutral-500">{t("No routines match these filters.")}</li>}
             </ul>
           </div>
         </>

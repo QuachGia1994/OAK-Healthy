@@ -1,6 +1,6 @@
 "use client";
 import Dexie, { type Table } from "dexie";
-import type { Intake, Profile, Routine } from "./domain/types";
+import type { Biomarker, Intake, Profile, Routine } from "./domain/types";
 import { toLocalDay } from "./domain/day";
 import { doseKey } from "./domain/schedule";
 
@@ -11,6 +11,7 @@ class OakDB extends Dexie {
   routines!: Table<Routine, string>;
   intakes!: Table<Intake, string>;
   meta!: Table<Meta, string>;
+  biomarkers!: Table<Biomarker, string>;
   constructor() {
     super("oak-healthy");
     this.version(1).stores({
@@ -19,6 +20,7 @@ class OakDB extends Dexie {
       intakes: "key, clientId, supplementId, scheduledAt, updatedAt",
       meta: "key",
     });
+    this.version(2).stores({ biomarkers: "id, clientId, marker, date, updatedAt" });
   }
 }
 
@@ -85,10 +87,20 @@ export function blankRoutine(clientId: string): Routine {
   };
 }
 
-export interface Snapshot { v: 1; profiles: Profile[]; routines: Routine[]; intakes: Intake[] }
+export interface Snapshot { v: 1; profiles: Profile[]; routines: Routine[]; intakes: Intake[]; biomarkers?: Biomarker[] }
 
 export async function snapshot(): Promise<Snapshot> {
-  return { v: 1, profiles: await db.profiles.toArray(), routines: await db.routines.toArray(), intakes: await db.intakes.toArray() };
+  return { v: 1, profiles: await db.profiles.toArray(), routines: await db.routines.toArray(), intakes: await db.intakes.toArray(), biomarkers: await db.biomarkers.toArray() };
+}
+
+export async function saveBiomarker(b: Biomarker) {
+  await db.biomarkers.put({ ...b, updatedAt: Date.now() });
+  changed();
+}
+export async function deleteBiomarker(id: string, deleted = true) {
+  const b = await db.biomarkers.get(id);
+  if (b) await db.biomarkers.put({ ...b, deletedAt: deleted ? Date.now() : null, updatedAt: Date.now() });
+  changed();
 }
 
 const newer = <T extends { updatedAt: number }>(a: T | undefined, b: T) => !a || b.updatedAt > a.updatedAt;
@@ -96,10 +108,11 @@ const newer = <T extends { updatedAt: number }>(a: T | undefined, b: T) => !a ||
 /** Last-writer-wins merge by updatedAt; tombstones (deletedAt) win when newer. */
 export async function mergeSnapshot(s: Snapshot): Promise<number> {
   let n = 0;
-  await db.transaction("rw", db.profiles, db.routines, db.intakes, async () => {
+  await db.transaction("rw", [db.profiles, db.routines, db.intakes, db.biomarkers], async () => {
     for (const p of s.profiles ?? []) if (newer(await db.profiles.get(p.id), p)) { await db.profiles.put(p); n++; }
     for (const r of s.routines ?? []) if (newer(await db.routines.get(r.id), r)) { await db.routines.put(r); n++; }
     for (const i of s.intakes ?? []) if (newer(await db.intakes.get(i.key), i)) { await db.intakes.put(i); n++; }
+    for (const b of s.biomarkers ?? []) if (newer(await db.biomarkers.get(b.id), b)) { await db.biomarkers.put(b); n++; }
   });
   if (n) changed();
   return n;
