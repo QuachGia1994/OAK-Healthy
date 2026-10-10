@@ -8,7 +8,12 @@ const COOKIE = "oak_sid";
 const emailOk = (e: unknown): e is string => typeof e === "string" && e.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const normEmail = (e: string) => e.trim().toLowerCase();
 const isB64 = (s: unknown, min: number, max: number): s is string => typeof s === "string" && s.length >= min && s.length <= max && /^[A-Za-z0-9_.-]+$/.test(s);
-const secret = (env: Env) => env.AUTH_SECRET || "dev-only-secret-set-AUTH_SECRET";
+// Fail closed: without AUTH_SECRET only local dev (DEV_MAIL=1) may use a fixed secret; production requests 500.
+const secret = (env: Env) => {
+  if (env.AUTH_SECRET) return env.AUTH_SECRET;
+  if (env.DEV_MAIL === "1") return "dev-only-secret-set-AUTH_SECRET";
+  throw new Error("AUTH_SECRET is not set");
+};
 const tooMany = () => json({ error: "Too many attempts. Try again later." }, 429);
 
 interface User { id: string; email: string; salt: string | null; auth_hash: string | null; wrapped: string | null; created_at: number }
@@ -170,7 +175,11 @@ const OA = {
   github: { auth: "https://github.com/login/oauth/authorize", token: "https://github.com/login/oauth/access_token", scope: "read:user user:email" },
 };
 const creds = (env: Env, p: P) => (p === "google" ? [env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET] : [env.GITHUB_CLIENT_ID, env.GITHUB_CLIENT_SECRET]);
-const back = (env: Env, url: URL, q: string) => Response.redirect(`${appOrigin(env, url)}/login/?${q}`, 302);
+const STATE_COOKIE = "oak_oauth";
+// The state is bound to this browser by an HttpOnly cookie (login-CSRF / forced account linking defence).
+const stateCookie = (url: URL, value: string, maxAge: number) =>
+  `${STATE_COOKIE}=${value}; Path=/api/auth/oauth/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${url.protocol === "https:" ? "; Secure" : ""}`;
+const back = (env: Env, url: URL, q: string) => new Response(null, { status: 302, headers: { location: `${appOrigin(env, url)}/login/?${q}`, "set-cookie": stateCookie(url, "", 0) } });
 
 export async function oauth(req: Request, env: Env, url: URL, p: string, step: string): Promise<Response> {
   if (p !== "google" && p !== "github") return json({ error: "unknown provider" }, 404);
@@ -185,12 +194,14 @@ export async function oauth(req: Request, env: Env, url: URL, p: string, step: s
     await env.DB.prepare("INSERT INTO oauth_states (state, provider, verifier, expires_at) VALUES (?, ?, ?, ?)").bind(state, p, verifier, Date.now() + OAUTH_MS).run();
     const q = new URLSearchParams({ client_id: id, redirect_uri: redirect, response_type: "code", scope: OA[p].scope, state, code_challenge: challenge, code_challenge_method: "S256" });
     if (p === "google") q.set("prompt", "select_account");
-    return Response.redirect(`${OA[p].auth}?${q}`, 302);
+    return new Response(null, { status: 302, headers: { location: `${OA[p].auth}?${q}`, "set-cookie": stateCookie(url, state, OAUTH_MS / 1000) } });
   }
 
   if (step === "callback") {
     const code = url.searchParams.get("code"), state = url.searchParams.get("state");
     if (!code || !state) return back(env, url, "error=oauth_denied");
+    const bound = cookie(req, STATE_COOKIE);
+    if (!bound || bound.length !== state.length || (await sha256(bound)) !== (await sha256(state))) return back(env, url, "error=oauth_state");
     const st = await env.DB.prepare("DELETE FROM oauth_states WHERE state = ? AND provider = ? AND expires_at > ? RETURNING verifier").bind(state, p, Date.now()).first<{ verifier: string }>();
     if (!st) return back(env, url, "error=oauth_state");
     const tok = await fetch(OA[p].token, {
@@ -224,7 +235,10 @@ export async function oauth(req: Request, env: Env, url: URL, p: string, step: s
       }
       await env.DB.prepare("INSERT OR IGNORE INTO identities (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)").bind(p, subject, userId, Date.now()).run();
     }
-    return new Response(null, { status: 302, headers: { location: `${appOrigin(env, url)}/account/?signedin=${p}`, "set-cookie": await newSession(env, url, userId) } });
+    const h2 = new Headers({ location: `${appOrigin(env, url)}/account/?signedin=${p}` });
+    h2.append("set-cookie", await newSession(env, url, userId));
+    h2.append("set-cookie", stateCookie(url, "", 0));
+    return new Response(null, { status: 302, headers: h2 });
   }
   return json({ error: "not found" }, 404);
 }

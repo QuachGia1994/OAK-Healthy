@@ -21,9 +21,11 @@ export async function sendPush(env: Env, endpoint: string, topic?: string) {
   return fetch(endpoint, { method: "POST", headers: h });
 }
 
+const PUSH_HOSTS = ["fcm.googleapis.com", "android.googleapis.com", "updates.push.services.mozilla.com", "push.services.mozilla.com", "notify.windows.com", "push.apple.com"];
 const okEndpoint = (e: unknown): e is string => {
   if (typeof e !== "string" || e.length > 1000) return false;
-  try { const u = new URL(e); return u.protocol === "https:" && !/^(localhost|127\.|10\.|192\.168\.)/.test(u.hostname); } catch { return false; }
+  // Only real browser push services (no SSRF to arbitrary hosts).
+  try { const u = new URL(e); return u.protocol === "https:" && !u.port && PUSH_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h)); } catch { return false; }
 };
 
 export async function push(req: Request, env: Env, action: string): Promise<Response> {
@@ -58,7 +60,8 @@ export async function remind(env: Env, when = Date.now()) {
   if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE_JWK) return 0;
   const d = new Date(when);
   const key = "%," + String(d.getUTCHours() * 60 + d.getUTCMinutes()).padStart(4, "0") + ",%";
-  const rows = await env.DB.prepare("SELECT id, endpoint FROM push_subs WHERE minutes LIKE ? LIMIT 1000").bind(key).all<{ id: string; endpoint: string }>();
+  // Workers Free allows 50 subrequests per invocation: cap at 45 pushes per minute (raise on a paid plan).
+  const rows = await env.DB.prepare("SELECT id, endpoint FROM push_subs WHERE minutes LIKE ? ORDER BY updated_at LIMIT 45").bind(key).all<{ id: string; endpoint: string }>();
   let sent = 0;
   await Promise.all(rows.results.map(async (r) => {
     const res = await sendPush(env, r.endpoint, "dose").catch(() => null);

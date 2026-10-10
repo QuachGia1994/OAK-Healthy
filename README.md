@@ -11,7 +11,7 @@ Installable as a PWA, synced across devices with a zero-knowledge vault. English
 - **Stack**: search `/`, create `C`, filter by category and status, edit in a drawer (bottom sheet on mobile), **scan a label** to prefill name, dose and pill count (on-device OCR).
 - **Insights**: 12-month heatmap, time-of-day histogram, per-routine adherence, history, **biomarkers** (vitamin D, ferritin, B12, HbA1c, lipids… with typical ranges and trends).
 - **Smart stack engine**: 37-entry knowledge base with aliases, food timing and sources (NIH ODS / NCCIH); clash, synergy and chrono-timing checks.
-- **Accounts (optional)**: email + password sign-up, sign-in, forgot / reset password, Google and GitHub sign-in. Zero-knowledge: the password only unwraps your sync key on the device.
+- **Accounts (optional)**: email + password sign-up, sign-in, forgot / reset password (reset email needs `RESEND_API_KEY`), Google and GitHub sign-in (built; enabled once the owner sets the OAuth secrets — buttons say "not set up yet" until then). Zero-knowledge: the password only unwraps your sync key on the device.
 - **Passkeys**: unlock the vault on a new device with Face ID / Touch ID / security key (WebAuthn PRF).
 - **Reminders**: Web Push at each dose time, even when the app is closed.
 - **Circles**: live, read-only, encrypted view of one profile for family or a coach; revoke any time.
@@ -20,7 +20,7 @@ Installable as a PWA, synced across devices with a zero-knowledge vault. English
 ## Stack
 
 Next.js 15 (static export) · React 19 · Tailwind CSS v4 · Radix · cmdk · vaul · sonner · Motion · Geist · Dexie ·
-Web Crypto · tesseract.js (lazy) · Cloudflare Workers (assets + API + cron) · D1.
+Web Crypto · tesseract.js (lazy) · Cloudflare Workers (assets + API + Durable Object minute clock) · D1.
 
 ## Develop
 
@@ -60,7 +60,7 @@ app/            routes: / /stack /insights /settings /account /login /signup /fo
 components/     UI (shell, auth, drawer, dashboard, biomarkers, label scan, circles, charts)
 lib/domain/     pure logic: day codec, cycles, timing, schedule, knowledge base, label parser, biomarkers
 lib/            IndexedDB store, crypto, sync, account, passkey, reminders, circles, i18n (en/vi)
-worker/         Cloudflare Worker API (vault, share, auth, keys, push, circles, cron) and D1 schema
+worker/         Cloudflare Worker API (vault, share, auth, keys, push, circles, ReminderClock Durable Object) and D1 schema
 tests/          node:test suites for lib/domain
 ```
 

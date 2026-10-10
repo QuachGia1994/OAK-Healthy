@@ -3,8 +3,8 @@
 ## Shipped in 2.1
 
 - Mobile layout pass for iPhone 16 Plus (430×932) and Meizu Lucky 08 (360×800, 412×915): 44 px targets, ≥ 12 px text, single-column cards, safe-area insets.
-- Accounts: sign up, sign in, forgot / reset password, Google + GitHub OAuth (PKCE), zero-knowledge key wrapping.
-- Web Push reminders (VAPID, Worker cron, payload-free pushes).
+- Accounts: sign up, sign in, zero-knowledge key wrapping, passkeys. Built, pending owner secrets: reset email (`RESEND_API_KEY`), Google + GitHub OAuth (PKCE, browser-bound state).
+- Web Push reminders (VAPID, Durable Object alarm each minute — no cron trigger, payload-free pushes; Free plan cap 45 pushes/min).
 - Label scan (on-device OCR with tesseract.js).
 - Passkey vault unlock (WebAuthn PRF).
 - Biomarkers with typical ranges and trends.

@@ -10,9 +10,9 @@ versioning where practical.
 
 ### Added
 
-- Accounts: email + password sign-up / sign-in / sign-out, forgot and reset password (Resend email, 30-minute single-use token), Google and GitHub sign-in (OAuth code + PKCE), account deletion. Zero-knowledge: PBKDF2 (600k) on device wraps the sync key; the sync key is the recovery code.
+- Accounts: email + password sign-up / sign-in / sign-out, forgot and reset password (Resend email, 30-minute single-use token — active once `RESEND_API_KEY` is set), Google and GitHub sign-in (OAuth code + PKCE + HttpOnly state cookie — active once the client secrets are set), account deletion. Zero-knowledge: PBKDF2 (600k) on device wraps the sync key; the sync key is the recovery code.
 - Passkey vault unlock via WebAuthn PRF.
-- Web Push reminders (VAPID, Worker cron every minute, payload-free pushes composed by the service worker).
+- Web Push reminders (VAPID, `ReminderClock` Durable Object alarm every minute instead of a cron trigger, push-service host allowlist, payload-free pushes composed by the service worker).
 - Label scan: on-device OCR (tesseract.js) prefills name, dose, pill count and serving size.
 - Biomarkers on Insights: 14 markers with typical ranges, status chips and trend lines; synced in the vault.
 - Family & coach circles: live read-only encrypted profile views at `/c/<id>#<key>`, revocable.

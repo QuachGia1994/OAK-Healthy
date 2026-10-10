@@ -136,6 +136,9 @@ export function SignupView() {
 export function ForgotView() {
   const t = useT();
   const [email, setEmail] = useState(""), [busy, setBusy] = useState(false), [sent, setSent] = useState<string | null>(null), [dev, setDev] = useState<string | null>(null);
+  const [mail, setMail] = useState<boolean | null>(null);
+  useEffect(() => { void getProviders().then((p) => setMail(p.email)); }, []);
+  const noMail = mail === false;
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true);
     try { const r = await forgot(email); setSent(r.message); setDev(r.devLink ?? null); }
@@ -143,15 +146,16 @@ export function ForgotView() {
     finally { setBusy(false); }
   };
   return (
-    <Shell title={t("Reset your password")} sub={t("We'll email you a link that works for 30 minutes")} foot={<Link href="/login/" className="inline-flex min-h-11 items-center font-medium text-taken underline-offset-4 hover:underline">{t("Back to sign in")}</Link>}>
+    <Shell title={t("Reset your password")} sub={t(noMail ? "Email delivery isn't set up on this server yet" : "We'll email you a link that works for 30 minutes")} foot={<Link href="/login/" className="inline-flex min-h-11 items-center font-medium text-taken underline-offset-4 hover:underline">{t("Back to sign in")}</Link>}>
       {sent ? (
         <div className="space-y-3 text-sm">
-          <p className="flex items-start gap-2"><Mail className="mt-0.5 size-4 shrink-0 text-taken" />{t(sent)}</p>
+          <p className="flex items-start gap-2"><Mail className="mt-0.5 size-4 shrink-0 text-taken" />{t(noMail && !dev ? "No reset email can be sent right now. Sign in on a device that still has your data, or restore with your sync key in Settings." : sent)}</p>
           <p className="text-neutral-500">{t("Keep your OAK sync key handy: it is your recovery code and keeps your encrypted data after the reset.")}</p>
           {dev && <a href={dev} className="btn w-full">Dev: open reset link</a>}
         </div>
       ) : (
         <form onSubmit={submit} className="grid gap-3">
+          {noMail && <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("Password reset emails aren't available yet. Your sync key (Settings → Sync) is your recovery code.")}</p>}
           <Field label={t("Email")} type="email" autoComplete="username" inputMode="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           <Submit busy={busy}>{t("Send reset link")}</Submit>
         </form>

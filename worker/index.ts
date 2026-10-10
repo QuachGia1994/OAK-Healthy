@@ -1,8 +1,8 @@
 // OAK Healthy edge API: zero-knowledge vault + encrypted share links. Static app served from ./out.
 import { auth, keys, oauth } from "./auth";
-import { armClock, push, remind } from "./push";
+import { armClock, push } from "./push";
 export { ReminderClock } from "./push";
-import { type Env, json, sameOrigin, sha256, shortId, validId } from "./util";
+import { clientIp, type Env, json, limit, sameOrigin, sha256, shortId, validId } from "./util";
 
 const MAX_VAULT = 1_500_000, MAX_SHARE = 200_000, MAX_CIRCLE = 400_000, SHARE_TTL_MS = 365 * 864e5;
 
@@ -41,6 +41,7 @@ async function share(req: Request, env: Env, id?: string) {
     const body = (await req.json().catch(() => null)) as { blob?: string } | null;
     if (!body || typeof body.blob !== "string" || !body.blob.includes(".")) return json({ error: "bad body" }, 400);
     if (body.blob.length > MAX_SHARE) return json({ error: "too large" }, 413);
+    if (!(await limit(env, `share:${clientIp(req)}`, 30, 60 * 60e3))) return json({ error: "Too many attempts. Try again later." }, 429);
     const sid = shortId();
     await env.DB.prepare("INSERT INTO shares (id, blob, created_at, expires_at) VALUES (?, ?, ?, ?)").bind(sid, body.blob, Date.now(), Date.now() + SHARE_TTL_MS).run();
     return json({ id: sid }, 201);
@@ -61,6 +62,7 @@ async function circle(req: Request, env: Env, id?: string) {
     const b = (await req.json().catch(() => null)) as { blob?: string } | null;
     if (!b || typeof b.blob !== "string" || !b.blob.includes(".") || token.length < 20) return json({ error: "bad body" }, 400);
     if (b.blob.length > MAX_CIRCLE) return json({ error: "too large" }, 413);
+    if (!(await limit(env, `circle:${clientIp(req)}`, 20, 60 * 60e3))) return json({ error: "Too many attempts. Try again later." }, 429);
     const cid = shortId(12);
     await env.DB.prepare("INSERT INTO circles (id, blob, write_hash, updated_at) VALUES (?, ?, ?, ?)").bind(cid, b.blob, await sha256(token), Date.now()).run();
     return json({ id: cid }, 201);
@@ -78,8 +80,10 @@ async function circle(req: Request, env: Env, id?: string) {
     return r.meta.changes ? json({ ok: true }) : json({ error: "forbidden" }, 403);
   }
   if (req.method === "DELETE") {
-    await env.DB.prepare("DELETE FROM circles WHERE id = ? AND write_hash = ?").bind(id, wh).run();
-    return json({ ok: true });
+    const r = await env.DB.prepare("DELETE FROM circles WHERE id = ? AND write_hash = ?").bind(id, wh).run();
+    if (r.meta.changes) return json({ ok: true });
+    const exists = await env.DB.prepare("SELECT 1 FROM circles WHERE id = ?").bind(id).first();
+    return exists ? json({ error: "forbidden" }, 403) : json({ ok: true }); // already gone: idempotent
   }
   return json({ error: "method" }, 405);
 }
@@ -120,9 +124,5 @@ export default {
       console.error("unhandled", p, e);
       return json({ error: "server" }, 500);
     }
-  },
-  // Optional: if the account has a free cron slot, a "* * * * *" trigger also works; the DO clock is the default.
-  async scheduled(_c: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(remind(env).then((n) => { if (n) console.log("reminders sent", n); }));
   },
 } satisfies ExportedHandler<Env>;
