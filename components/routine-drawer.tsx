@@ -61,7 +61,7 @@ export function RoutineDrawer() {
   };
   const fromLabel = (g: LabelGuess) => {
     const s = g.ref;
-    setR({ ...r, name: s?.name ?? r.name, time: s?.time ?? r.time, dose: g.dose ?? r.dose, category: s?.category ?? r.category,
+    setR({ ...r, name: s?.name ?? (g.name || r.name), time: s?.time ?? r.time, dose: g.dose ?? r.dose, category: s?.category ?? r.category,
       cycle: s ? { ...s.cycle, durationDays: r.cycle.durationDays ?? null } : r.cycle, note: r.note || (s ? t(s.advice) : ""),
       stock: g.stock ?? r.stock, perDose: g.perDose ?? r.perDose });
   };
