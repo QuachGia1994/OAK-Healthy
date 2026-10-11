@@ -15,6 +15,7 @@ versioning where practical.
 ### Fixed
 
 - Reminders → Send test: re-reads the browser's push subscription, re-registers it with the server and retries once on 403/404/410, instead of failing with “Push service rejected the test”.
+- Reminders: Chrome subscriptions on `*.google.com` push hosts (e.g. `jmt17.google.com`) are accepted; they failed with “Reminder sync failed (400)”. The error now includes the server's reason.
 - Account deletion also removes the account's member keys and circle memberships.
 
 - Public `/privacy` page (English + Vietnamese) linked from the sign-in screens; required by the Google sign-in consent screen.

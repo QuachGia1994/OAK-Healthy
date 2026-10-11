@@ -2,7 +2,7 @@
 // notification from on-device data, so the server only knows "ping this endpoint at minute N (UTC)".
 import { DurableObject } from "cloudflare:workers";
 import { b64u, body, type Env, json, sha256 } from "./util";
-import { okSnooze } from "../lib/domain/remind";
+import { okEndpoint, okSnooze } from "../lib/domain/remind";
 
 const te = new TextEncoder();
 let signKey: CryptoKey | null = null;
@@ -21,13 +21,6 @@ export async function sendPush(env: Env, endpoint: string, topic?: string) {
   if (topic) h.topic = topic;
   return fetch(endpoint, { method: "POST", headers: h });
 }
-
-const PUSH_HOSTS = ["fcm.googleapis.com", "android.googleapis.com", "updates.push.services.mozilla.com", "push.services.mozilla.com", "notify.windows.com", "push.apple.com"];
-const okEndpoint = (e: unknown): e is string => {
-  if (typeof e !== "string" || e.length > 1000) return false;
-  // Only real browser push services (no SSRF to arbitrary hosts).
-  try { const u = new URL(e); return u.protocol === "https:" && !u.port && PUSH_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h)); } catch { return false; }
-};
 
 export async function push(req: Request, env: Env, action: string): Promise<Response> {
   if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE_JWK) return json({ error: "Push is not configured" }, 503);

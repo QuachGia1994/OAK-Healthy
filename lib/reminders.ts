@@ -31,7 +31,10 @@ export async function pushReminderTimes() {
   const p = await getMeta<{ endpoint: string } | null>("push", null);
   if (!p) return;
   const res = await fetch("/api/push/subscribe", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: p.endpoint, minutes: await reminderMinutes() }) });
-  if (!res.ok) throw new Error(`Reminder sync failed (${res.status})`);
+  if (!res.ok) {
+    const { error } = ((await res.json().catch(() => ({}))) as { error?: string });
+    throw new Error(`Reminder sync failed (${res.status}${error ? `: ${error}` : ""})`);
+  }
 }
 
 /** The browser may rotate the push subscription (or the server may have dropped it): re-read it and re-register. */

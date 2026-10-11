@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { okSnooze, remindable, utcMinutes } from "../lib/domain/remind.ts";
+import { okEndpoint, okSnooze, remindable, utcMinutes } from "../lib/domain/remind.ts";
 import { fromProduct, validGtin } from "../lib/domain/label.ts";
 
 const base = { deletedAt: null, paused: false };
@@ -27,6 +27,20 @@ test("snooze length is bounded", () => {
   assert.equal(okSnooze(181), false);
   assert.equal(okSnooze(10.5), false);
   assert.equal(okSnooze("10"), false);
+});
+
+test("push endpoints: browser push services only, including Chrome's *.google.com hosts", () => {
+  assert.equal(okEndpoint("https://fcm.googleapis.com/fcm/send/abc:APA91b"), true);
+  assert.equal(okEndpoint("https://fcm.googleapis.com/wp/abc"), true);
+  assert.equal(okEndpoint("https://jmt17.google.com/fcm/send/abc:APA91b"), true);
+  assert.equal(okEndpoint("https://updates.push.services.mozilla.com/wpush/v2/abc"), true);
+  assert.equal(okEndpoint("https://web.push.apple.com/abc"), true);
+  assert.equal(okEndpoint("https://evilgoogle.com/x"), false);
+  assert.equal(okEndpoint("https://google.com.evil.io/x"), false);
+  assert.equal(okEndpoint("http://fcm.googleapis.com/fcm/send/abc"), false);
+  assert.equal(okEndpoint("https://fcm.googleapis.com:8443/x"), false);
+  assert.equal(okEndpoint("https://fcm.googleapis.com/" + "a".repeat(1000)), false);
+  assert.equal(okEndpoint(42), false);
 });
 
 test("GTIN check digits", () => {
