@@ -3,7 +3,7 @@
 // you are) and encKey (wraps your sync key). Your OAK sync key doubles as the recovery code.
 import { b64u, deriveVault, newSyncKey, open, seal, unb64u, isValidKey } from "./crypto";
 import { adoptSyncedProfiles, db, getMeta, setMeta } from "./db";
-import { deleteEverything, type VaultAuth, type WipeProgress, type WipeStep } from "./domain/wipe";
+import { deleteEverything, shareDeleteOutcome, type ShareRef, type VaultAuth, type WipeProgress, type WipeStep } from "./domain/wipe";
 import { getSyncKey, setSyncKey, syncNow } from "./sync";
 import { getLang } from "./i18n";
 
@@ -125,8 +125,8 @@ export const passwordProblem = (pw: string, email = "") =>
 /** A delete-everything run that has not finished on this device (it resumes from here). */
 export const pendingWipe = () => getMeta<WipeProgress | null>("wipe", null);
 
-/** Delete everything (lib/domain/wipe.ts, docs/feat/delete-everything.md): the circles this user owns, the vault,
- * the account when signed in, then all data on this device. */
+/** Delete everything (lib/domain/wipe.ts, docs/feat/delete-everything.md): the circles this user owns, the share
+ * links in meta `shares`, the vault, the account when signed in, then all data on this device. */
 export async function wipeEverything(signedIn: boolean, onStep?: (s: WipeStep) => void) {
   // Loaded here: lib/circles.ts imports this module.
   const [{ getCircles, revokeCircle }, { disableReminders }] = await Promise.all([import("./circles"), import("./reminders")]);
@@ -157,6 +157,15 @@ export async function wipeEverything(signedIn: boolean, onStep?: (s: WipeStep) =
     ownedCircles: async () => (await getCircles()).filter((c) => c.w).map((c) => c.id),
     deleteCircle: revokeCircle,
     disableReminders: async () => { if ("serviceWorker" in navigator) await disableReminders(); }, // no worker, no push
+    shares: () => getMeta<ShareRef[]>("shares", []),
+    saveShares: async (list) => { await setMeta("shares", list); },
+    deleteShare: async (s) => {
+      const res = await fetch(`/api/share/${encodeURIComponent(s.id)}`, { method: "DELETE", headers: { authorization: `Bearer ${s.token}` } });
+      const o = shareDeleteOutcome(res.status);
+      if (o !== "retry") return o;
+      await ok(res);
+      throw new Error(`Request failed (${res.status})`);
+    },
     syncOff: async () => { await setSyncKey(null); },
     deleteVault: async (v) => ok(await fetch(`/api/vault/${v.id}`, { method: "DELETE", headers: { authorization: `Bearer ${v.auth}` } })),
     deleteAccount: async () => {

@@ -7,10 +7,12 @@ import { haptic } from "@/lib/haptics";
 import { inventoryAlert, routineStatus, sortRoutines, type SortDir, type SortKey } from "@/lib/domain/stack";
 import { useHotkey, useOak } from "@/lib/use-oak";
 import { saveRoutine } from "@/lib/db";
+import { updateMeta } from "@/lib/sync";
 import { cycleLabel } from "@/lib/domain/cycle";
 import { toLocalDay } from "@/lib/domain/day";
 import { analyze } from "@/lib/domain/knowledge";
-import { sealShare } from "@/lib/crypto";
+import { b64u, sealShare } from "@/lib/crypto";
+import type { ShareRef } from "@/lib/domain/wipe";
 import type { Category, Routine } from "@/lib/domain/types";
 import { Empty, PageHeader } from "./ui";
 import { CATEGORIES, openRoutine, duplicateRoutine } from "./routine-drawer";
@@ -26,15 +28,26 @@ const STATUS_CLS = {
 };
 const STATUS_LABEL = { active: "Active", off: "Off-cycle", paused: "Paused", ended: "Ended" };
 
+const sha256Hex = async (s: string) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+
 /** Encrypted share. With a handle, the server also issues a readable /s/<handle>/<slug> URL; only the handle,
- * the slug words and the item count are public (used for link previews). The key stays in the #fragment. */
+ * the slug words and the item count are public (used for link previews). The key stays in the #fragment.
+ * A delete token (256 bits) is minted here; the server gets only its SHA-256, and meta `shares` keeps the token for
+ * Delete everything (docs/feat/delete-everything.md § Share links). */
 export async function shareStack(name: string, routines: Routine[], handle?: string) {
   const payload = { v: 1, name, createdAt: Date.now(), items: routines.map(({ name, dose, time, cycle, category, note }) => ({ name, dose, time, cycle, category, note })) };
   const { blob, k } = await sealShare(payload);
+  const token = b64u(crypto.getRandomValues(new Uint8Array(32)));
   const meta = handle ? { handle, title: name, items: routines.length } : {};
-  const res = await fetch("/api/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ blob, ...meta }) });
+  const res = await fetch("/api/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ blob, deleteHash: await sha256Hex(token), ...meta }) });
   if (!res.ok) throw new Error(`Share failed (${res.status})`);
-  const { id, slug } = (await res.json()) as { id: string; slug?: string };
+  // expiresAt is the server's (D7). Only a 2.7 worker sends none: the fallback is then this device's clock, and that
+  // worker kept no hash anyway, so the wipe counts the entry as kept (403/405).
+  const { id, slug, expiresAt = Date.now() + 365 * 864e5 } = (await res.json()) as { id: string; slug?: string; expiresAt?: number };
+  const entry: ShareRef = { id, token, expiresAt };
+  await updateMeta<ShareRef[]>("shares", [], (cur) => [...cur, entry]);
+  window.dispatchEvent(new Event("oak:changed")); // the next sync carries the list to the other devices
   const url = `${location.origin}/s/${slug ?? id}#${k}`;
   await navigator.clipboard?.writeText(url).catch(() => {});
   return url;

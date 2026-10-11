@@ -6,7 +6,7 @@ import { doseAt, doseWrite, planned, takenNext } from "../lib/domain/intake-key.
 import { dosesForDay } from "../lib/domain/schedule.ts";
 import { utcMinutes } from "../lib/domain/remind.ts";
 import type { Intake, Routine } from "../lib/domain/types.ts";
-import { circle, committed, pendingCircle, VAULT_CIRCLE_FIELDS, vaultCircleCases } from "./fixtures/vault-circles.ts";
+import { circle, committed, pendingCircle, SHARES_NOW, VAULT_CIRCLE_FIELDS, vaultCircleCases, vaultShareCases } from "./fixtures/vault-circles.ts";
 
 type Taken = typeof takenNext;
 /** public/sw.js is plain, unbundled JS: run it with an inert `self` (or the given globals) and read its top-level mirror functions. */
@@ -15,7 +15,8 @@ function loadSw(globals: Record<string, unknown> = {}) {
   runInNewContext(readFileSync(new URL("../public/sw.js", import.meta.url), "utf8"), ctx);
   return ctx as {
     doseAt: typeof doseAt; planned: typeof planned; doseWrite: typeof doseWrite; takenNext: Taken; utcMinutes: typeof utcMinutes;
-    vaultCircles: (remote: unknown, meta: Rec[]) => unknown; vaultKeys: (secret: string) => Promise<{ key: CryptoKey }>;
+    vaultCircles: (remote: unknown, meta: Rec[]) => unknown; vaultShares: (remote: unknown, meta: Rec[], now: number) => unknown;
+    vaultKeys: (secret: string) => Promise<{ id: string; key: CryptoKey }>;
   };
 }
 const sw = loadSw();
@@ -202,12 +203,14 @@ test("pushsubscriptionchange server error keeps the old endpoint so the browser 
   }
 });
 
-// swSync pushes the same vault fields as lib/sync.ts: the four stores plus circle state from meta.
+/** The vault route's own 404 (worker/index.ts vault GET with no row). */
+const workerNotFound = { ok: false, status: 404, json: async () => ({ error: "not found" }) };
+// swSync pushes the same vault fields as lib/sync.ts: the four stores plus circle state and shares from meta.
 test("swSync vault push carries circles, circlePins and circleSeen", async () => {
   const puts: string[] = [];
   const fetch = async (_url: string, init?: { method?: string; body?: string }) => {
     if (init?.method === "PUT") { puts.push(JSON.parse(init.body!).blob); return { ok: true, status: 200 }; }
-    return { ok: false, status: 404 };
+    return workerNotFound;
   };
   const meta = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }, { key: "circles", value: [circle, pendingCircle] }, { key: "circlePins", value: { c9: "pub9" } }, { key: "circleSeen", value: { c9: 6 } }];
   const ctx = loadSw({ fetch, btoa, atob, indexedDB: fakeIdb(meta, { profiles: [], routines: [routine], intakes: [], biomarkers: [] }) });
@@ -217,10 +220,33 @@ test("swSync vault push carries circles, circlePins and circleSeen", async () =>
   const unb = (s: string) => Buffer.from(s, "base64url");
   const { key } = await ctx.vaultKeys("OAK-ABCD-EFGH-JKLM");
   const snap = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb(iv) }, key, unb(ct))));
-  assert.deepEqual(Object.keys(snap).sort(), ["biomarkers", "circlePins", "circleSeen", "circles", "intakes", "profiles", "routines", "v"]);
+  assert.deepEqual(Object.keys(snap).sort(), ["biomarkers", "circlePins", "circleSeen", "circles", "intakes", "profiles", "routines", "shares", "v"]);
   assert.deepEqual(snap.circles, [circle, { ...pendingCircle, sign: committed }]);
   assert.deepEqual(snap.circlePins, { c9: "pub9" });
   assert.deepEqual(snap.circleSeen, { c9: 6 });
+  assert.equal(meta.find((m) => m.key === "syncedVault")?.value, (await ctx.vaultKeys("OAK-ABCD-EFGH-JKLM")).id, "remembered after the push");
+});
+// Contract C2 in the worker: the vault route's 404 on the id this device synced before stops like a 410 (key left for
+// the tab's syncNow); a 404 that is not the worker's throws so the browser retries, and neither pushes.
+async function swSyncWith(get: unknown, syncedBefore: boolean) {
+  const calls: string[] = [];
+  const fetch = async (_url: string, init?: { method?: string }) => { calls.push(init?.method ?? "GET"); return get; };
+  const meta: Rec[] = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }];
+  const ctx = loadSw({ fetch, btoa, atob, indexedDB: fakeIdb(meta, { profiles: [], routines: [], intakes: [], biomarkers: [] }) });
+  if (syncedBefore) meta.push({ key: "syncedVault", value: (await ctx.vaultKeys("OAK-ABCD-EFGH-JKLM")).id });
+  const run = (ctx as unknown as { swSync: () => Promise<void> }).swSync();
+  return { run, calls, meta };
+}
+test("swSync on the worker's 404 for a vault this device synced before: no push, no throw, sync key left", async () => {
+  const { run, calls, meta } = await swSyncWith(workerNotFound, true);
+  await run;
+  assert.deepEqual(calls, ["GET"]);
+  assert.equal(meta.find((m) => m.key === "syncKey")?.value, "OAK-ABCD-EFGH-JKLM");
+});
+test("swSync on a 404 that is not the worker's: throws for a browser retry, no push", async () => {
+  const { run, calls } = await swSyncWith({ ok: false, status: 404, json: async () => { throw new SyntaxError("<html>"); } }, false);
+  await assert.rejects(run, /vault 404/);
+  assert.deepEqual(calls, ["GET"]);
 });
 // A deleted vault (server tombstone) answers 410: the worker stops without a push and without throwing (no browser
 // retry) and leaves the sync key, so the next tab syncNow hits the 410, turns sync off and the SyncAgent says so once.
@@ -230,7 +256,7 @@ for (const [name, status] of [["GET", { get: 410 }], ["PUT", { get: 404, put: 41
     const fetch = async (_url: string, init?: { method?: string }) => {
       const method = init?.method ?? "GET";
       calls.push(method);
-      return { ok: false, status: method === "PUT" ? (status as { put?: number }).put : status.get };
+      return { ok: false, status: method === "PUT" ? (status as { put?: number }).put : status.get, json: async () => ({ error: "not found" }) };
     };
     const meta: Rec[] = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }];
     const ctx = loadSw({ fetch, btoa, atob, indexedDB: fakeIdb(meta, { profiles: [], routines: [], intakes: [], biomarkers: [] }) });
@@ -246,5 +272,11 @@ for (const { name, remote, local, want } of vaultCircleCases) {
     const pushed = JSON.parse(JSON.stringify(sw.vaultCircles(remote, meta)));
     assert.deepEqual(Object.keys(pushed).sort(), VAULT_CIRCLE_FIELDS, "no circle field dropped");
     assert.deepEqual(pushed, want);
+  });
+}
+// The shared share-list fixture through the SW mirror (tests/sync.test.ts runs the same cases through syncNow).
+for (const { name, remote, local, want } of vaultShareCases) {
+  test(`vaultShares ${name}`, () => {
+    assert.deepEqual(JSON.parse(JSON.stringify(sw.vaultShares(remote, [{ key: "shares", value: structuredClone(local) }], SHARES_NOW))), want);
   });
 }

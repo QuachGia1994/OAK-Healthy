@@ -4,18 +4,21 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 import { runInNewContext } from "node:vm";
-import { deleteEverything, type WipeDeps, type WipeProgress } from "../lib/domain/wipe.ts";
+import { deleteEverything, shareDeleteOutcome, takeWipedFlag, WIPED_FLAG, type ShareRef, type WipeDeps, type WipeProgress } from "../lib/domain/wipe.ts";
 import { json, sha256, validId } from "../worker/util.ts";
 
 // ---- orchestrator (lib/domain/wipe.ts) against an in-memory server and device
 
 /** fail: a call name ("pull", "circle:<id>", "vault", ...) that throws on its next call only. */
 /** known: whether the UI already knew the user was signed in when the run started (else the account step asks /me). */
-function world(o: { circles?: string[]; key?: boolean; account?: boolean; known?: boolean } = {}) {
+/** shares: meta `shares` (x already expired: its row may still be on the server); server: share ids still stored. */
+const SHARES: ShareRef[] = [{ id: "s1", token: "k1", expiresAt: 2e12 }, { id: "x", token: "kx", expiresAt: 1 }, { id: "s2", token: "k2", expiresAt: 2e12 }];
+function world(o: { circles?: string[]; key?: boolean; account?: boolean; known?: boolean; shares?: ShareRef[] } = {}) {
   const s = {
     calls: [] as string[], fail: new Set<string>(), lost: false, session: true,
     circles: new Set(o.circles ?? ["c1", "c2"]), vault: o.key ?? true, account: o.account ?? true, reminders: true,
     syncOn: o.key ?? true, saved: null as WipeProgress | null, cleared: false,
+    shares: structuredClone(o.shares ?? SHARES), server: new Set((o.shares ?? SHARES).map((x) => x.id)), forbid: new Set<string>(),
   };
   const hit = (name: string) => { s.calls.push(name); if (s.fail.delete(name)) throw new Error(`${name} failed`); };
   const deps: WipeDeps = {
@@ -26,6 +29,13 @@ function world(o: { circles?: string[]; key?: boolean; account?: boolean; known?
     ownedCircles: async () => [...s.circles], // a deleted circle becomes a tombstone and drops out of this list
     deleteCircle: async (id) => { hit(`circle:${id}`); s.circles.delete(id); },
     disableReminders: async () => { hit("reminders"); s.reminders = false; },
+    shares: async () => structuredClone(s.shares),
+    saveShares: async (list) => { s.shares = structuredClone(list); },
+    deleteShare: async (x) => {
+      hit(`share:${x.id}`); assert.ok(x.token);
+      if (s.forbid.has(x.id)) return "kept"; // 403: the row has no hash (made through a 2.7 worker) or another one
+      s.server.delete(x.id); return "ok";
+    },
     syncOff: async () => { s.calls.push("syncOff"); s.syncOn = false; },
     deleteVault: async (v) => { hit("vault"); assert.deepEqual(v, { id: "vid", auth: "vauth" }); s.vault = false; },
     deleteAccount: async () => {
@@ -39,14 +49,103 @@ function world(o: { circles?: string[]; key?: boolean; account?: boolean; known?
   };
   return { s, deps };
 }
-const ALL = ["pull", "circle:c1", "circle:c2", "reminders", "syncOff", "vault", "account", "device"];
+const ALL = ["pull", "circle:c1", "circle:c2", "reminders", "share:s1", "share:x", "share:s2", "syncOff", "vault", "account", "device"];
 
-test("wipe: pull, owned circles, reminders, sync off, vault, account, then this device", async () => {
+test("wipe: pull, owned circles, reminders, share links, sync off, vault, account, then this device", async () => {
   const { s, deps } = world(), steps: string[] = [];
-  assert.deepEqual(await deleteEverything(deps, (x) => steps.push(x)), { ok: true });
+  assert.deepEqual(await deleteEverything(deps, (x) => steps.push(x)), { ok: true, sharesKept: 0 });
   assert.deepEqual(s.calls, ALL);
-  assert.deepEqual(steps, ["circles", "reminders", "vault", "account", "device"]);
+  assert.deepEqual(steps, ["circles", "reminders", "shares", "vault", "account", "device"]);
   assert.ok(!s.circles.size && !s.reminders && !s.vault && !s.account && s.cleared);
+});
+
+test("wipe: every listed share, expired ones too, is deleted before sync goes off, and leaves the list", async () => {
+  const { s, deps } = world();
+  await deleteEverything(deps);
+  assert.ok(s.calls.indexOf("share:s2") < s.calls.indexOf("syncOff"), "shares before the vault step");
+  assert.ok(s.calls.includes("share:x"), "expired rows are not purged on the server, so they are deleted too");
+  assert.equal(s.server.size, 0);
+  assert.deepEqual(s.shares, []);
+});
+
+test("wipe: a 2.7 marker (vault already done, no shares step) still deletes the listed shares, then resumes", async () => {
+  const { s, deps } = world();
+  s.saved = { vault: { id: "vid", auth: "vauth" }, account: true, done: ["circles", "reminders", "vault"] } as WipeProgress;
+  s.syncOn = false;
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
+  assert.deepEqual(s.calls, ["share:s1", "share:x", "share:s2", "account", "device"]);
+});
+
+test("wipe: a share the server refuses (403) is skipped and counted; the run goes on to the vault", async () => {
+  const { s, deps } = world();
+  s.forbid.add("s1");
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 1 });
+  assert.deepEqual(s.calls, ALL, "no loop on s1");
+  assert.ok(s.server.has("s1") && !s.server.has("s2") && !s.vault);
+});
+
+test("wipe: the skipped count survives a failure and retry, without counting twice", async () => {
+  const { s, deps } = world();
+  s.forbid.add("s1"); s.fail.add("share:s2");
+  assert.deepEqual(await deleteEverything(deps), { ok: false, step: "shares", error: "share:s2 failed" });
+  assert.equal(s.saved?.sharesKept, 1);
+  s.calls = [];
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 1 });
+  assert.deepEqual(s.calls, ["share:s2", "syncOff", "vault", "account", "device"]);
+});
+
+test("wipe: a failed share stops before the vault; the deleted one leaves the list; retry deletes the rest", async () => {
+  const { s, deps } = world();
+  s.fail.add("share:s2");
+  assert.deepEqual(await deleteEverything(deps), { ok: false, step: "shares", error: "share:s2 failed" });
+  assert.deepEqual(s.shares.map((x) => x.id), ["s2"], "s1 and x deleted are gone from meta shares");
+  assert.ok(s.syncOn && s.vault && s.account && !s.cleared, "nothing after the shares step ran");
+  s.calls = [];
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
+  assert.deepEqual(s.calls, ["share:s2", "syncOff", "vault", "account", "device"], "s1 is not deleted twice");
+  assert.equal(s.server.has("s2"), false);
+});
+
+test("wipe: no listed shares, the step only clears the list", async () => {
+  const { s, deps } = world({ shares: [] });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
+  assert.ok(!s.calls.some((c) => c.startsWith("share:")));
+});
+
+test("wipe: share DELETE answers: 200 ok; 400/401/403/405 kept (a malformed vault entry never blocks); 5xx/429 throw", () => {
+  assert.equal(shareDeleteOutcome(200), "ok");
+  for (const s of [400, 401, 403, 405]) assert.equal(shareDeleteOutcome(s), "kept", String(s));
+  for (const s of [429, 500, 503]) assert.equal(shareDeleteOutcome(s), "retry", String(s));
+  const acc = readFileSync(new URL("../lib/account.ts", import.meta.url), "utf8");
+  assert.match(acc, /const o = shareDeleteOutcome\(res\.status\);\s*if \(o !== "retry"\) return o;/);
+});
+
+test("wipe: a malformed entry (short token, bad id) is kept and the run reaches the vault", async () => {
+  const { s, deps } = world({ shares: [{ id: "bad id/x", token: "", expiresAt: 0 }, ...SHARES] });
+  const del = deps.deleteShare;
+  deps.deleteShare = async (x) => (x.id === "bad id/x" ? shareDeleteOutcome(400) as "kept" : del(x));
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 1 });
+  assert.ok(!s.vault && s.cleared && !s.shares.length);
+});
+
+test("wipe: 'Everything deleted' flag is read once after the reload", () => {
+  const m = new Map<string, string>([[WIPED_FLAG, "2"]]);
+  const st = { getItem: (k: string) => m.get(k) ?? null, removeItem: (k: string) => void m.delete(k) };
+  assert.deepEqual(takeWipedFlag(st), { sharesKept: 2 });
+  assert.equal(takeWipedFlag(st), null, "a second load shows nothing");
+  m.set(WIPED_FLAG, "junk");
+  assert.deepEqual(takeWipedFlag(st), { sharesKept: 0 });
+  assert.equal(takeWipedFlag({ getItem: () => { throw new Error("blocked"); }, removeItem: () => {} }), null, "storage off: no toast, no crash");
+});
+
+test("wipe UI: the flag is set before the reload, and SyncAgent (on every app page) shows the toast", () => {
+  const ui = readFileSync(new URL("../components/settings.tsx", import.meta.url), "utf8");
+  const ok = ui.slice(ui.indexOf("if (r.ok) {"), ui.indexOf("setFailed(r)"));
+  assert.ok(ok.indexOf("sessionStorage.setItem(WIPED_FLAG") >= 0 && ok.indexOf("sessionStorage.setItem(WIPED_FLAG") < ok.indexOf("location.replace(\"/\")"));
+  const agent = ui.slice(ui.indexOf("export function SyncAgent"), ui.indexOf("function CircleRow"));
+  assert.match(agent, /takeWipedFlag\(sessionStorage\)[\s\S]*toast\.success\(tr\("Everything deleted"\)/);
+  const shell = readFileSync(new URL("../components/app-shell.tsx", import.meta.url), "utf8");
+  assert.ok(shell.includes("<SyncAgent />") && shell.indexOf("<SyncAgent />") < shell.indexOf("<Toaster position=\"bottom-right\" customAriaLabel={t(\"Notifications\")} mobileOffset"));
 });
 
 test("wipe: the progress marker is written after each finished step", async () => {
@@ -54,7 +153,7 @@ test("wipe: the progress marker is written after each finished step", async () =
   const save = deps.save;
   deps.save = async (p) => { seen.push([...p.done]); await save(p); };
   await deleteEverything(deps);
-  assert.deepEqual(seen.at(-1), ["circles", "reminders", "vault", "account"]);
+  assert.deepEqual(seen.at(-1), ["circles", "reminders", "shares", "vault", "account"]);
   assert.ok(seen.some((d) => d.join() === "circles") && seen.some((d) => d.join() === "circles,reminders"));
   assert.equal(s.saved, null, "the final clear removes it");
 });
@@ -66,8 +165,8 @@ test("wipe: a failed circle stops before reminders and the vault; retry resumes 
   assert.deepEqual(s.calls, ["pull", "circle:c1", "circle:c2"]);
   assert.ok(s.reminders && s.vault && s.account && !s.cleared);
   s.calls = [];
-  assert.deepEqual(await deleteEverything(deps), { ok: true });
-  assert.deepEqual(s.calls, ["pull", "circle:c2", "reminders", "syncOff", "vault", "account", "device"], "c1 is not deleted twice");
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
+  assert.deepEqual(s.calls, ["pull", "circle:c2", "reminders", "share:s1", "share:x", "share:s2", "syncOff", "vault", "account", "device"], "c1 is not deleted twice");
 });
 
 test("wipe: a failed vault delete keeps the vault auth for the retry although sync is already off", async () => {
@@ -77,7 +176,7 @@ test("wipe: a failed vault delete keeps the vault auth for the retry although sy
   assert.equal(s.syncOn, false);
   assert.ok(s.account && !s.cleared);
   s.calls = [];
-  assert.deepEqual(await deleteEverything(deps), { ok: true });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
   assert.deepEqual(s.calls, ["syncOff", "vault", "account", "device"], "finished steps are skipped");
   assert.ok(!s.vault);
 });
@@ -88,7 +187,7 @@ test("wipe: retry after the account step succeeded does not call the account aga
   assert.deepEqual(await deleteEverything(deps), { ok: false, step: "device", error: "device failed" });
   assert.ok(!s.account);
   s.calls = [];
-  assert.deepEqual(await deleteEverything(deps), { ok: true });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
   assert.deepEqual(s.calls, ["device"]);
 });
 
@@ -98,7 +197,7 @@ test("wipe: account deleted but the answer was lost, so the retry's 401 counts a
   assert.deepEqual(await deleteEverything(deps), { ok: false, step: "account", error: "Failed to fetch" });
   assert.equal(s.saved?.accountSent, true);
   s.calls = [];
-  assert.deepEqual(await deleteEverything(deps), { ok: true });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
   assert.deepEqual(s.calls, ["account", "device"]);
 });
 
@@ -110,14 +209,14 @@ test("wipe: a 401 before the account was deleted (session expired) stops until t
   assert.equal(s.saved?.accountSent, false, "a 401 answer is not a sent delete");
   assert.deepEqual(await deleteEverything(deps), { ok: false, step: "account", error: "Sign in first" }, "still not done");
   s.session = true; s.calls = [];
-  assert.deepEqual(await deleteEverything(deps), { ok: true });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
   assert.deepEqual(s.calls, ["account", "device"]);
   assert.ok(!s.account);
 });
 
 test("wipe: no account and sync off: circles, reminders, a /me check and this device", async () => {
-  const { s, deps } = world({ key: false, account: false, circles: ["c1"] });
-  assert.deepEqual(await deleteEverything(deps), { ok: true });
+  const { s, deps } = world({ key: false, account: false, circles: ["c1"], shares: [] });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
   assert.deepEqual(s.calls, ["pull", "circle:c1", "reminders", "syncOff", "me", "device"]);
 });
 
@@ -127,7 +226,7 @@ test("wipe: a failed /me check stops at the account step instead of skipping it;
   assert.deepEqual(await deleteEverything(deps), { ok: false, step: "account", error: "me failed" });
   assert.ok(s.account && !s.cleared, "account kept, device not cleared");
   s.calls = [];
-  assert.deepEqual(await deleteEverything(deps), { ok: true });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
   assert.deepEqual(s.calls, ["me", "account", "device"]);
   assert.ok(!s.account);
 });

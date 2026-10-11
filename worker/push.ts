@@ -90,6 +90,29 @@ export async function remind(env: Env, when = Date.now()) {
   return sent;
 }
 
+// Daily purge (docs/arch/HEALTH_DATA_FLOW.md § Tombstone purge). DELETE … LIMIT needs a compile flag D1 may lack, so
+// each statement bounds an id subquery. Per row: [statement, age before `now` it must exceed].
+const PURGE_EVERY_MS = 864e5, PURGE_BATCH = 500;
+const PURGES: [string, number][] = [
+  // Vault tombstones (Delete everything) after 365 days; live vaults (deleted_at NULL) never match.
+  ["DELETE FROM vaults WHERE id IN (SELECT id FROM vaults WHERE deleted_at IS NOT NULL AND deleted_at < ? LIMIT ?)", 365 * 864e5],
+  // Expired share links (GET already hides them).
+  ["DELETE FROM shares WHERE id IN (SELECT id FROM shares WHERE expires_at < ? LIMIT ?)", 0],
+];
+
+/** At most once a day; a full batch leaves the day open, so a backlog drains one batch per statement per minute. */
+async function purgeDaily(env: Env, storage: Pick<DurableObjectStorage, "get" | "put">, now = Date.now()) {
+  if (now - ((await storage.get<number>("lastPurge")) ?? 0) < PURGE_EVERY_MS) return 0;
+  let total = 0, full = false;
+  for (const [sql, age] of PURGES) {
+    const n = (await env.DB.prepare(sql).bind(now - age, PURGE_BATCH).run()).meta.changes;
+    total += n;
+    full ||= n >= PURGE_BATCH;
+  }
+  if (!full) await storage.put("lastPurge", now);
+  return total;
+}
+
 /** Minute clock without cron triggers: one Durable Object re-arms its alarm at the start of every minute. */
 export class ReminderClock extends DurableObject<Env> {
   async fetch() {
@@ -100,6 +123,8 @@ export class ReminderClock extends DurableObject<Env> {
     await this.ctx.storage.setAlarm(nextMinute());
     const n = await remind(this.env).catch((e) => { console.error("remind", e); return 0; });
     if (n) console.log("reminders sent", n);
+    const purged = await purgeDaily(this.env, this.ctx.storage).catch((e) => { console.error("purge", e); return 0; });
+    if (purged) console.log("rows purged", purged);
   }
 }
 const nextMinute = () => Math.floor(Date.now() / 60e3) * 60e3 + 60e3 + 500;

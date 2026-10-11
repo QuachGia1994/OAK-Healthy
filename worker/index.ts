@@ -47,21 +47,26 @@ async function vault(req: Request, env: Env, id: string) {
   return json({ error: "method" }, 405);
 }
 
+/** Share links (docs/feat/delete-everything.md § Share links). deleteHash: SHA-256 hex of a delete token the app mints;
+ * the token reaches the server only in its DELETE. Shares made before 2.8 have no hash and cannot be deleted. */
 async function share(req: Request, env: Env, id?: string) {
   if (req.method === "POST" && !id) {
-    const body = (await req.json().catch(() => null)) as { blob?: string; handle?: string; title?: string; items?: number } | null;
+    const body = (await req.json().catch(() => null)) as { blob?: string; handle?: string; title?: string; items?: number; deleteHash?: unknown } | null;
     if (!body || typeof body.blob !== "string" || !body.blob.includes(".")) return json({ error: "bad body" }, 400);
+    if (body.deleteHash !== undefined && !(typeof body.deleteHash === "string" && /^[0-9a-f]{64}$/.test(body.deleteHash))) return json({ error: "bad body" }, 400);
     if (body.blob.length > MAX_SHARE) return json({ error: "too large" }, 413);
     if (!(await limit(env, `share:${clientIp(req)}`, 30, 60 * 60e3))) return json({ error: "Too many attempts. Try again later." }, 429);
     const sid = shortId();
     const items = Number.isInteger(body.items) && body.items! >= 0 && body.items! <= 500 ? body.items! : null;
     const pretty = typeof body.handle === "string" && typeof body.title === "string";
+    const now = Date.now(), expiresAt = now + SHARE_TTL_MS;
     // Opt-in pretty URL: retry the random suffix on the (unlikely) unique-index collision.
     for (let i = 0; i < (pretty ? 4 : 1); i++) {
       const slug = pretty ? buildSlug(body.handle!.slice(0, 80), body.title!.slice(0, 120), crypto.getRandomValues(new Uint8Array(4))) : null;
       try {
-        await env.DB.prepare("INSERT INTO shares (id, blob, created_at, expires_at, slug, items) VALUES (?, ?, ?, ?, ?, ?)").bind(sid, body.blob, Date.now(), Date.now() + SHARE_TTL_MS, slug, items).run();
-        return json(slug ? { id: sid, slug } : { id: sid }, 201);
+        await env.DB.prepare("INSERT INTO shares (id, blob, created_at, expires_at, slug, items, delete_hash) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .bind(sid, body.blob, now, expiresAt, slug, items, body.deleteHash ?? null).run();
+        return json(slug ? { id: sid, slug, expiresAt } : { id: sid, expiresAt }, 201);
       } catch (e) { if (!pretty || !String(e).includes("UNIQUE")) throw e; }
     }
     return json({ error: "Try again" }, 503);
@@ -71,6 +76,18 @@ async function share(req: Request, env: Env, id?: string) {
     if (bySlug ? !isPrettySlug(...(id.split("/") as [string, string])) : !validId(id)) return json({ error: "bad id" }, 400);
     const row = await env.DB.prepare(`SELECT blob FROM shares WHERE ${bySlug ? "slug" : "id"} = ? AND expires_at > ?`).bind(id, Date.now()).first<{ blob: string }>();
     return row ? json({ blob: row.blob }) : json({ error: "not found" }, 404);
+  }
+  if (req.method === "DELETE" && id) {
+    // By id only (never the slug); expired rows too. Idempotent: no row = ok. A NULL hash never matches.
+    if (!validId(id)) return json({ error: "bad id" }, 400);
+    const token = req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
+    if (token.length < 20) return json({ error: "unauthorized" }, 401);
+    const hash = await sha256(token);
+    const row = await env.DB.prepare("SELECT delete_hash FROM shares WHERE id = ?").bind(id).first<{ delete_hash: string | null }>();
+    if (!row) return json({ ok: true });
+    if (row.delete_hash !== hash) return json({ error: "forbidden" }, 403);
+    await env.DB.prepare("DELETE FROM shares WHERE id = ? AND delete_hash = ?").bind(id, hash).run();
+    return json({ ok: true });
   }
   return json({ error: "method" }, 405);
 }

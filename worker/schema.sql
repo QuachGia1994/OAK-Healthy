@@ -13,8 +13,10 @@ CREATE TABLE IF NOT EXISTS shares (
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
   slug TEXT,
-  items INTEGER
+  items INTEGER,
+  delete_hash TEXT
 );
+-- v2.8 share delete (SHA-256 of the app's delete token; NULL before 2.8). Existing databases: worker/migrations/0007_share_delete.sql
 CREATE INDEX IF NOT EXISTS shares_expires ON shares (expires_at);
 -- v2.2 pretty share URLs. Existing databases: ALTER TABLE shares ADD COLUMN slug TEXT; ALTER TABLE shares ADD COLUMN items INTEGER;
 CREATE UNIQUE INDEX IF NOT EXISTS shares_slug ON shares (slug);

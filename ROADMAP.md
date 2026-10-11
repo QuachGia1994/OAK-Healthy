@@ -1,5 +1,12 @@
 # Roadmap
 
+## Shipped in 2.8
+
+- Delete share links: each new link gets a secret delete code (the server keeps only its hash), and Delete everything removes them first.
+- Daily server purge of vault tombstones older than 365 days and of expired share links.
+- A device that synced a vault treats a missing vault like a deleted one, so a purged vault is never re-created by a 2.8 device.
+- "Everything deleted" shows after the reload, with the count of links that couldn't be deleted.
+
 ## Shipped in 2.7
 
 - Delete everything from inside the app: circles you own, reminders, vault, account and this device, with resume on failure.
@@ -62,6 +69,5 @@
 
 ## Next
 
-1. Delete share links: keep the ids of links this device created and add a delete route, so Delete everything removes them too (today they expire after 365 days).
-2. Purge old vault tombstones once no device can still hold the key (today they stay, hashed ids only).
-3. Show "Everything deleted" after the reload that ends Delete everything (today the toast is lost with the page).
+1. List the share links you created (with their expiry) in Settings and delete one without Delete everything (today only Delete everything removes them). Needs a share tombstone in the vault first, so a deleted entry can't come back from another device.
+2. Rate-limit share DELETE per IP like share POST (today a 256-bit code makes guessing infeasible, but each try costs a lookup).

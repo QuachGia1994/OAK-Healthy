@@ -1,6 +1,6 @@
 # Reminder "Taken" action and live barcode scan
 
-> updated 2026-10-11 · v2.4.0
+> updated 2026-10-11 · v2.7.0
 
 ## Taken on the reminder notification
 
@@ -34,7 +34,7 @@ The endpoint URL is the only credential, as for subscribe/snooze/delete. Covered
 
 ## Vault sync from the service worker
 
-`swSync` (Background Sync / no tab) pushes the same vault fields as `lib/sync.ts`: `profiles`, `routines`, `intakes`, `biomarkers` plus `circles`, `circlePins` and `circleSeen` (`vaultCircles`). The SW cannot run `mergeCircles`, so it passes the pulled vault's `circles` through (this device's when the vault has none), keeps this device's pins over synced ones and pushes the higher `circleSeen` floor per circle (`mergeSeen`); the next tab sync merges all three into meta and pushes the result. A 410 on the GET or PUT (the vault was deleted on another device) ends `swSync` without a PUT and without throwing, so the browser does not retry; it leaves the sync key. The next tab `syncNow` gets the same 410, turns sync off and the sync agent shows "Your synced data was deleted on another device, so sync is off here." once.
+`swSync` (Background Sync / no tab) pushes the same vault fields as `lib/sync.ts`: `profiles`, `routines`, `intakes`, `biomarkers` plus `circles`, `circlePins`, `circleSeen` (`vaultCircles`) and `shares` (`vaultShares`, same merge as `lib/sync.ts`, docs/arch/HEALTH_DATA_FLOW.md § Share list in the vault). The SW cannot run `mergeCircles`, so it passes the pulled vault's `circles` through (this device's when the vault has none), keeps this device's pins over synced ones and pushes the higher `circleSeen` floor per circle (`mergeSeen`); the next tab sync merges all three into meta and pushes the result. A 410 on the GET or PUT (the vault was deleted on another device) ends `swSync` without a PUT and without throwing, so the browser does not retry; it leaves the sync key. The next tab `syncNow` gets the same 410, turns sync off and the sync agent shows "Your synced data was deleted on another device, so sync is off here." once. The worker's own 404 on the vault id this device synced before (meta `syncedVault`, the tombstone was purged) ends `swSync` the same way; any other 404 throws (browser retry), and the id is recorded after a 2xx GET or PUT (docs/arch/HEALTH_DATA_FLOW.md § Tombstone purge).
 
 ## Live barcode scan
 

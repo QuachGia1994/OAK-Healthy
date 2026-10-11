@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.7.0";
+const VERSION = "oak-v2.8.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -159,9 +159,24 @@ function vaultCircles(remote, meta) {
   const circles = remote.circles && remote.circles.length ? remote.circles : mine("circles", []);
   return { circles: circles.map(committedSigner), circlePins: { ...remote.circlePins, ...mine("circlePins", {}) }, circleSeen: mergeSeen(mine("circleSeen", {}), remote.circleSeen) };
 }
+// Share list (meta "shares", contract C1) like lib/sync.ts mergeShares: union by id keeping this device's entry with the
+// later expiry, malformed entries dropped on both sides, dropped 30 days after the server's expiresAt by this clock.
+const SHARE_GRACE_MS = 30 * 864e5;
+const isShareRef = (s) => !!s && typeof s.id === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(s.id) && typeof s.token === "string" && s.token.length >= 20
+  && typeof s.expiresAt === "number" && Number.isFinite(s.expiresAt);
+function vaultShares(remote, meta, now) {
+  const byId = new Map(((meta.find((m) => m.key === "shares") || {}).value || []).filter(isShareRef).map((s) => [s.id, s]));
+  for (const r of Array.isArray(remote.shares) ? remote.shares.filter(isShareRef) : []) {
+    const cur = byId.get(r.id);
+    byId.set(r.id, cur ? { ...cur, expiresAt: Math.max(cur.expiresAt, r.expiresAt) } : { id: r.id, token: r.token, expiresAt: r.expiresAt });
+  }
+  return [...byId.values()].filter((s) => s.expiresAt + SHARE_GRACE_MS >= now);
+}
 // 410: the vault was deleted (tombstone): stop without a push or a throw (no browser retry). The sync key stays: the
-// next tab syncNow gets the same 410, turns sync off and the sync agent tells the user once.
+// next tab syncNow gets the same 410, turns sync off and the sync agent tells the user once. The worker's own 404 on the
+// vault id this device synced before (meta "syncedVault", lib/sync.ts C2) is the purged tombstone: the same stop.
 const VAULT_GONE = 410;
+const workerNotFound = (res) => res.json().then((b) => !!b && b.error === "not found", () => false);
 async function swSync() {
   const db = await openDb();
   try {
@@ -181,16 +196,19 @@ async function swSync() {
         const [iv, ct] = body.blob.split(".");
         remote = JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64u(iv) }, v.key, unb64u(ct))));
         await mergeInto(db, remote);
-      } else if (res.status !== 404) throw new Error(`vault ${res.status}`);
-      const snap = { v: 1 };
+        await putMeta(db, "syncedVault", v.id);
+      } else if (res.status !== 404 || !(await workerNotFound(res))) throw new Error(`vault ${res.status}`);
+      else if (((await getAll(db, "meta")).find((m) => m.key === "syncedVault") || {}).value === v.id) return;
+      const snap = { v: 1 }, meta = await getAll(db, "meta");
       for (const s of Object.keys(STORES)) snap[s] = await getAll(db, s);
-      Object.assign(snap, vaultCircles(remote, await getAll(db, "meta")));
+      Object.assign(snap, vaultCircles(remote, meta), { shares: vaultShares(remote, meta, Date.now()) });
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const blob = b64u(iv) + "." + b64u(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, v.key, te.encode(JSON.stringify(snap))));
       const put = await fetch(`/api/vault/${v.id}`, { method: "PUT", headers, body: JSON.stringify({ baseRev: rev, blob }) });
       if (put.status === 409) continue;
       if (put.status === VAULT_GONE) return;
       if (!put.ok) throw new Error(`push ${put.status}`);
+      await putMeta(db, "syncedVault", v.id);
       await putMeta(db, "lastSync", Date.now());
       return;
     }

@@ -1,18 +1,29 @@
 # Delete everything
 
-> updated 2026-10-11 · v2.7.0
+> updated 2026-10-11 · v2.8.0
 
 One action deletes what OAK holds about you, on the server and on this device. It is in Settings and on the Account page, behind an inline confirm ("Yes, delete everything").
 
-Code: `lib/domain/wipe.ts` (order and resume rules), `lib/account.ts` `wipeEverything` (real steps), `components/settings.tsx` `DeleteEverything` (UI), `worker/index.ts` vault route (tombstone). Tests: `tests/wipe.test.ts`.
+Code: `lib/domain/wipe.ts` (order and resume rules), `lib/account.ts` `wipeEverything` (real steps), `components/settings.tsx` `DeleteEverything` (UI) and `SyncAgent` (notice after the reload), `components/stack-manager.tsx` `shareStack` (share list), `worker/index.ts` vault route (tombstone) and share route (delete). Tests: `tests/wipe.test.ts`, `tests/share.test.ts`.
 
 ## Order
 
 1. **Circles you own.** One sync pull first, so circles made on another device that synced are known. Then `DELETE /api/circle/<id>` for every live circle in meta `circles` with a write token `w` (member and bearer circles). Each one stays locally as a tombstone (`lib/circles.ts` `revokeCircle`), and the server drops the circle and its members.
 2. **Reminders.** `disableReminders` removes the push subscription (server row and browser).
-3. **Sync off, then the vault.** The vault id and auth are derived from the sync key and kept in the progress marker; sync is turned off on this device; then `DELETE /api/vault/<id>`.
-4. **Account** (when signed in; if the page did not know yet, GET `/api/auth/me` decides, and a failed check stops the step instead of skipping it). `DELETE /api/auth/me` removes the user, sessions, sign-in methods, passkeys, reset tokens, member key and circle memberships.
-5. **This device**, last and in one call: the IndexedDB database is deleted (which also removes the marker) and the app reloads as new.
+3. **Share links.** `DELETE /api/share/<id>` with `Authorization: Bearer <token>` for every entry in meta `shares` (expired ones too: the daily purge may not have removed them yet). Each entry leaves the list once deleted, already gone (200) or refused for good (`shareDeleteOutcome`: 403 wrong or no hash, 405 a 2.7 worker, 400/401 a malformed entry); refused ones are skipped and counted (`sharesKept`), never retried. A network error, 429 or 5xx stops the run before the vault.
+4. **Sync off, then the vault.** The vault id and auth are derived from the sync key and kept in the progress marker; sync is turned off on this device; then `DELETE /api/vault/<id>`.
+5. **Account** (when signed in; if the page did not know yet, GET `/api/auth/me` decides, and a failed check stops the step instead of skipping it). `DELETE /api/auth/me` removes the user, sessions, sign-in methods, passkeys, reset tokens, member key and circle memberships.
+6. **This device**, last and in one call: the IndexedDB database is deleted (which also removes the marker) and the app reloads as new. Just before the reload, sessionStorage `oak:wiped` is set to `sharesKept`; after it, `SyncAgent` (mounted on every app page) reads and removes the flag and shows "Everything deleted" once, with "{n} share links couldn't be deleted. They expire 365 days after they were created." when `sharesKept` > 0.
+
+## Share links
+
+| | |
+|---|---|
+| Token | `shareStack` mints 32 random bytes, base64url (256 bits). Sent only in the share's DELETE `Authorization` header, never in a URL or query. |
+| Server | `POST /api/share` takes `deleteHash` = SHA-256 hex of the token (64 lowercase hex; malformed: 400; absent: NULL, as from 2.7 apps), stores it in `shares.delete_hash` (migration `0007_share_delete.sql`) and answers `expiresAt` (server clock). |
+| List | meta `shares` = `[{ id, token, expiresAt }]` (contract C1), appended after the 201 and before the link is copied; it rides in the encrypted vault (union by id), never in Export. |
+| Delete | By id only (the slug form answers 400). No row: 200. Hash mismatch or NULL hash: 403. Match: the row is deleted, expired or not. |
+| Expiry | Once a day the ReminderClock purge deletes share rows with `expires_at` < now, 500 per statement (`docs/arch/HEALTH_DATA_FLOW.md`); GET already hides them before that. |
 
 ## Vault tombstone
 
@@ -26,12 +37,14 @@ The first failing step stops the run; nothing after it is deleted. The card name
 |---|---|
 | Circles | Deleted circles are tombstones and leave the list; the server answers ok for a circle already gone. |
 | Reminders | Turning reminders off twice is a no-op. |
+| Share links | Deleted and refused entries leave the list after each call, and the marker keeps `sharesKept`; the server answers 200 for a share already gone. A 2.7 marker (vault done, no `shares` step) runs the share step on its retry. |
 | Vault | The server answers ok on a tombstone and keeps the first deletion time. |
 | Account | The marker records that the DELETE was sent. A later 401 counts as done only then (the answer was lost after the server deleted it). A 401 answer to the request itself means the session expired: the marker is reset and the card asks to sign in first. |
 
 ## Limits
 
 - A circle created on a device that never synced is unknown to the other devices. Run Delete everything (or Delete circle) on that device too.
-- Share links have no owner and no delete route: anyone with the link can open one until it expires after 365 days.
-- The tombstone row stays on the server (hashed ids and times only).
+- Share links created before 2.8 (no `delete_hash`) or on a device that never synced are not deleted: anyone with the link can open one until it expires, 365 days after creation; the daily purge then deletes the row.
+- The tombstone row stays on the server (hashed ids and times only) and is deleted by the daily ReminderClock purge once it is 365 days past `deleted_at` (`docs/feat/notify-barcode.md`).
+- After that purge, a device still on 2.7 or older that was offline the whole time gets 404, pushes with `baseRev` 0 and re-creates the vault with its local data (accepted, lead D1). 2.8 devices that synced the vault treat that 404 as gone.
 - After the first wipe the worker cannot roll back below 2.7: a 2.6 worker would serve tombstones as live (empty) vaults. Fix forward only.

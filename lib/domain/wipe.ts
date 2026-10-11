@@ -1,10 +1,13 @@
 // Delete everything (docs/feat/delete-everything.md). Steps are injected; lib/account.ts wires the real ones.
-export type WipeStep = "circles" | "reminders" | "vault" | "account" | "device";
+export type WipeStep = "circles" | "reminders" | "shares" | "vault" | "account" | "device";
+/** One share link this app created (meta `shares`, contract C1): its delete token goes only into its DELETE. */
+export interface ShareRef { id: string; token: string; expiresAt: number }
 /** Vault id and access token, derived from the sync key before sync is turned off (not the key itself). */
 export interface VaultAuth { id: string; auth: string }
 /** The local progress marker (meta "wipe"), written after each finished step and kept until this device is cleared.
- * accountSent: the account DELETE went out and no answer said it failed (a lost answer may mean it was deleted). */
-export interface WipeProgress { vault: VaultAuth | null; account: boolean; done: WipeStep[]; accountSent?: boolean }
+ * accountSent: the account DELETE went out and no answer said it failed (a lost answer may mean it was deleted).
+ * sharesKept: share links the server refused to delete (403), skipped. */
+export interface WipeProgress { vault: VaultAuth | null; account: boolean; done: WipeStep[]; accountSent?: boolean; sharesKept?: number }
 export interface WipeDeps {
   /** The stored marker, or a fresh one from this device's state. */
   progress(): Promise<WipeProgress>;
@@ -18,6 +21,11 @@ export interface WipeDeps {
   ownedCircles(): Promise<string[]>;
   deleteCircle(id: string): Promise<void>;
   disableReminders(): Promise<void>;
+  /** meta `shares`, after the pull merged other devices' lists. */
+  shares(): Promise<ShareRef[]>;
+  saveShares(list: ShareRef[]): Promise<void>;
+  /** "ok" also when already gone; "kept": the server refused for good (shareDeleteOutcome). Other failures throw. */
+  deleteShare(s: ShareRef): Promise<"ok" | "kept">;
   syncOff(): Promise<void>;
   deleteVault(v: VaultAuth): Promise<void>;
   /** "signed-out": the server answered 401 (no session, or the account is already gone). Other failures throw. */
@@ -25,11 +33,44 @@ export interface WipeDeps {
   /** One call, last: also removes the marker. */
   clearDevice(): Promise<void>;
 }
-export type WipeResult = { ok: true } | { ok: false; step: WipeStep; error: string };
+export type WipeResult = { ok: true; sharesKept: number } | { ok: false; step: WipeStep; error: string };
 export const SIGN_IN_FIRST = "Sign in first";
 
-/** Pull, delete owned circles, turn off reminders, turn off sync, delete the vault, delete the account, clear this
- * device, in that order. The first failure stops the run; a retry skips the steps the marker lists as done and
+/** A share DELETE's status: 200 ok; a refusal that a retry cannot change is "kept" (skipped and counted, so the wipe
+ * reaches the vault): 403 wrong or no hash, 405 a 2.7 worker, 400/401 a malformed entry (bad id, short token). Anything
+ * else (429, 5xx) is "retry": the step fails and Retry repeats it. */
+export function shareDeleteOutcome(status: number): "ok" | "kept" | "retry" {
+  if (status >= 200 && status < 300) return "ok";
+  return [400, 401, 403, 405].includes(status) ? "kept" : "retry";
+}
+
+/** sessionStorage key set just before the reload that ends Delete everything (value: sharesKept). */
+export const WIPED_FLAG = "oak:wiped";
+/** Reads and removes the flag, so the notice shows once. null: no flag, or storage unavailable. */
+export function takeWipedFlag(st: Pick<Storage, "getItem" | "removeItem">): { sharesKept: number } | null {
+  try {
+    const v = st.getItem(WIPED_FLAG);
+    if (v === null) return null;
+    st.removeItem(WIPED_FLAG);
+    const n = Number(v);
+    return { sharesKept: Number.isInteger(n) && n > 0 ? n : 0 };
+  } catch { return null; }
+}
+
+/** Every listed share, expired ones too (the daily purge may not have removed them yet). Each leaves the list once deleted or refused,
+ * so a retry neither repeats nor double-counts it. */
+async function deleteShares(d: WipeDeps, p: WipeProgress) {
+  let left = await d.shares();
+  for (const s of [...left]) {
+    if ((await d.deleteShare(s)) === "kept") p.sharesKept = (p.sharesKept ?? 0) + 1;
+    left = left.filter((x) => x.id !== s.id);
+    await d.saveShares(left);
+    await d.save({ ...p });
+  }
+}
+
+/** Pull, delete owned circles, turn off reminders, delete share links, turn off sync, delete the vault, delete the
+ * account, clear this device, in that order. The first failure stops the run; a retry skips the steps the marker lists as done and
  * repeats the rest, each of which is safe to repeat. Sync goes off before the vault delete, so this device cannot
  * push the vault back; the server keeps a tombstone that refuses other devices (410). */
 export async function deleteEverything(d: WipeDeps, onStep: (s: WipeStep) => void = () => {}): Promise<WipeResult> {
@@ -46,6 +87,7 @@ export async function deleteEverything(d: WipeDeps, onStep: (s: WipeStep) => voi
     };
     await run("circles", async () => { await d.pull(); for (const id of await d.ownedCircles()) await d.deleteCircle(id); });
     await run("reminders", () => d.disableReminders());
+    await run("shares", () => deleteShares(d, p));
     await run("vault", async () => { await d.syncOff(); if (p.vault) await d.deleteVault(p.vault); });
     await run("account", async () => {
       if (!p.account && !(await d.signedIn())) return;
@@ -58,7 +100,7 @@ export async function deleteEverything(d: WipeDeps, onStep: (s: WipeStep) => voi
     });
     step = "device"; onStep(step);
     await d.clearDevice();
-    return { ok: true };
+    return { ok: true, sharesKept: p.sharesKept ?? 0 };
   } catch (e) {
     return { ok: false, step, error: e instanceof Error ? e.message : String(e) };
   }

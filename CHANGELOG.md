@@ -6,6 +6,19 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-10-11
+
+### Added
+
+- Share links can be deleted: the app makes a secret delete code for each new link, and the server stores only its hash (migration 0007). Delete everything now deletes the share links this account created (also those listed by your other synced devices) before the vault. The final notice says how many links it couldn't delete; those expire 365 days after they were created.
+- "Everything deleted" now shows after the reload that ends Delete everything.
+- Once a day the server purges vault tombstones older than 365 days and expired share links.
+
+### Changed
+
+- A device that already synced a vault treats a missing vault (404) like a deleted one (410): it turns sync off and says why, instead of uploading it again. A new key still creates its vault.
+- Share links made before 2.8 can't be deleted (no delete code); they expire after 365 days. The privacy policy says so.
+
 ## [2.7.0] - 2026-10-11
 
 ### Added

@@ -345,7 +345,7 @@ const PRIVACY: [string, string][] = [
   ],
   [
     "Encrypted sync, shares and circles (optional)",
-    "Synced data, shared stacks and circle views are encrypted on your device. The server stores only ciphertext and technical identifiers; we cannot read the content. Anyone with a full share or circle link can view it until it expires or you revoke it."
+    "Synced data, shared stacks and circle views are encrypted on your device. The server stores only ciphertext and technical identifiers; we cannot read the content. For each share link it also stores a hash of a secret delete code that stays on your devices. Anyone with a full share or circle link can view it until it expires or is deleted."
   ],
   [
     "Reminders (optional)",
@@ -361,7 +361,7 @@ const PRIVACY: [string, string][] = [
   ],
   [
     "Deletion",
-    "Settings → Delete everything (also on the Account page) deletes the circles you own, reminders, your encrypted vault, your account and all data on this device, in that order. A deleted vault keeps only hashed ids and the deletion time, so other devices stop syncing. A circle made on a device that never synced must be deleted on that device. Share links can't be deleted; they expire after 365 days."
+    "Settings → Delete everything (also on the Account page) deletes the circles you own, reminders, the share links you created, your encrypted vault, your account and all data on this device, in that order. A deleted vault keeps only hashed ids and the deletion time, so other devices stop syncing; this record is removed after 365 days. A circle or share link made on a device that never synced must be deleted on that device. Share links created before version 2.8 can't be deleted; they expire after 365 days."
   ]
 ];
 
