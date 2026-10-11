@@ -150,7 +150,8 @@ export function SettingsView() {
     let next = "";
     try { next = m[2] ? decodeURIComponent(m[2]) : ""; } catch { /* malformed next= is ignored */ }
     const go = () => { const to = safeNext(next, location.origin, location.pathname); if (to) location.replace(to); };
-    const k = decodeURIComponent(m[1]).trim().toUpperCase();
+    let k = "";
+    try { k = decodeURIComponent(m[1]).trim().toUpperCase(); } catch { /* malformed key falls to the invalid-key toast */ }
     if (!isValidKey(k)) { toast.error(t("That doesn't look like an OAK sync key")); return go(); }
     void (async () => {
       const cur = await getSyncKey();

@@ -6,6 +6,10 @@ versioning where practical.
 
 ## [Unreleased]
 
+### Fixed
+
+- Old-address handoff: edited or extra profiles count as local data (only the untouched first-run profile is ignored), so such a device keeps them and sees the notice; a malformed key in a device link no longer throws.
+
 ## [2.5.1] - 2026-10-11
 
 ### Changed

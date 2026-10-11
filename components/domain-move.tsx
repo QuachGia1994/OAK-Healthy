@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { db, getMeta } from "@/lib/db";
+import { db, getMeta, PROFILE_COLORS } from "@/lib/db";
 import { getSyncKey, syncNow } from "@/lib/sync";
 import { disableReminders } from "@/lib/reminders";
 import { useT } from "@/lib/i18n";
@@ -8,13 +8,15 @@ import { useT } from "@/lib/i18n";
 export const OLD_HOST = "oak-healthy.kim-phong619.workers.dev";
 export const NEW_ORIGIN = "https://healthy.oakgatekeeper.uk";
 
-/** True when this device holds anything the new origin could not get back without the old one. The app seeds a
- * default profile on first load, so profiles alone do not count. */
+/** True when this device holds anything the new origin could not get back without the old one. The first-run
+ * seed (ensureSeed: one "Me" profile, never edited) does not count; any other profile state does. */
 async function hasLocalData() {
   const counts = await Promise.all(db.tables.filter((x) => x.name !== "meta" && x.name !== "profiles").map((x) => x.count()));
+  const profiles = await db.profiles.toArray();
+  const seedOnly = profiles.length === 0 || (profiles.length === 1 && profiles[0].name === "Me" && profiles[0].color === PROFILE_COLORS[0] && profiles[0].updatedAt === profiles[0].createdAt && !profiles[0].deletedAt);
   const circles = await getMeta<unknown[]>("circles", []);
   const pins = await getMeta<Record<string, string>>("circlePins", {});
-  return counts.some((n) => n > 0) || circles.length > 0 || Object.keys(pins).length > 0;
+  return !seedOnly || counts.some((n) => n > 0) || circles.length > 0 || Object.keys(pins).length > 0;
 }
 
 /** On-device data is per origin, so the old address never just redirects: a synced device pushes first, turns
