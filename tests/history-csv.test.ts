@@ -123,6 +123,14 @@ test("history CSV: Unicode spaces (NBSP, ideographic, U+2000-200B, BOM) before a
   assert.deepEqual(body(csv), [...cells.map((c, i) => `2026-03-01,0${i}:00,Me,'${c},1,Missed,`), "2026-03-01,09:00,Me,\u00A0Zinc,\u30005 mg,Missed,"]);
 });
 
+test("history CSV: invisible format characters (ZWNJ, ZWJ, word joiner, Mongolian vowel separator) before a formula character also get a leading quote; fullwidth signs stay", () => {
+  const cells = ["\u200D=1", "\u2060@x", "\u200C+1", "\u180E-1", "\u200B\u200D =SUM(A1)"];
+  const kept = ["\uFF1D1+1", "\uFF0D5 mg", "\uFF0B1", "\uFF20me", "\u22125 mg"];
+  const rs = [...cells, ...kept].map((name, i) => R({ id: `r${i}`, name, dose: "1", time: `0${i}:00` }));
+  const csv = historyCsv({ routines: rs, profiles: [P("p1", "Me")], intakes: [] }, { from, now: at("2026-03-01", "12:00"), labels: EN });
+  assert.deepEqual(body(csv), [...cells.map((c) => `'${c}`), ...kept].map((c, i) => `2026-03-01,0${i}:00,Me,${c},1,Missed,`));
+});
+
 test("history CSV: a synced record with a status this version does not know writes the raw status, escaped like user text", () => {
   const r = R({});
   const odd = (day: string, status: unknown) => I(r, day, status as Intake["status"], at(day, "08:01"));

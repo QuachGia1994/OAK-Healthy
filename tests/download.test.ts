@@ -15,16 +15,26 @@ function fakeEnv() {
   return { log, timers, a, env: env as unknown as DownloadEnv };
 }
 
-test("saveBlob clicks an anchor in the page and frees the blob URL only later, not in the same tick", () => {
+test("saveBlob clicks an anchor in the page, removes it right away, and frees the blob URL only later", () => {
   const { log, timers, a, env } = fakeEnv();
   saveBlob(new Blob(["x"]), "oak-healthy-history-2026-10-11.csv", env);
-  assert.deepEqual(log, ["url", "element a", "append", "click oak-healthy-history-2026-10-11.csv"], "no revoke right after click()");
+  assert.deepEqual(log, ["url", "element a", "append", "click oak-healthy-history-2026-10-11.csv", "remove"], "no revoke right after click()");
   assert.equal(a.href, "blob:oak-1");
   assert.equal(timers.length, 1);
   assert.equal(timers[0].ms, REVOKE_AFTER_MS);
   assert.ok(REVOKE_AFTER_MS >= 10_000, "long enough for a slow save dialog");
   timers[0].run();
-  assert.deepEqual(log.slice(4), ["remove", "revoke blob:oak-1"]);
+  assert.deepEqual(log.slice(5), ["revoke blob:oak-1"]);
+});
+
+test("saveBlob still removes the anchor and schedules the revoke when click() throws", () => {
+  const { log, timers, a, env } = fakeEnv();
+  a.click = () => { log.push("click"); throw new Error("blocked"); };
+  assert.throws(() => saveBlob(new Blob(["x"]), "x.json", env), /blocked/);
+  assert.deepEqual(log, ["url", "element a", "append", "click", "remove"]);
+  assert.equal(timers.length, 1);
+  timers[0].run();
+  assert.deepEqual(log.slice(5), ["revoke blob:oak-1"]);
 });
 
 test("Settings saves the JSON backup and the history CSV through saveBlob, with no revoke of its own", () => {

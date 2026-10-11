@@ -1,6 +1,6 @@
 // Save a Blob as a file download (JSON backup, history CSV; docs/feat/history-csv.md § Format).
-// The anchor sits in the page for the click (Firefox), and the blob URL is freed only later: revoking it in the same
-// tick as click() can leave Safari/Firefox with an empty or failed download.
+// The anchor sits in the page only for the click (Firefox) and is removed right after, also when click() throws; the
+// blob URL is freed only later: revoking it in the same tick as click() can leave Safari/Firefox with an empty or failed download.
 
 /** How long the blob URL stays valid after the click. */
 export const REVOKE_AFTER_MS = 60_000;
@@ -18,6 +18,10 @@ export function saveBlob(blob: Blob, name: string, env: DownloadEnv = browser())
   const href = env.URL.createObjectURL(blob);
   const a = Object.assign(env.document.createElement("a"), { href, download: name });
   env.document.body.appendChild(a);
-  a.click();
-  env.setTimeout(() => { a.remove(); env.URL.revokeObjectURL(href); }, REVOKE_AFTER_MS);
+  try {
+    a.click();
+  } finally {
+    a.remove();
+    env.setTimeout(() => env.URL.revokeObjectURL(href), REVOKE_AFTER_MS);
+  }
 }

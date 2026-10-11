@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { doseAt, doseWrite, planned, takenNext } from "../lib/domain/intake-key.ts";
 import { dosesForDay } from "../lib/domain/schedule.ts";
-import { scheduleOn } from "../lib/domain/schedule-history.ts";
+import { MAX_SPANS, scheduleOn, withHistory } from "../lib/domain/schedule-history.ts";
 import { utcMinutes } from "../lib/domain/remind.ts";
 import type { Intake, Routine } from "../lib/domain/types.ts";
 import { circle, committed, pendingCircle, SHARES_NOW, VAULT_CIRCLE_FIELDS, vaultCircleCases, vaultShareCases } from "./fixtures/vault-circles.ts";
@@ -16,6 +16,7 @@ function loadSw(globals: Record<string, unknown> = {}) {
   runInNewContext(readFileSync(new URL("../public/sw.js", import.meta.url), "utf8"), ctx);
   return ctx as {
     doseAt: typeof doseAt; planned: typeof planned; doseWrite: typeof doseWrite; takenNext: Taken; utcMinutes: typeof utcMinutes;
+    materialize: (r: Routine, now: number) => Routine; writeTaken: (db: unknown, doses: { id: string; at: number }[], now: number) => Promise<void>;
     vaultCircles: (remote: unknown, meta: Rec[]) => unknown; vaultShares: (remote: unknown, meta: Rec[], now: number) => unknown;
     vaultKeys: (secret: string) => Promise<{ id: string; key: CryptoKey }>;
   };
@@ -283,23 +284,27 @@ for (const { name, remote, local, want } of vaultShareCases) {
   });
 }
 
-// Schedule history (docs/feat/schedule-history.md) rides inside the routine record; public/sw.js does not know it and
-// must carry it as stored. These pin that, plus the two accepted residuals (LWW per record, SW Taken drift).
+// Schedule history (docs/feat/schedule-history.md) rides inside the routine record; public/sw.js carries it as stored,
+// except that its Taken write first materializes the implicit span (mirror of withHistory(r, today)). These pin that,
+// plus the accepted LWW-per-record residual.
 type Row = Record<string, unknown>;
 const spans = [{ from: "2026-10-01", time: "07:00", startDate: "2026-10-01", cycle: daily, paused: false }, { from: "2026-10-05", time: "08:00", startDate: "2026-10-01", cycle: daily, paused: false }];
-/** IndexedDB stand-in with get/put per store, enough for sw.js mergeInto. */
+/** IndexedDB stand-in with get/put per store, enough for sw.js mergeInto and writeTaken: like IndexedDB, the transaction
+ *  completes only once no request is pending (a get issued from a get's onsuccess keeps it open). */
 function memDb(stores: Record<string, Row[]>) {
   const id = (s: string) => (s === "intakes" ? "key" : "id");
   return {
     objectStoreNames: { contains: (s: string) => s in stores },
     transaction() {
+      let pending = 0, done = false;
+      const settle = () => later(() => { if (!pending && !done) { done = true; tx.oncomplete?.(); } });
       const tx: { oncomplete?: () => void; objectStore: (s: string) => unknown } = {
         objectStore: (s: string) => ({
-          get(k: unknown) { const q: Req = {}; later(() => { q.result = stores[s].find((x) => x[id(s)] === k); q.onsuccess?.(); }); return q; },
+          get(k: unknown) { const q: Req = {}; pending++; later(() => { q.result = stores[s].find((x) => x[id(s)] === k); q.onsuccess?.(); pending--; settle(); }); return q; },
           put(v: Row) { stores[s] = [...stores[s].filter((x) => x[id(s)] !== v[id(s)]), JSON.parse(JSON.stringify(v))]; },
         }),
       };
-      setTimeout(() => tx.oncomplete?.(), 5);
+      setTimeout(settle, 5);
       return tx;
     },
   };
@@ -333,11 +338,47 @@ test("schedule history: last writer wins per routine, so a newer stock-only reco
   assert.equal(got[0].history, undefined);
 });
 
-test("schedule history: the notification's Taken moves updatedAt and leaves history untouched, so an implicit span's day drifts (accepted residual)", () => {
-  const r = { ...routine, history: [spans[0]], updatedAt: new Date(2026, 9, 5, 12, 0).getTime() } as Routine;
+const oct = (d: number, h = 12) => new Date(2026, 9, d, h, 0).getTime();
+const many = Array.from({ length: MAX_SPANS }, (_, i) => ({ ...spans[0], from: new Date(Date.UTC(2026, 5, 1 + i)).toISOString().slice(0, 10), time: i % 2 ? "09:00" : "07:00" }));
+const materializeCases: [string, Routine][] = [
+  ["implicit span appended from the updatedAt day", { ...routine, history: [spans[0]], updatedAt: oct(5) } as Routine],
+  ["implicit span on the last span's day replaces it (one span left: no history)", { ...routine, history: [spans[0]], updatedAt: oct(1) } as Routine],
+  ["last span equals the current fields: unchanged", { ...routine, history: spans, updatedAt: oct(9) } as Routine],
+  ["no history: unchanged, still no history", { ...routine, updatedAt: oct(5) } as Routine],
+  ["updatedAt after today (clock ahead) counts from today", { ...routine, history: [spans[0]], updatedAt: oct(20) } as Routine],
+  ["a span from a later day is dropped", { ...routine, time: "09:00", history: [spans[0], { ...spans[1], from: "2026-10-20" }], updatedAt: oct(5) } as Routine],
+  ["invalid history is dropped", { ...routine, history: [{ from: "x" }], updatedAt: oct(5) } as unknown as Routine],
+  ["paused counts as a schedule change", { ...routine, time: "07:00", paused: true, history: [spans[0]], updatedAt: oct(6) } as Routine],
+  ["deleted counts as a schedule change", { ...routine, time: "07:00", deletedAt: oct(6), history: [spans[0]], updatedAt: oct(6) } as Routine],
+  ["over MAX_SPANS: the oldest fold into the first", { ...routine, history: many, updatedAt: oct(5) } as Routine],
+];
+for (const [name, r] of materializeCases) {
+  test(`schedule history materialize ${name}: app (withHistory) and service worker agree`, () => {
+    const now = at8 + 60_000;
+    assert.deepEqual(JSON.parse(JSON.stringify(sw.materialize(r, now))), JSON.parse(JSON.stringify(withHistory(r, "2026-10-11"))));
+  });
+}
+
+const swTaken = async (r: Row, now: number) => {
+  const stores: Record<string, Row[]> = { routines: [r], intakes: [] };
+  await loadSw().writeTaken(memDb(stores), [{ id: "vit-d", at: at8 }], now);
+  return { routine: stores.routines[0] as unknown as Routine, intakes: stores.intakes };
+};
+
+test("schedule history: the notification's Taken stores the implicit span before moving updatedAt, so past days keep their schedule", async () => {
+  const r = { ...routine, history: [spans[0]], updatedAt: oct(5) } as Routine;
   assert.equal(scheduleOn(r, "2026-10-08").time, "08:00", "current fields from the updatedAt day (Oct 5)");
-  const next = JSON.parse(JSON.stringify(sw.takenNext(r, at8, undefined, at8 + 60_000))).routine as Routine;
-  assert.deepEqual(next.history, [spans[0]]);
+  const { routine: next, intakes } = await swTaken(r as unknown as Row, at8 + 60_000);
+  assert.equal(intakes.length, 1);
+  assert.equal(next.stock, 28);
   assert.equal(next.updatedAt, at8 + 60_000);
-  assert.equal(scheduleOn(next, "2026-10-08").time, "07:00", "now from the Taken day (Oct 11)");
+  assert.deepEqual(next.history, spans, "implicit span stored from Oct 5");
+  assert.equal(scheduleOn(next, "2026-10-08").time, "08:00", "still from Oct 5, not from the Taken day");
+  assert.equal(scheduleOn(next, "2026-10-03").time, "07:00");
+});
+
+test("schedule history: the notification's Taken on a routine without history writes no history", async () => {
+  const { routine: next } = await swTaken({ ...routine, updatedAt: oct(5) }, at8 + 60_000);
+  assert.equal(next.stock, 28);
+  assert.equal("history" in next, false);
 });

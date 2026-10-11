@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.12.1";
+const VERSION = "oak-v2.12.2";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -80,6 +80,41 @@ function doseWrite(r, at, prev, status, now) {
   return { intake, routine };
 }
 function takenNext(r, at, prev, now) { return !planned(r, at) || isTaken(prev) ? null : doseWrite(r, at, prev, "Taken", now); }
+// Mirror of lib/domain/schedule-history.ts withHistory(r, today) with no edit (parseHistory, effective, merge, cap): a dose
+// write moves updatedAt, so the implicit span (current fields from the updatedAt day) is stored first, as markDose does.
+const MAX_SPANS = 64, SPAN_DAY = /^\d{4}-\d{2}-\d{2}$/, SPAN_HHMM = /^([01]?\d|2[0-3]):[0-5]\d$/;
+const spanCount = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
+const spanDay = (x) => typeof x === "string" && SPAN_DAY.test(x) && !Number.isNaN(Date.parse(x));
+const spanCycle = (c) => !!c && typeof c === "object" && spanCount(c.daysOn) && spanCount(c.daysOff) && typeof c.continuous === "boolean" && (c.durationDays == null || spanCount(c.durationDays));
+const isSpan = (s) => !!s && typeof s === "object" && spanDay(s.from) && typeof s.time === "string" && SPAN_HHMM.test(s.time) && spanDay(s.startDate)
+  && spanCycle(s.cycle) && typeof s.paused === "boolean" && (s.deleted === undefined || s.deleted === true);
+const scheduleOf = (r) => ({ time: r.time, startDate: r.startDate, cycle: { ...r.cycle }, paused: !!r.paused, ...(r.deletedAt ? { deleted: true } : {}) });
+const sameSchedule = (a, b) => a.time === b.time && a.startDate === b.startDate && a.paused === b.paused && !!a.deleted === !!b.deleted
+  && a.cycle.daysOn === b.cycle.daysOn && a.cycle.daysOff === b.cycle.daysOff && a.cycle.continuous === b.cycle.continuous && (a.cycle.durationDays ?? null) === (b.cycle.durationDays ?? null);
+function capSpans(h) {
+  if (h.length <= MAX_SPANS) return h;
+  const k = h.length - MAX_SPANS + 1;
+  return [{ ...h[k - 1], from: h[0].from }, ...h.slice(k)];
+}
+function localDay(ms) { const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function materialize(r, now) {
+  if (r.history === undefined) return r;
+  const today = localDay(now), x = r.history;
+  let h = [];
+  if (Array.isArray(x) && x.every(isSpan)) {
+    const byDay = new Map();
+    for (const s of x) if (s.from <= today) byDay.set(s.from, s);
+    h = capSpans([...byDay.values()].sort((a, b) => (a.from < b.from ? -1 : 1)));
+  }
+  const cur = scheduleOf(r), last = h[h.length - 1];
+  if (last && !sameSchedule(last, cur)) {
+    const from = localDay(Math.min(r.updatedAt, new Date(today + "T23:59").getTime()));
+    h = from <= last.from ? [...h.slice(0, -1), { from: last.from, ...cur }] : [...h, { from, ...cur }];
+  }
+  h = capSpans(h.filter((s, i) => i === 0 || !sameSchedule(s, h[i - 1])));
+  if (h.length <= 1) { const out = { ...r }; delete out.history; return out; }
+  return JSON.stringify(h) === JSON.stringify(x) ? r : { ...r, history: h };
+}
 // Mirror of lib/domain/remind.ts (remindable, utcMinutes): the minutes lib/reminders.ts registers, for resubscribe below.
 const remindable = (r) => !r.deletedAt && !r.paused && r.remind !== false;
 function utcMinutes(rs, offset) {
@@ -243,7 +278,7 @@ self.addEventListener("sync", (e) => {
     return swSync();
   }));
 });
-// "Taken" action: the same Intake + stock write as markDose (lib/db.ts), in one IndexedDB transaction.
+// "Taken" action: the same Intake + stock (+ implicit schedule span) write as markDose (lib/db.ts), in one IndexedDB transaction.
 function writeTaken(db, doses, now) {
   return new Promise((res, rej) => {
     const tx = db.transaction(["intakes", "routines"], "readwrite");
@@ -254,7 +289,7 @@ function writeTaken(db, doses, now) {
         if (!gr.result) return;
         const gi = intakes.get(doseKey(id, at));
         gi.onsuccess = () => {
-          const next = takenNext(gr.result, at, gi.result, now);
+          const next = takenNext(materialize(gr.result, now), at, gi.result, now);
           if (!next) return;
           intakes.put(next.intake);
           if (next.routine) routines.put(next.routine);

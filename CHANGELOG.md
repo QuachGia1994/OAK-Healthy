@@ -6,6 +6,17 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.12.2] - 2026-10-11
+
+### Fixed
+
+- A dose marked Taken from the reminder notification no longer moves the day from which a schedule change made on an older device counts.
+
+### Security
+
+- The download link is removed right after the click (also if the click fails); the file URL is still freed 60 s later.
+- Download history (CSV): the formula guard also looks past zero-width characters (ZWJ, ZWNJ, word joiner, U+180E) before = + - @.
+
 ## [2.12.1] - 2026-10-11
 
 ### Fixed
