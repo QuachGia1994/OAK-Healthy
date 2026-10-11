@@ -80,3 +80,77 @@ export async function unwrapFor(priv: CryptoKey, wrap: string, circleId: string)
   const raw = await open<string>(await wrappingKey(priv, await importPub(epk), circleId, epk), `${iv}.${ct}`);
   return contentKey(unb64u(raw), "decrypt");
 }
+
+// Signed snapshots (§ Signatures). ECIES gives members no sender authentication: anyone holding a member's public
+// key (the server) could wrap its own content key. The owner signs every member snapshot with a per-circle ECDSA key
+// whose public half the member pins at join (invite #o=) or, for members who joined before 2.5, on first sight.
+const ECDSA = { name: "ECDSA", namedCurve: "P-256" } as const;
+const SIG = { name: "ECDSA", hash: "SHA-256" } as const;
+/** pending: made on this device for a circle that may exist elsewhere (pre-2.5), not yet in a pushed vault. */
+export interface Signer { pub: string; priv: JsonWebKey; createdAt: number; pending?: true }
+export const UNSIGNED = "This circle update isn't signed by its owner, so it isn't shown.";
+export const TAMPERED = "This circle update failed its signature check, so it isn't shown. Ask the owner for a new invite.";
+export class SnapshotRefused extends Error { constructor(message: string) { super(message); this.name = "SnapshotRefused"; } }
+const sigMessage = (circleId: string, pub: string, sealed: string) => te.encode(`oak-circle-sig-v1|${circleId}|${pub}|${sealed}`);
+
+export async function newSigner(): Promise<Signer> {
+  const pair = await crypto.subtle.generateKey(ECDSA, true, ["sign", "verify"]);
+  return { pub: b64u(await crypto.subtle.exportKey("raw", pair.publicKey)), priv: await crypto.subtle.exportKey("jwk", pair.privateKey), createdAt: Date.now() };
+}
+/** Member blob format: iv.ct.signerPub.sig (bearer blobs stay iv.ct). The signature binds circle, signer and ciphertext. */
+export async function signSnapshot(signer: Signer, circleId: string, sealed: string) {
+  const key = await crypto.subtle.importKey("jwk", signer.priv, ECDSA, false, ["sign"]);
+  return `${sealed}.${signer.pub}.${b64u(await crypto.subtle.sign(SIG, key, sigMessage(circleId, signer.pub, sealed)))}`;
+}
+/** Returns the sealed payload and its signer, or throws SnapshotRefused: unsigned, signer ≠ pinned, or bad signature. */
+export async function checkSnapshot(circleId: string, blob: string, pinned?: string) {
+  const parts = blob.split(".");
+  if (parts.length !== 4) throw new SnapshotRefused(UNSIGNED);
+  const [iv, ct, pub, sig] = parts, sealed = `${iv}.${ct}`;
+  if (pinned && pub !== pinned) throw new SnapshotRefused(TAMPERED);
+  const ok = await crypto.subtle.importKey("raw", unb64u(pub), ECDSA, false, ["verify"])
+    .then((k) => crypto.subtle.verify(SIG, k, unb64u(sig), sigMessage(circleId, pub, sealed))).catch(() => false);
+  if (!ok) throw new SnapshotRefused(TAMPERED);
+  return { sealed, signer: pub };
+}
+
+// Owner state merge (§ Owner devices). Circles travel in the encrypted vault snapshot; these rules keep two owner
+// devices and in-flight publishes from undoing each other.
+/** The synced fields of an owner circle. epoch counts invite rotations; j and pins belong to one epoch. */
+export interface OwnerCircle {
+  id: string; j?: string; epoch?: number; members?: Record<string, string>; sign?: Signer;
+  createdAt: number; updatedAt?: number; deletedAt?: number | null;
+}
+const stamp = (c: OwnerCircle) => c.updatedAt ?? c.createdAt;
+const epochOf = (c: OwnerCircle) => c.epoch ?? 0;
+
+/** a = this device, b = the pulled vault. Tombstones win; j moves only to a higher epoch; pins of one epoch are
+ * unioned; other fields: newer edit wins. Signer: the vault's wins. Vault pushes are linear (baseRev), so the first
+ * signer pushed is the one every device adopts, and nothing signs before its signer is pushed (canSign). */
+export function mergeCircle<T extends OwnerCircle>(a: T, b: T): T {
+  if (a.deletedAt || b.deletedAt) return a.deletedAt ? a : b;
+  const [hi, lo] = stamp(b) > stamp(a) ? [b, a] : [a, b];
+  const ea = epochOf(a), eb = epochOf(b), key = ea === eb ? hi : ea > eb ? a : b;
+  const members = ea === eb ? { ...lo.members, ...hi.members } : key.members;
+  return { ...hi, j: key.j, epoch: key.epoch, members, sign: b.sign ?? a.sign, updatedAt: Math.max(stamp(a), stamp(b)) };
+}
+/** Only a signer that reached the vault may sign: a second owner device can no longer mint a competing one and
+ * get members to pin it (it adopts the pushed signer on its next pull instead). */
+export const canSign = (c: OwnerCircle): c is OwnerCircle & { sign: Signer } => !!c.sign && !c.sign.pending;
+/** After a successful vault push: signers that were in the pushed state are committed. Same list when unchanged. */
+export function commitSigners<T extends OwnerCircle>(list: T[], pushed: OwnerCircle[]): T[] {
+  const sent = new Set(pushed.map((c) => c.sign?.pub));
+  if (!list.some((c) => c.sign?.pending && sent.has(c.sign.pub))) return list;
+  return list.map((c) => (c.sign?.pending && sent.has(c.sign.pub) ? { ...c, sign: { pub: c.sign.pub, priv: c.sign.priv, createdAt: c.sign.createdAt } } : c));
+}
+export function mergeCircles<T extends OwnerCircle>(local: T[], remote: T[]): T[] {
+  const byId = new Map(local.map((c) => [c.id, c]));
+  for (const r of remote) { const l = byId.get(r.id); byId.set(r.id, l ? mergeCircle(l, r) : r); }
+  return [...byId.values()];
+}
+/** Store pins a publish verified, onto the circle as stored now. A publish that started before an invite rotation
+ * carries the old epoch and is dropped, so it can never write the old j back (the 2.4 flow saved {...staleCircle, members}). */
+export function applyPins<T extends OwnerCircle>(stored: T, publishedEpoch: number, pins: Record<string, string>, now = Date.now()): T {
+  if (stored.deletedAt || epochOf(stored) !== publishedEpoch || JSON.stringify(pins) === JSON.stringify(stored.members ?? {})) return stored;
+  return { ...stored, members: pins, updatedAt: now };
+}

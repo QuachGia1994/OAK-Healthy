@@ -15,18 +15,19 @@ import { LangToggle } from "./lang-toggle";
 
 const circleId = () => new URLSearchParams(location.search).get("id") ?? location.pathname.split("/").filter(Boolean)[1];
 
-/** /c/<id>#<key>: bearer link. /c/<id>#j=<secret>: invite to join with an account. /c/<id>: member read via session. */
+/** /c/<id>#<key>: bearer link. /c/<id>#j=<secret>&o=<owner key>: invite to join with an account (o pins the owner's
+ * signing key; invites from before 2.5 lack it). /c/<id>: member read via session; refused snapshots show their reason. */
 export function CircleView() {
   const t = useT();
   const [data, setData] = useState<CV | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [invite, setInvite] = useState<string | null>(null);
+  const [invite, setInvite] = useState<{ j: string; o: string | null } | null>(null);
   const [pending, setPending] = useState(false);
   const [joins, setJoins] = useState(0);
   useEffect(() => {
     const id = circleId(), frag = location.hash.slice(1);
     if (!id) { setErr("This link is incomplete."); return; }
-    if (frag.startsWith("j=")) { setInvite(frag.slice(2)); return; }
+    if (frag.startsWith("j=")) { const q = new URLSearchParams(frag); setInvite({ j: q.get("j") ?? "", o: q.get("o") }); return; }
     const read = frag ? () => readCircle(id, frag) : () => readMemberCircle(id);
     const keyError = frag ? "Wrong key in link." : "This device can't open the circle key. Ask the owner for a new invite.";
     const load = () => read().then((v) => { setPending(!v); if (v) { setData(v); setErr(null); } })
@@ -50,7 +51,7 @@ export function CircleView() {
       <div className="mx-auto max-w-xl">
         <div className="mb-6 flex items-center justify-between"><Link href="/" className="flex min-h-11 items-center gap-2"><Logo /><span className="text-sm font-semibold">OAK Healthy</span></Link><LangToggle /></div>
         {err && <div className="card p-6 text-sm text-missed">{t(err)}</div>}
-        {invite && <JoinCard secret={invite} onJoined={joined} />}
+        {invite && <JoinCard invite={invite} onJoined={joined} />}
         {!err && !invite && pending && <div className="card p-6 text-sm text-neutral-500">{t("You joined. This circle appears after the owner's app syncs next.")}</div>}
         {!err && !invite && !pending && !data && <div className="card h-64 animate-pulse" />}
         {data && (
@@ -84,7 +85,7 @@ export function CircleView() {
   );
 }
 
-function JoinCard({ secret, onJoined }: { secret: string; onJoined: () => void }) {
+function JoinCard({ invite, onJoined }: { invite: { j: string; o: string | null }; onJoined: () => void }) {
   const t = useT();
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
@@ -92,7 +93,7 @@ function JoinCard({ secret, onJoined }: { secret: string; onJoined: () => void }
   useEffect(() => { void getMe().then(setMe); }, []);
   const join = async () => {
     setBusy(true); setErr(null);
-    try { await joinCircle(circleId(), secret); onJoined(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+    try { await joinCircle(circleId(), invite.j, invite.o); onJoined(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   return (
     <div className="card space-y-3 p-6">

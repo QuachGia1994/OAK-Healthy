@@ -3,7 +3,7 @@
 Offline-first, end-to-end encrypted supplement & routine tracker on the web.
 Installable as a PWA, synced across devices with a zero-knowledge vault. English and Vietnamese UI.
 
-**Live:** https://oak-healthy.kim-phong619.workers.dev
+**Live:** https://healthy.oakgatekeeper.uk
 
 ## Features
 

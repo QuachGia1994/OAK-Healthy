@@ -1,6 +1,6 @@
 # Reminder "Taken" action and live barcode scan
 
-> updated 2026-10-11 · v2.1.0
+> updated 2026-10-11 · v2.4.0
 
 ## Taken on the reminder notification
 
@@ -16,8 +16,25 @@ Actions (browsers show at most two): **Taken** (`taken`) and **Snooze 10 min** (
 Rules (`lib/domain/intake-key.ts`, mirrored in `sw.js`, agreement proven by `tests/pwa.test.ts`):
 - `doseAt(time, now)`: the dose's `scheduledAt` (`lib/domain/day.ts`) today, or yesterday when today's time is more than `EARLY_MS` (5 min) ahead, so a dose snoozed past midnight keeps its key.
 - `planned(r, at)`: the dashboard's plan filter (`dosesForDay`, `lib/domain/schedule.ts`) on the dose's local day: not deleted, not paused, `cycleStatus(...) === "ON"` (start date, duration, on/off cycle). The test checks it against `dosesForDay` itself.
-- `takenNext`: null unless `planned`; otherwise exactly what `markDose` (`lib/db.ts`) writes for Taken. Intake `{ key: "${id}@${at}", supplementId, clientId, scheduledAt, status: "Taken", updatedAt, deletedAt: null }`; tracked stock drops by `perDose` (floor 0) with the routine's `updatedAt` bumped; already Taken (not tombstoned) → no write, so stock drops once.
+- `doseWrite(routine, at, prev, status, now)`: the one dose rule, used by the dashboard's `markDose` (`lib/db.ts`, inside its rw transaction over `intakes` + `routines`) and by `takenNext`. Status `Taken`/`Skipped` → intake `{ key: "${id}@${at}", supplementId, clientId, scheduledAt, status, updatedAt, deletedAt: null }`; `null` (Undo/clear) → the previous intake tombstoned (`deletedAt = updatedAt = now`), or nothing if none. Tracked stock moves only when "is Taken" changes: −`perDose` on, +`perDose` off (floor 0), routine `updatedAt` bumped; untracked (`stock: null`) → routine untouched.
+- `takenNext`: null unless `planned` and not already Taken (not tombstoned), so stock drops once; otherwise `doseWrite(..., "Taken", now)`.
 - A routine deleted, paused or off-cycle since the push is skipped (`planned` inside `takenNext`).
+
+## Push subscription rotation
+
+Browsers may rotate or expire a push subscription and fire `pushsubscriptionchange` in the service worker, often with no OAK tab open. `sw.js` `resubscribe`:
+
+1. Only when reminders are on: meta `push` (set by `lib/reminders.ts`) is non-null; otherwise nothing is sent.
+2. Old endpoint = `event.oldSubscription.endpoint`, else meta `push.endpoint`. New subscription = `event.newSubscription`, else `pushManager.getSubscription()`, else `subscribe({ userVisibleOnly: true, applicationServerKey })` with the key from `GET /api/push/key`. Same endpoint → done.
+3. `POST /api/push/move { endpoint: old, to: new }`. The Worker checks both with `okEndpoint`, copies `minutes` and any pending `snooze_at` from the old row to the new id (`sha256(endpoint)`, upsert) and deletes the old row in one D1 batch; no old row → 404 `not subscribed`.
+4. 404 (the minute clock already deleted the old row after a 404/410 from the push service) → `PUT /api/push/subscribe { endpoint: new, minutes }`, minutes from on-device routines via `utcMinutes` (`lib/domain/remind.ts`, mirrored in `sw.js`, same as `pushReminderTimes`); a pending snooze is lost in this case only.
+5. Success → meta `push = { endpoint: new }`. Any other failure throws so the browser can retry; meta keeps the old endpoint.
+
+The endpoint URL is the only credential, as for subscribe/snooze/delete. Covered by `tests/pwa.test.ts` (fake IndexedDB, fetch and `pushManager`).
+
+## Vault sync from the service worker
+
+`swSync` (Background Sync / no tab) pushes the same vault fields as `lib/sync.ts`: `profiles`, `routines`, `intakes`, `biomarkers` plus `circles` and `circlePins` (`vaultCircles`). The SW cannot run `mergeCircles`, so it passes the pulled vault's `circles` through (this device's when the vault has none) and keeps this device's pins over synced ones; the next tab sync merges both into meta and pushes the result.
 
 ## Live barcode scan
 

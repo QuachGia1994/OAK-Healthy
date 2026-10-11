@@ -3,6 +3,8 @@
   "name": "oak-healthy",
   "main": "worker/index.ts",
   "compatibility_date": "2025-09-01",
+  "workers_dev": true,
+  "routes": [{ "pattern": "healthy.oakgatekeeper.uk", "custom_domain": true }],
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",

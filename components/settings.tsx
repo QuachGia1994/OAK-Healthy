@@ -8,7 +8,7 @@ import { useT, locale } from "@/lib/i18n";
 import { LangToggle } from "./lang-toggle";
 import { getMe, type Me } from "@/lib/account";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
-import { circleMembers, circleUrl, createCircle, getCircles, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
+import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, getCircles, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
 import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
 import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow } from "@/lib/sync";
@@ -28,6 +28,8 @@ export function SyncAgent() {
       busy = true;
       try {
         if (k) {
+          // Pre-2.5 circles: mint signing keys before the push, so this run's vault carries them (lib/circles.ts).
+          await ensureSigners().catch(() => {});
           const r = await syncNow(k);
           // Network failures only (server errors would just loop); the SW-triggered run never re-registers itself.
           if (!r.ok && !fromSw && /fetch|network|load failed/i.test(r.error)) void requestBackgroundSync();
@@ -54,6 +56,8 @@ function CircleRow({ c, onChange, tryIt }: { c: Circle; onChange: () => Promise<
   const [members, setMembers] = useState<CircleMember[]>([]);
   useEffect(() => {
     if (!c.j) return;
+    // Circles from before 2.5: create the signing key now, so the copied invite carries it (#o=).
+    if (!c.sign) { void ensureSigner(c.id).then(onChange).catch(() => {}); return; }
     // A join waits for a publish; publishing here lets a new member in as soon as the owner opens Settings.
     const load = () => circleMembers(c).then((ms) => { setMembers(ms); return ms; });
     void load().then((ms) => (ms.some((m) => !m.active) ? publishCircle(c).then(load) : ms)).catch(() => {});
@@ -101,6 +105,12 @@ export function SettingsView() {
   const mine = useLiveQuery(() => db.routines.where("clientId").equals(profile?.id ?? "").toArray(), [profile?.id], [])
     .filter((r) => !r.deletedAt && !r.paused).sort((a, b) => a.time.localeCompare(b.time));
   useEffect(() => { setCanPush(pushSupported()); void getMe().then(setMe); void getCircles().then(setCircles); }, []);
+  // Circle state also arrives from the owner's other devices through sync.
+  useEffect(() => {
+    const reload = () => void getCircles().then(setCircles);
+    window.addEventListener("oak:synced", reload);
+    return () => window.removeEventListener("oak:synced", reload);
+  }, []);
   useEffect(() => setPush(!!pushMeta), [pushMeta]);
   const tryIt = async (fn: () => Promise<unknown>, ok: string) => { try { await fn(); toast.success(t(ok)); } catch (e) { toast.error(t((e as Error).message)); } };
   const invite = () => tryIt(async () => {

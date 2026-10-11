@@ -1,5 +1,12 @@
 # Roadmap
 
+## Shipped in 2.5
+
+- Circle owner state synced across the owner's devices (inside the encrypted vault).
+- Signed circle snapshots: members verify integrity against the owner key from the invite.
+- `pushsubscriptionchange` handling: reminders follow a rotated push subscription without an open tab.
+- One dose rule for the dashboard and the notification's Taken.
+
 ## Shipped in 2.4
 
 - Circle members with their own OAK accounts: per-member P-256 keys, a fresh content key on every publish, remove one member while the others keep access. Older bearer-link circles keep working.
@@ -41,6 +48,5 @@
 
 ## Next
 
-1. Circle owner state (invite secret, pins) synced across the owner's devices.
-2. Signed snapshots so members can verify integrity, not only confidentiality.
-3. `pushsubscriptionchange` handling in the service worker.
+1. Server-side circle epoch so two owner devices removing members offline cannot leave the invite out of step.
+2. Replay guard for signed circle snapshots (members reject an older signed snapshot).

@@ -3,6 +3,7 @@ import Dexie, { type Table } from "dexie";
 import type { Biomarker, Intake, Profile, Routine } from "./domain/types";
 import { toLocalDay } from "./domain/day";
 import { doseKey } from "./domain/schedule";
+import { doseWrite, type DoseStatus } from "./domain/intake-key";
 
 export interface Meta { key: string; value: unknown }
 
@@ -59,21 +60,15 @@ export async function setDeleted(id: string, deleted: boolean) {
   changed();
 }
 
-/** Record a dose. Taken decrements inventory; changing it back restores stock. Returns previous status for Undo. */
-export async function markDose(r: Routine, at: number, status: "Taken" | "Skipped" | null) {
-  const key = doseKey(r.id, at);
-  const prev = await db.intakes.get(key);
-  const now = Date.now();
-  const wasTaken = !!prev && !prev.deletedAt && prev.status === "Taken";
-  const willTake = status === "Taken";
-  await db.transaction("rw", db.intakes, db.routines, async () => {
-    if (status) await db.intakes.put({ key, supplementId: r.id, clientId: r.clientId, scheduledAt: at, status, updatedAt: now, deletedAt: null });
-    else if (prev) await db.intakes.put({ ...prev, deletedAt: now, updatedAt: now });
+/** Record a dose with the rule the notification's Taken uses (doseWrite). Returns the previous status for Undo. */
+export async function markDose(r: Routine, at: number, status: DoseStatus) {
+  const prev = await db.transaction("rw", db.intakes, db.routines, async () => {
+    const before = await db.intakes.get(doseKey(r.id, at));
     const cur = await db.routines.get(r.id);
-    if (cur && cur.stock != null && wasTaken !== willTake) {
-      const delta = willTake ? -cur.perDose : cur.perDose;
-      await db.routines.put({ ...cur, stock: Math.max(0, cur.stock + delta), updatedAt: now });
-    }
+    const w = doseWrite(cur ?? { ...r, stock: null }, at, before, status, Date.now());
+    if (w.intake) await db.intakes.put(w.intake);
+    if (w.routine) await db.routines.put(w.routine);
+    return before;
   });
   changed();
   return prev && !prev.deletedAt ? prev.status : null;

@@ -25,7 +25,7 @@ export async function sendPush(env: Env, endpoint: string, topic?: string) {
 export async function push(req: Request, env: Env, action: string): Promise<Response> {
   if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE_JWK) return json({ error: "Push is not configured" }, 503);
   if (action === "key" && req.method === "GET") return json({ key: env.VAPID_PUBLIC });
-  const b = await body<{ endpoint?: string; minutes?: number[]; snooze?: number }>(req);
+  const b = await body<{ endpoint?: string; minutes?: number[]; snooze?: number; to?: string }>(req);
   if (!okEndpoint(b?.endpoint)) return json({ error: "bad endpoint" }, 400);
   const id = await sha256(b.endpoint);
   if (action === "subscribe" && req.method === "PUT") {
@@ -48,6 +48,21 @@ export async function push(req: Request, env: Env, action: string): Promise<Resp
     if (!r.meta.changes) return json({ error: "not subscribed" }, 404);
     await armClock(env).catch(() => {});
     return json({ ok: true, at });
+  }
+  // The browser rotated the subscription (sw.js pushsubscriptionchange, maybe with no tab open): move minutes and any
+  // pending snooze from the old endpoint's row to the new one and delete the old row, in one batch.
+  if (action === "move" && req.method === "POST") {
+    if (!okEndpoint(b.to)) return json({ error: "bad endpoint" }, 400);
+    const to = await sha256(b.to);
+    if (to === id) return json({ ok: true });
+    const [moved] = await env.DB.batch([
+      env.DB.prepare("INSERT INTO push_subs (id, endpoint, minutes, updated_at, snooze_at) SELECT ?, ?, minutes, ?, snooze_at FROM push_subs WHERE id = ? ON CONFLICT(id) DO UPDATE SET endpoint = excluded.endpoint, minutes = excluded.minutes, updated_at = excluded.updated_at, snooze_at = excluded.snooze_at")
+        .bind(to, b.to, Date.now(), id),
+      env.DB.prepare("DELETE FROM push_subs WHERE id = ?").bind(id),
+    ]);
+    if (!moved.meta.changes) return json({ error: "not subscribed" }, 404);
+    await armClock(env).catch(() => {});
+    return json({ ok: true });
   }
   if (action === "test" && req.method === "POST") {
     const row = await env.DB.prepare("SELECT endpoint FROM push_subs WHERE id = ?").bind(id).first<{ endpoint: string }>();

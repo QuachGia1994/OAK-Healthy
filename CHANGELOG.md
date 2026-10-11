@@ -6,6 +6,22 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-11
+
+### Added
+
+- Custom domain https://healthy.oakgatekeeper.uk; the workers.dev address keeps working (each address keeps its own on-device data).
+- Circle owner state (invite secret, member pins, signing key) rides in the encrypted vault sync, so every owner device can publish and remove members; merges move rotation forward only, deletes stick.
+- Signed circle snapshots: invites carry the owner's signing key (`#o=`); members refuse an unsigned or tampered update with a notice. Members who joined before 2.5 pin the first signed snapshot.
+- Service worker handles `pushsubscriptionchange`: it re-subscribes when needed and moves the reminder times to the new endpoint (`POST /api/push/move`) without an open tab. If the server already dropped the old row, it subscribes the new endpoint with times worked out on the device.
+
+### Fixed
+
+- A circle publish racing a member removal can no longer write the old invite secret back.
+- Dashboard Taken/Skipped and the notification's Taken share one dose rule (stock moves only when Taken flips).
+- Two owner devices can no longer mint different signing keys for a pre-2.5 circle: a new key stays pending until the vault push commits it, and the vault's key wins.
+- A vault push from the service worker keeps circle state.
+
 ## [2.4.0] - 2026-10-11
 
 Everything deployed since 2.1.0; the 2.2 and 2.3 rounds went live without their own version.

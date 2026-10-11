@@ -528,4 +528,6 @@ export const VI: Record<string, string> = {
   "This invite link is no longer valid. Ask for a new one.": "Liên kết mời này không còn hiệu lực. Hãy xin liên kết mới.",
   "This circle is full.": "Vòng chia sẻ đã đủ người.",
   "Members only": "Chỉ dành cho thành viên",
+  "This circle update isn't signed by its owner, so it isn't shown.": "Bản cập nhật vòng chia sẻ này không có chữ ký của chủ sở hữu nên không được hiển thị.",
+  "This circle update failed its signature check, so it isn't shown. Ask the owner for a new invite.": "Bản cập nhật vòng chia sẻ này không qua được kiểm tra chữ ký nên không được hiển thị. Hãy xin chủ sở hữu một lời mời mới.",
 };

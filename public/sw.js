@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.4.0";
+const VERSION = "oak-v2.5.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -54,7 +54,7 @@ async function dueNow() {
   if (woke) await openDb().then((db) => putMeta(db, "snoozed", null).finally(() => db.close())).catch(() => {});
   return { lang, due };
 }
-// Mirror of lib/domain/intake-key.ts (doseKey, doseAt, planned, takenNext) and cycle.ts; tests/pwa.test.ts runs both on the same fixtures.
+// Mirror of lib/domain/intake-key.ts (doseKey, doseAt, planned, doseWrite, takenNext) and cycle.ts; tests/pwa.test.ts runs both on the same fixtures.
 const EARLY_MS = 5 * 60e3;
 function doseKey(id, at) { return `${id}@${at}`; }
 function doseAt(time, now) {
@@ -71,10 +71,25 @@ function cycleOn(startDate, cfg, at) {
   return cfg.continuous || total <= 0 || elapsed % total < cfg.daysOn;
 }
 function planned(r, at) { return !r.deletedAt && !r.paused && cycleOn(r.startDate, r.cycle, at); }
-function takenNext(r, at, prev, now) {
-  if (!planned(r, at) || (prev && !prev.deletedAt && prev.status === "Taken")) return null;
-  const intake = { key: doseKey(r.id, at), supplementId: r.id, clientId: r.clientId, scheduledAt: at, status: "Taken", updatedAt: now, deletedAt: null };
-  return { intake, routine: r.stock == null ? null : { ...r, stock: Math.max(0, r.stock - r.perDose), updatedAt: now } };
+const isTaken = (i) => !!i && !i.deletedAt && i.status === "Taken";
+function doseWrite(r, at, prev, status, now) {
+  const intake = status ? { key: doseKey(r.id, at), supplementId: r.id, clientId: r.clientId, scheduledAt: at, status, updatedAt: now, deletedAt: null }
+    : prev ? { ...prev, deletedAt: now, updatedAt: now } : null;
+  const willTake = status === "Taken";
+  const routine = r.stock != null && isTaken(prev) !== willTake ? { ...r, stock: Math.max(0, r.stock + (willTake ? -r.perDose : r.perDose)), updatedAt: now } : null;
+  return { intake, routine };
+}
+function takenNext(r, at, prev, now) { return !planned(r, at) || isTaken(prev) ? null : doseWrite(r, at, prev, "Taken", now); }
+// Mirror of lib/domain/remind.ts (remindable, utcMinutes): the minutes lib/reminders.ts registers, for resubscribe below.
+const remindable = (r) => !r.deletedAt && !r.paused && r.remind !== false;
+function utcMinutes(rs, offset) {
+  const set = new Set();
+  for (const r of rs) {
+    if (!remindable(r)) continue;
+    const [h, m] = r.time.split(":").map(Number);
+    if (Number.isFinite(h) && Number.isFinite(m)) set.add((((h * 60 + m + offset) % 1440) + 1440) % 1440);
+  }
+  return [...set].sort((a, b) => a - b);
 }
 // Browsers show at most two actions: Taken + one snooze. snooze-<n> stays parsed so older notifications keep working.
 const SNOOZE = 10;
@@ -128,6 +143,14 @@ function mergeInto(db, snap) {
   });
 }
 const putMeta = (db, key, value) => new Promise((res) => { const tx = db.transaction("meta", "readwrite"); tx.objectStore("meta").put({ key, value }); tx.oncomplete = res; tx.onerror = res; });
+// Circle state (meta "circles"/"circlePins") rides in the vault like lib/sync.ts. The SW cannot run mergeCircles
+// (lib/member-keys.ts), so it passes the pulled vault's circles through (local ones if the vault has none) and keeps
+// this device's pins over synced ones (sync.ts rule); the next tab sync merges both into meta and pushes the result.
+function vaultCircles(remote, meta) {
+  const mine = (k, d) => (meta.find((m) => m.key === k) || {}).value || d;
+  const circles = remote.circles && remote.circles.length ? remote.circles : mine("circles", []);
+  return { circles, circlePins: { ...remote.circlePins, ...mine("circlePins", {}) } };
+}
 async function swSync() {
   const db = await openDb();
   try {
@@ -139,15 +162,17 @@ async function swSync() {
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await fetch(`/api/vault/${v.id}`, { headers });
       if (res.status === 403) return;
-      let rev = 0;
+      let rev = 0, remote = {};
       if (res.ok) {
         const body = await res.json();
         rev = body.rev;
         const [iv, ct] = body.blob.split(".");
-        await mergeInto(db, JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64u(iv) }, v.key, unb64u(ct)))));
+        remote = JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64u(iv) }, v.key, unb64u(ct))));
+        await mergeInto(db, remote);
       } else if (res.status !== 404) throw new Error(`vault ${res.status}`);
       const snap = { v: 1 };
       for (const s of Object.keys(STORES)) snap[s] = await getAll(db, s);
+      Object.assign(snap, vaultCircles(remote, await getAll(db, "meta")));
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const blob = b64u(iv) + "." + b64u(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, v.key, te.encode(JSON.stringify(snap))));
       const put = await fetch(`/api/vault/${v.id}`, { method: "PUT", headers, body: JSON.stringify({ baseRev: rev, blob }) });
@@ -208,6 +233,32 @@ async function snooze(ids, n) {
   try { await putMeta(db, "snoozed", { ids, at: Date.now() + n * 60e3 }); } finally { db.close(); }
   await fetch("/api/push/snooze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint, snooze: n }) });
 }
+// The browser rotated or expired the push subscription (often with no tab open): move the server row (minutes + pending
+// snooze) to the new endpoint and drop the old one. Only while reminders are on (meta "push", set by lib/reminders.ts).
+// No server row (404) → subscribe the new endpoint with on-device minutes. Throwing lets the browser retry.
+async function resubscribe(e) {
+  const db = await openDb();
+  try {
+    const known = ((await getAll(db, "meta")).find((m) => m.key === "push") || {}).value;
+    if (!known) return;
+    const old = (e.oldSubscription && e.oldSubscription.endpoint) || known.endpoint;
+    const pm = self.registration.pushManager;
+    const sub = e.newSubscription || (await pm.getSubscription()) || (await fetch("/api/push/key").then((r) => r.json())
+      .then(({ key }) => pm.subscribe({ userVisibleOnly: true, applicationServerKey: key })));
+    if (sub.endpoint === old) return;
+    const res = await fetch("/api/push/move", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: old, to: sub.endpoint }) });
+    if (!res.ok && res.status !== 404) throw new Error(`move ${res.status}`);
+    // 404: the server already dropped the old row (remind() deletes on 404/410), so register the new endpoint with the
+    // minutes from on-device routines (any pending snooze is lost).
+    if (res.status === 404) {
+      const minutes = utcMinutes(await getAll(db, "routines"), new Date().getTimezoneOffset());
+      const put = await fetch("/api/push/subscribe", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint, minutes }) });
+      if (!put.ok) throw new Error(`subscribe ${put.status}`);
+    }
+    await putMeta(db, "push", { endpoint: sub.endpoint });
+  } finally { db.close(); }
+}
+self.addEventListener("pushsubscriptionchange", (e) => e.waitUntil(resubscribe(e)));
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
   if (e.action === "taken") {
