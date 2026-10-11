@@ -6,6 +6,13 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-10-11
+
+### Changed
+
+- A share link the server refuses to delete now stays in Settings → Share links, marked "Couldn't be deleted" with its expiry date and no Delete button, until 30 days after it expires. The mark is kept in the encrypted vault, so your other devices show it too.
+- Delete everything doesn't try again to delete a link already marked as refused; it counts it among the links that couldn't be deleted.
+
 ## [2.9.0] - 2026-10-11
 
 ### Added

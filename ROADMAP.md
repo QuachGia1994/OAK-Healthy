@@ -1,5 +1,9 @@
 # Roadmap
 
+## Shipped in 2.10
+
+- A share link the server refused to delete stays in Share links, marked "Couldn't be deleted" with its expiry, and Delete everything no longer retries it.
+
 ## Shipped in 2.9
 
 - Settings → Share links: list the links you created (title, created date, expiry) and delete one without Delete everything.
@@ -75,4 +79,4 @@
 
 ## Next
 
-1. Keep a link the server refused to delete visible in Share links until it expires (today the only trace is a 15-second notice with its expiry date).
+Nothing planned yet; the owner picks the next items.

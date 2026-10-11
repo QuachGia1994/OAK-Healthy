@@ -1,6 +1,6 @@
 # Health data flow
 
-> updated 2026-10-11 · v2.8.0
+> updated 2026-10-11 · v2.10.0
 
 ## Entities
 
@@ -41,14 +41,14 @@ UI → `markDose` / `saveRoutine` (Dexie transaction) → `oak:changed` event �
 
 ## Share list in the vault
 
-Meta `shares` (`{ id, token, expiresAt, title?, createdAt? }`, contract C1, written by `components/stack-manager.tsx`) and meta `sharesGone` (`{ id, at }`, contract C3, written with the removal from `shares` in one transaction by a single delete and by the wipe) ride in the encrypted vault. Neither leaves the device in plaintext; the title is only on devices and in the vault (a pretty link's slug words are public as before).
+Meta `shares` (`{ id, token, expiresAt, title?, createdAt?, refusedAt? }`, contract C1, written by `components/stack-manager.tsx`; `refusedAt`, contract C4, marks a link the server refused to delete: it stays in `shares`, never in `sharesGone`) and meta `sharesGone` (`{ id, at }`, contract C3, written with the removal from `shares` in one transaction by a single delete and by the wipe) ride in the encrypted vault. Neither leaves the device in plaintext; the title is only on devices and in the vault (a pretty link's slug words are public as before).
 
 Merge (`lib/sync.ts` `mergeShareLists`, mirrored by `public/sw.js` `vaultShares`, one fixture `tests/fixtures/vault-circles.ts` for both):
 1. Tombstones: this device's and the vault's, union by id with the earliest `at`; `at` is clamped to now, and a tombstone is dropped 400 days after `at`.
-2. Entries: union by id. Token from this device's entry; `title` and `createdAt` per field, this device's else the vault's (also for an entry only the vault has); the later `expiresAt` (the server's value).
+2. Entries: union by id. Token from this device's entry; `title`, `createdAt` and `refusedAt` per field, this device's else the vault's (also for an entry only the vault has); the later `expiresAt` (the server's value).
 3. Drop every entry whose id has a tombstone, on either side, then every entry 30 days past `expiresAt` (device clock).
-- Validation, both sides: an entry needs the worker's id shape (8 to 64 of `A-Za-z0-9_-`), a token of at least 20 characters and a finite `expiresAt`; a title that is not a string, is empty or is over 120 characters (code points), or a non-finite `createdAt`, drops only that field. A tombstone needs that id shape and a finite `at`. Anything else, or a field that is not a list, is ignored.
+- Validation, both sides: an entry needs the worker's id shape (8 to 64 of `A-Za-z0-9_-`), a token of at least 20 characters and a finite `expiresAt`; a title that is not a string, is empty or is over 120 characters (code points), or a non-finite `createdAt` or `refusedAt`, drops only that field (`lib/domain/shares.ts` `cleanShareFields`; `refusedAt` is clamped to now). A tombstone needs that id shape and a finite `at`. Anything else, or a field that is not a list, is ignored.
 - Why 400 days is enough: a share lives at most 365 days (`expires_at`, set by the worker) and its entry leaves every list (2.8 and 2.9) 30 days later, so it is gone from every list by 395 days after creation; `at` is never before creation.
 - The tab merges both meta keys in one Dexie transaction and pushes the result; the SW pushes the merge without writing meta, and the next tab sync writes it.
 - Size: about 40 bytes a tombstone, bounded by the 400-day drop; no cap needed under the vault's 1.5 MB limit.
-- Limits: a 2.8 device's push drops `sharesGone` and titles; a deleted entry then shows again until another 2.9 device syncs (its tombstone and titles are kept in its meta and pushed again). If no 2.9 device still holds the tombstone, the entry can stay back for up to about 395 days (harmless: DELETE of a gone share answers 200). A delete with sync off reaches no other device; deleting the same link there again gets 200. Pull comes before every push (a 409 pulls again), so a push cannot skip a tombstone already in the vault.
+- Limits: a 2.9 device's push drops `refusedAt`; the row then offers Delete again, and a new try is refused and marks it again (harmless). A 2.8 device's push drops `sharesGone`, titles and `refusedAt`; a deleted entry then shows again until another 2.9 device syncs (its tombstone and titles are kept in its meta and pushed again). If no 2.9 device still holds the tombstone, the entry can stay back for up to about 395 days (harmless: DELETE of a gone share answers 200). A delete with sync off reaches no other device; deleting the same link there again gets 200. Pull comes before every push (a 409 pulls again), so a push cannot skip a tombstone already in the vault.

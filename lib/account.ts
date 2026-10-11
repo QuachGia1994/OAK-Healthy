@@ -4,8 +4,8 @@
 import { b64u, deriveVault, newSyncKey, open, seal, unb64u, isValidKey } from "./crypto";
 import { adoptSyncedProfiles, db, getMeta, setMeta } from "./db";
 import { deleteEverything, shareDeleteOutcome, type ShareRef, type VaultAuth, type WipeProgress, type WipeStep } from "./domain/wipe";
-import { deleteOne, forgetShare, parseSharesGone, type DeleteOneResult } from "./domain/shares";
-import { getSyncKey, setSyncKey, syncNow } from "./sync";
+import { deleteOne, forgetShare, markRefused, parseSharesGone, type DeleteOneResult } from "./domain/shares";
+import { getSyncKey, setSyncKey, syncNow, updateMeta } from "./sync";
 import { getLang } from "./i18n";
 
 export const PBKDF2_ITERATIONS = 600_000;
@@ -132,6 +132,11 @@ export const forgetShareMeta = (id: string, at = Date.now()) =>
     await db.meta.bulkPut([{ key: "shares", value: next.shares }, { key: "sharesGone", value: next.gone }]);
   });
 
+/** Contract C4: marks a listed share refused (one write to meta `shares`, nothing to `sharesGone`); an entry gone by then
+ * (another tab, a merged tombstone) is not re-added. */
+export const refuseShareMeta = (id: string, at = Date.now()): Promise<void> =>
+  updateMeta<ShareRef[]>("shares", [], (cur) => markRefused(Array.isArray(cur) ? cur : [], id, at)).then(() => undefined);
+
 /** The share DELETE: id in the path, the token only in the header (the title is never sent). */
 const shareDelete = (s: ShareRef) =>
   fetch(`/api/share/${encodeURIComponent(s.id)}`, { method: "DELETE", headers: { authorization: `Bearer ${s.token}` } });
@@ -142,6 +147,7 @@ export async function deleteOneShare(id: string): Promise<DeleteOneResult> {
     shares: () => getMeta<ShareRef[]>("shares", []),
     request: async (s) => ({ status: (await shareDelete(s)).status }),
     forget: (x) => forgetShareMeta(x),
+    refuse: (x) => refuseShareMeta(x),
   }, id);
   if (r.outcome !== "failed") window.dispatchEvent(new Event("oak:changed"));
   return r;

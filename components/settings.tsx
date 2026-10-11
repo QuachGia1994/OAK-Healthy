@@ -125,7 +125,8 @@ export function ShareLinks() {
     try {
       const r = await deleteOneShare(id);
       if (r.outcome === "deleted") toast.success(t("Share link deleted"));
-      else if (r.outcome === "kept") toast(t("This share link couldn't be deleted. It expires {date}.", { date: day(r.expiresAt) }), { duration: 15000 });
+      // The row stays, marked (C4), so the toast is no longer the only trace: default duration.
+      else if (r.outcome === "kept") toast(t("This share link couldn't be deleted. It expires {date}.", { date: day(r.expiresAt) }));
       // No raw fetch/HTTP text: offline and 5xx show the plain message; only the 429 says why.
       else toast.error(r.tooMany ? `${t("Couldn't delete the share link.")} ${t("Too many attempts. Try again later.")}` : t("Couldn't delete the share link."));
     } finally { setBusy(null); }
@@ -143,7 +144,9 @@ export function ShareLinks() {
                 {t(r.expired ? "Expired {date}" : "Expires {date}", { date: day(r.expiresAt) })}
               </p>
             </div>
-            {busy === r.id ? <span role="status" className="btn w-11 px-0" aria-label={t("Deleting…")}><Loader2 className="size-4 animate-spin" /></span>
+            {/* C4: the server refused this link's DELETE for good; a retry gets the same answer, so no Delete. */}
+            {r.refused ? <span className="chip shrink-0 text-xs text-neutral-500">{t("Couldn't be deleted")}</span>
+              : busy === r.id ? <span role="status" className="btn w-11 px-0" aria-label={t("Deleting…")}><Loader2 className="size-4 animate-spin" /></span>
               : confirm !== r.id && <button className="btn text-missed" disabled={!!busy} onClick={() => setConfirm(r.id)}><Trash2 className="size-4" /> {t("Delete")}</button>}
           </div>
           {confirm === r.id && busy !== r.id && (

@@ -569,5 +569,6 @@ export const VI: Record<string, string> = {
   "Share link deleted": "Đã xoá liên kết chia sẻ",
   "This share link couldn't be deleted. It expires {date}.": "Không xoá được liên kết chia sẻ này. Liên kết hết hạn ngày {date}.",
   "Couldn't delete the share link.": "Không xoá được liên kết chia sẻ.",
+  "Couldn't be deleted": "Không xoá được",
   "No share links yet. Use Share on the Stack page to create one.": "Chưa có liên kết chia sẻ nào. Dùng nút Chia sẻ ở trang Stack để tạo.",
 };

@@ -37,7 +37,8 @@ export const vaultCircleCases: VaultCirclesCase[] = [
 // lib/sync.ts mergeShareLists through syncNow (tests/sync.test.ts: pushed and written to meta) and public/sw.js
 // vaultShares (tests/pwa.test.ts: pushed). An entry is kept until 30 days after expiresAt and needs the worker's id shape
 // (8-64 of A-Za-z0-9_-), a token of at least 20 characters and a finite expiresAt; title (at most 120 characters) and
-// createdAt are optional. A tombstone { id, at } is kept 400 days.
+// createdAt are optional, and so is refusedAt (C4: the server refused the delete; clamped to now). A tombstone { id, at }
+// is kept 400 days.
 type ShareLists = { shares?: unknown; sharesGone?: unknown };
 export interface VaultSharesCase { name: string; remote: ShareLists; local: ShareLists; want: { shares: unknown[]; sharesGone: unknown[] } }
 const DAY = 864e5;
@@ -45,6 +46,7 @@ export const SHARES_NOW = 1000 * DAY;
 const tok = (c: string) => c.repeat(24);
 const s1 = { id: "share001", token: tok("a"), expiresAt: SHARES_NOW + 300 * DAY }, s2 = { id: "share002", token: tok("b"), expiresAt: SHARES_NOW + 200 * DAY };
 const s3 = { id: "share003", token: tok("c"), expiresAt: SHARES_NOW + 100 * DAY };
+const [s4, s5, s6, s7, s8] = [4, 5, 6, 7, 8].map((n) => ({ id: `share10${n}`, token: tok(String(n)), expiresAt: SHARES_NOW + n * DAY }));
 const gone = (id: string, at: number) => ({ id, at });
 const g1 = gone(s1.id, SHARES_NOW - DAY);
 const just = (...shares: unknown[]) => ({ shares, sharesGone: [] });
@@ -84,6 +86,19 @@ export const vaultShareCases: VaultSharesCase[] = [
     local: { shares: [{ ...s1, title: "x".repeat(121), createdAt: "9" }] },
     remote: { shares: [{ ...s2, title: leaf120, createdAt: Infinity }, { ...s3, title: "", createdAt: SHARES_NOW }] },
     want: just(s1, { ...s2, title: leaf120 }, { ...s3, createdAt: SHARES_NOW }) },
+  { name: "refusedAt: this device's, else the vault's, also for a vault-only entry; a refused entry is no tombstone",
+    local: { shares: [{ ...s1, refusedAt: SHARES_NOW - 2 * DAY }, s2] },
+    remote: { shares: [{ ...s1, refusedAt: SHARES_NOW - 9 * DAY }, { ...s2, refusedAt: SHARES_NOW - DAY }, { ...s3, refusedAt: SHARES_NOW - 3 * DAY }] },
+    want: just({ ...s1, refusedAt: SHARES_NOW - 2 * DAY }, { ...s2, refusedAt: SHARES_NOW - DAY }, { ...s3, refusedAt: SHARES_NOW - 3 * DAY }) },
+  { name: "a bad refusedAt drops that field, not the entry; a future one counts from now",
+    local: { shares: [{ ...s1, refusedAt: "1" }, { ...s4, refusedAt: true }, { ...s5, refusedAt: {} }] },
+    remote: { shares: [{ ...s2, refusedAt: Infinity }, { ...s3, refusedAt: SHARES_NOW + 5 * DAY }, { ...s6, refusedAt: NaN }, { ...s7, refusedAt: -Infinity }, { ...s8, refusedAt: null }] },
+    want: just(s1, s4, s5, s2, { ...s3, refusedAt: SHARES_NOW }, s6, s7, s8) },
+  { name: "a 2.9 vault without refusedAt keeps this device's mark",
+    local: { shares: [{ ...s1, title: "Mine", refusedAt: SHARES_NOW - DAY }], sharesGone: [] },
+    remote: { shares: [{ ...s1, title: "Mine" }], sharesGone: [] }, want: just({ ...s1, title: "Mine", refusedAt: SHARES_NOW - DAY }) },
+  { name: "a refused entry still leaves 30 days after expiry", local: { shares: [{ ...s1, expiresAt: SHARES_NOW - 31 * DAY, refusedAt: SHARES_NOW - 40 * DAY }, s2] },
+    remote: {}, want: just(s2) },
   { name: "malformed vault entries are ignored", local: { shares: [s1] },
     remote: { shares: [null, "share009", { id: 9, token: tok("k"), expiresAt: 1 }, { id: "share008", token: tok("k") },
       { id: "share007", token: tok("k"), expiresAt: "9" }, { id: "s6", token: tok("k"), expiresAt: SHARES_NOW }, { id: "share/05", token: tok("k"), expiresAt: SHARES_NOW },

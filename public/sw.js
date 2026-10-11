@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.9.0";
+const VERSION = "oak-v2.10.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -161,16 +161,18 @@ function vaultCircles(remote, meta) {
 }
 // Share list (meta "shares", contract C1) and its tombstones (meta "sharesGone", C3) like lib/sync.ts mergeShareLists
 // with lib/domain/shares.ts cleanShareFields / parseSharesGone:
-// tombstones by id with the earliest `at` (clamped to now), kept 400 days; entries by id with this device's fields first and the later
+// tombstones by id with the earliest `at` (clamped to now), kept 400 days; entries by id with this device's fields first
+// (refusedAt clamped to now, C4) and the later
 // expiry, none with a tombstone, dropped 30 days after the server's expiresAt by this clock; malformed ones dropped.
 const SHARE_GRACE_MS = 30 * 864e5, SHARE_GONE_KEEP_MS = 400 * 864e5, SHARE_TITLE_MAX = 120, SHARE_ID = /^[A-Za-z0-9_-]{8,64}$/;
 const finite = (n) => typeof n === "number" && Number.isFinite(n);
 const list = (x) => (Array.isArray(x) ? x : []);
-function shareEntry(s) {
+function shareEntry(s, now) {
   if (!s || typeof s.id !== "string" || !SHARE_ID.test(s.id) || typeof s.token !== "string" || s.token.length < 20 || !finite(s.expiresAt)) return null;
   const e = { id: s.id, token: s.token, expiresAt: s.expiresAt };
   if (typeof s.title === "string" && s.title && [...s.title].length <= SHARE_TITLE_MAX) e.title = s.title;
   if (finite(s.createdAt)) e.createdAt = s.createdAt;
+  if (finite(s.refusedAt)) e.refusedAt = Math.min(s.refusedAt, now);
   return e;
 }
 const isShareGone = (g) => !!g && typeof g.id === "string" && SHARE_ID.test(g.id) && finite(g.at);
@@ -182,8 +184,8 @@ function vaultShares(remote, meta, now) {
     if (at + SHARE_GONE_KEEP_MS >= now && (!cur || at < cur.at)) gone.set(g.id, { id: g.id, at });
   }
   const byId = new Map();
-  for (const s of list(mine("shares")).map(shareEntry)) if (s) byId.set(s.id, s);
-  for (const r of list(remote.shares).map(shareEntry)) {
+  for (const s of list(mine("shares")).map((x) => shareEntry(x, now))) if (s) byId.set(s.id, s);
+  for (const r of list(remote.shares).map((x) => shareEntry(x, now))) {
     const cur = r && byId.get(r.id);
     if (r) byId.set(r.id, cur ? { ...r, ...cur, expiresAt: Math.max(cur.expiresAt, r.expiresAt) } : r);
   }

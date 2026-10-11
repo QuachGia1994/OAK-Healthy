@@ -88,6 +88,25 @@ test("wipe: a share the server refuses (403) is skipped and counted; the run goe
   assert.ok(s.gone.includes("s1"), "a refused one leaves the list as gone too");
 });
 
+test("wipe C4: an entry already marked refused gets no DELETE and is counted kept once, also across a failure and Retry", async () => {
+  const R: ShareRef = { id: "r1", token: "kr", expiresAt: 2e12, refusedAt: 1_700_000_000_000 };
+  const { s, deps } = world({ shares: [R, ...SHARES] });
+  s.fail.add("share:s2");
+  assert.deepEqual(await deleteEverything(deps), { ok: false, step: "shares", error: "share:s2 failed" });
+  assert.ok(!s.calls.includes("share:r1"), "no DELETE for the refused entry");
+  assert.equal(s.saved?.sharesKept, 1);
+  s.calls = [];
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 1 }, "counted once");
+  assert.deepEqual(s.calls, ["share:s2", "syncOff", "vault", "account", "device"]);
+});
+
+test("wipe C4: a malformed refusedAt (string, NaN) is not a mark, so the DELETE is still sent", async () => {
+  const bad = [{ id: "b1", token: "kb1", expiresAt: 2e12, refusedAt: "1" }, { id: "b2", token: "kb2", expiresAt: 2e12, refusedAt: Number.NaN }] as unknown as ShareRef[];
+  const { s, deps } = world({ shares: bad });
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });
+  assert.ok(s.calls.includes("share:b1") && s.calls.includes("share:b2"));
+});
+
 test("wipe: over the hourly share DELETE limit (429) the step fails; Retry later resumes without repeating or double counting", async () => {
   const { s, deps } = world();
   s.forbid.add("s1"); s.budget = 2; // s1 (kept) and x use the budget; s2 gets 429

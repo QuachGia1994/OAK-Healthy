@@ -1,8 +1,13 @@
 // Delete everything (docs/feat/delete-everything.md). Steps are injected; lib/account.ts wires the real ones.
 export type WipeStep = "circles" | "reminders" | "shares" | "vault" | "account" | "device";
 /** One share link this app created (meta `shares`, contract C1): its delete token goes only into its DELETE.
- * title (the list name, at most SHARE_TITLE_MAX) and createdAt stay on devices and in the encrypted vault, never in a share request; absent on 2.8 entries (lib/domain/shares.ts). */
-export interface ShareRef { id: string; token: string; expiresAt: number; title?: string; createdAt?: number }
+ * title (the list name, at most SHARE_TITLE_MAX) and createdAt stay on devices and in the encrypted vault, never in a share request; absent on 2.8 entries (lib/domain/shares.ts).
+ * refusedAt (C4): when the server refused this entry's DELETE for good (400/401/403/405); the entry stays listed in `shares`
+ * (only the wipe may then write its id to sharesGone, D8). */
+export interface ShareRef { id: string; token: string; expiresAt: number; title?: string; createdAt?: number; refusedAt?: number }
+/** C4, the one refused rule: any finite refusedAt marks the entry refused (cleanShareFields, markRefused, deleteOne and the
+ * wipe all read it here). */
+export const isRefused = (s: ShareRef): boolean => typeof s.refusedAt === "number" && Number.isFinite(s.refusedAt);
 /** Vault id and access token, derived from the sync key before sync is turned off (not the key itself). */
 export interface VaultAuth { id: string; auth: string }
 /** The local progress marker (meta "wipe"), written after each finished step and kept until this device is cleared.
@@ -60,10 +65,12 @@ export function takeWipedFlag(st: Pick<Storage, "getItem" | "removeItem">): { sh
 }
 
 /** Every listed share, expired ones too (the daily purge may not have removed them yet). Each leaves the list (as gone) once
- * deleted or refused, so a retry neither repeats nor double-counts it. A 429 (over the hourly limit) fails the step; Retry resumes. */
+ * deleted or refused, so a retry neither repeats nor double-counts it. A 429 (over the hourly limit) fails the step; Retry resumes.
+ * An entry already marked refused (C4, isRefused) gets no DELETE and is counted kept; it may
+ * go to sharesGone here (lead D8): the vault and this device are deleted next. */
 async function deleteShares(d: WipeDeps, p: WipeProgress) {
   for (const s of await d.shares()) {
-    if ((await d.deleteShare(s)) === "kept") p.sharesKept = (p.sharesKept ?? 0) + 1;
+    if (isRefused(s) || (await d.deleteShare(s)) === "kept") p.sharesKept = (p.sharesKept ?? 0) + 1;
     await d.forgetShare(s.id);
     await d.save({ ...p });
   }

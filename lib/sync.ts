@@ -4,7 +4,7 @@ import { db, getMeta, mergeSnapshot, setMeta, snapshot, type Snapshot } from "./
 import { commitSigners, pullCircleState, pushCircleState, type VaultCircles } from "./member-keys";
 import type { Circle } from "./circles";
 import type { ShareRef } from "./domain/wipe";
-import { cleanShareFields, isShareId, parseSharesGone, type ShareGone } from "./domain/shares";
+import { cleanShareFields, isShareId, parseSharesGone, SHARE_GRACE_MS, type ShareGone } from "./domain/shares";
 
 /** The share list (meta `shares`, contract C1) and its tombstones (meta `sharesGone`, contract C3), as meta or vault fields. */
 type ShareLists = { shares?: unknown; sharesGone?: unknown };
@@ -12,22 +12,21 @@ type ShareLists = { shares?: unknown; sharesGone?: unknown };
  * Older app versions ignore the extra fields; the next push from this version restores them. */
 type Vault = Snapshot & Partial<VaultCircles<Circle>> & ShareLists;
 
-/** C1 (lead D7): expiresAt is the server's; an entry leaves the list 30 days after it, by this device's clock. */
-const SHARE_GRACE_MS = 30 * 864e5;
 const list = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
 /** A valid entry with only its known fields, or null. token: at least the worker's 20-character bearer floor; a bad
- * title or createdAt is dropped by cleanShareFields and the entry kept (2.8 entries have neither). */
-function shareEntry(x: unknown): ShareRef | null {
+ * title, createdAt or refusedAt is dropped by cleanShareFields and the entry kept (2.8 entries have none of them). */
+function shareEntry(x: unknown, now: number): ShareRef | null {
   const s = x as Partial<ShareRef> | null;
   if (!s || !isShareId(s.id) || typeof s.token !== "string" || s.token.length < 20
     || typeof s.expiresAt !== "number" || !Number.isFinite(s.expiresAt)) return null;
   const e: ShareRef = { id: s.id, token: s.token, expiresAt: s.expiresAt };
   if (s.title !== undefined) e.title = s.title;
   if (s.createdAt !== undefined) e.createdAt = s.createdAt;
-  return cleanShareFields(e);
+  if (s.refusedAt !== undefined) e.refusedAt = s.refusedAt;
+  return cleanShareFields(e, now);
 }
 /** Tombstones (parseSharesGone: valid, clamped to now, 400 days): union by id with the earliest `at`. Entries: union by
- * id, per field this device's first (token, title, createdAt), else the vault's, with the later expiry; none whose id
+ * id, per field this device's first (token, title, createdAt, refusedAt), else the vault's, with the later expiry; none whose id
  * has a tombstone. Mirrored by public/sw.js vaultShares (tests/fixtures/vault-circles.ts vaultShareCases). */
 function mergeShareLists(local: ShareLists, remote: ShareLists, now: number) {
   const gone = new Map<string, ShareGone>();
@@ -36,8 +35,8 @@ function mergeShareLists(local: ShareLists, remote: ShareLists, now: number) {
     if (!cur || g.at < cur.at) gone.set(g.id, g);
   }
   const byId = new Map<string, ShareRef>();
-  for (const s of list(local.shares).map(shareEntry)) if (s) byId.set(s.id, s);
-  for (const r of list(remote.shares).map(shareEntry)) {
+  for (const s of list(local.shares).map((x) => shareEntry(x, now))) if (s) byId.set(s.id, s);
+  for (const r of list(remote.shares).map((x) => shareEntry(x, now))) {
     const cur = r && byId.get(r.id);
     if (r) byId.set(r.id, cur ? { ...r, ...cur, expiresAt: Math.max(cur.expiresAt, r.expiresAt) } : r);
   }
