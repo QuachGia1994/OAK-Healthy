@@ -1,5 +1,12 @@
 # Roadmap
 
+## Shipped in 2.7
+
+- Delete everything from inside the app: circles you own, reminders, vault, account and this device, with resume on failure.
+- Vault tombstone: other devices stop syncing a deleted vault instead of re-creating it.
+- Replay floor that survives a reinstall (inside the encrypted vault).
+- Shared test fixture for the vault circle state of the app and the service worker.
+
 ## Shipped in 2.6
 
 - Server-side circle epoch: owner devices that remove members offline converge on one invite.
@@ -55,6 +62,5 @@
 
 ## Next
 
-1. Replay floor that survives a reinstall (today the highest seen update is kept per device only).
-2. Shared test fixture for the vault circle state of the app and the service worker.
-3. Delete everything from inside the app: turn off sync, delete the vault, then delete the circles you own (vaults and circles are not tied to the account, so deleting the account alone leaves them).
+1. Delete share links: keep the ids of links this device created and add a delete route, so Delete everything removes them too (today they expire after 365 days).
+2. Purge old vault tombstones once no device can still hold the key (today they stay, hashed ids only).

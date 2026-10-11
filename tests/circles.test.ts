@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newSyncKey, open, seal, unb64u } from "../lib/crypto.ts";
+import { deriveVault, newSyncKey, open, seal, unb64u } from "../lib/crypto.ts";
 import {
   applyPins, canSign, checkSeq, checkSnapshot, commitSigners, contentKey, epochGate, REPLAYED, STALE_EPOCH, UPDATE_APP, joinAuth, joinProof, mergeCircles, newContentKey, outOfStep, publishEpoch, newJoinSecret, newMemberKeys, newSigner, openMemberKey,
-  pinsAfterRemoval, signSnapshot, TAMPERED, trustedMembers, UNSIGNED, unwrapFor, verifyProof, wrapFor, type OwnerCircle,
+  pinsAfterRemoval, pullCircleState, pushCircleState, signSnapshot, TAMPERED, trustedMembers, UNSIGNED, unwrapFor, verifyProof, wrapFor, type OwnerCircle, type VaultCircles,
 } from "../lib/member-keys.ts";
+import { VAULT_CIRCLE_FIELDS, vaultCircleCases } from "./fixtures/vault-circles.ts";
 
 const CID = "circle123abc";
 
@@ -298,6 +299,45 @@ test("replay guard: members keep the highest seq and refuse an older or unnumber
   const x: OwnerCircle = { id: CID, seq: 7, createdAt: 1, updatedAt: 9 }, y: OwnerCircle = { id: CID, seq: 3, createdAt: 1, updatedAt: 10 };
   assert.equal(mergeCircles([x], [y])[0].seq, 7, "owner devices keep the highest publish number");
 });
+
+test("a fresh install that pulls the vault refuses a snapshot older than the account's floor", async () => {
+  const secret = newSyncKey(), empty: VaultCircles = { circles: [], circlePins: {}, circleSeen: {} };
+  // The member's phone accepted seq 7 and pushed (lib/sync.ts: the vault blob is sealed with the sync key).
+  const phone: VaultCircles = { ...empty, circleSeen: { [CID]: 7 } };
+  const blob = await seal((await deriveVault(secret)).key, pushCircleState(phone));
+  assert.ok(!blob.includes("circleSeen") && !blob.includes(CID), "the floor travels sealed, like the rest of the vault");
+  // Reinstall: empty meta, same sync key, first pull.
+  const pulled = await open<Partial<VaultCircles>>((await deriveVault(secret)).key, blob);
+  const floor = pullCircleState(empty, pulled).circleSeen[CID];
+  assert.equal(floor, 7);
+  assert.throws(() => checkSeq(floor, 5), (e: Error) => e.name === "SnapshotRefused" && e.message === REPLAYED, "the replayed seq 5 is refused");
+  assert.equal(checkSeq(floor, 8), 8);
+  // A 2.6 vault has no circleSeen: floor 0, as before.
+  const from26 = pullCircleState(empty, { circles: [], circlePins: {} }).circleSeen[CID];
+  assert.equal(from26, undefined);
+  assert.equal(checkSeq(from26, 5), 5);
+});
+
+test("a 2.6 device's push drops the floor from the vault until a 2.7 device pulls and pushes again", () => {
+  const empty: VaultCircles = { circles: [], circlePins: {}, circleSeen: {} };
+  const phone27: VaultCircles = { ...empty, circleSeen: { [CID]: 7 } };
+  // A 2.6 device pulls, then pushes its own shape: no circleSeen key (accepted for 2.7).
+  const v26: Partial<VaultCircles> = { circles: [], circlePins: {} };
+  assert.equal(pullCircleState(empty, v26).circleSeen[CID], undefined, "a reinstall from that vault has floor 0");
+  // The 2.7 phone keeps its own floor and its next pull+push writes it back.
+  const pushed = pushCircleState(pullCircleState(phone27, v26));
+  assert.deepEqual(pushed.circleSeen, { [CID]: 7 }, "restored in the vault");
+  assert.equal(pullCircleState(empty, pushed).circleSeen[CID], 7, "a reinstall now gets the floor back");
+});
+
+// The shared vault fixture, through what lib/sync.ts runs (tests/pwa.test.ts runs the same cases through public/sw.js).
+for (const { name, remote, local, want } of vaultCircleCases) {
+  test(`vault circle state (app) ${name}`, () => {
+    const pushed = JSON.parse(JSON.stringify(pushCircleState(pullCircleState(local, remote))));
+    assert.deepEqual(Object.keys(pushed).sort(), VAULT_CIRCLE_FIELDS, "no circle field dropped");
+    assert.deepEqual(pushed, want);
+  });
+}
 
 test("a 2.5 member verifies a 2.6 snapshot", async () => {
   // The 2.5 member check, frozen: blob iv.ct.pub.sig, ECDSA over oak-circle-sig-v1|circle|pub|iv.ct.

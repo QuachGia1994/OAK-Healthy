@@ -6,6 +6,7 @@ import { doseAt, doseWrite, planned, takenNext } from "../lib/domain/intake-key.
 import { dosesForDay } from "../lib/domain/schedule.ts";
 import { utcMinutes } from "../lib/domain/remind.ts";
 import type { Intake, Routine } from "../lib/domain/types.ts";
+import { circle, committed, pendingCircle, VAULT_CIRCLE_FIELDS, vaultCircleCases } from "./fixtures/vault-circles.ts";
 
 type Taken = typeof takenNext;
 /** public/sw.js is plain, unbundled JS: run it with an inert `self` (or the given globals) and read its top-level mirror functions. */
@@ -202,16 +203,13 @@ test("pushsubscriptionchange server error keeps the old endpoint so the browser 
 });
 
 // swSync pushes the same vault fields as lib/sync.ts: the four stores plus circle state from meta.
-const circle = { id: "c1", name: "Family", updatedAt: 3 };
-const committed = { pub: "spub", priv: { kty: "EC", d: "x" }, createdAt: 2 };
-const pendingCircle = { ...circle, sign: { ...committed, pending: true } }, signed = { ...circle, id: "c2", sign: committed };
-test("swSync vault push carries circles and circlePins", async () => {
+test("swSync vault push carries circles, circlePins and circleSeen", async () => {
   const puts: string[] = [];
   const fetch = async (_url: string, init?: { method?: string; body?: string }) => {
     if (init?.method === "PUT") { puts.push(JSON.parse(init.body!).blob); return { ok: true, status: 200 }; }
     return { ok: false, status: 404 };
   };
-  const meta = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }, { key: "circles", value: [circle, pendingCircle] }, { key: "circlePins", value: { c9: "pub9" } }];
+  const meta = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }, { key: "circles", value: [circle, pendingCircle] }, { key: "circlePins", value: { c9: "pub9" } }, { key: "circleSeen", value: { c9: 6 } }];
   const ctx = loadSw({ fetch, btoa, atob, indexedDB: fakeIdb(meta, { profiles: [], routines: [routine], intakes: [], biomarkers: [] }) });
   await (ctx as unknown as { swSync: () => Promise<void> }).swSync();
   assert.equal(puts.length, 1);
@@ -219,21 +217,34 @@ test("swSync vault push carries circles and circlePins", async () => {
   const unb = (s: string) => Buffer.from(s, "base64url");
   const { key } = await ctx.vaultKeys("OAK-ABCD-EFGH-JKLM");
   const snap = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb(iv) }, key, unb(ct))));
-  assert.deepEqual(Object.keys(snap).sort(), ["biomarkers", "circlePins", "circles", "intakes", "profiles", "routines", "v"]);
+  assert.deepEqual(Object.keys(snap).sort(), ["biomarkers", "circlePins", "circleSeen", "circles", "intakes", "profiles", "routines", "v"]);
   assert.deepEqual(snap.circles, [circle, { ...pendingCircle, sign: committed }]);
   assert.deepEqual(snap.circlePins, { c9: "pub9" });
+  assert.deepEqual(snap.circleSeen, { c9: 6 });
 });
-// The SW cannot run mergeCircles (member-keys.ts): it passes the pulled vault's circles through and the next tab sync merges.
-const circleCases: [string, unknown, Rec[], unknown][] = [
-  ["no remote vault: local circle state", {}, [{ key: "circles", value: [circle] }, { key: "circlePins", value: { c1: "a" } }], { circles: [circle], circlePins: { c1: "a" } }],
-  ["remote circles pass through, pins: this device wins", { circles: [{ ...circle, updatedAt: 7 }], circlePins: { c1: "r", c2: "b" } },
-    [{ key: "circles", value: [circle] }, { key: "circlePins", value: { c1: "a" } }], { circles: [{ ...circle, updatedAt: 7 }], circlePins: { c1: "a", c2: "b" } }],
-  ["empty remote circles keep local ones", { circles: [] }, [{ key: "circles", value: [circle] }], { circles: [circle], circlePins: {} }],
-  ["nothing anywhere", {}, [], { circles: [], circlePins: {} }],
-  ["a pending local signer is pushed committed (lib/sync.ts circleState)", {}, [{ key: "circles", value: [pendingCircle, signed] }],
-    { circles: [{ ...pendingCircle, sign: committed }, signed], circlePins: {} }],
-  ["a pending signer in the pulled vault is pushed committed", { circles: [pendingCircle] }, [], { circles: [{ ...pendingCircle, sign: committed }], circlePins: {} }],
-];
-for (const [name, remote, meta, want] of circleCases) {
-  test(`vaultCircles ${name}`, () => assert.deepEqual(JSON.parse(JSON.stringify(sw.vaultCircles(remote, meta))), want));
+// A deleted vault (server tombstone) answers 410: the worker stops without a push and without throwing (no browser
+// retry) and leaves the sync key, so the next tab syncNow hits the 410, turns sync off and the SyncAgent says so once.
+for (const [name, status] of [["GET", { get: 410 }], ["PUT", { get: 404, put: 410 }]] as const) {
+  test(`swSync on a deleted vault (${name} 410): no push, no throw, sync key left for the tab`, async () => {
+    const calls: string[] = [];
+    const fetch = async (_url: string, init?: { method?: string }) => {
+      const method = init?.method ?? "GET";
+      calls.push(method);
+      return { ok: false, status: method === "PUT" ? (status as { put?: number }).put : status.get };
+    };
+    const meta: Rec[] = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }];
+    const ctx = loadSw({ fetch, btoa, atob, indexedDB: fakeIdb(meta, { profiles: [], routines: [], intakes: [], biomarkers: [] }) });
+    await (ctx as unknown as { swSync: () => Promise<void> }).swSync();
+    assert.deepEqual(calls, name === "GET" ? ["GET"] : ["GET", "PUT"], "no push after the 410");
+    assert.equal(meta.find((m) => m.key === "syncKey")?.value, "OAK-ABCD-EFGH-JKLM", "the tab's syncNow turns sync off");
+  });
+}
+// The shared vault fixture, through the SW mirror (tests/circles.test.ts runs the same cases through lib/member-keys.ts).
+for (const { name, remote, local, want } of vaultCircleCases) {
+  test(`vaultCircles ${name}`, () => {
+    const meta = Object.entries(local).map(([key, value]) => ({ key, value }));
+    const pushed = JSON.parse(JSON.stringify(sw.vaultCircles(remote, meta)));
+    assert.deepEqual(Object.keys(pushed).sort(), VAULT_CIRCLE_FIELDS, "no circle field dropped");
+    assert.deepEqual(pushed, want);
+  });
 }

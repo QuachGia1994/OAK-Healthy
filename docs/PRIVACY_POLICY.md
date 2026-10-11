@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 2026-10-10
+Last updated: 2026-10-11
 
 OAK Healthy is a supplement and routine tracker. It is not a medical device and does not provide medical advice.
 
@@ -30,4 +30,10 @@ No analytics, no advertising identifiers, no selling or sharing of data. Cloudfl
 
 ## Deletion
 
-Delete your account from **Account → Delete account**. Clear site data in your browser to delete local data. Turn off reminders or revoke circles in Settings; contact the maintainer to delete a vault.
+**Settings → Delete everything** (also on the Account page) deletes, in this order: the circles you own (members lose access at once), this device's reminder subscription, your encrypted vault, your account with its sign-in methods, passkeys and circle memberships, then all data on this device. If a step fails, nothing after it is deleted and **Retry** continues where it stopped. Without an account, the same action deletes your circles, reminders, vault and local data.
+
+A deleted vault leaves a tombstone with only its id (derived one-way from your sync key), a hash of its access token and the deletion time, so your other devices turn sync off instead of uploading it again.
+
+Limits: a circle created on a device that never synced is unknown to your other devices, so run Delete everything (or Delete circle) on that device too. Share links have no owner and no delete route: anyone with the link can open one until it expires after 365 days.
+
+You can also delete a circle or turn off reminders on their own in Settings.

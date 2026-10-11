@@ -1,8 +1,9 @@
 "use client";
 // Client side of OAK accounts. The password never leaves the device: PBKDF2 stretches it into authKey (proves who
 // you are) and encKey (wraps your sync key). Your OAK sync key doubles as the recovery code.
-import { b64u, newSyncKey, open, seal, unb64u, isValidKey } from "./crypto";
-import { adoptSyncedProfiles } from "./db";
+import { b64u, deriveVault, newSyncKey, open, seal, unb64u, isValidKey } from "./crypto";
+import { adoptSyncedProfiles, db, getMeta, setMeta } from "./db";
+import { deleteEverything, type VaultAuth, type WipeProgress, type WipeStep } from "./domain/wipe";
 import { getSyncKey, setSyncKey, syncNow } from "./sync";
 import { getLang } from "./i18n";
 
@@ -34,7 +35,6 @@ async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Pr
 export const getProviders = () => api<Providers>("/api/auth/providers").catch(() => ({ google: false, github: false, email: false }));
 export const getMe = () => api<{ user: Me | null }>("/api/auth/me").then((r) => r.user).catch(() => null);
 export const logout = () => api("/api/auth/logout", { method: "POST" });
-export const deleteAccount = () => api("/api/auth/me", { method: "DELETE" });
 
 /** Use this device's sync key if sync is on; otherwise create one so the new account has a vault from day one. */
 async function ensureSyncKey() {
@@ -121,5 +121,52 @@ export const unlinkProvider = (provider: string) => api("/api/auth/identity", { 
 
 export const passwordProblem = (pw: string, email = "") =>
   pw.length < 10 ? "Use at least 10 characters" : email && pw.toLowerCase().includes(email.split("@")[0].toLowerCase()) ? "Don't include your email in the password" : null;
+
+/** A delete-everything run that has not finished on this device (it resumes from here). */
+export const pendingWipe = () => getMeta<WipeProgress | null>("wipe", null);
+
+/** Delete everything (lib/domain/wipe.ts, docs/feat/delete-everything.md): the circles this user owns, the vault,
+ * the account when signed in, then all data on this device. */
+export async function wipeEverything(signedIn: boolean, onStep?: (s: WipeStep) => void) {
+  // Loaded here: lib/circles.ts imports this module.
+  const [{ getCircles, revokeCircle }, { disableReminders }] = await Promise.all([import("./circles"), import("./reminders")]);
+  const vaultAuth = async (): Promise<VaultAuth | null> => {
+    const k = await getSyncKey();
+    return k ? deriveVault(k).then((v) => ({ id: v.vaultId, auth: v.auth })) : null;
+  };
+  const ok = async (res: Response) => {
+    if (res.ok) return;
+    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(error || `Request failed (${res.status})`);
+  };
+  return deleteEverything({
+    progress: async () => {
+      const s = await pendingWipe();
+      const account = !!s?.account || signedIn;
+      return s ? { ...s, vault: s.vault ?? (await vaultAuth()), account } : { vault: await vaultAuth(), account, done: [] };
+    },
+    save: async (p) => { await setMeta("wipe", p); },
+    // Not getMe(): it turns every failure into "signed out". Only a 200 with no user is.
+    signedIn: async () => !!(await api<{ user: Me | null }>("/api/auth/me")).user,
+    pull: async () => {
+      const k = await getSyncKey();
+      const r = k ? await syncNow(k) : null;
+      // gone: another device already deleted the vault (sync is now off here); its circles are still deleted below.
+      if (r && !r.ok && !("gone" in r && r.gone)) throw new Error(r.error);
+    },
+    ownedCircles: async () => (await getCircles()).filter((c) => c.w).map((c) => c.id),
+    deleteCircle: revokeCircle,
+    disableReminders: async () => { if ("serviceWorker" in navigator) await disableReminders(); }, // no worker, no push
+    syncOff: async () => { await setSyncKey(null); },
+    deleteVault: async (v) => ok(await fetch(`/api/vault/${v.id}`, { method: "DELETE", headers: { authorization: `Bearer ${v.auth}` } })),
+    deleteAccount: async () => {
+      const res = await fetch("/api/auth/me", { method: "DELETE", credentials: "same-origin" });
+      if (res.status === 401) return "signed-out";
+      await ok(res);
+      return "ok";
+    },
+    clearDevice: () => db.delete(),
+  }, onStep);
+}
 
 export { api };

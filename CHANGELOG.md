@@ -6,6 +6,19 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-10-11
+
+### Added
+
+- Delete everything (Settings and Account): one confirmed action deletes the circles you own, turns off reminders, deletes the encrypted vault and the account, then clears this device. A failed step stops with its reason, and Retry continues where it stopped.
+- Deleted vaults leave a server tombstone (migration 0006: hashed ids and the deletion time only). Another device that still syncs gets 410, turns sync off and says why, instead of uploading the vault again.
+- The replay floor (highest circle update a member saw) rides in the encrypted vault, so a reinstall that pulls the vault still refuses an older update. Bearer-link circles have no floor.
+
+### Changed
+
+- Delete account is replaced by Delete everything; the privacy policy describes what is deleted, the tombstone, and that share links expire after 365 days.
+- One shared fixture checks that the app and the service worker push the same vault circle fields.
+
 ## [2.6.0] - 2026-10-11
 
 ### Added

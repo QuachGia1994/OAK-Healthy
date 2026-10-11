@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.6.0";
+const VERSION = "oak-v2.7.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -143,17 +143,25 @@ function mergeInto(db, snap) {
   });
 }
 const putMeta = (db, key, value) => new Promise((res) => { const tx = db.transaction("meta", "readwrite"); tx.objectStore("meta").put({ key, value }); tx.oncomplete = res; tx.onerror = res; });
-// Circle state (meta "circles"/"circlePins") rides in the vault like lib/sync.ts. The SW cannot run mergeCircles
-// (lib/member-keys.ts), so it passes the pulled vault's circles through (local ones if the vault has none) and keeps
-// this device's pins over synced ones (sync.ts rule); the next tab sync merges both into meta and pushes the result.
-// Like lib/sync.ts circleState, the pushed copy drops a signer's `pending` (committed once it is in the vault); meta keeps
+// Circle state (meta "circles"/"circlePins"/"circleSeen", lib/member-keys.ts VaultCircles) rides in the vault like
+// lib/sync.ts. The SW cannot run mergeCircles, so it passes the pulled vault's circles through (local ones if the vault
+// has none), keeps this device's pins over synced ones and the higher replay floor per circle (mergeSeen); the next tab
+// sync merges all into meta and pushes the result. tests/fixtures/vault-circles.ts drives this and lib/sync.ts.
+// Like pushCircleState (lib/member-keys.ts), the pushed copy drops a signer's `pending` (committed once it is in the vault); meta keeps
 // it until the next tab sync's commitSigners.
 const committedSigner = (c) => (c.sign && c.sign.pending ? { ...c, sign: { pub: c.sign.pub, priv: c.sign.priv, createdAt: c.sign.createdAt } } : c);
+function mergeSeen(local, remote) {
+  const raised = Object.entries(remote || {}).filter(([id, n]) => Number.isSafeInteger(n) && n > 0 && n > (local[id] || 0));
+  return raised.length ? { ...local, ...Object.fromEntries(raised) } : local;
+}
 function vaultCircles(remote, meta) {
   const mine = (k, d) => (meta.find((m) => m.key === k) || {}).value || d;
   const circles = remote.circles && remote.circles.length ? remote.circles : mine("circles", []);
-  return { circles: circles.map(committedSigner), circlePins: { ...remote.circlePins, ...mine("circlePins", {}) } };
+  return { circles: circles.map(committedSigner), circlePins: { ...remote.circlePins, ...mine("circlePins", {}) }, circleSeen: mergeSeen(mine("circleSeen", {}), remote.circleSeen) };
 }
+// 410: the vault was deleted (tombstone): stop without a push or a throw (no browser retry). The sync key stays: the
+// next tab syncNow gets the same 410, turns sync off and the sync agent tells the user once.
+const VAULT_GONE = 410;
 async function swSync() {
   const db = await openDb();
   try {
@@ -165,6 +173,7 @@ async function swSync() {
     for (let attempt = 0; attempt < 3; attempt++) {
       const res = await fetch(`/api/vault/${v.id}`, { headers });
       if (res.status === 403) return;
+      if (res.status === VAULT_GONE) return;
       let rev = 0, remote = {};
       if (res.ok) {
         const body = await res.json();
@@ -180,6 +189,7 @@ async function swSync() {
       const blob = b64u(iv) + "." + b64u(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, v.key, te.encode(JSON.stringify(snap))));
       const put = await fetch(`/api/vault/${v.id}`, { method: "PUT", headers, body: JSON.stringify({ baseRev: rev, blob }) });
       if (put.status === 409) continue;
+      if (put.status === VAULT_GONE) return;
       if (!put.ok) throw new Error(`push ${put.status}`);
       await putMeta(db, "lastSync", Date.now());
       return;

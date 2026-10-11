@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, LogOut, Mail, ShieldCheck, Trash2 } from "lucide-react";
-import { changePassword, deleteAccount, forgot, getMe, getProviders, login, logout, passwordProblem, resetPassword, rewrap, signup, adoptKey, unlinkProvider, type Me, type Providers } from "@/lib/account";
+import { changePassword, forgot, getMe, getProviders, login, logout, passwordProblem, resetPassword, rewrap, signup, adoptKey, unlinkProvider, type Me, type Providers } from "@/lib/account";
 import { addPasskey, listPasskeys, passkeySupported, removePasskey, unlockWithPasskey, type PasskeyWrap } from "@/lib/passkey";
 import { getSyncKey } from "@/lib/sync";
 import { isValidKey } from "@/lib/crypto";
 import { useT } from "@/lib/i18n";
 import { Logo, PageHeader } from "./ui";
 import { LangToggle } from "./lang-toggle";
+import { DeleteEverything } from "./settings";
 
 function Shell({ title, sub, children, foot }: { title: string; sub?: string; children: React.ReactNode; foot?: React.ReactNode }) {
   const t = useT();
@@ -328,10 +329,7 @@ export function AccountView() {
           {keys.length === 0 && <li className="py-2 text-sm text-neutral-500">{t("No passkeys yet.")}</li>}
         </ul>
       </section>
-      <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
-        <div><h2 className="text-sm font-semibold text-missed">{t("Delete account")}</h2><p className="text-xs text-neutral-500">{t("Removes your login and passkeys only. Your encrypted vault and circles stay on the server, so revoke your circles in Settings first. Clear site data in your browser to delete data on this device.")}</p></div>
-        <button className="btn text-missed" onClick={() => { if (confirm(t("Delete your account?"))) void run(async () => { await deleteAccount(); router.push("/"); }, "Account deleted"); }}>{t("Delete")}</button>
-      </section>
+      <DeleteEverything signedIn />
     </div>
   );
 }
@@ -363,7 +361,7 @@ const PRIVACY: [string, string][] = [
   ],
   [
     "Deletion",
-    "Delete your account in Account → Delete account. Clear site data in your browser to delete local data. Turn off reminders or revoke circles in Settings."
+    "Settings → Delete everything (also on the Account page) deletes the circles you own, reminders, your encrypted vault, your account and all data on this device, in that order. A deleted vault keeps only hashed ids and the deletion time, so other devices stop syncing. A circle made on a device that never synced must be deleted on that device. Share links can't be deleted; they expire after 365 days."
   ]
 ];
 

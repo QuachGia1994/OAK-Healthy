@@ -13,8 +13,12 @@ async function vault(req: Request, env: Env, id: string) {
   const token = req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
   if (token.length < 20) return json({ error: "unauthorized" }, 401);
   const authHash = await sha256(token);
-  const row = await env.DB.prepare("SELECT rev, blob, auth_hash FROM vaults WHERE id = ?").bind(id).first<{ rev: number; blob: string; auth_hash: string }>();
+  const row = await env.DB.prepare("SELECT rev, blob, auth_hash, deleted_at FROM vaults WHERE id = ?").bind(id)
+    .first<{ rev: number; blob: string; auth_hash: string; deleted_at: number | null }>();
   if (row && row.auth_hash !== authHash) return json({ error: "forbidden" }, 403);
+  // Deleted with Delete everything: a tombstone (id, auth hash, time) stays, so a device still syncing is told to stop
+  // instead of pushing the vault back (docs/feat/delete-everything.md).
+  if (row?.deleted_at && req.method !== "DELETE") return json({ error: "gone" }, 410);
 
   if (req.method === "GET") return row ? json({ rev: row.rev, blob: row.blob }) : json({ error: "not found" }, 404);
   if (req.method === "PUT") {
@@ -27,12 +31,17 @@ async function vault(req: Request, env: Env, id: string) {
       const r = await env.DB.prepare("INSERT OR IGNORE INTO vaults (id, rev, blob, auth_hash, updated_at) VALUES (?, 1, ?, ?, ?)").bind(id, body.blob, authHash, now).run();
       return r.meta.changes ? json({ rev: 1 }) : json({ error: "conflict" }, 409);
     }
-    const r = await env.DB.prepare("UPDATE vaults SET rev = rev + 1, blob = ?, updated_at = ? WHERE id = ? AND rev = ? AND auth_hash = ?")
+    const r = await env.DB.prepare("UPDATE vaults SET rev = rev + 1, blob = ?, updated_at = ? WHERE id = ? AND rev = ? AND auth_hash = ? AND deleted_at IS NULL")
       .bind(body.blob, now, id, body.baseRev, authHash).run();
     return r.meta.changes ? json({ rev: body.baseRev + 1 }) : json({ error: "conflict" }, 409);
   }
   if (req.method === "DELETE") {
-    await env.DB.prepare("DELETE FROM vaults WHERE id = ? AND auth_hash = ?").bind(id, authHash).run();
+    // Idempotent: empties the blob and stamps the first deletion time; with no row yet, the tombstone is created.
+    const now = Date.now();
+    await env.DB.prepare(
+      `INSERT INTO vaults (id, rev, blob, auth_hash, updated_at, deleted_at) VALUES (?, 0, '', ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET blob = '', updated_at = excluded.updated_at, deleted_at = COALESCE(vaults.deleted_at, excluded.deleted_at)
+       WHERE vaults.auth_hash = excluded.auth_hash`).bind(id, authHash, now, now).run();
     return json({ ok: true });
   }
   return json({ error: "method" }, 405);

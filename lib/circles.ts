@@ -249,7 +249,10 @@ export async function readMemberCircle(id: string): Promise<CircleView | null> {
   const view = await open<CircleView>(await unwrapFor(priv, r.wrap, id), sealed);
   const seen = (await getMeta<Record<string, number>>("circleSeen", {}))[id];
   const top = checkSeq(seen, view.seq); // throws SnapshotRefused on a replayed older snapshot
-  if (top && top !== seen) await updateMeta<Record<string, number>>("circleSeen", {}, (s) => ((s[id] ?? 0) >= top ? s : { ...s, [id]: top }));
+  if (top && top !== seen) {
+    await updateMeta<Record<string, number>>("circleSeen", {}, (s) => ((s[id] ?? 0) >= top ? s : { ...s, [id]: top }));
+    window.dispatchEvent(new Event("oak:changed")); // push the raised floor to the vault, so a reinstall keeps it
+  }
   if (!pinned) await pinOwner(id, signer); // joined before 2.5: trust the first signed snapshot, then hold the owner to it
   return view;
 }

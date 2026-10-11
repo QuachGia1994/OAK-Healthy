@@ -143,13 +143,30 @@ export const canSign = (c: OwnerCircle): c is OwnerCircle & { sign: Signer } => 
 export function commitSigners<T extends OwnerCircle>(list: T[], pushed: OwnerCircle[]): T[] {
   const sent = new Set(pushed.map((c) => c.sign?.pub));
   if (!list.some((c) => c.sign?.pending && sent.has(c.sign.pub))) return list;
-  return list.map((c) => (c.sign?.pending && sent.has(c.sign.pub) ? { ...c, sign: { pub: c.sign.pub, priv: c.sign.priv, createdAt: c.sign.createdAt } } : c));
+  return list.map((c) => (c.sign?.pending && sent.has(c.sign.pub) ? committed(c) : c));
 }
+const committed = <T extends OwnerCircle>(c: T): T => (c.sign?.pending ? { ...c, sign: { pub: c.sign.pub, priv: c.sign.priv, createdAt: c.sign.createdAt } } : c);
 export function mergeCircles<T extends OwnerCircle>(local: T[], remote: T[]): T[] {
   const byId = new Map(local.map((c) => [c.id, c]));
   for (const r of remote) { const l = byId.get(r.id); byId.set(r.id, l ? mergeCircle(l, r) : r); }
   return [...byId.values()];
 }
+/** The circle fields of the encrypted vault blob, stored under the same meta keys. lib/sync.ts pulls and pushes them
+ * with the two functions below; public/sw.js vaultCircles mirrors the push (tests/fixtures/vault-circles.ts drives both).
+ * circles: owner state. circlePins: owner keys this account pinned as a member. circleSeen: the member's replay floor. */
+export interface VaultCircles<C extends OwnerCircle = OwnerCircle> { circles: C[]; circlePins: Record<string, string>; circleSeen: Record<string, number> }
+/** This device's circle meta after a pull. A vault from an older app may lack a field: that field stays as it is here
+ * (a 2.6 vault has no circleSeen, so it adds no floor). A pin set on this device wins over a synced one. */
+export function pullCircleState<C extends OwnerCircle>(local: VaultCircles<C>, remote: Partial<VaultCircles<C>>): VaultCircles<C> {
+  return {
+    circles: remote.circles?.length ? mergeCircles(local.circles, remote.circles) : local.circles,
+    circlePins: remote.circlePins ? { ...remote.circlePins, ...local.circlePins } : local.circlePins,
+    circleSeen: mergeSeen(local.circleSeen, remote.circleSeen),
+  };
+}
+/** What a vault push carries. A signer is committed once it is in the vault, so the pushed copy drops `pending`. */
+export const pushCircleState = <C extends OwnerCircle>(local: VaultCircles<C>): VaultCircles<C> => ({ ...local, circles: local.circles.map(committed) });
+
 /** Store pins a publish verified, onto the circle as stored now. A publish that started before an invite rotation
  * carries the old epoch and is dropped, so it can never write the old j back (the 2.4 flow saved {...staleCircle, members}). */
 export function applyPins<T extends OwnerCircle>(stored: T, publishedEpoch: number, pins: Record<string, string>, now = Date.now()): T {
@@ -192,4 +209,10 @@ export function checkSeq(seen: number | undefined, seq: number | undefined) {
   if (!seen) return seq || undefined;
   if (!seq || seq < seen) throw new SnapshotRefused(REPLAYED);
   return seq;
+}
+/** Replay floors (meta circleSeen, per circle) from two devices: the highest wins, so a fresh install that pulls the
+ * vault starts from the account's floor. Only positive integers count: anything else in a pulled vault adds no floor. */
+export function mergeSeen(local: Record<string, number>, remote?: Record<string, number>) {
+  const raised = Object.entries(remote ?? {}).filter(([id, n]) => Number.isSafeInteger(n) && n > 0 && n > (local[id] ?? 0));
+  return raised.length ? { ...local, ...Object.fromEntries(raised) } : local;
 }

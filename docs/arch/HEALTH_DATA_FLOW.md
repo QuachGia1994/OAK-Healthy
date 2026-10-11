@@ -27,4 +27,4 @@ All records carry `updatedAt` and an optional `deletedAt` tombstone, so sync can
 
 ## Write path
 
-UI → `markDose` / `saveRoutine` (Dexie transaction) → `oak:changed` event → `SyncAgent` debounces 4 s → `syncNow`: GET vault → decrypt → LWW merge → encrypt snapshot → PUT with `baseRev` (409 → retry).
+UI → `markDose` / `saveRoutine` (Dexie transaction) → `oak:changed` event → `SyncAgent` debounces 4 s → `syncNow`: GET vault → decrypt → LWW merge → encrypt snapshot → PUT with `baseRev` (409 → retry). A vault deleted with Delete everything is a server tombstone: GET and PUT answer 410 `gone`, and `syncNow` turns sync off on that device instead of pushing it back (`docs/feat/delete-everything.md`).

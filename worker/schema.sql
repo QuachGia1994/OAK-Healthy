@@ -3,8 +3,10 @@ CREATE TABLE IF NOT EXISTS vaults (
   rev INTEGER NOT NULL,
   blob TEXT NOT NULL,
   auth_hash TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  deleted_at INTEGER
 );
+-- v2.7 vault tombstone (Delete everything: blob emptied, GET/PUT answer 410). Existing databases: worker/migrations/0006_vault_tombstone.sql
 CREATE TABLE IF NOT EXISTS shares (
   id TEXT PRIMARY KEY,
   blob TEXT NOT NULL,

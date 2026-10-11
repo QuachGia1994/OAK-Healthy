@@ -3,23 +3,29 @@ import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Bell, BellOff, Copy, Download, KeyRound, Monitor, RefreshCw, Trash2, Upload, UserRound, Users } from "lucide-react";
+import { Bell, BellOff, Copy, Download, KeyRound, Loader2, Monitor, RefreshCw, Trash2, Upload, UserRound, Users } from "lucide-react";
 import { useT, locale } from "@/lib/i18n";
 import { LangToggle } from "./lang-toggle";
-import { getMe, type Me } from "@/lib/account";
+import { getMe, pendingWipe, wipeEverything, type Me } from "@/lib/account";
+import type { WipeStep } from "@/lib/domain/wipe";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
 import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, getCircles, isOutOfStep, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
 import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
 import { safeNext } from "@/lib/domain/safe-next";
-import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow } from "@/lib/sync";
+import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow, type SyncResult } from "@/lib/sync";
 import { DeviceQr } from "./device-qr";
 import { useOak } from "@/lib/use-oak";
 import { PageHeader } from "./ui";
 
+/** Delete everything on another device left a vault tombstone (410); syncNow has already turned sync off here and
+ * carries the notice in r.error. */
+const vaultGone = (r: SyncResult): r is Extract<SyncResult, { ok: false }> => !r.ok && r.gone === true;
+
 /** Sync on load, on focus, 4s after local changes, and when the service worker fires a Background Sync.
  * Offline or failed pushes register a one-off "oak-sync" so the browser retries even after the tab closes. */
 export function SyncAgent() {
+  const tr = useT();
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined, busy = false;
     const run = async (fromSw = false) => {
@@ -34,6 +40,8 @@ export function SyncAgent() {
           const r = await syncNow(k);
           // Network failures only (server errors would just loop); the SW-triggered run never re-registers itself.
           if (!r.ok && !fromSw && /fetch|network|load failed/i.test(r.error)) void requestBackgroundSync();
+          // Once: sync is off now, so the next run has no key.
+          if (vaultGone(r)) toast(tr(r.error), { duration: 15000 });
           window.dispatchEvent(new CustomEvent("oak:synced", { detail: r }));
         }
         await Promise.all([pushReminderTimes().catch(() => {}), publishCircles().catch(() => {})]);
@@ -86,6 +94,50 @@ function CircleRow({ c, onChange, tryIt }: { c: Circle; onChange: () => Promise<
         ))}
       </ul>}
     </li>
+  );
+}
+
+const WIPE_DOING: Record<WipeStep, string> = {
+  circles: "Deleting your circles…", reminders: "Turning off reminders…", vault: "Deleting your encrypted vault…", account: "Deleting your account…", device: "Clearing this device…",
+};
+const WIPE_FAILED: Record<WipeStep, string> = {
+  circles: "Couldn't delete your circles.", reminders: "Couldn't turn off reminders.", vault: "Couldn't delete your encrypted vault.", account: "Couldn't delete your account.", device: "Couldn't clear this device.",
+};
+
+/** One action, behind an explicit confirm, deletes the circles you own, reminders, the vault, the account and this
+ * device's data, in that order (lib/account.ts wipeEverything). A failure stops there; Retry continues where it stopped. */
+export function DeleteEverything({ signedIn }: { signedIn: boolean }) {
+  const t = useT();
+  const [confirming, setConfirming] = useState(false), [step, setStep] = useState<WipeStep | null>(null);
+  const [failed, setFailed] = useState<{ step: WipeStep; error: string } | null>(null), [unfinished, setUnfinished] = useState(false);
+  useEffect(() => { void pendingWipe().then((p) => setUnfinished(!!p)); }, []);
+  const run = async () => {
+    setFailed(null); setConfirming(false);
+    const r = await wipeEverything(signedIn, setStep);
+    setStep(null);
+    if (r.ok) { toast.success(t("Everything deleted")); location.replace("/"); return; }
+    setFailed(r); setUnfinished(true); toast.error(t(WIPE_FAILED[r.step]));
+  };
+  return (
+    <section className="card space-y-3 p-5">
+      <div><h2 className="text-sm font-semibold text-missed">{t("Delete everything")}</h2>
+        <p className="mt-1 text-xs text-neutral-500">{t(signedIn
+          ? "Deletes the circles you own, your reminders, your encrypted vault, your account and all data on this device. Members lose access at once. This can't be undone."
+          : "Deletes the circles you own, your reminders, your encrypted vault (if sync is on) and all data on this device. Members lose access at once. This can't be undone.")}</p></div>
+      {step ? <p role="status" className="flex min-h-11 items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" /> {t(WIPE_DOING[step])}</p>
+        : failed || unfinished ? (
+          <div role="alert" className="space-y-2">
+            <p className="text-sm text-missed">{failed ? `${t(WIPE_FAILED[failed.step])} ${t(failed.error)}` : t("Deleting everything didn't finish.")}</p>
+            <p className="text-xs text-neutral-500">{t("Retry continues where it stopped.")}</p>
+            <button className="btn text-missed" onClick={run}>{t("Retry")}</button>
+          </div>
+        ) : confirming ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{t("Delete everything? This can't be undone.")}</p>
+            <div className="flex flex-wrap gap-2"><button className="btn" onClick={() => setConfirming(false)}>{t("Cancel")}</button><button className="btn text-missed" onClick={run}><Trash2 className="size-4" /> {t("Yes, delete everything")}</button></div>
+          </div>
+        ) : <button className="btn text-missed" onClick={() => setConfirming(true)}><Trash2 className="size-4" /> {t("Delete everything")}</button>}
+    </section>
   );
 }
 
@@ -297,6 +349,8 @@ export function SettingsView() {
           {installEvt && <button onClick={() => installEvt.prompt()} className="btn-primary"><Monitor className="size-4" /> {t("Install app")}</button>}
         </div>
       </Section>
+
+      <DeleteEverything signedIn={!!me} />
     </div>
   );
 }
