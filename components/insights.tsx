@@ -1,6 +1,7 @@
 "use client";
 import { useT, locale } from "@/lib/i18n";
 import { Biomarkers } from "./biomarkers";
+import { ScheduleSuggest } from "./schedule-suggest";
 import { useMemo } from "react";
 import { AlertTriangle, Clock, Sparkles } from "lucide-react";
 import { useOak } from "@/lib/use-oak";
@@ -120,6 +121,7 @@ export function Insights() {
           </ul>
         </div>
       </div>
+      <ScheduleSuggest routines={routines} />
       {profile && <Biomarkers clientId={profile.id} />}
       <p className="mt-6 text-xs text-neutral-500">{t("Last 30 days: {a} taken of {b} planned.", { a: last30.reduce((a, s) => a + s.taken, 0), b: last30.reduce((a, s) => a + s.planned, 0) })}</p>
     </div>

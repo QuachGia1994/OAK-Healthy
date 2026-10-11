@@ -2,12 +2,13 @@
 import { useT } from "@/lib/i18n";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Copy, Pause, Play, Plus, Search, Share2 } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronsUpDown, Copy, Hourglass, Pause, Play, Plus, Search, Share2, ShoppingCart } from "lucide-react";
+import { haptic } from "@/lib/haptics";
+import { inventoryAlert, routineStatus, sortRoutines, type SortDir, type SortKey } from "@/lib/domain/stack";
 import { useHotkey, useOak } from "@/lib/use-oak";
 import { saveRoutine } from "@/lib/db";
-import { cycleLabel, cycleStatus, isExpired } from "@/lib/domain/cycle";
+import { cycleLabel } from "@/lib/domain/cycle";
 import { toLocalDay } from "@/lib/domain/day";
-import { daysOfStockLeft } from "@/lib/domain/schedule";
 import { analyze } from "@/lib/domain/knowledge";
 import { sealShare } from "@/lib/crypto";
 import type { Category, Routine } from "@/lib/domain/types";
@@ -16,11 +17,7 @@ import { CATEGORIES, openRoutine, duplicateRoutine } from "./routine-drawer";
 
 type StatusFilter = "all" | "active" | "off" | "paused";
 
-export function routineStatus(r: Routine, today: string): "active" | "off" | "paused" | "ended" {
-  if (r.paused) return "paused";
-  if (isExpired(r.startDate, r.cycle, today)) return "ended";
-  return cycleStatus(r.startDate, r.cycle, today) === "ON" ? "active" : "off";
-}
+export { routineStatus };
 const STATUS_CLS = {
   active: "border-taken/20 bg-taken-soft text-taken",
   off: "border-due/20 bg-due-soft text-due",
@@ -29,13 +26,16 @@ const STATUS_CLS = {
 };
 const STATUS_LABEL = { active: "Active", off: "Off-cycle", paused: "Paused", ended: "Ended" };
 
-export async function shareStack(name: string, routines: Routine[]) {
+/** Encrypted share. With a handle, the server also issues a readable /s/<handle>/<slug> URL; only the handle,
+ * the slug words and the item count are public (used for link previews). The key stays in the #fragment. */
+export async function shareStack(name: string, routines: Routine[], handle?: string) {
   const payload = { v: 1, name, createdAt: Date.now(), items: routines.map(({ name, dose, time, cycle, category, note }) => ({ name, dose, time, cycle, category, note })) };
   const { blob, k } = await sealShare(payload);
-  const res = await fetch("/api/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ blob }) });
+  const meta = handle ? { handle, title: name, items: routines.length } : {};
+  const res = await fetch("/api/share", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ blob, ...meta }) });
   if (!res.ok) throw new Error(`Share failed (${res.status})`);
-  const { id } = (await res.json()) as { id: string };
-  const url = `${location.origin}/s/${id}#${k}`;
+  const { id, slug } = (await res.json()) as { id: string; slug?: string };
+  const url = `${location.origin}/s/${slug ?? id}#${k}`;
   await navigator.clipboard?.writeText(url).catch(() => {});
   return url;
 }
@@ -46,12 +46,13 @@ export function StackManager() {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<Category | "all">("all");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "time", dir: "asc" });
   const search = useRef<HTMLInputElement>(null);
   const today = toLocalDay(new Date());
   useHotkey("/", useCallback(() => search.current?.focus(), []));
   const clashIds = useMemo(() => new Set(analyze(routines).filter((i) => i.level === "clash").flatMap((i) => i.ids)), [routines]);
 
-  const rows = routines.filter((r) => {
+  const filtered = routines.filter((r) => {
     if (q && !`${r.name} ${r.dose} ${r.note ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (cat !== "all" && r.category !== cat) return false;
     const s = routineStatus(r, today);
@@ -60,17 +61,26 @@ export function StackManager() {
     if (status === "paused" && s !== "paused") return false;
     return true;
   });
+  const rows = sortRoutines(filtered, sort.key, sort.dir, today);
+  const sortBy = (key: SortKey) => setSort((s) => ({ key, dir: s.key === key && s.dir === "asc" ? "desc" : "asc" }));
+  const th = (k: SortKey, label: string) => (
+    <button key={k} onClick={() => sortBy(k)} aria-sort={sort.key === k ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={`flex items-center gap-1 text-left hover:text-neutral-900 dark:hover:text-white ${sort.key === k ? "text-neutral-900 dark:text-white" : ""}`}>
+      {t(label)} {sort.key === k ? (sort.dir === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />) : <ChevronsUpDown className="size-3 opacity-40" />}
+    </button>
+  );
   const counts = Object.fromEntries(CATEGORIES.map((c) => [c, routines.filter((r) => r.category === c).length]));
 
   const share = async () => {
     const tid = toast.loading(t("Creating encrypted share link…"));
     try {
-      await shareStack(profile?.name ? t("{name}'s stack", { name: profile.name }) : t("My stack"), rows.length ? rows : routines);
+      await shareStack(profile?.name ? t("{name}'s stack", { name: profile.name }) : t("My stack"), rows.length ? rows : routines, profile?.name || "oak");
+      haptic("success");
       toast.success(t("Share link copied"), { id: tid, description: t("The decryption key is in the link, never on our server.") });
     } catch (e) { toast.error(String((e as Error).message), { id: tid }); }
   };
   const togglePause = async (r: Routine) => {
     await saveRoutine({ ...r, paused: !r.paused });
+    haptic();
     toast(`${r.name} · ${t(r.paused ? "resumed" : "paused")}`, { action: { label: t("Undo"), onClick: () => saveRoutine({ ...r }) } });
   };
 
@@ -96,6 +106,9 @@ export function StackManager() {
                 <button key={s} onClick={() => setStatus(s)} className={`h-11 flex-1 whitespace-nowrap rounded-md px-2.5 transition md:h-7 md:flex-none ${status === s ? "bg-neutral-100 font-medium dark:bg-neutral-800" : "text-neutral-500"}`}>{t(s === "off" ? "Off-cycle" : s === "all" ? "All" : s === "active" ? "Active" : "Paused")}</button>
               ))}
             </div>
+            <select aria-label={t("Sort by")} value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [key, dir] = e.target.value.split(":") as [SortKey, SortDir]; setSort({ key, dir }); }} className="input w-full sm:w-auto md:hidden">
+              {([["time", "Time"], ["name", "Name"], ["stock", "Inventory"], ["status", "Status"], ["cycle", "Cycle"]] as [SortKey, string][]).flatMap(([k, l]) => (["asc", "desc"] as SortDir[]).map((d) => <option key={k + d} value={`${k}:${d}`}>{t("Sort by")}: {t(l)} {d === "asc" ? "↑" : "↓"}</option>))}
+            </select>
           </div>
           <div className="mb-4 flex flex-wrap gap-1.5">
             <button onClick={() => setCat("all")} className={`chip chip-btn ${cat === "all" ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{t("All")} {routines.length}</button>
@@ -106,12 +119,12 @@ export function StackManager() {
 
           <div className="card overflow-hidden">
             <div className="hidden grid-cols-[1fr_90px_140px_110px_110px_76px] gap-3 border-b border-neutral-100 bg-neutral-50/60 px-4 py-2 text-xs font-medium text-neutral-500 md:grid dark:border-neutral-800 dark:bg-neutral-900">
-              <span>{t("Name")}</span><span>{t("Time")}</span><span>{t("Cycle")}</span><span>{t("Inventory")}</span><span>{t("Status")}</span><span />
+              {th("name", "Name")}{th("time", "Time")}{th("cycle", "Cycle")}{th("stock", "Inventory")}{th("status", "Status")}<span />
             </div>
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {rows.map((r) => {
                 const s = routineStatus(r, today);
-                const left = daysOfStockLeft(r);
+                const inv = inventoryAlert(r, today), left = inv.daysLeft;
                 return (
                   <li key={r.id} onClick={() => openRoutine(r.id)} className="group grid cursor-pointer grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 transition hover:bg-neutral-50 md:grid-cols-[1fr_90px_140px_110px_110px_76px] dark:hover:bg-neutral-800/50">
                     <div className="flex min-w-0 items-center gap-3">
@@ -123,7 +136,11 @@ export function StackManager() {
                     </div>
                     <span className="hidden font-mono text-sm text-neutral-600 md:block dark:text-neutral-400">{r.time}</span>
                     <span className="hidden text-sm text-neutral-600 md:block dark:text-neutral-400">{cycleLabel(r.cycle)}{r.cycle.durationDays ? ` · ${r.cycle.durationDays}d` : ""}</span>
-                    <span className="hidden text-sm md:block">{left == null ? <span className="text-neutral-400">—</span> : <span className={`tabular ${left <= 7 ? "font-medium text-skipped" : "text-neutral-600 dark:text-neutral-400"}`}>{r.stock} · {left}d</span>}</span>
+                    <span className="hidden items-center gap-1 text-sm md:flex" onClick={(e) => inv.reorderUrl && e.stopPropagation()}>
+                      {left == null ? <span className="text-neutral-400">—</span> : <span className={`tabular ${inv.low ? "font-medium text-skipped" : "text-neutral-600 dark:text-neutral-400"}`}>{r.stock} · {left}d</span>}
+                      {(inv.expiring || inv.expired) && <span role="img" aria-label={inv.expired ? t("Expired") : t("Expires in {n}d", { n: inv.expiryDays ?? 0 })} title={inv.expired ? t("Expired") : t("Expires in {n}d", { n: inv.expiryDays ?? 0 })}><Hourglass className={`size-3.5 ${inv.expired ? "text-missed" : "text-skipped"}`} /></span>}
+                      {inv.reorderUrl && <a href={inv.reorderUrl} target="_blank" rel="noopener noreferrer" aria-label={t("Reorder")} title={t("Reorder")} className={`flex size-6 items-center justify-center rounded ${inv.low ? "text-skipped" : "text-neutral-400"} hover:bg-neutral-100 dark:hover:bg-neutral-800`}><ShoppingCart className="size-3.5" /></a>}
+                    </span>
                     <span className="hidden md:block"><span className={`chip ${STATUS_CLS[s]}`}>{t(STATUS_LABEL[s])}</span></span>
                     <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <span className={`chip md:hidden ${STATUS_CLS[s]}`}>{t(STATUS_LABEL[s])}</span>

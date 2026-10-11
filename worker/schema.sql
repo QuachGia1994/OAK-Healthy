@@ -9,9 +9,13 @@ CREATE TABLE IF NOT EXISTS shares (
   id TEXT PRIMARY KEY,
   blob TEXT NOT NULL,
   created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL
+  expires_at INTEGER NOT NULL,
+  slug TEXT,
+  items INTEGER
 );
 CREATE INDEX IF NOT EXISTS shares_expires ON shares (expires_at);
+-- v2.2 pretty share URLs. Existing databases: ALTER TABLE shares ADD COLUMN slug TEXT; ALTER TABLE shares ADD COLUMN items INTEGER;
+CREATE UNIQUE INDEX IF NOT EXISTS shares_slug ON shares (slug);
 -- v2.1: accounts (zero-knowledge key wrapping), passkey wraps, push reminders, circles, rate limits.
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,

@@ -33,5 +33,17 @@ export async function syncNow(secret: string): Promise<SyncResult> {
   }
 }
 
+/** Ask the service worker to retry sync when connectivity returns (Background Sync API; Chromium browsers).
+ * Elsewhere this is a no-op and the online/focus listeners in SyncAgent cover it. */
+export async function requestBackgroundSync(): Promise<boolean> {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const sync = (reg as (ServiceWorkerRegistration & { sync?: { register(tag: string): Promise<void> } }) | undefined)?.sync;
+    if (!sync) return false;
+    await sync.register("oak-sync");
+    return true;
+  } catch { return false; }
+}
+
 export const getSyncKey = () => getMeta<string | null>("syncKey", null);
 export const setSyncKey = (k: string | null) => setMeta("syncKey", k);

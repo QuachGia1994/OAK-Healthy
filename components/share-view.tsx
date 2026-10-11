@@ -22,7 +22,9 @@ export function ShareView() {
   const t = useT();
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    const id = params.get("id") ?? location.pathname.split("/").filter(Boolean)[1];
+    // /s/<id> or the readable /s/<handle>/<slug>; both resolve to the same encrypted blob.
+    const seg = location.pathname.split("/").filter(Boolean);
+    const id = params.get("id") ?? (seg.length >= 3 ? `${seg[1]}/${seg[2]}` : seg[1]);
     const k = location.hash.slice(1);
     if (!id || !k) { setErr("This link is incomplete."); return; }
     fetch(`/api/share/${id}`).then(async (r) => {

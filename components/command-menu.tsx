@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { BarChart3, Check, Layers, LayoutGrid, Moon, Plus, Settings, User } from "lucide-react";
 import { useNow, useOak } from "@/lib/use-oak";
 import { markDose } from "@/lib/db";
+import { haptic } from "@/lib/haptics";
 import { dosesForDay } from "@/lib/domain/schedule";
 import { toLocalDay } from "@/lib/domain/day";
 import { openRoutine } from "./routine-drawer";
@@ -41,7 +42,7 @@ export function CommandMenu() {
           <Command.Group heading={t("Log a dose")} className={group}>
             {pending.slice(0, 6).map((d) => (
               <Command.Item key={d.key} value={`take ${d.routine.name} ${d.routine.time}`} className={item}
-                onSelect={() => run(async () => { await markDose(d.routine, d.at, "Taken"); toast.success(`${d.routine.name} · ${t("Taken")}`); })}>
+                onSelect={() => run(async () => { await markDose(d.routine, d.at, "Taken"); haptic("success"); toast.success(`${d.routine.name} · ${t("Taken")}`); })}>
                 <Check className="size-4 text-taken" /> {t("Take {name}", { name: d.routine.name })} <span className="ml-auto font-mono text-xs text-neutral-400">{d.routine.time}</span>
               </Command.Item>
             ))}

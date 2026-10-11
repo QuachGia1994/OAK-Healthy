@@ -1,5 +1,5 @@
 "use client";
-import { useT, t as tt } from "@/lib/i18n";
+import { useT, t as tt, locale } from "@/lib/i18n";
 import { LabelScan } from "./label-scan";
 import { Copy } from "lucide-react";
 import type { LabelGuess } from "@/lib/domain/label";
@@ -10,6 +10,7 @@ import { Sparkles, Trash2, X } from "lucide-react";
 import { blankRoutine, db, saveRoutine, setDeleted } from "@/lib/db";
 import { useOak } from "@/lib/use-oak";
 import { suggest, findReference } from "@/lib/domain/knowledge";
+import { expiresOn, safeUrl } from "@/lib/domain/stack";
 import type { Category, Routine } from "@/lib/domain/types";
 
 export const openRoutine = (id: string | null) => window.dispatchEvent(new CustomEvent("oak:routine", { detail: id }));
@@ -65,7 +66,8 @@ export function RoutineDrawer() {
   };
   const save = async () => {
     if (!r.name.trim()) return toast.error(t("Give it a name"));
-    await saveRoutine({ ...r, name: r.name.trim() });
+    if (r.buyUrl?.trim() && !safeUrl(r.buyUrl)) return toast.error(t("Reorder link must start with https://"));
+    await saveRoutine({ ...r, name: r.name.trim(), buyUrl: safeUrl(r.buyUrl) ?? undefined });
     setOpen(false);
     toast.success(isNew ? t("{name} added to your stack", { name: r.name }) : t("Saved"));
   };
@@ -138,7 +140,11 @@ export function RoutineDrawer() {
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <div><label className="label">{t("Pills left")}</label><input type="number" min={0} placeholder={t("Not tracked")} className="input tabular" value={r.stock ?? ""} onChange={(e) => set("stock", e.target.value === "" ? null : Math.max(0, +e.target.value))} /></div>
                 <div><label className="label">{t("Per dose")}</label><input type="number" min={1} className="input tabular" value={r.perDose} onChange={(e) => set("perDose", Math.max(1, +e.target.value || 1))} /></div>
+                <div><label className="label">{t("Opened on")}</label><input type="date" className="input" value={r.openedOn ?? ""} onChange={(e) => set("openedOn", e.target.value || null)} /></div>
+                <div><label className="label">{t("Good for (days after opening)")}</label><input type="number" min={1} placeholder={t("Not tracked")} className="input tabular" value={r.shelfLifeDays ?? ""} onChange={(e) => set("shelfLifeDays", e.target.value === "" ? null : Math.max(1, +e.target.value || 1))} /></div>
+                <div className="col-span-2"><label className="label">{t("Reorder link")}</label><input type="url" inputMode="url" placeholder="https://" className="input" value={r.buyUrl ?? ""} onChange={(e) => set("buyUrl", e.target.value)} /></div>
               </div>
+              {expiresOn(r) && <p className="mt-2 text-xs text-neutral-500">{t("Use by {d}", { d: new Date(expiresOn(r)! + "T00:00").toLocaleDateString(locale()) })}</p>}
             </div>
             <div><label className="label">{t("Note")}</label><textarea rows={2} className="input h-auto py-2" value={r.note ?? ""} onChange={(e) => set("note", e.target.value)} /></div>
             <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-5 accent-[#1F6B4D] md:size-auto" checked={r.paused} onChange={(e) => set("paused", e.target.checked)} /> {t("Paused")}</label>

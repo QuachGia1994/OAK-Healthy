@@ -10,29 +10,41 @@ import { getMe, type Me } from "@/lib/account";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
 import { circleUrl, createCircle, getCircles, publishCircles, revokeCircle, type Circle } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, snapshot, type Snapshot } from "@/lib/db";
-import { isValidKey, newSyncKey } from "@/lib/crypto";
-import { getSyncKey, setSyncKey, syncNow } from "@/lib/sync";
+import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
+import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow } from "@/lib/sync";
+import { DeviceQr } from "./device-qr";
 import { useOak } from "@/lib/use-oak";
 import { PageHeader } from "./ui";
 
-/** Background sync: on load, on focus, and 4s after local changes. */
+/** Sync on load, on focus, 4s after local changes, and when the service worker fires a Background Sync.
+ * Offline or failed pushes register a one-off "oak-sync" so the browser retries even after the tab closes. */
 export function SyncAgent() {
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined, busy = false;
-    const run = async () => {
-      if (busy || !navigator.onLine) return;
-      busy = true;
+    const run = async (fromSw = false) => {
+      if (busy) return;
       const k = await getSyncKey();
-      if (k) window.dispatchEvent(new CustomEvent("oak:synced", { detail: await syncNow(k) }));
-      await Promise.all([pushReminderTimes().catch(() => {}), publishCircles().catch(() => {})]);
-      busy = false;
+      if (!navigator.onLine) { if (k) void requestBackgroundSync(); return; }
+      busy = true;
+      try {
+        if (k) {
+          const r = await syncNow(k);
+          // Network failures only (server errors would just loop); the SW-triggered run never re-registers itself.
+          if (!r.ok && !fromSw && /fetch|network|load failed/i.test(r.error)) void requestBackgroundSync();
+          window.dispatchEvent(new CustomEvent("oak:synced", { detail: r }));
+        }
+        await Promise.all([pushReminderTimes().catch(() => {}), publishCircles().catch(() => {})]);
+      } finally { busy = false; }
     };
-    const later = () => { clearTimeout(t); t = setTimeout(run, 4000); };
-    void run();
+    const now = () => void run();
+    const later = () => { clearTimeout(t); t = setTimeout(now, 4000); };
+    const onSw = (e: MessageEvent) => { if ((e.data as { type?: string } | null)?.type === "oak-sync") void run(true); };
+    now();
     window.addEventListener("oak:changed", later);
-    window.addEventListener("focus", run);
-    window.addEventListener("online", run);
-    return () => { clearTimeout(t); window.removeEventListener("oak:changed", later); window.removeEventListener("focus", run); window.removeEventListener("online", run); };
+    window.addEventListener("focus", now);
+    window.addEventListener("online", now);
+    navigator.serviceWorker?.addEventListener("message", onSw);
+    return () => { clearTimeout(t); window.removeEventListener("oak:changed", later); window.removeEventListener("focus", now); window.removeEventListener("online", now); navigator.serviceWorker?.removeEventListener("message", onSw); };
   }, []);
   return null;
 }
@@ -86,6 +98,22 @@ export function SettingsView() {
     else toast.error(t(r.error));
     return r.ok;
   };
+  // QR handoff: another device's QR opens /settings/#link=<key>. Strip it from the address bar right away.
+  useEffect(() => {
+    const m = location.hash.match(/^#link=(.+)$/);
+    if (!m) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    const k = decodeURIComponent(m[1]).trim().toUpperCase();
+    if (!isValidKey(k)) { toast.error(t("That doesn't look like an OAK sync key")); return; }
+    void (async () => {
+      const cur = await getSyncKey();
+      if (cur && normalizeKey(cur) === normalizeKey(k)) { toast.success(t("This device is already linked")); return; }
+      if (cur) { toast.error(t("This device already syncs with another key. Turn off sync first.")); return; }
+      if (!confirm(t("Link this device to the encrypted vault from your other device?"))) return;
+      await setSyncKey(k);
+      if (await doSync(k)) { await adoptSyncedProfiles(); await syncNow(k); }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const enable = async () => { const k = newSyncKey(); await setSyncKey(k); setReveal(true); await doSync(k); };
   const join = async () => {
     if (!isValidKey(input)) return toast.error(t("That doesn't look like an OAK sync key"));
@@ -152,6 +180,7 @@ export function SettingsView() {
               <button disabled={busy} onClick={() => doSync(key)} className="btn-primary"><RefreshCw className={`size-4 ${busy ? "animate-spin" : ""}`} /> {t("Sync now")}</button>
               <button onClick={async () => { if (confirm(t("Turn off sync on this device? Local data stays."))) await setSyncKey(null); }} className="btn">{t("Turn off")}</button>
             </div>
+            <DeviceQr syncKey={key} />
           </div>
         ) : (
           <div className="space-y-4">

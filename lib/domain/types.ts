@@ -27,6 +27,12 @@ export interface Routine {
   /** Pills left; null = not tracked. */
   stock: number | null;
   perDose: number;
+  /** Where to buy more (http/https only). */
+  buyUrl?: string;
+  /** Calendar day the current bottle was opened, YYYY-MM-DD. */
+  openedOn?: string | null;
+  /** Days the product stays good after opening (null = not tracked). */
+  shelfLifeDays?: number | null;
   note?: string;
   updatedAt: number;
   deletedAt?: number | null;

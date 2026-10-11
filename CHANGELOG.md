@@ -9,9 +9,18 @@ versioning where practical.
 ### Added
 
 - Public `/privacy` page (English + Vietnamese) linked from the sign-in screens; required by the Google sign-in consent screen.
+- Readable share URLs `/s/<handle>/<slug>` with link previews (Open Graph + Twitter card). Only the handle, the slug words and the item count are public; the stack stays encrypted with the key in the `#fragment`. Old `/s/<id>` links keep working and get a generic preview.
+- Background Sync: offline edits or network-failed pushes register a one-off `oak-sync`; the service worker hands it to an open tab, or syncs the encrypted vault itself (same HKDF/AES-GCM + last-writer-wins) when no tab is open.
+- Stack table: sortable columns (name, time, cycle, inventory, status; asc/desc, untracked stock last) plus a sort menu on small screens.
+- Haptic feedback (Vibration API) on Taken/Skipped, pause, share and schedule apply; respects reduced motion.
+- Inventory: reorder link (http/https only) and shelf life after opening, with “expires in”/“expired” alerts on the dashboard and in the stack table.
+- Chrono-timing: “Suggested schedule” in Insights moves doses to slots that satisfy timing rules and split clashing pairs, with per-item Apply, Apply all and Undo.
+- Biomarkers: adherence-vs-marker chart (30-day adherence before each lab draw) with Pearson r and a plain-language strength label.
+- Device handoff by QR: Settings shows a 60-second QR that opens `/settings/#link=<key>` on the other device; the key stays in the URL fragment and is wiped from the address bar on arrival.
 
 ### Fixed
 
+- Base64 encoding of large vaults is chunked, so snapshots near the 1.5 MB limit no longer overflow the call stack.
 - Label scan matches names regardless of spaces and hyphens ("Vitamin D-3", "Omega 3").
 - Every knowledge-base entry now cites a source (13 entries had none).
 - Vietnamese UI: greeting, toast region label, the default shared-stack title and the Notes prefill (dictionary advice) are translated.

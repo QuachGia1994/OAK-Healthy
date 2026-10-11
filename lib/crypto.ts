@@ -1,7 +1,12 @@
 // Zero-knowledge vault crypto. The sync key never leaves the device; the server stores ciphertext only.
 const enc = new TextEncoder(), dec = new TextDecoder();
-export const b64u = (b: ArrayBuffer | Uint8Array) =>
-  btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+export const b64u = (b: ArrayBuffer | Uint8Array) => {
+  // Chunked: spreading a large vault (up to 1.5 MB) into one fromCharCode call overflows the stack.
+  const u = new Uint8Array(b);
+  let s = "";
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+};
 export const unb64u = (s: string) =>
   Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
 

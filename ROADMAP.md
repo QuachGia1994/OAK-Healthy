@@ -1,5 +1,15 @@
 # Roadmap
 
+## Shipped in 2.2
+
+- Readable share URLs `/s/<handle>/<slug>` with link previews (public metadata only).
+- Background Sync for offline edits.
+- Sortable stack table and haptic feedback.
+- Inventory reorder link and shelf life after opening.
+- Automatic time-slot suggestions (timing rules + clash separation).
+- Biomarker ↔ adherence correlation chart.
+- Device-to-device QR handoff for the sync key.
+
 ## Shipped in 2.1
 
 - Mobile layout pass for iPhone 16 Plus (430×932) and Meizu Lucky 08 (360×800, 412×915): 44 px targets, ≥ 12 px text, single-column cards, safe-area insets.
@@ -21,5 +31,4 @@
 1. Link a second sign-in method from Account (password ↔ Google/GitHub) and change password while signed in.
 2. Circle members with their own accounts (per-member public keys) instead of bearer links.
 3. Reminder snooze and per-routine reminder toggles.
-4. Biomarker ↔ supplement correlation charts.
-5. Barcode lookup to complement OCR.
+4. Barcode lookup to complement OCR.

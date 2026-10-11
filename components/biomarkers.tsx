@@ -1,5 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useOak } from "@/lib/use-oak";
+import { correlationLabel, markerAdherence } from "@/lib/domain/stack";
+import type { Biomarker } from "@/lib/domain/types";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toast } from "sonner";
 import { FlaskConical, Plus, Trash2 } from "lucide-react";
@@ -23,6 +26,55 @@ function Trend({ values, low, high }: { values: number[]; low?: number; high?: n
       <path d={values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")} fill="none" stroke="#466A8D" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
       {values.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="1.8" fill="#466A8D" />)}
     </svg>
+  );
+}
+
+/** Adherence of one routine (30 days before each lab draw) against the marker value over time. */
+function Correlation({ groups }: { groups: { marker: string; series: Biomarker[] }[] }) {
+  const t = useT();
+  const { routines, intakes } = useOak();
+  const usable = groups.filter((g) => g.series.length >= 2);
+  const [mk, setMk] = useState<string>("");
+  const g = usable.find((x) => x.marker === mk) ?? usable[0];
+  const ref = g ? markerRef(g.marker) : undefined;
+  const guess = routines.find((r) => ref?.supplements?.some((s) => r.name.toLowerCase().includes(s)));
+  const [rid, setRid] = useState<string>("");
+  const routine = routines.find((r) => r.id === rid) ?? guess ?? routines[0];
+  const data = useMemo(() => (g && routine ? markerAdherence(g.series, routine, intakes, 30) : null), [g, routine, intakes]);
+  if (!usable.length || !routines.length || !g || !routine || !data) return null;
+
+  const W = 320, H = 120, P = 8;
+  const ts = data.points.map((p) => new Date(p.date + "T00:00").getTime());
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const vals = data.points.map((p) => p.value), lo = Math.min(...vals, ref?.low ?? Infinity), hi = Math.max(...vals, ref?.high ?? -Infinity);
+  const x = (i: number) => P + ((ts[i] - t0) / (t1 - t0 || 1)) * (W - 2 * P);
+  const yv = (v: number) => H - P - ((v - lo) / (hi - lo || 1)) * (H - 2 * P);
+  const ya = (a: number) => H - P - a * (H - 2 * P);
+  const path = (pts: [number, number][]) => pts.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join(" ");
+  const adh = data.points.map((p, i) => [p.adherence, i] as const).filter(([a]) => a != null).map(([a, i]) => [x(i), ya(a!)] as [number, number]);
+  const label = correlationLabel(data.r);
+
+  return (
+    <div className="mt-4 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
+      <p className="text-sm font-medium">{t("Adherence vs marker")}</p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        <select aria-label={t("Marker")} value={g.marker} onChange={(e) => setMk(e.target.value)} className="input">{usable.map((u) => <option key={u.marker} value={u.marker}>{t(markerRef(u.marker)?.name ?? u.marker)}</option>)}</select>
+        <select aria-label={t("Routine")} value={routine.id} onChange={(e) => setRid(e.target.value)} className="input">{routines.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-3 h-32 w-full" role="img" aria-label={t("Adherence vs marker")}>
+        {[0, 0.5, 1].map((a) => <line key={a} x1={P} x2={W - P} y1={ya(a)} y2={ya(a)} className="stroke-neutral-200 dark:stroke-neutral-800" strokeDasharray="2 3" />)}
+        {adh.length > 0 && <path d={path(adh)} fill="none" stroke="#1F6B4D" strokeWidth="2" />}
+        {adh.map(([px, py], i) => <circle key={`a${i}`} cx={px} cy={py} r="2.5" fill="#1F6B4D" />)}
+        <path d={path(data.points.map((p, i) => [x(i), yv(p.value)]))} fill="none" stroke="#466A8D" strokeWidth="2" strokeDasharray="5 3" />
+        {data.points.map((p, i) => <circle key={`v${i}`} cx={x(i)} cy={yv(p.value)} r="2.5" fill="#466A8D" />)}
+      </svg>
+      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-[#1F6B4D]" /> {t("30-day adherence")} (0–100%)</span>
+        <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 border-t-2 border-dashed border-[#466A8D]" /> {t(ref?.name ?? g.marker)} ({ref?.unit ?? g.series[0].unit})</span>
+        <span className="ml-auto font-medium text-neutral-700 dark:text-neutral-300">{data.r == null ? t("Need 3+ results with doses logged") : `r = ${data.r.toFixed(2)} · ${t(label)} ${t(data.r >= 0 ? "positive" : "negative")}`}</span>
+      </div>
+      <p className="mt-1 text-[12px] text-neutral-500">{t("Correlation is not causation. Diet, season and lab differences matter too.")}</p>
+    </div>
   );
 }
 
@@ -76,6 +128,7 @@ export function Biomarkers({ clientId }: { clientId: string }) {
           })}
         </ul>
       )}
+      <Correlation groups={groups} />
       <p className="mt-3 text-[12px] text-neutral-500">{t("Ranges vary by lab, age and sex. General information, not medical advice.")}</p>
     </div>
   );

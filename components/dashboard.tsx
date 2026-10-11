@@ -1,11 +1,13 @@
 "use client";
 import { motion } from "motion/react";
 import { toast } from "sonner";
-import { AlertTriangle, Check, Flame, Package, Plus, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Check, Flame, Hourglass, Package, Plus, ShoppingCart, Sparkles, X } from "lucide-react";
+import { haptic } from "@/lib/haptics";
+import { inventoryAlert } from "@/lib/domain/stack";
 import { useNow, useOak } from "@/lib/use-oak";
 import { markDose } from "@/lib/db";
 import { toLocalDay } from "@/lib/domain/day";
-import { dayStats, daysOfStockLeft, dosesForDay, slotOf, streak, type Dose } from "@/lib/domain/schedule";
+import { dayStats, dosesForDay, slotOf, streak, type Dose } from "@/lib/domain/schedule";
 import { completionRate, doseState } from "@/lib/domain/timing";
 import { analyze } from "@/lib/domain/knowledge";
 import type { Slot } from "@/lib/domain/types";
@@ -30,6 +32,7 @@ function fmtIn(ms: number) {
 
 export async function logDose(d: Dose, status: "Taken" | "Skipped") {
   const prev = await markDose(d.routine, d.at, status);
+  haptic(status === "Taken" ? "success" : "warn");
   toast(`${d.routine.name} · ${tt(status)}`, {
     action: { label: tt("Undo"), onClick: () => markDose(d.routine, d.at, prev) },
   });
@@ -47,7 +50,7 @@ export function Dashboard() {
   const month = dayStats(routines, intakes, today, 30);
   const wTaken = week.reduce((a, s) => a + s.taken, 0), wSkip = week.reduce((a, s) => a + s.skipped, 0);
   const next = doses.find((d) => !d.intake && doseState(undefined, d.at, now) !== "missed");
-  const lowStock = routines.filter((r) => { const d = daysOfStockLeft(r); return d != null && d <= 7; });
+  const lowStock = routines.map((r) => ({ r, inv: inventoryAlert(r, today) })).filter(({ inv }) => inv.low || inv.expiring || inv.expired);
   const insights = analyze(routines);
   const hour = new Date(now).getHours();
   const greet = t(hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening");
@@ -106,7 +109,14 @@ export function Dashboard() {
             <div className="card p-5">
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">{t("Stack health")}</p>
               <ul className="mt-3 space-y-2 text-sm">
-                {lowStock.map((r) => <li key={r.id} className="flex items-center gap-2"><Package className="size-4 text-skipped" /> <span className="truncate">{r.name}</span><span className="ml-auto shrink-0 text-xs text-skipped tabular">{t("{d}d left", { d: daysOfStockLeft(r) ?? 0 })}</span></li>)}
+                {lowStock.map(({ r, inv }) => (
+                  <li key={r.id} className="flex items-center gap-2">
+                    {inv.low ? <Package className="size-4 shrink-0 text-skipped" /> : <Hourglass className={`size-4 shrink-0 ${inv.expired ? "text-missed" : "text-skipped"}`} />}
+                    <span className="truncate">{r.name}</span>
+                    <span className={`ml-auto shrink-0 text-xs tabular ${inv.expired ? "text-missed" : "text-skipped"}`}>{[inv.low ? t("{d}d left", { d: inv.daysLeft ?? 0 }) : "", inv.expired ? t("Expired") : inv.expiring ? t("Expires in {n}d", { n: inv.expiryDays ?? 0 }) : ""].filter(Boolean).join(" · ")}</span>
+                    {inv.reorderUrl && <a href={inv.reorderUrl} target="_blank" rel="noopener noreferrer" className="flex min-h-11 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-taken hover:bg-taken-soft md:min-h-0 md:py-1"><ShoppingCart className="size-3.5" /> {t("Reorder")}</a>}
+                  </li>
+                ))}
                 {insights.slice(0, 3).map((i) => (
                   <li key={i.title + i.level} className="flex items-start gap-2">
                     {i.level === "clash" ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-missed" /> : <Sparkles className="mt-0.5 size-4 shrink-0 text-due" />}
