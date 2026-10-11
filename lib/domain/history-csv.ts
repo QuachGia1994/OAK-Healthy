@@ -29,8 +29,10 @@ export function historyStart(range: HistoryRange, input: HistoryInput, now: numb
 
 export const historyFileName = (now: number) => `oak-healthy-history-${toLocalDay(new Date(now))}.csv`;
 
-/** A text cell a spreadsheet would run as a formula gets a leading ' (OWASP CSV injection). */
-const guard = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
+/** A text cell a spreadsheet would run as a formula, also after leading whitespace, gets a leading ' (OWASP CSV injection). */
+const guard = (s: string) => (/^(?:[\t\r]|[ \t\r\n]*[=+\-@])/.test(s) ? `'${s}` : s);
+/** Synced vault data is a boundary: a status this version does not know is written raw, never as a label lookup. */
+const statusWord = (s: unknown, l: HistoryLabels) => (s === "Taken" || s === "Skipped" ? l[s] : typeof s === "string" ? s : "");
 const quote = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s);
 
 interface Row { at: number; person: string; supplement: string; dose: string; status: string; recordedAt: string }
@@ -49,7 +51,7 @@ function missedRows(routines: Routine[], recorded: Set<string>, person: (r: Rout
   return out;
 }
 
-/** One row per recorded dose (Taken / Skipped) and per Missed slot in [from, now]; RFC 4180, CRLF, UTF-8 BOM. */
+/** One row per recorded dose (its stored status; unknown ones as written) and per Missed slot in [from, now]; RFC 4180, CRLF, UTF-8 BOM. */
 export function historyCsv(input: HistoryInput, o: HistoryOptions): string {
   const byId = new Map(input.routines.map((r) => [r.id, r]));
   const names = new Map(input.profiles.map((p) => [p.id, p.name]));
@@ -57,12 +59,12 @@ export function historyCsv(input: HistoryInput, o: HistoryOptions): string {
   const records = input.intakes.filter((i) => live(i) && i.scheduledAt >= o.from && i.scheduledAt <= o.now);
   const rows: Row[] = records.map((i) => {
     const r = byId.get(i.supplementId);
-    return { at: i.scheduledAt, person: r ? person(r) : "", supplement: r?.name ?? "", dose: r?.dose ?? "", status: o.labels[i.status], recordedAt: stamp(i.updatedAt) };
+    return { at: i.scheduledAt, person: r ? person(r) : "", supplement: r?.name ?? "", dose: r?.dose ?? "", status: statusWord(i.status, o.labels), recordedAt: stamp(i.updatedAt) };
   });
   rows.push(...missedRows(input.routines, new Set(records.map((i) => i.key)), person, o));
   const keyed = rows.map((x) => ({ ...x, date: toLocalDay(new Date(x.at)), time: hhmm(x.at) }));
   keyed.sort((a, b) => cmp(a.date, b.date) || cmp(a.time, b.time) || a.person.localeCompare(b.person, o.locale) || a.supplement.localeCompare(b.supplement, o.locale));
   const lines = [HISTORY_COLUMNS.map((c) => o.labels.headers[c]),
-    ...keyed.map((x) => [x.date, x.time, guard(x.person), guard(x.supplement), guard(x.dose), x.status, x.recordedAt])];
+    ...keyed.map((x) => [x.date, x.time, guard(x.person), guard(x.supplement), guard(x.dose), guard(x.status), x.recordedAt])];
   return "\uFEFF" + lines.map((l) => l.map(quote).join(",")).join("\r\n") + "\r\n";
 }

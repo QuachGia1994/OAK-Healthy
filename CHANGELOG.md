@@ -6,6 +6,12 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-10-11
+
+### Fixed
+
+- Download history (CSV): a cell that starts with spaces before = + - @ now also gets the leading ' so a spreadsheet can't run it as a formula, and a dose status written by a newer app version shows as stored instead of "undefined".
+
 ## [2.11.0] - 2026-10-11
 
 ### Added

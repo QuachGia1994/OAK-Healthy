@@ -79,6 +79,30 @@ test("history CSV: RFC 4180 quoting, and a text cell that starts like a formula 
     + `2026-03-01,09:00,'@me,"Fish oil, ""triple""","1\ncap",Missed,\r\n`);
 });
 
+test("history CSV: a text cell with leading whitespace before a formula character gets a leading quote; other leading whitespace stays", () => {
+  const r = R({ name: "  =SUM(A1)", dose: "\n+1" });
+  const r2 = R({ id: "r2", clientId: "p2", name: " Zinc", dose: "  5 mg", time: "09:00" });
+  const csv = historyCsv({ routines: [r, r2], profiles: [P("p1", " @me"), P("p2", "Me")], intakes: [] }, { from, now: at("2026-03-01", "12:00"), labels: EN });
+  assert.deepEqual(body(csv), [
+    `2026-03-01,08:00,' @me,'  =SUM(A1),"'\n+1",Missed,`,
+    "2026-03-01,09:00,Me, Zinc,  5 mg,Missed,",
+  ]);
+});
+
+test("history CSV: a synced record with a status this version does not know writes the raw status, escaped like user text", () => {
+  const r = R({});
+  const odd = (day: string, status: unknown) => I(r, day, status as Intake["status"], at(day, "08:01"));
+  const intakes = [odd("2026-03-01", "Pending"), odd("2026-03-02", "=cmd"), odd("2026-03-03", "a,b"), odd("2026-03-04", "headers"), odd("2026-03-05", undefined)];
+  const csv = historyCsv({ routines: [r], profiles: [P("p1", "Me")], intakes }, { from, now: at("2026-03-05", "09:00"), labels: EN });
+  assert.deepEqual(body(csv), [
+    "2026-03-01,08:00,Me,Vitamin D3,1000 IU,Pending,2026-03-01 08:01",
+    "2026-03-02,08:00,Me,Vitamin D3,1000 IU,'=cmd,2026-03-02 08:01",
+    '2026-03-03,08:00,Me,Vitamin D3,1000 IU,"a,b",2026-03-03 08:01',
+    "2026-03-04,08:00,Me,Vitamin D3,1000 IU,headers,2026-03-04 08:01",
+    "2026-03-05,08:00,Me,Vitamin D3,1000 IU,,2026-03-05 08:01",
+  ]);
+});
+
 test("history CSV: an empty range is the header only", () => {
   assert.equal(historyCsv({ routines: [], profiles: [], intakes: [] }, { from, now: from, labels: EN }), "\uFEFF" + HEAD + "\r\n");
 });

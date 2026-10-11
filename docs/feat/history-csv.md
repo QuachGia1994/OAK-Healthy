@@ -25,6 +25,7 @@ One row per dose, every profile on the device (deleted profiles too, so their hi
 - A slot not yet 2 h past and not recorded is not listed (the dashboard still shows it as due). Future slots are never listed.
 - Records match slots by exact time (dose key). After a dose time change (08:00 → 09:00), an earlier day can show Taken at 08:00 and Missed at 09:00.
 - A record whose routine is gone from the device keeps its row with Person, Supplement and Dose empty.
+- A record synced from another device with a status this version does not know shows that status as stored, escaped like user text (empty when it is not text).
 
 ## Columns
 Date (YYYY-MM-DD, local) · Time (HH:mm, local) · Person (profile name) · Supplement (routine name) · Dose · Status · Recorded at (last change): the record's `updatedAt`, local `YYYY-MM-DD HH:mm`, empty for Missed.
@@ -33,7 +34,7 @@ Headers and status words follow the UI language. Sorted by date, time, then pers
 
 ## Format
 - RFC 4180: a cell with `"` `,` CR or LF is quoted, inner `"` doubled; CRLF line ends, the last row too; UTF-8 with a BOM so Excel shows Vietnamese names right.
-- CSV injection guard (OWASP): Person, Supplement or Dose starting with `=` `+` `-` `@` tab or CR gets a leading `'` before quoting, so Excel, Google Sheets and LibreOffice show it as text instead of running it as a formula. A dose like `-5 mg` shows as `'-5 mg`. Dates, times, status words and headers come from the app, not from user text.
+- CSV injection guard (OWASP): Person, Supplement, Dose or Status starting with `=` `+` `-` `@` tab or CR, or with spaces, tabs, CR or LF and then `=` `+` `-` `@`, gets a leading `'` before quoting; the text after it is unchanged. Excel, Google Sheets and LibreOffice then show it as text instead of running it as a formula. A dose like `-5 mg` shows as `'-5 mg`, ` =1+1` as `' =1+1`. Dates, times, Taken / Skipped / Missed and headers come from the app, not from user text.
 - An empty range gives the header row only.
 
 ## Privacy
