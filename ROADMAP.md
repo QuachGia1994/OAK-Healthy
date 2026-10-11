@@ -1,5 +1,10 @@
 # Roadmap
 
+## Shipped in 2.12
+
+- Missed doses and past-day stats follow the schedule that was in force on that day, for schedule changes made from 2.12 on.
+- Safer file downloads (backup JSON, history CSV) and a wider CSV formula guard (2.12.1).
+
 ## Shipped in 2.11
 
 - Download dose history as CSV (Taken / Skipped / Missed) for a doctor or coach, made on the device.

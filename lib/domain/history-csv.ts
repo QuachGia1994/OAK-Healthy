@@ -29,8 +29,9 @@ export function historyStart(range: HistoryRange, input: HistoryInput, now: numb
 
 export const historyFileName = (now: number) => `oak-healthy-history-${toLocalDay(new Date(now))}.csv`;
 
-/** A text cell a spreadsheet would run as a formula, also after leading whitespace, gets a leading ' (OWASP CSV injection). */
-const guard = (s: string) => (/^(?:[\t\r]|[ \t\r\n]*[=+\-@])/.test(s) ? `'${s}` : s);
+/** A text cell a spreadsheet would run as a formula, also after leading whitespace (ASCII and Unicode spaces: \s, NBSP,
+ *  U+2000-200B, U+3000, BOM), gets a leading ' (OWASP CSV injection). */
+const guard = (s: string) => (/^(?:[\t\r]|[\s\u00A0\u2000-\u200B\u3000\uFEFF]*[=+\-@])/.test(s) ? `'${s}` : s);
 /** Synced vault data is a boundary: a status this version does not know is written raw, never as a label lookup. */
 const statusWord = (s: unknown, l: HistoryLabels) => (s === "Taken" || s === "Skipped" ? l[s] : typeof s === "string" ? s : "");
 const quote = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s);

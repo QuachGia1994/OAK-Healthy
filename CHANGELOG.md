@@ -6,6 +6,16 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.12.1] - 2026-10-11
+
+### Fixed
+
+- Download history (CSV) and Export JSON keep the file's download link alive for a minute after the click instead of revoking it at once, which some browsers (notably Safari and Firefox) need to finish saving the file.
+
+### Security
+
+- The CSV formula guard also catches no-break, ideographic and other Unicode spaces before `=`, `+`, `-` or `@`.
+
 ## [2.12.0] - 2026-10-11
 
 ### Changed

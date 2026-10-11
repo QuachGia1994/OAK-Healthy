@@ -116,6 +116,13 @@ test("history CSV: a text cell with leading whitespace before a formula characte
   ]);
 });
 
+test("history CSV: Unicode spaces (NBSP, ideographic, U+2000-200B, BOM) before a formula character also get a leading quote; other leading Unicode spaces stay", () => {
+  const cells = ["\u00A0=1+1", "\u3000@x", "\u2003-5 mg", "\u200B+1", "\uFEFF=A1", "\u00A0\u3000 =SUM(A1)"];
+  const rs = cells.map((name, i) => R({ id: `r${i}`, name, dose: "1", time: `0${i}:00` }));
+  const csv = historyCsv({ routines: [...rs, R({ id: "z", name: "\u00A0Zinc", dose: "\u30005 mg", time: "09:00" })], profiles: [P("p1", "Me")], intakes: [] }, { from, now: at("2026-03-01", "12:00"), labels: EN });
+  assert.deepEqual(body(csv), [...cells.map((c, i) => `2026-03-01,0${i}:00,Me,'${c},1,Missed,`), "2026-03-01,09:00,Me,\u00A0Zinc,\u30005 mg,Missed,"]);
+});
+
 test("history CSV: a synced record with a status this version does not know writes the raw status, escaped like user text", () => {
   const r = R({});
   const odd = (day: string, status: unknown) => I(r, day, status as Intake["status"], at(day, "08:01"));

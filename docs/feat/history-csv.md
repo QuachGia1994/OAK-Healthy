@@ -1,6 +1,6 @@
 # Dose history as CSV
 
-> updated 2026-10-11 · v2.12.0
+> updated 2026-10-11 · v2.12.1
 
 Settings → Backup → **Download history (CSV)** saves the dose history as a spreadsheet file for a doctor or coach. The file is built on the device (`lib/domain/history-csv.ts`, `historyCsv`) and saved with a local download; no request leaves the device, and nothing is added to meta, the vault or the worker.
 
@@ -35,8 +35,9 @@ Headers and status words follow the UI language. Sorted by date, time, then pers
 
 ## Format
 - RFC 4180: a cell with `"` `,` CR or LF is quoted, inner `"` doubled; CRLF line ends, the last row too; UTF-8 with a BOM so Excel shows Vietnamese names right.
-- CSV injection guard (OWASP): Person, Supplement, Dose or Status starting with `=` `+` `-` `@` tab or CR, or with spaces, tabs, CR or LF and then `=` `+` `-` `@`, gets a leading `'` before quoting; the text after it is unchanged. Excel, Google Sheets and LibreOffice then show it as text instead of running it as a formula. A dose like `-5 mg` shows as `'-5 mg`, ` =1+1` as `' =1+1`. Dates, times, Taken / Skipped / Missed and headers come from the app, not from user text.
+- CSV injection guard (OWASP): Person, Supplement, Dose or Status starting with `=` `+` `-` `@` tab or CR, or with whitespace and then `=` `+` `-` `@`, gets a leading `'` before quoting. Whitespace here is ASCII spaces, tabs, CR and LF and also Unicode spaces (no-break space U+00A0, U+2000 to U+200B, ideographic space U+3000, BOM U+FEFF; every JS `\s`); the text after it is unchanged. Excel, Google Sheets and LibreOffice then show it as text instead of running it as a formula. A dose like `-5 mg` shows as `'-5 mg`, ` =1+1` as `' =1+1`, and a name starting with a no-break space and `=` gets the `'` too. Dates, times, Taken / Skipped / Missed and headers come from the app, not from user text.
 - An empty range gives the header row only.
+- Saving: the file (and the JSON backup) goes out through `saveBlob` (`lib/download.ts`). It clicks a link placed in the page and frees the file's blob URL only 60 s later; freeing it right after the click can leave Safari or Firefox with an empty or failed download. Tests: `tests/download.test.ts`.
 
 ## Privacy
 The CSV is plaintext health data, like the JSON export: it stays where the user saves it. Making it sends nothing to the server (zero-knowledge holds).

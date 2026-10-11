@@ -18,6 +18,7 @@ import { safeNext } from "@/lib/domain/safe-next";
 import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow, type SyncResult } from "@/lib/sync";
 import { DeviceQr } from "./device-qr";
 import { useOak } from "@/lib/use-oak";
+import { saveBlob } from "@/lib/download";
 import { PageHeader } from "./ui";
 
 /** Delete everything on another device left a vault tombstone (410); syncNow has already turned sync off here and
@@ -300,16 +301,14 @@ export function SettingsView() {
   };
   const exportJson = async () => {
     const blob = new Blob([JSON.stringify(await snapshot(), null, 2)], { type: "application/json" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `oak-healthy-${new Date().toISOString().slice(0, 10)}.json` });
-    a.click(); URL.revokeObjectURL(a.href);
+    saveBlob(blob, `oak-healthy-${new Date().toISOString().slice(0, 10)}.json`);
   };
   const exportCsv = async () => {
     const input = { routines: await db.routines.toArray(), intakes: await db.intakes.toArray(), profiles: await db.profiles.toArray() };
     const now = Date.now();
     const headers = { date: t("Date"), time: t("Time"), person: t("Person"), supplement: t("Supplement"), dose: t("Dose"), status: t("Status"), recordedAt: t("Recorded at (last change)") };
     const csv = historyCsv(input, { from: historyStart(csvRange, input, now), now, locale: locale(), labels: { headers, Taken: t("Taken"), Skipped: t("Skipped"), Missed: t("Missed") } });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: historyFileName(now) });
-    a.click(); URL.revokeObjectURL(a.href);
+    saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), historyFileName(now));
   };
   const importJson = async (f: File) => {
     try { const n = await mergeSnapshot(JSON.parse(await f.text()) as Snapshot); toast.success(t("Imported {n} records", { n })); }
