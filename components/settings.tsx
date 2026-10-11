@@ -6,8 +6,9 @@ import Link from "next/link";
 import { Bell, BellOff, Copy, Download, KeyRound, Loader2, Monitor, RefreshCw, Trash2, Upload, UserRound, Users } from "lucide-react";
 import { useT, locale } from "@/lib/i18n";
 import { LangToggle } from "./lang-toggle";
-import { getMe, pendingWipe, wipeEverything, type Me } from "@/lib/account";
-import { takeWipedFlag, WIPED_FLAG, type WipeStep } from "@/lib/domain/wipe";
+import { deleteOneShare, getMe, pendingWipe, wipeEverything, type Me } from "@/lib/account";
+import { takeWipedFlag, WIPED_FLAG, type ShareRef, type WipeStep } from "@/lib/domain/wipe";
+import { parseSharesGone, shareRows } from "@/lib/domain/shares";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
 import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, getCircles, isOutOfStep, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
@@ -105,6 +106,56 @@ function CircleRow({ c, onChange, tryIt }: { c: Circle; onChange: () => Promise<
         ))}
       </ul>}
     </li>
+  );
+}
+
+/** Share links card (docs/feat/delete-everything.md § Share links): every link in meta `shares` minus `sharesGone`,
+ * newest first. Delete asks inline first; the title is rendered as text only and never leaves the device in the DELETE. */
+export function ShareLinks() {
+  const t = useT();
+  const meta = useLiveQuery(() => db.meta.bulkGet(["shares", "sharesGone"]), [], undefined);
+  const [confirm, setConfirm] = useState<string | null>(null), [busy, setBusy] = useState<string | null>(null);
+  if (!meta) return null;
+  const now = Date.now();
+  const list = Array.isArray(meta[0]?.value) ? (meta[0].value as ShareRef[]) : [];
+  const rows = shareRows(list, parseSharesGone(meta[1]?.value, now), now);
+  const day = (ms: number) => new Date(ms).toLocaleDateString(locale());
+  const del = async (id: string) => {
+    setConfirm(null); setBusy(id);
+    try {
+      const r = await deleteOneShare(id);
+      if (r.outcome === "deleted") toast.success(t("Share link deleted"));
+      else if (r.outcome === "kept") toast(t("This share link couldn't be deleted. It expires {date}.", { date: day(r.expiresAt) }), { duration: 15000 });
+      // No raw fetch/HTTP text: offline and 5xx show the plain message; only the 429 says why.
+      else toast.error(r.tooMany ? `${t("Couldn't delete the share link.")} ${t("Too many attempts. Try again later.")}` : t("Couldn't delete the share link."));
+    } finally { setBusy(null); }
+  };
+  if (!rows.length) return <p className="text-sm text-neutral-500">{t("No share links yet. Use Share on the Stack page to create one.")}</p>;
+  return (
+    <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+      {rows.map((r) => (
+        <li key={r.id} className="py-1.5 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="truncate">{r.title ?? t("Untitled stack")}</p>
+              <p className="text-xs text-neutral-500">
+                {r.createdAt !== null && <>{t("Created {date}", { date: day(r.createdAt) })} · </>}
+                {t(r.expired ? "Expired {date}" : "Expires {date}", { date: day(r.expiresAt) })}
+              </p>
+            </div>
+            {busy === r.id ? <span role="status" className="btn w-11 px-0" aria-label={t("Deleting…")}><Loader2 className="size-4 animate-spin" /></span>
+              : confirm !== r.id && <button className="btn text-missed" disabled={!!busy} onClick={() => setConfirm(r.id)}><Trash2 className="size-4" /> {t("Delete")}</button>}
+          </div>
+          {confirm === r.id && busy !== r.id && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="text-xs">{t("Delete this share link? People with it lose access.")}</span>
+              <button className="btn" onClick={() => setConfirm(null)}>{t("Cancel")}</button>
+              <button className="btn text-missed" onClick={() => void del(r.id)}>{t("Yes, delete")}</button>
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -346,6 +397,10 @@ export function SettingsView() {
             ))}
           </ul>
         </div>
+      </Section>
+
+      <Section title="Share links" sub="Links you made with Share on the Stack page. Delete one to make it stop working for anyone who has it.">
+        <ShareLinks />
       </Section>
 
       <Section title="Backup" sub="Export everything as JSON, or merge a backup back in (newest change wins).">

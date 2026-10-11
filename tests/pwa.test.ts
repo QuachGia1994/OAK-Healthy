@@ -205,7 +205,7 @@ test("pushsubscriptionchange server error keeps the old endpoint so the browser 
 
 /** The vault route's own 404 (worker/index.ts vault GET with no row). */
 const workerNotFound = { ok: false, status: 404, json: async () => ({ error: "not found" }) };
-// swSync pushes the same vault fields as lib/sync.ts: the four stores plus circle state and shares from meta.
+// swSync pushes the same vault fields as lib/sync.ts: the four stores plus circle state, shares and sharesGone from meta.
 test("swSync vault push carries circles, circlePins and circleSeen", async () => {
   const puts: string[] = [];
   const fetch = async (_url: string, init?: { method?: string; body?: string }) => {
@@ -220,7 +220,7 @@ test("swSync vault push carries circles, circlePins and circleSeen", async () =>
   const unb = (s: string) => Buffer.from(s, "base64url");
   const { key } = await ctx.vaultKeys("OAK-ABCD-EFGH-JKLM");
   const snap = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb(iv) }, key, unb(ct))));
-  assert.deepEqual(Object.keys(snap).sort(), ["biomarkers", "circlePins", "circleSeen", "circles", "intakes", "profiles", "routines", "shares", "v"]);
+  assert.deepEqual(Object.keys(snap).sort(), ["biomarkers", "circlePins", "circleSeen", "circles", "intakes", "profiles", "routines", "shares", "sharesGone", "v"]);
   assert.deepEqual(snap.circles, [circle, { ...pendingCircle, sign: committed }]);
   assert.deepEqual(snap.circlePins, { c9: "pub9" });
   assert.deepEqual(snap.circleSeen, { c9: 6 });
@@ -277,6 +277,7 @@ for (const { name, remote, local, want } of vaultCircleCases) {
 // The shared share-list fixture through the SW mirror (tests/sync.test.ts runs the same cases through syncNow).
 for (const { name, remote, local, want } of vaultShareCases) {
   test(`vaultShares ${name}`, () => {
-    assert.deepEqual(JSON.parse(JSON.stringify(sw.vaultShares(remote, [{ key: "shares", value: structuredClone(local) }], SHARES_NOW))), want);
+    const meta = [{ key: "shares", value: structuredClone(local.shares) }, { key: "sharesGone", value: structuredClone(local.sharesGone) }];
+    assert.deepEqual(JSON.parse(JSON.stringify(sw.vaultShares(remote, meta, SHARES_NOW))), want);
   });
 }

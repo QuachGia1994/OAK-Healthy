@@ -4,6 +4,7 @@
 import { b64u, deriveVault, newSyncKey, open, seal, unb64u, isValidKey } from "./crypto";
 import { adoptSyncedProfiles, db, getMeta, setMeta } from "./db";
 import { deleteEverything, shareDeleteOutcome, type ShareRef, type VaultAuth, type WipeProgress, type WipeStep } from "./domain/wipe";
+import { deleteOne, forgetShare, parseSharesGone, type DeleteOneResult } from "./domain/shares";
 import { getSyncKey, setSyncKey, syncNow } from "./sync";
 import { getLang } from "./i18n";
 
@@ -122,6 +123,30 @@ export const unlinkProvider = (provider: string) => api("/api/auth/identity", { 
 export const passwordProblem = (pw: string, email = "") =>
   pw.length < 10 ? "Use at least 10 characters" : email && pw.toLowerCase().includes(email.split("@")[0].toLowerCase()) ? "Don't include your email in the password" : null;
 
+/** Contract C3: removes the share from meta `shares` and records its id (never the token) in `sharesGone`, in one
+ * transaction, so another device's list merged in on a pull cannot bring it back. */
+export const forgetShareMeta = (id: string, at = Date.now()) =>
+  db.transaction("rw", db.meta, async () => {
+    const [s, g] = await db.meta.bulkGet(["shares", "sharesGone"]);
+    const next = forgetShare(Array.isArray(s?.value) ? (s.value as ShareRef[]) : [], parseSharesGone(g?.value, at), id, at);
+    await db.meta.bulkPut([{ key: "shares", value: next.shares }, { key: "sharesGone", value: next.gone }]);
+  });
+
+/** The share DELETE: id in the path, the token only in the header (the title is never sent). */
+const shareDelete = (s: ShareRef) =>
+  fetch(`/api/share/${encodeURIComponent(s.id)}`, { method: "DELETE", headers: { authorization: `Bearer ${s.token}` } });
+
+/** Deletes one share link from the Settings card (lib/domain/shares.ts deleteOne). */
+export async function deleteOneShare(id: string): Promise<DeleteOneResult> {
+  const r = await deleteOne({
+    shares: () => getMeta<ShareRef[]>("shares", []),
+    request: async (s) => ({ status: (await shareDelete(s)).status }),
+    forget: (x) => forgetShareMeta(x),
+  }, id);
+  if (r.outcome !== "failed") window.dispatchEvent(new Event("oak:changed"));
+  return r;
+}
+
 /** A delete-everything run that has not finished on this device (it resumes from here). */
 export const pendingWipe = () => getMeta<WipeProgress | null>("wipe", null);
 
@@ -158,9 +183,9 @@ export async function wipeEverything(signedIn: boolean, onStep?: (s: WipeStep) =
     deleteCircle: revokeCircle,
     disableReminders: async () => { if ("serviceWorker" in navigator) await disableReminders(); }, // no worker, no push
     shares: () => getMeta<ShareRef[]>("shares", []),
-    saveShares: async (list) => { await setMeta("shares", list); },
+    forgetShare: (id) => forgetShareMeta(id),
     deleteShare: async (s) => {
-      const res = await fetch(`/api/share/${encodeURIComponent(s.id)}`, { method: "DELETE", headers: { authorization: `Bearer ${s.token}` } });
+      const res = await shareDelete(s);
       const o = shareDeleteOutcome(res.status);
       if (o !== "retry") return o;
       await ok(res);

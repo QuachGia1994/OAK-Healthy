@@ -14,7 +14,8 @@ const body = src.slice(src.indexOf("async function share("), src.indexOf("const 
 const num = (name: string) => Number(new RegExp(`${name} = ([\\d_]+)`).exec(src)![1].replace(/_/g, ""));
 const shareRoute = runInNewContext(`(${stripTypeScriptTypes(body)})`, {
   json, sha256, validId, shortId, limit, clientIp, buildSlug, isPrettySlug, Date, crypto, String, Number,
-  MAX_SHARE: num("MAX_SHARE"), SHARE_TTL_MS: 365 * 864e5,
+  MAX_SHARE: num("MAX_SHARE"), SHARE_TTL_MS: 365 * 864e5, SHARE_DELETE_MAX: num("SHARE_DELETE_MAX"),
+  TOO_MANY: /const TOO_MANY = "([^"]+)"/.exec(src)![1],
 }) as (req: Request, env: unknown, id?: string) => Promise<Response>;
 
 function d1(schema = readFileSync(new URL("../worker/schema.sql", import.meta.url), "utf8")) {
@@ -36,8 +37,10 @@ const post = async (env: unknown, extra: Record<string, unknown> = {}) => {
   const r = await shareRoute(new Request("https://x/api/share", { method: "POST", body: JSON.stringify({ blob: "iv.ct", ...extra }) }), env);
   return { status: r.status, body: await r.json() as { id?: string; slug?: string; expiresAt?: number; error?: string } };
 };
-const call = async (env: unknown, method: string, id: string, token?: string) => {
-  const r = await shareRoute(new Request(`https://x/api/share/${id}`, { method, headers: token ? { authorization: `Bearer ${token}` } : {} }), env, id);
+const call = async (env: unknown, method: string, id: string, token?: string, ip?: string) => {
+  const headers: Record<string, string> = token ? { authorization: `Bearer ${token}` } : {};
+  if (ip) headers["cf-connecting-ip"] = ip;
+  const r = await shareRoute(new Request(`https://x/api/share/${id}`, { method, headers }), env, id);
   return { status: r.status, body: await r.json() as Record<string, unknown> };
 };
 
@@ -93,6 +96,24 @@ test("worker share: a malformed hash is refused; DELETE by the slug path is refu
   assert.equal((await call(env, "GET", slug!)).status, 200);
 });
 
+test("worker share: DELETE is limited to 120 an hour per IP, every call counted (bad id, wrong token, miss), before any lookup", async () => {
+  const { db, env } = d1();
+  const { body: { id } } = await post(env, { deleteHash: await sha256(TOKEN) });
+  assert.equal(num("SHARE_DELETE_MAX"), 120);
+  const kinds = [["bad id!", TOKEN], [id!, "e".repeat(43)], [id!, undefined], ["neverexisted", TOKEN]] as const;
+  for (let i = 0; i < 120; i++) {
+    const [x, t] = kinds[i % kinds.length];
+    assert.notEqual((await call(env, "DELETE", x, t, "1.1.1.1")).status, 429, `call ${i + 1}`);
+  }
+  assert.deepEqual(await call(env, "DELETE", id!, TOKEN, "1.1.1.1"), { status: 429, body: { error: "Too many attempts. Try again later." } }, "call 121");
+  assert.equal((db.prepare("SELECT COUNT(*) AS n FROM shares").get() as { n: number }).n, 1, "the 429 deleted nothing");
+  assert.equal((await call(env, "DELETE", "bad id!", TOKEN, "1.1.1.1")).status, 429, "limited before the id check");
+  assert.equal((await call(env, "DELETE", id!, TOKEN, "2.2.2.2")).status, 200, "another IP has its own budget");
+  assert.equal((await post(env, { deleteHash: await sha256(TOKEN) })).status, 201, "POST keeps its own limit");
+  const k = src.slice(src.indexOf('if (req.method === "DELETE" && id)'));
+  assert.ok(k.indexOf("share-del:${clientIp(req)}") < k.indexOf("validId(id)"), "the limit comes before validId");
+});
+
 test("worker migration 0007 adds delete_hash to an existing shares table", () => {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE shares (id TEXT PRIMARY KEY, blob TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, slug TEXT, items INTEGER)");
@@ -110,7 +131,7 @@ test("share app: the token is minted on the device, only its hash is posted, met
   const fn = ui.slice(ui.indexOf("export async function shareStack"), ui.indexOf("export function StackManager"));
   assert.match(fn, /getRandomValues\(new Uint8Array\(32\)\)/);
   assert.match(fn, /JSON\.stringify\(\{ blob, deleteHash: await sha256Hex\(token\), \.\.\.meta \}\)/);
-  assert.match(fn, /\{ id, token, expiresAt \}/);
+  assert.match(fn, /\{ id, token, expiresAt, title: shareTitle\(name\), createdAt: Date\.now\(\) \}/);
   const rec = fn.indexOf("updateMeta<ShareRef[]>(\"shares\""); // one transaction, like lib/sync.ts
   assert.ok(rec > fn.indexOf("res.ok") && rec < fn.indexOf("clipboard"));
   assert.ok(!/`[^`]*\$\{token\}[^`]*`/.test(fn), "the token is never put into a URL");

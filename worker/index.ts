@@ -7,6 +7,9 @@ import { clientIp, type Env, json, limit, sameOrigin, sha256, shortId, validId }
 import { buildSlug, isPrettySlug } from "../lib/domain/share";
 
 const MAX_VAULT = 1_500_000, MAX_SHARE = 200_000, SHARE_TTL_MS = 365 * 864e5;
+/** Share DELETEs per IP per hour, every call counted (a wipe with more links fails its step; Retry after the hour resumes). */
+const SHARE_DELETE_MAX = 120;
+const TOO_MANY = "Too many attempts. Try again later.";
 
 async function vault(req: Request, env: Env, id: string) {
   if (!validId(id)) return json({ error: "bad id" }, 400);
@@ -55,7 +58,7 @@ async function share(req: Request, env: Env, id?: string) {
     if (!body || typeof body.blob !== "string" || !body.blob.includes(".")) return json({ error: "bad body" }, 400);
     if (body.deleteHash !== undefined && !(typeof body.deleteHash === "string" && /^[0-9a-f]{64}$/.test(body.deleteHash))) return json({ error: "bad body" }, 400);
     if (body.blob.length > MAX_SHARE) return json({ error: "too large" }, 413);
-    if (!(await limit(env, `share:${clientIp(req)}`, 30, 60 * 60e3))) return json({ error: "Too many attempts. Try again later." }, 429);
+    if (!(await limit(env, `share:${clientIp(req)}`, 30, 60 * 60e3))) return json({ error: TOO_MANY }, 429);
     const sid = shortId();
     const items = Number.isInteger(body.items) && body.items! >= 0 && body.items! <= 500 ? body.items! : null;
     const pretty = typeof body.handle === "string" && typeof body.title === "string";
@@ -79,6 +82,8 @@ async function share(req: Request, env: Env, id?: string) {
   }
   if (req.method === "DELETE" && id) {
     // By id only (never the slug); expired rows too. Idempotent: no row = ok. A NULL hash never matches.
+    // Limited first, so bad ids, wrong tokens and misses all count.
+    if (!(await limit(env, `share-del:${clientIp(req)}`, SHARE_DELETE_MAX, 60 * 60e3))) return json({ error: TOO_MANY }, 429);
     if (!validId(id)) return json({ error: "bad id" }, 400);
     const token = req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
     if (token.length < 20) return json({ error: "unauthorized" }, 401);

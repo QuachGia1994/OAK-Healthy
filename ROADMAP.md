@@ -1,5 +1,11 @@
 # Roadmap
 
+## Shipped in 2.9
+
+- Settings → Share links: list the links you created (title, created date, expiry) and delete one without Delete everything.
+- Share link tombstone in the encrypted vault, so a deleted link doesn't come back from another device.
+- Share link deletes rate-limited per IP (120 per hour).
+
 ## Shipped in 2.8
 
 - Delete share links: each new link gets a secret delete code (the server keeps only its hash), and Delete everything removes them first.
@@ -69,5 +75,4 @@
 
 ## Next
 
-1. List the share links you created (with their expiry) in Settings and delete one without Delete everything (today only Delete everything removes them). Needs a share tombstone in the vault first, so a deleted entry can't come back from another device.
-2. Rate-limit share DELETE per IP like share POST (today a 256-bit code makes guessing infeasible, but each try costs a lookup).
+1. Keep a link the server refused to delete visible in Share links until it expires (today the only trace is a 15-second notice with its expiry date).

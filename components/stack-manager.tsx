@@ -13,6 +13,7 @@ import { toLocalDay } from "@/lib/domain/day";
 import { analyze } from "@/lib/domain/knowledge";
 import { b64u, sealShare } from "@/lib/crypto";
 import type { ShareRef } from "@/lib/domain/wipe";
+import { shareTitle } from "@/lib/domain/shares";
 import type { Category, Routine } from "@/lib/domain/types";
 import { Empty, PageHeader } from "./ui";
 import { CATEGORIES, openRoutine, duplicateRoutine } from "./routine-drawer";
@@ -45,7 +46,9 @@ export async function shareStack(name: string, routines: Routine[], handle?: str
   // expiresAt is the server's (D7). Only a 2.7 worker sends none: the fallback is then this device's clock, and that
   // worker kept no hash anyway, so the wipe counts the entry as kept (403/405).
   const { id, slug, expiresAt = Date.now() + 365 * 864e5 } = (await res.json()) as { id: string; slug?: string; expiresAt?: number };
-  const entry: ShareRef = { id, token, expiresAt };
+  // title: the list name for the Settings card; it stays on devices and in the encrypted vault and is never sent in a
+  // DELETE (a pretty link's slug words are public as before).
+  const entry: ShareRef = { id, token, expiresAt, title: shareTitle(name), createdAt: Date.now() };
   await updateMeta<ShareRef[]>("shares", [], (cur) => [...cur, entry]);
   window.dispatchEvent(new Event("oak:changed")); // the next sync carries the list to the other devices
   const url = `${location.origin}/s/${slug ?? id}#${k}`;

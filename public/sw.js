@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.8.0";
+const VERSION = "oak-v2.9.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -159,18 +159,36 @@ function vaultCircles(remote, meta) {
   const circles = remote.circles && remote.circles.length ? remote.circles : mine("circles", []);
   return { circles: circles.map(committedSigner), circlePins: { ...remote.circlePins, ...mine("circlePins", {}) }, circleSeen: mergeSeen(mine("circleSeen", {}), remote.circleSeen) };
 }
-// Share list (meta "shares", contract C1) like lib/sync.ts mergeShares: union by id keeping this device's entry with the
-// later expiry, malformed entries dropped on both sides, dropped 30 days after the server's expiresAt by this clock.
-const SHARE_GRACE_MS = 30 * 864e5;
-const isShareRef = (s) => !!s && typeof s.id === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(s.id) && typeof s.token === "string" && s.token.length >= 20
-  && typeof s.expiresAt === "number" && Number.isFinite(s.expiresAt);
+// Share list (meta "shares", contract C1) and its tombstones (meta "sharesGone", C3) like lib/sync.ts mergeShareLists
+// with lib/domain/shares.ts cleanShareFields / parseSharesGone:
+// tombstones by id with the earliest `at` (clamped to now), kept 400 days; entries by id with this device's fields first and the later
+// expiry, none with a tombstone, dropped 30 days after the server's expiresAt by this clock; malformed ones dropped.
+const SHARE_GRACE_MS = 30 * 864e5, SHARE_GONE_KEEP_MS = 400 * 864e5, SHARE_TITLE_MAX = 120, SHARE_ID = /^[A-Za-z0-9_-]{8,64}$/;
+const finite = (n) => typeof n === "number" && Number.isFinite(n);
+const list = (x) => (Array.isArray(x) ? x : []);
+function shareEntry(s) {
+  if (!s || typeof s.id !== "string" || !SHARE_ID.test(s.id) || typeof s.token !== "string" || s.token.length < 20 || !finite(s.expiresAt)) return null;
+  const e = { id: s.id, token: s.token, expiresAt: s.expiresAt };
+  if (typeof s.title === "string" && s.title && [...s.title].length <= SHARE_TITLE_MAX) e.title = s.title;
+  if (finite(s.createdAt)) e.createdAt = s.createdAt;
+  return e;
+}
+const isShareGone = (g) => !!g && typeof g.id === "string" && SHARE_ID.test(g.id) && finite(g.at);
 function vaultShares(remote, meta, now) {
-  const byId = new Map(((meta.find((m) => m.key === "shares") || {}).value || []).filter(isShareRef).map((s) => [s.id, s]));
-  for (const r of Array.isArray(remote.shares) ? remote.shares.filter(isShareRef) : []) {
-    const cur = byId.get(r.id);
-    byId.set(r.id, cur ? { ...cur, expiresAt: Math.max(cur.expiresAt, r.expiresAt) } : { id: r.id, token: r.token, expiresAt: r.expiresAt });
+  const mine = (k) => (meta.find((m) => m.key === k) || {}).value;
+  const gone = new Map();
+  for (const g of [...list(mine("sharesGone")), ...list(remote.sharesGone)].filter(isShareGone)) {
+    const cur = gone.get(g.id), at = Math.min(g.at, now);
+    if (at + SHARE_GONE_KEEP_MS >= now && (!cur || at < cur.at)) gone.set(g.id, { id: g.id, at });
   }
-  return [...byId.values()].filter((s) => s.expiresAt + SHARE_GRACE_MS >= now);
+  const byId = new Map();
+  for (const s of list(mine("shares")).map(shareEntry)) if (s) byId.set(s.id, s);
+  for (const r of list(remote.shares).map(shareEntry)) {
+    const cur = r && byId.get(r.id);
+    if (r) byId.set(r.id, cur ? { ...r, ...cur, expiresAt: Math.max(cur.expiresAt, r.expiresAt) } : r);
+  }
+  const shares = [...byId.values()].filter((s) => !gone.has(s.id) && s.expiresAt + SHARE_GRACE_MS >= now);
+  return { shares, sharesGone: [...gone.values()] };
 }
 // 410: the vault was deleted (tombstone): stop without a push or a throw (no browser retry). The sync key stays: the
 // next tab syncNow gets the same 410, turns sync off and the sync agent tells the user once. The worker's own 404 on the
@@ -201,7 +219,7 @@ async function swSync() {
       else if (((await getAll(db, "meta")).find((m) => m.key === "syncedVault") || {}).value === v.id) return;
       const snap = { v: 1 }, meta = await getAll(db, "meta");
       for (const s of Object.keys(STORES)) snap[s] = await getAll(db, s);
-      Object.assign(snap, vaultCircles(remote, meta), { shares: vaultShares(remote, meta, Date.now()) });
+      Object.assign(snap, vaultCircles(remote, meta), vaultShares(remote, meta, Date.now()));
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const blob = b64u(iv) + "." + b64u(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, v.key, te.encode(JSON.stringify(snap))));
       const put = await fetch(`/api/vault/${v.id}`, { method: "PUT", headers, body: JSON.stringify({ baseRev: rev, blob }) });

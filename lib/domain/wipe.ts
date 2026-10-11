@@ -1,7 +1,8 @@
 // Delete everything (docs/feat/delete-everything.md). Steps are injected; lib/account.ts wires the real ones.
 export type WipeStep = "circles" | "reminders" | "shares" | "vault" | "account" | "device";
-/** One share link this app created (meta `shares`, contract C1): its delete token goes only into its DELETE. */
-export interface ShareRef { id: string; token: string; expiresAt: number }
+/** One share link this app created (meta `shares`, contract C1): its delete token goes only into its DELETE.
+ * title (the list name, at most SHARE_TITLE_MAX) and createdAt stay on devices and in the encrypted vault, never in a share request; absent on 2.8 entries (lib/domain/shares.ts). */
+export interface ShareRef { id: string; token: string; expiresAt: number; title?: string; createdAt?: number }
 /** Vault id and access token, derived from the sync key before sync is turned off (not the key itself). */
 export interface VaultAuth { id: string; auth: string }
 /** The local progress marker (meta "wipe"), written after each finished step and kept until this device is cleared.
@@ -23,7 +24,8 @@ export interface WipeDeps {
   disableReminders(): Promise<void>;
   /** meta `shares`, after the pull merged other devices' lists. */
   shares(): Promise<ShareRef[]>;
-  saveShares(list: ShareRef[]): Promise<void>;
+  /** Removes one share from meta `shares` and records its id in `sharesGone` (contract C3, one transaction). */
+  forgetShare(id: string): Promise<void>;
   /** "ok" also when already gone; "kept": the server refused for good (shareDeleteOutcome). Other failures throw. */
   deleteShare(s: ShareRef): Promise<"ok" | "kept">;
   syncOff(): Promise<void>;
@@ -57,14 +59,12 @@ export function takeWipedFlag(st: Pick<Storage, "getItem" | "removeItem">): { sh
   } catch { return null; }
 }
 
-/** Every listed share, expired ones too (the daily purge may not have removed them yet). Each leaves the list once deleted or refused,
- * so a retry neither repeats nor double-counts it. */
+/** Every listed share, expired ones too (the daily purge may not have removed them yet). Each leaves the list (as gone) once
+ * deleted or refused, so a retry neither repeats nor double-counts it. A 429 (over the hourly limit) fails the step; Retry resumes. */
 async function deleteShares(d: WipeDeps, p: WipeProgress) {
-  let left = await d.shares();
-  for (const s of [...left]) {
+  for (const s of await d.shares()) {
     if ((await d.deleteShare(s)) === "kept") p.sharesKept = (p.sharesKept ?? 0) + 1;
-    left = left.filter((x) => x.id !== s.id);
-    await d.saveShares(left);
+    await d.forgetShare(s.id);
     await d.save({ ...p });
   }
 }

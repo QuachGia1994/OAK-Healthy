@@ -4,29 +4,54 @@ import { db, getMeta, mergeSnapshot, setMeta, snapshot, type Snapshot } from "./
 import { commitSigners, pullCircleState, pushCircleState, type VaultCircles } from "./member-keys";
 import type { Circle } from "./circles";
 import type { ShareRef } from "./domain/wipe";
+import { cleanShareFields, isShareId, parseSharesGone, type ShareGone } from "./domain/shares";
 
-/** The vault blob: health data plus circle state (lib/member-keys.ts VaultCircles) and the share list (meta `shares`).
+/** The share list (meta `shares`, contract C1) and its tombstones (meta `sharesGone`, contract C3), as meta or vault fields. */
+type ShareLists = { shares?: unknown; sharesGone?: unknown };
+/** The vault blob: health data plus circle state (lib/member-keys.ts VaultCircles) and the share lists.
  * Older app versions ignore the extra fields; the next push from this version restores them. */
-type Vault = Snapshot & Partial<VaultCircles<Circle>> & { shares?: unknown };
+type Vault = Snapshot & Partial<VaultCircles<Circle>> & ShareLists;
 
-/** Contract C1 (lead D7): expiresAt is the server's; an entry leaves the list 30 days after it, by this device's clock. */
+/** C1 (lead D7): expiresAt is the server's; an entry leaves the list 30 days after it, by this device's clock. */
 const SHARE_GRACE_MS = 30 * 864e5;
-/** id: the worker's validId shape (worker/util.ts); token: at least the worker's 20-character floor for a bearer. */
-const isShareRef = (x: unknown): x is ShareRef => {
-  const s = x as ShareRef | null;
-  return !!s && typeof s.id === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(s.id) && typeof s.token === "string" && s.token.length >= 20
-    && typeof s.expiresAt === "number" && Number.isFinite(s.expiresAt);
-};
-/** Union by id: this device's entry (token) with the later expiry; entries failing isShareRef are dropped on both sides.
- * Mirrored by public/sw.js vaultShares (tests/fixtures/vault-circles.ts vaultShareCases). */
-function mergeShares(local: ShareRef[], remote: unknown, now: number): ShareRef[] {
-  const byId = new Map(local.filter(isShareRef).map((s) => [s.id, s]));
-  for (const r of Array.isArray(remote) ? remote.filter(isShareRef) : []) {
-    const cur = byId.get(r.id);
-    byId.set(r.id, cur ? { ...cur, expiresAt: Math.max(cur.expiresAt, r.expiresAt) } : { id: r.id, token: r.token, expiresAt: r.expiresAt });
-  }
-  return [...byId.values()].filter((s) => s.expiresAt + SHARE_GRACE_MS >= now);
+const list = (x: unknown): unknown[] => (Array.isArray(x) ? x : []);
+/** A valid entry with only its known fields, or null. token: at least the worker's 20-character bearer floor; a bad
+ * title or createdAt is dropped by cleanShareFields and the entry kept (2.8 entries have neither). */
+function shareEntry(x: unknown): ShareRef | null {
+  const s = x as Partial<ShareRef> | null;
+  if (!s || !isShareId(s.id) || typeof s.token !== "string" || s.token.length < 20
+    || typeof s.expiresAt !== "number" || !Number.isFinite(s.expiresAt)) return null;
+  const e: ShareRef = { id: s.id, token: s.token, expiresAt: s.expiresAt };
+  if (s.title !== undefined) e.title = s.title;
+  if (s.createdAt !== undefined) e.createdAt = s.createdAt;
+  return cleanShareFields(e);
 }
+/** Tombstones (parseSharesGone: valid, clamped to now, 400 days): union by id with the earliest `at`. Entries: union by
+ * id, per field this device's first (token, title, createdAt), else the vault's, with the later expiry; none whose id
+ * has a tombstone. Mirrored by public/sw.js vaultShares (tests/fixtures/vault-circles.ts vaultShareCases). */
+function mergeShareLists(local: ShareLists, remote: ShareLists, now: number) {
+  const gone = new Map<string, ShareGone>();
+  for (const g of [...parseSharesGone(local.sharesGone, now), ...parseSharesGone(remote.sharesGone, now)]) {
+    const cur = gone.get(g.id);
+    if (!cur || g.at < cur.at) gone.set(g.id, g);
+  }
+  const byId = new Map<string, ShareRef>();
+  for (const s of list(local.shares).map(shareEntry)) if (s) byId.set(s.id, s);
+  for (const r of list(remote.shares).map(shareEntry)) {
+    const cur = r && byId.get(r.id);
+    if (r) byId.set(r.id, cur ? { ...r, ...cur, expiresAt: Math.max(cur.expiresAt, r.expiresAt) } : r);
+  }
+  const shares = [...byId.values()].filter((s) => !gone.has(s.id) && s.expiresAt + SHARE_GRACE_MS >= now);
+  return { shares, sharesGone: [...gone.values()] };
+}
+/** Both share keys in one transaction: a delete writes both (C3), so neither half of it can be lost to this merge. */
+const mergeShareMeta = (remote: ShareLists, now: number) =>
+  db.transaction("rw", db.meta, async () => {
+    const next = mergeShareLists({ shares: (await db.meta.get("shares"))?.value, sharesGone: (await db.meta.get("sharesGone"))?.value }, remote, now);
+    await db.meta.put({ key: "shares", value: next.shares });
+    await db.meta.put({ key: "sharesGone", value: next.sharesGone });
+    return next;
+  });
 
 /** Read-modify-write of one meta key in one Dexie transaction, so concurrent writers cannot lose each other's
  * update. fn must be synchronous (an await on non-Dexie work would end the transaction). */
@@ -88,8 +113,8 @@ export async function syncNow(secret: string, now = Date.now()): Promise<SyncRes
       } else if (res.status !== 404 || !(await workerNotFound(res))) return { ok: false, error: `Server ${res.status}` };
       else if ((await getMeta<string | null>(SYNCED_VAULT, null)) === v.vaultId) return vaultGone();
       const circles = await circleState();
-      const shares = await updateMeta<ShareRef[]>("shares", [], (cur) => mergeShares(cur, remote?.shares, now));
-      const blob = await seal(v.key, { ...(await snapshot()), ...circles, shares } satisfies Vault);
+      const shareLists = await mergeShareMeta(remote ?? {}, now);
+      const blob = await seal(v.key, { ...(await snapshot()), ...circles, ...shareLists } satisfies Vault);
       const put = await fetch(`/api/vault/${v.vaultId}`, { method: "PUT", headers, body: JSON.stringify({ baseRev: rev, blob }) });
       if (put.status === 409) continue;
       if (put.status === VAULT_GONE) return vaultGone();

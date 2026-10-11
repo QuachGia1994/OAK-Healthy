@@ -19,6 +19,7 @@ function world(o: { circles?: string[]; key?: boolean; account?: boolean; known?
     circles: new Set(o.circles ?? ["c1", "c2"]), vault: o.key ?? true, account: o.account ?? true, reminders: true,
     syncOn: o.key ?? true, saved: null as WipeProgress | null, cleared: false,
     shares: structuredClone(o.shares ?? SHARES), server: new Set((o.shares ?? SHARES).map((x) => x.id)), forbid: new Set<string>(),
+    gone: [] as string[], budget: Infinity, // gone: meta `sharesGone` ids (C3); budget: share DELETEs left this hour (worker limit)
   };
   const hit = (name: string) => { s.calls.push(name); if (s.fail.delete(name)) throw new Error(`${name} failed`); };
   const deps: WipeDeps = {
@@ -30,9 +31,10 @@ function world(o: { circles?: string[]; key?: boolean; account?: boolean; known?
     deleteCircle: async (id) => { hit(`circle:${id}`); s.circles.delete(id); },
     disableReminders: async () => { hit("reminders"); s.reminders = false; },
     shares: async () => structuredClone(s.shares),
-    saveShares: async (list) => { s.shares = structuredClone(list); },
+    forgetShare: async (id) => { s.shares = s.shares.filter((x) => x.id !== id); if (!s.gone.includes(id)) s.gone.push(id); },
     deleteShare: async (x) => {
       hit(`share:${x.id}`); assert.ok(x.token);
+      if (s.budget-- <= 0) throw new Error("Too many attempts. Try again later."); // 429: shareDeleteOutcome "retry"
       if (s.forbid.has(x.id)) return "kept"; // 403: the row has no hash (made through a 2.7 worker) or another one
       s.server.delete(x.id); return "ok";
     },
@@ -66,6 +68,7 @@ test("wipe: every listed share, expired ones too, is deleted before sync goes of
   assert.ok(s.calls.includes("share:x"), "expired rows are not purged on the server, so they are deleted too");
   assert.equal(s.server.size, 0);
   assert.deepEqual(s.shares, []);
+  assert.deepEqual(s.gone, ["s1", "x", "s2"], "each deleted id is recorded in sharesGone (C3), so another device's merge cannot bring it back");
 });
 
 test("wipe: a 2.7 marker (vault already done, no shares step) still deletes the listed shares, then resumes", async () => {
@@ -82,6 +85,21 @@ test("wipe: a share the server refuses (403) is skipped and counted; the run goe
   assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 1 });
   assert.deepEqual(s.calls, ALL, "no loop on s1");
   assert.ok(s.server.has("s1") && !s.server.has("s2") && !s.vault);
+  assert.ok(s.gone.includes("s1"), "a refused one leaves the list as gone too");
+});
+
+test("wipe: over the hourly share DELETE limit (429) the step fails; Retry later resumes without repeating or double counting", async () => {
+  const { s, deps } = world();
+  s.forbid.add("s1"); s.budget = 2; // s1 (kept) and x use the budget; s2 gets 429
+  assert.deepEqual(await deleteEverything(deps), { ok: false, step: "shares", error: "Too many attempts. Try again later." });
+  assert.deepEqual(s.shares.map((x) => x.id), ["s2"]);
+  assert.deepEqual(s.gone, ["s1", "x"]);
+  assert.equal(s.saved?.sharesKept, 1);
+  assert.ok(s.syncOn && s.vault, "nothing after the shares step ran");
+  s.calls = []; s.budget = 120; // the hour passed
+  assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 1 });
+  assert.deepEqual(s.calls, ["share:s2", "syncOff", "vault", "account", "device"]);
+  assert.deepEqual(s.gone, ["s1", "x", "s2"]);
 });
 
 test("wipe: the skipped count survives a failure and retry, without counting twice", async () => {
@@ -99,6 +117,7 @@ test("wipe: a failed share stops before the vault; the deleted one leaves the li
   s.fail.add("share:s2");
   assert.deepEqual(await deleteEverything(deps), { ok: false, step: "shares", error: "share:s2 failed" });
   assert.deepEqual(s.shares.map((x) => x.id), ["s2"], "s1 and x deleted are gone from meta shares");
+  assert.deepEqual(s.gone, ["s1", "x"]);
   assert.ok(s.syncOn && s.vault && s.account && !s.cleared, "nothing after the shares step ran");
   s.calls = [];
   assert.deepEqual(await deleteEverything(deps), { ok: true, sharesKept: 0 });

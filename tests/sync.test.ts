@@ -119,15 +119,16 @@ test("turning sync on again with the same key forgets the synced vault, so a 404
   assert.deepEqual([r.ok, calls], [true, ["GET", "PUT"]]);
 });
 
-// Contract C1 share list, the shared fixture through syncNow: the pushed list and meta `shares` both equal want.
+// Contracts C1 + C3, the shared fixture through syncNow: the pushed lists and meta `shares` / `sharesGone` all equal want.
 for (const { name, remote, local, want } of vaultShareCases) {
   test(`syncNow vault shares ${name}`, async () => {
     const key = newSyncKey(), v = await deriveVault(key);
-    meta.set("syncKey", key); meta.set("shares", structuredClone(local));
+    meta.set("syncKey", key); meta.set("shares", structuredClone(local.shares)); meta.set("sharesGone", structuredClone(local.sharesGone));
     const blob = await seal(v.key, { ...emptyVault, ...remote });
     const { r, puts } = await syncWith(key, { ok: true, status: 200, json: async () => ({ rev: 1, blob }) });
     assert.equal(r.ok, true);
-    assert.deepEqual((await open<{ shares: unknown }>(v.key, puts[0])).shares, want);
-    assert.deepEqual(meta.get("shares"), want);
+    const pushed = await open<{ shares: unknown; sharesGone: unknown }>(v.key, puts[0]);
+    assert.deepEqual({ shares: pushed.shares, sharesGone: pushed.sharesGone }, want);
+    assert.deepEqual({ shares: meta.get("shares"), sharesGone: meta.get("sharesGone") }, want);
   });
 }

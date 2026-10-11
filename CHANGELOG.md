@@ -6,6 +6,17 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.9.0] - 2026-10-11
+
+### Added
+
+- Settings → Share links lists the share links you created (title, created date, expiry) and deletes one without Delete everything. A link the server refuses to delete leaves the list with its expiry date in the notice. The title stays on your devices and in the encrypted vault; a pretty link's words are public as before.
+- A deleted share link is remembered in the encrypted vault for 400 days, so it doesn't come back from another device. A 2.8 device's push drops this record and the titles; a deleted link then shows again until another 2.9 device syncs.
+
+### Changed
+
+- Share link deletes are rate-limited per IP (120 per hour, separate from creating links). Delete everything stops at the limit and Retry continues where it stopped.
+
 ## [2.8.0] - 2026-10-11
 
 ### Added
