@@ -2,7 +2,7 @@
 import type { Intake, Profile, Routine } from "./types.ts";
 import { addDays, dayWindow, scheduledAt, toLocalDay } from "./day.ts";
 import { doseKey } from "./schedule.ts";
-import { planned } from "./intake-key.ts";
+import { plannedOn, scheduleOn } from "./schedule-history.ts";
 import { isMissed } from "./timing.ts";
 
 export interface HistoryInput { routines: Routine[]; intakes: Intake[]; profiles: Profile[] }
@@ -37,14 +37,14 @@ const quote = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"
 
 interface Row { at: number; person: string; supplement: string; dose: string; status: string; recordedAt: string }
 
-/** Slots the dashboard plans (planned) and already counts Missed (isMissed) with no live record; current schedule only. */
+/** Slots the dashboard plans (plannedOn, at the time of that day's schedule span) and already counts Missed (isMissed) with no live record. */
 function missedRows(routines: Routine[], recorded: Set<string>, person: (r: Routine) => string, o: HistoryOptions): Row[] {
   const out: Row[] = [];
   const last = toLocalDay(new Date(o.now));
   for (const r of routines) {
     for (let day = toLocalDay(new Date(o.from)); day <= last; day = addDays(day, 1)) {
-      const at = scheduledAt(day, r.time);
-      if (at < o.from || recorded.has(doseKey(r.id, at)) || !isMissed(at, o.now) || !planned(r, at)) continue;
+      const s = scheduleOn(r, day), at = scheduledAt(day, s.time);
+      if (at < o.from || recorded.has(doseKey(r.id, at)) || !isMissed(at, o.now) || !plannedOn(r, day, s)) continue;
       out.push({ at, person: person(r), supplement: r.name, dose: r.dose, status: o.labels.Missed, recordedAt: "" });
     }
   }

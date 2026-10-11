@@ -1,6 +1,6 @@
 # Dose history as CSV
 
-> updated 2026-10-11 · v2.11.0
+> updated 2026-10-11 · v2.12.0
 
 Settings → Backup → **Download history (CSV)** saves the dose history as a spreadsheet file for a doctor or coach. The file is built on the device (`lib/domain/history-csv.ts`, `historyCsv`) and saved with a local download; no request leaves the device, and nothing is added to meta, the vault or the worker.
 
@@ -19,11 +19,12 @@ One row per dose, every profile on the device (deleted profiles too, so their hi
 | Status | When |
 |---|---|
 | Taken / Skipped | a record (intake) without `deletedAt`, at its own scheduled time; kept even when the routine is now paused, deleted or rescheduled |
-| Missed | no live record for a slot the dashboard plans (`planned`, `lib/domain/intake-key.ts`) and already shows as missed (`isMissed`, `lib/domain/timing.ts`: more than 2 h past) |
+| Missed | no live record for a slot the dashboard plans on that day (`plannedOn`, at the time of that day's schedule, `lib/domain/schedule-history.ts`) and already shows as missed (`isMissed`, `lib/domain/timing.ts`: more than 2 h past) |
 
-- **Missed uses the routine's current schedule.** No pause or edit history is stored, so a routine paused or deleted today has no Missed rows at all, and cycle off-days and days before its start date have none.
+- **Missed follows the schedule that held on each day** (`docs/feat/schedule-history.md`). A routine paused on a day has Missed rows before it and none from it; a cycle change keeps the old cycle's off-days before it; cycle off-days and days before the start date have none. This counts for changes made on 2.12 or later; before a routine's first such change its current schedule holds on every day.
+- A deleted routine has no Missed rows at all (owner question Q2).
 - A slot not yet 2 h past and not recorded is not listed (the dashboard still shows it as due). Future slots are never listed.
-- Records match slots by exact time (dose key). After a dose time change (08:00 → 09:00), an earlier day can show Taken at 08:00 and Missed at 09:00.
+- Records match slots by exact time (dose key). After a dose time change (08:00 → 09:00) made on a day, earlier days keep Taken or Missed at 08:00 and the new time counts from that day. A Taken at 08:00 on the day of the change stays as a record next to that day's 09:00 slot.
 - A record whose routine is gone from the device keeps its row with Person, Supplement and Dose empty.
 - A record synced from another device with a status this version does not know shows that status as stored, escaped like user text (empty when it is not text).
 

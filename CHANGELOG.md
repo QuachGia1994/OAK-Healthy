@@ -6,6 +6,17 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-10-11
+
+### Changed
+
+- Missed doses and past-day stats now follow the schedule that was in force on that day (time, start date, cycle, pause) for changes made from 2.12 on; days before your first change keep today's rule. Stats for past days can change once after such a change.
+- Circle members see a routine's schedule history only for the same last 60 days they see doses for. A duplicated routine starts with no history.
+
+### Known limits
+
+- If two devices change the same routine offline, the later change wins and the other device's change is lost from the history too.
+
 ## [2.11.1] - 2026-10-11
 
 ### Fixed

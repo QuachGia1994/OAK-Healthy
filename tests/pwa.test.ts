@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { doseAt, doseWrite, planned, takenNext } from "../lib/domain/intake-key.ts";
 import { dosesForDay } from "../lib/domain/schedule.ts";
+import { scheduleOn } from "../lib/domain/schedule-history.ts";
 import { utcMinutes } from "../lib/domain/remind.ts";
 import type { Intake, Routine } from "../lib/domain/types.ts";
 import { circle, committed, pendingCircle, SHARES_NOW, VAULT_CIRCLE_FIELDS, vaultCircleCases, vaultShareCases } from "./fixtures/vault-circles.ts";
@@ -281,3 +282,62 @@ for (const { name, remote, local, want } of vaultShareCases) {
     assert.deepEqual(JSON.parse(JSON.stringify(sw.vaultShares(remote, meta, SHARES_NOW))), want);
   });
 }
+
+// Schedule history (docs/feat/schedule-history.md) rides inside the routine record; public/sw.js does not know it and
+// must carry it as stored. These pin that, plus the two accepted residuals (LWW per record, SW Taken drift).
+type Row = Record<string, unknown>;
+const spans = [{ from: "2026-10-01", time: "07:00", startDate: "2026-10-01", cycle: daily, paused: false }, { from: "2026-10-05", time: "08:00", startDate: "2026-10-01", cycle: daily, paused: false }];
+/** IndexedDB stand-in with get/put per store, enough for sw.js mergeInto. */
+function memDb(stores: Record<string, Row[]>) {
+  const id = (s: string) => (s === "intakes" ? "key" : "id");
+  return {
+    objectStoreNames: { contains: (s: string) => s in stores },
+    transaction() {
+      const tx: { oncomplete?: () => void; objectStore: (s: string) => unknown } = {
+        objectStore: (s: string) => ({
+          get(k: unknown) { const q: Req = {}; later(() => { q.result = stores[s].find((x) => x[id(s)] === k); q.onsuccess?.(); }); return q; },
+          put(v: Row) { stores[s] = [...stores[s].filter((x) => x[id(s)] !== v[id(s)]), JSON.parse(JSON.stringify(v))]; },
+        }),
+      };
+      setTimeout(() => tx.oncomplete?.(), 5);
+      return tx;
+    },
+  };
+}
+const mergeSw = async (local: Row[], remote: Row[]) => {
+  const stores = { routines: local };
+  await (loadSw() as unknown as { mergeInto: (db: unknown, snap: unknown) => Promise<void> }).mergeInto(memDb(stores), { routines: remote });
+  return stores.routines;
+};
+
+test("schedule history: the service worker's doseWrite, vault merge and vault push keep a routine's history as stored", async () => {
+  const r = { ...routine, history: spans } as Routine;
+  assert.deepEqual(JSON.parse(JSON.stringify(sw.doseWrite(r, at8, undefined, "Taken", 9))).routine.history, spans);
+  assert.deepEqual((await mergeSw([{ ...routine }], [{ ...r, updatedAt: 5 }]))[0].history, spans);
+  const puts: string[] = [];
+  const fetch = async (_url: string, init?: { method?: string; body?: string }) => {
+    if (init?.method === "PUT") { puts.push(JSON.parse(init.body!).blob); return { ok: true, status: 200 }; }
+    return workerNotFound;
+  };
+  const ctx = loadSw({ fetch, btoa, atob, indexedDB: fakeIdb([{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }], { profiles: [], routines: [r], intakes: [], biomarkers: [] }) });
+  await (ctx as unknown as { swSync: () => Promise<void> }).swSync();
+  const [iv, ct] = puts[0].split(".");
+  const { key } = await ctx.vaultKeys("OAK-ABCD-EFGH-JKLM");
+  const snap = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: Buffer.from(iv, "base64url") }, key, Buffer.from(ct, "base64url"))));
+  assert.deepEqual(snap.routines[0].history, spans);
+});
+
+test("schedule history: last writer wins per routine, so a newer stock-only record drops an older record's new span (accepted residual)", async () => {
+  const got = await mergeSw([{ ...routine, history: spans, updatedAt: 5 }], [{ ...routine, stock: 28, updatedAt: 7 }]);
+  assert.equal(got[0].stock, 28);
+  assert.equal(got[0].history, undefined);
+});
+
+test("schedule history: the notification's Taken moves updatedAt and leaves history untouched, so an implicit span's day drifts (accepted residual)", () => {
+  const r = { ...routine, history: [spans[0]], updatedAt: new Date(2026, 9, 5, 12, 0).getTime() } as Routine;
+  assert.equal(scheduleOn(r, "2026-10-08").time, "08:00", "current fields from the updatedAt day (Oct 5)");
+  const next = JSON.parse(JSON.stringify(sw.takenNext(r, at8, undefined, at8 + 60_000))).routine as Routine;
+  assert.deepEqual(next.history, [spans[0]]);
+  assert.equal(next.updatedAt, at8 + 60_000);
+  assert.equal(scheduleOn(next, "2026-10-08").time, "07:00", "now from the Taken day (Oct 11)");
+});

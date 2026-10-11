@@ -5,7 +5,8 @@ import { cycleStatus, isExpired } from "../lib/domain/cycle.ts";
 import { completionRate, doseState, isLateTaken, MISSED_AFTER_MS } from "../lib/domain/timing.ts";
 import { dayStats, daysOfStockLeft, dosesForDay, slotOf, streak } from "../lib/domain/schedule.ts";
 import { analyze } from "../lib/domain/knowledge.ts";
-import type { Intake, Routine } from "../lib/domain/types.ts";
+import { adherenceOn } from "../lib/domain/stack.ts";
+import type { Intake, Routine, ScheduleSpan } from "../lib/domain/types.ts";
 
 const R = (o: Partial<Routine>): Routine => ({ id: "r1", clientId: "p", name: "Vitamin D3", dose: "", time: "08:00", startDate: "2026-01-01", cycle: { daysOn: 1, daysOff: 0, continuous: true }, category: "vitamin", paused: false, stock: null, perDose: 1, updatedAt: 0, ...o });
 
@@ -52,6 +53,35 @@ test("schedule, stats, streak, stock", () => {
   assert.equal(streak(stats), 3);
   assert.equal(slotOf("21:30"), "bedtime");
   assert.equal(daysOfStockLeft(R({ stock: 10, perDose: 2 })), 5);
+});
+
+// Schedule history (docs/feat/schedule-history.md): past days follow the span that held on them.
+const S = (from: string, o: Partial<ScheduleSpan> = {}): ScheduleSpan => ({ from, time: "08:00", startDate: "2026-01-01", cycle: { daysOn: 1, daysOff: 0, continuous: true }, paused: false, ...o });
+const taken = (...slots: [string, string][]) => new Map<string, Intake>(slots.map(([day, time]) => {
+  const at = scheduledAt(day, time);
+  return [`r1@${at}`, { key: `r1@${at}`, supplementId: "r1", clientId: "p", scheduledAt: at, status: "Taken", updatedAt: at }];
+}));
+const counts = (s: { planned: number; taken: number }[]) => s.map((d) => `${d.taken}/${d.planned}`);
+
+test("dayStats on past days uses the time and pause of the span that held on each day", () => {
+  const r = R({ time: "09:00", history: [S("2026-01-01"), S("2026-01-03", { paused: true }), S("2026-01-05", { time: "09:00" })] });
+  const stats = dayStats([r], taken(["2026-01-01", "08:00"], ["2026-01-02", "08:00"], ["2026-01-05", "09:00"]), "2026-01-05", 5);
+  assert.deepEqual(counts(stats), ["1/1", "1/1", "0/0", "0/0", "1/1"]);
+  assert.equal(streak(stats), 3);
+});
+
+test("dayStats: a deleted routine without history is planned on no day (unchanged)", () => {
+  assert.deepEqual(counts(dayStats([R({ deletedAt: 5 })], taken(["2026-01-02", "08:00"]), "2026-01-03", 3)), ["0/0", "0/0", "0/0"]);
+});
+
+test("dayStats after a same-day time edit: that day plans the new time; the day before keeps the old one", () => {
+  const r = R({ time: "20:00", history: [S("2026-01-01"), S("2026-01-10", { time: "20:00" })] });
+  assert.deepEqual(counts(dayStats([r], taken(["2026-01-09", "08:00"], ["2026-01-10", "08:00"]), "2026-01-10", 2)), ["1/1", "0/1"]);
+});
+
+test("adherenceOn ignores pauses in the history too, and counts each day at its span's time", () => {
+  const r = R({ time: "09:00", history: [S("2026-01-01"), S("2026-01-03", { paused: true }), S("2026-01-05", { time: "09:00" })] });
+  assert.equal(adherenceOn(r, taken(["2026-01-01", "08:00"], ["2026-01-02", "08:00"], ["2026-01-05", "09:00"]), "2026-01-06", 6), 0.5);
 });
 
 test("interaction engine flags clashes and late stimulants", () => {

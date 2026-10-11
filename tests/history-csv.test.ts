@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { historyCsv, historyFileName, historyStart, type HistoryLabels } from "../lib/domain/history-csv.ts";
 import { dayWindow, scheduledAt } from "../lib/domain/day.ts";
-import type { Intake, Profile, Routine } from "../lib/domain/types.ts";
+import type { Intake, Profile, Routine, ScheduleSpan } from "../lib/domain/types.ts";
 
 const EN: HistoryLabels = { headers: { date: "Date", time: "Time", person: "Person", supplement: "Supplement", dose: "Dose", status: "Status", recordedAt: "Recorded at" }, Taken: "Taken", Skipped: "Skipped", Missed: "Missed" };
 const HEAD = "Date,Time,Person,Supplement,Dose,Status,Recorded at";
@@ -12,6 +12,7 @@ const I = (r: Routine, day: string, status: Intake["status"], updatedAt: number,
   const at = scheduledAt(day, r.time);
   return { key: `${r.id}@${at}`, supplementId: r.id, clientId: r.clientId, scheduledAt: at, status, updatedAt, ...o };
 };
+const S = (from: string, o: Partial<ScheduleSpan> = {}): ScheduleSpan => ({ from, time: "08:00", startDate: "2026-03-01", cycle: { daysOn: 1, daysOff: 0, continuous: true }, paused: false, ...o });
 const at = scheduledAt;
 /** Rows without the BOM, header and final CRLF. */
 const body = (csv: string) => { assert.ok(csv.startsWith("\uFEFF" + HEAD + "\r\n")); assert.ok(csv.endsWith("\r\n")); return csv.slice(1).split("\r\n").slice(1, -1); };
@@ -52,10 +53,36 @@ test("history CSV: paused and deleted routines keep their records but get no Mis
   ]);
 });
 
-test("history CSV: after a dose time edit a past Taken stays at the old time and the new time of that day is Missed", () => {
-  const before = R({ time: "08:00" }), after = { ...before, time: "09:00" };
-  const csv = historyCsv({ routines: [after], profiles: [P("p1", "Me")], intakes: [I(before, "2026-03-01", "Taken", at("2026-03-01", "08:05"))] }, { from, now: at("2026-03-01", "23:00"), labels: EN });
-  assert.deepEqual(body(csv), ["2026-03-01,08:00,Me,Vitamin D3,1000 IU,Taken,2026-03-01 08:05", "2026-03-01,09:00,Me,Vitamin D3,1000 IU,Missed,"]);
+test("history CSV: after a dose time edit on a day, earlier days keep the old time (no Missed at the new one) and the new time is Missed from that day", () => {
+  const before = R({ time: "08:00" }), after = { ...before, time: "09:00", history: [S("2026-03-01"), S("2026-03-02", { time: "09:00" })] };
+  const csv = historyCsv({ routines: [after], profiles: [P("p1", "Me")], intakes: [I(before, "2026-03-01", "Taken", at("2026-03-01", "08:05"))] }, { from, now: at("2026-03-02", "23:00"), labels: EN });
+  assert.deepEqual(body(csv), ["2026-03-01,08:00,Me,Vitamin D3,1000 IU,Taken,2026-03-01 08:05", "2026-03-02,09:00,Me,Vitamin D3,1000 IU,Missed,"]);
+});
+
+test("history CSV: a routine paused on a day has Missed rows before that day and none from it", () => {
+  const r = R({ paused: true, history: [S("2026-03-01"), S("2026-03-03", { paused: true })] });
+  const csv = historyCsv({ routines: [r], profiles: [P("p1", "Me")], intakes: [] }, { from, now: at("2026-03-04", "20:00"), labels: EN });
+  assert.deepEqual(body(csv), ["2026-03-01,08:00,Me,Vitamin D3,1000 IU,Missed,", "2026-03-02,08:00,Me,Vitamin D3,1000 IU,Missed,"]);
+});
+
+test("history CSV: after a cycle change on a day, the old cycle's off-days before it stay off", () => {
+  const r = R({ history: [S("2026-03-01", { cycle: { daysOn: 1, daysOff: 1, continuous: false } }), S("2026-03-03")] });
+  const csv = historyCsv({ routines: [r], profiles: [P("p1", "Me")], intakes: [] }, { from, now: at("2026-03-04", "20:00"), labels: EN });
+  assert.deepEqual(body(csv).map((l) => l.slice(0, 16)), ["2026-03-01,08:00", "2026-03-03,08:00", "2026-03-04,08:00"]);
+});
+
+test("history CSV: a deleted routine has no Missed rows, with or without a closing span (deleted = never planned)", () => {
+  const t = at("2026-03-03", "12:00");
+  const old = R({ deletedAt: t }), closed = R({ id: "r2", name: "Zinc", deletedAt: t, history: [S("2026-03-01"), S("2026-03-03", { deleted: true })] });
+  assert.deepEqual(body(historyCsv({ routines: [old, closed], profiles: [P("p1", "Me")], intakes: [] }, { from, now: at("2026-03-04", "20:00"), labels: EN })), []);
+});
+
+test("history CSV: a same-day time edit after that day's Taken keeps the Taken; the new time is Missed only once 2 h past", () => {
+  const before = R({ time: "08:00" }), after = { ...before, time: "20:00", history: [S("2026-03-01"), S("2026-03-02", { time: "20:00" })] };
+  const rows = (now: number) => body(historyCsv({ routines: [after], profiles: [P("p1", "Me")], intakes: [I(before, "2026-03-02", "Taken", at("2026-03-02", "08:05"))] }, { from, now, labels: EN }));
+  const old = "2026-03-01,08:00,Me,Vitamin D3,1000 IU,Missed,", taken = "2026-03-02,08:00,Me,Vitamin D3,1000 IU,Taken,2026-03-02 08:05";
+  assert.deepEqual(rows(at("2026-03-02", "21:59")), [old, taken]);
+  assert.deepEqual(rows(at("2026-03-02", "22:01")), [old, taken, "2026-03-02,20:00,Me,Vitamin D3,1000 IU,Missed,"]);
 });
 
 test("history CSV: every profile, deleted ones included, sorted by person in the UI language; labels come from the caller", () => {

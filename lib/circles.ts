@@ -10,6 +10,7 @@ import { db, getMeta } from "./db";
 import { getSyncKey, syncNow, updateMeta } from "./sync";
 import { addDays, toLocalDay } from "./domain/day";
 import type { Intake, Profile, Routine } from "./domain/types";
+import { parseHistory, trimHistory } from "./domain/schedule-history";
 import {
   applyPins, canSign, checkSeq, checkSnapshot, contentKey, joinAuth, joinProof, newContentKey, newJoinSecret, newMemberKeys, newSigner, openMemberKey,
   outOfStep, pinsAfterRemoval, publishEpoch, signSnapshot, STALE_EPOCH, trustedMembers, unwrapFor, wrapFor, type OwnerCircle, type Signer,
@@ -57,8 +58,10 @@ export const isOutOfStep = (c: Circle, behind: Record<string, number> | undefine
 
 async function payload(clientId: string, seq?: number): Promise<CircleView> {
   const p = await db.profiles.get(clientId);
-  const since = new Date(addDays(toLocalDay(new Date()), -60) + "T00:00").getTime();
-  const routines = (await db.routines.where("clientId").equals(clientId).toArray()).filter((r) => !r.deletedAt).map((r) => ({ ...r, note: "" }));
+  const sinceDay = addDays(toLocalDay(new Date()), -60), since = new Date(sinceDay + "T00:00").getTime();
+  // Schedule history goes with the same 60-day cut as intakes (docs/feat/schedule-history.md § Circles); undefined drops out of the JSON.
+  const routines = (await db.routines.where("clientId").equals(clientId).toArray()).filter((r) => !r.deletedAt)
+    .map((r) => ({ ...r, note: "", history: trimHistory(parseHistory(r.history), sinceDay) }));
   const intakes = (await db.intakes.where("clientId").equals(clientId).toArray()).filter((i) => !i.deletedAt && i.scheduledAt >= since);
   return { v: 1, profile: { name: p?.name ?? "", color: p?.color ?? "#1F6B4D" }, routines, intakes, publishedAt: Date.now(), ...(seq ? { seq } : {}) };
 }

@@ -12,6 +12,17 @@ export interface CycleConfig {
   durationDays?: number | null;
 }
 
+/** One schedule that held from `from` (local day) until the next span's day (docs/feat/schedule-history.md). */
+export interface ScheduleSpan {
+  from: string;
+  time: string;
+  startDate: string;
+  cycle: CycleConfig;
+  paused: boolean;
+  /** Closing span written by a delete; recorded only (a deleted routine is never planned). */
+  deleted?: true;
+}
+
 export interface Routine {
   id: string;
   clientId: string;
@@ -36,6 +47,8 @@ export interface Routine {
   /** Days the product stays good after opening (null = not tracked). */
   shelfLifeDays?: number | null;
   note?: string;
+  /** Past schedules, sorted by from; absent = the current fields held on every day (lib/domain/schedule-history.ts). */
+  history?: ScheduleSpan[];
   updatedAt: number;
   deletedAt?: number | null;
 }

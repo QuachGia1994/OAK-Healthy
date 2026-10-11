@@ -1,5 +1,5 @@
 import type { Intake, Routine, Slot } from "./types.ts";
-import { cycleStatus } from "./cycle.ts";
+import { plannedOn, scheduleOn } from "./schedule-history.ts";
 import { addDays, scheduledAt } from "./day.ts";
 import { completionRate } from "./timing.ts";
 
@@ -15,13 +15,15 @@ export function slotOf(time: string): Slot {
   return "bedtime";
 }
 
+/** Doses the dashboard plans on `day`, at the time of the schedule that held that day (schedule-history.ts). */
 export function dosesForDay(routines: Routine[], intakes: Map<string, Intake>, day: string): Dose[] {
   return routines
-    .filter((r) => !r.deletedAt && !r.paused && cycleStatus(r.startDate, r.cycle, day) === "ON")
-    .map((r) => {
-      const at = scheduledAt(day, r.time);
+    .flatMap((r) => {
+      const s = scheduleOn(r, day);
+      if (!plannedOn(r, day, s)) return [];
+      const at = scheduledAt(day, s.time);
       const key = doseKey(r.id, at);
-      return { routine: r, at, key, intake: intakes.get(key) };
+      return [{ routine: r, at, key, intake: intakes.get(key) }];
     })
     .sort((a, b) => a.at - b.at);
 }

@@ -4,6 +4,7 @@ import type { Biomarker, Intake, Profile, Routine } from "./domain/types";
 import { toLocalDay } from "./domain/day";
 import { doseKey } from "./domain/schedule";
 import { doseWrite, type DoseStatus } from "./domain/intake-key";
+import { forSave, withHistory } from "./domain/schedule-history";
 
 export interface Meta { key: string; value: unknown }
 
@@ -49,14 +50,17 @@ export function ensureSeed(): Promise<void> {
   return seeding;
 }
 
+/** A schedule edit of the stored record adds a history span from today; Undo re-saves the old record with its old history (forSave). */
 export async function saveRoutine(r: Routine) {
-  await db.routines.put({ ...r, updatedAt: Date.now() });
+  const next = forSave(r, await db.routines.get(r.id), toLocalDay(new Date()));
+  await db.routines.put({ ...next, updatedAt: Date.now() });
   changed();
 }
 
+/** Delete writes a closing history span (recorded only: a deleted routine is never planned); undo delete removes it. */
 export async function setDeleted(id: string, deleted: boolean) {
   const r = await db.routines.get(id);
-  if (r) await db.routines.put({ ...r, deletedAt: deleted ? Date.now() : null, updatedAt: Date.now() });
+  if (r) await db.routines.put({ ...withHistory({ ...r, deletedAt: deleted ? Date.now() : null }, toLocalDay(new Date()), r), updatedAt: Date.now() });
   changed();
 }
 
@@ -65,7 +69,8 @@ export async function markDose(r: Routine, at: number, status: DoseStatus) {
   const prev = await db.transaction("rw", db.intakes, db.routines, async () => {
     const before = await db.intakes.get(doseKey(r.id, at));
     const cur = await db.routines.get(r.id);
-    const w = doseWrite(cur ?? { ...r, stock: null }, at, before, status, Date.now());
+    // Materialize an implicit history span before doseWrite moves updatedAt (docs/feat/schedule-history.md § Older devices).
+    const w = doseWrite(cur ? withHistory(cur, toLocalDay(new Date())) : { ...r, stock: null }, at, before, status, Date.now());
     if (w.intake) await db.intakes.put(w.intake);
     if (w.routine) await db.routines.put(w.routine);
     return before;

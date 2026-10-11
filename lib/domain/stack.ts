@@ -112,11 +112,13 @@ export function suggestSchedule(routines: Routine[]): ScheduleSuggestion[] {
 }
 
 // ---------- Biomarkers vs adherence ----------
-/** Share of planned doses of one routine taken in the `window` days ending on `endDay` (null = nothing planned). */
+/** Share of planned doses of one routine taken in the `window` days ending on `endDay` (null = nothing planned).
+ *  Pauses are ignored, also the ones in its schedule history (each day still uses that day's time and cycle). */
 export function adherenceOn(r: Routine, intakes: Map<string, Intake>, endDay: string, window = 30): number | null {
   let planned = 0, taken = 0;
+  const open: Routine = { ...r, paused: false, ...(Array.isArray(r.history) ? { history: r.history.map((s) => ({ ...s, paused: false })) } : {}) };
   for (let i = 0; i < window; i++)
-    for (const d of dosesForDay([{ ...r, paused: false }], intakes, addDays(endDay, -i))) {
+    for (const d of dosesForDay([open], intakes, addDays(endDay, -i))) {
       planned++;
       if (d.intake?.status === "Taken" && !d.intake.deletedAt) taken++;
     }

@@ -1,11 +1,11 @@
 # Health data flow
 
-> updated 2026-10-11 · v2.10.0
+> updated 2026-10-11 · v2.12.0
 
 ## Entities
 
 - **Profile** `{id, name, color}`: a person being tracked.
-- **Routine** `{id, clientId → Profile, name, dose, time HH:mm, startDate YYYY-MM-DD, cycle, category, paused, stock, perDose, note}`.
+- **Routine** `{id, clientId → Profile, name, dose, time HH:mm, startDate YYYY-MM-DD, cycle, category, paused, stock, perDose, note, history?}`. `history` = past schedules as effective-from spans `{from, time, startDate, cycle, paused, deleted?}`, at most 64; absent = the current fields on every day (`docs/feat/schedule-history.md`). It rides inside the routine record: encrypted vault, JSON backup, SW merge and push, and the circle payload (cut to the last 60 days, like intakes).
 - **Intake** `{key = routineId@scheduledAt, status Taken|Skipped, scheduledAt epoch ms}`: one per planned dose.
 
 All records carry `updatedAt` and an optional `deletedAt` tombstone, so sync can merge without losing deletions.
@@ -23,7 +23,7 @@ All records carry `updatedAt` and an optional `deletedAt` tombstone, so sync can
 | Cycle | `cycle.ts` | OFF before start, OFF after `durationDays`, else `elapsed % (on+off) < on` |
 | Timing | `timing.ts` | soon = within 20 min before; missed = 2 h after; late-taken = taken > 20 min after |
 | Adherence | `timing.ts` | `taken / (taken + skipped)`; null when nothing logged |
-| Schedule | `schedule.ts` | doses for a day = active, unpaused, cycle-ON routines; slots Morning < 11, Midday < 15, Evening < 20, Bedtime |
+| Schedule | `schedule.ts` | doses for a day = not deleted, and unpaused and cycle-ON in the schedule that held that day (`schedule-history.ts`), at that schedule's time; slots Morning < 11, Midday < 15, Evening < 20, Bedtime |
 | Inventory | `db.ts#markDose` | Taken −perDose, leaving Taken +perDose, never below 0 |
 | Knowledge | `knowledge.ts` | clash in same slot, synergy split across slots, stimulant ≥ 18:00, calming < 11:00 |
 
