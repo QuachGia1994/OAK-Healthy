@@ -252,7 +252,7 @@ export const VI: Record<string, string> = {
   "Remove": "Gỡ",
   "No passkeys yet.": "Chưa có passkey.",
   "Delete account": "Xoá tài khoản",
-  "Removes your login and passkeys. Data on this device and your encrypted vault stay until you delete them in Settings.": "Xoá thông tin đăng nhập và passkey. Dữ liệu trên thiết bị và kho mã hoá vẫn còn cho đến khi bạn xoá trong Cài đặt.",
+  "Removes your login and passkeys only. Your encrypted vault and circles stay on the server, so revoke your circles in Settings first. Clear site data in your browser to delete data on this device.": "Chỉ xoá thông tin đăng nhập và passkey. Kho mã hoá và các nhóm chia sẻ vẫn còn trên máy chủ, vì vậy hãy thu hồi nhóm trong Cài đặt trước. Xoá dữ liệu trang web trong trình duyệt để xoá dữ liệu trên thiết bị này.",
   "Delete your account?": "Xoá tài khoản của bạn?",
   "At least 10 characters. A passphrase of 3–4 words works well.": "Tối thiểu 10 ký tự. Một cụm 3–4 từ là lựa chọn tốt.",
   "Vault linked to your password": "Đã gắn kho với mật khẩu",

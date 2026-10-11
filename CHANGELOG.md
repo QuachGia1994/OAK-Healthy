@@ -6,6 +6,8 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-10-11
+
 ### Added
 
 - Server-side circle epoch (migration 0005): every owner write carries the epoch it last saw; a stale one gets 409 and the device re-bases on the vault, so two owner devices removing different members offline end with both removals and one invite. A 2.5 app can change a circle only until a 2.6 device has written to it.
@@ -16,6 +18,7 @@ versioning where practical.
 
 - A vault push from the service worker no longer carries a not-yet-committed signing key.
 - Old-address handoff: edited or extra profiles count as local data (only the untouched first-run profile is ignored), so such a device keeps them and sees the notice; a malformed key in a device link no longer throws.
+- Delete account no longer promises a vault delete in Settings: it says the vault and circles stay on the server and to revoke circles first.
 
 ## [2.5.1] - 2026-10-11
 

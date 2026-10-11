@@ -329,7 +329,7 @@ export function AccountView() {
         </ul>
       </section>
       <section className="card flex flex-wrap items-center justify-between gap-3 p-5">
-        <div><h2 className="text-sm font-semibold text-missed">{t("Delete account")}</h2><p className="text-xs text-neutral-500">{t("Removes your login and passkeys. Data on this device and your encrypted vault stay until you delete them in Settings.")}</p></div>
+        <div><h2 className="text-sm font-semibold text-missed">{t("Delete account")}</h2><p className="text-xs text-neutral-500">{t("Removes your login and passkeys only. Your encrypted vault and circles stay on the server, so revoke your circles in Settings first. Clear site data in your browser to delete data on this device.")}</p></div>
         <button className="btn text-missed" onClick={() => { if (confirm(t("Delete your account?"))) void run(async () => { await deleteAccount(); router.push("/"); }, "Account deleted"); }}>{t("Delete")}</button>
       </section>
     </div>

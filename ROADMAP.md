@@ -57,3 +57,4 @@
 
 1. Replay floor that survives a reinstall (today the highest seen update is kept per device only).
 2. Shared test fixture for the vault circle state of the app and the service worker.
+3. Delete everything from inside the app: turn off sync, delete the vault, then delete the circles you own (vaults and circles are not tied to the account, so deleting the account alone leaves them).
