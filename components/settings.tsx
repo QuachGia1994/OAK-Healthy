@@ -9,6 +9,7 @@ import { LangToggle } from "./lang-toggle";
 import { deleteOneShare, getMe, pendingWipe, wipeEverything, type Me } from "@/lib/account";
 import { takeWipedFlag, WIPED_FLAG, type ShareRef, type WipeStep } from "@/lib/domain/wipe";
 import { parseSharesGone, shareRows } from "@/lib/domain/shares";
+import { historyCsv, historyFileName, historyStart, type HistoryRange } from "@/lib/domain/history-csv";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
 import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, getCircles, isOutOfStep, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
@@ -228,6 +229,7 @@ export function SettingsView() {
   const [canPush, setCanPush] = useState(true);
   const [circles, setCircles] = useState<Circle[]>([]);
   const [label, setLabel] = useState("");
+  const [csvRange, setCsvRange] = useState<HistoryRange>(30);
   const pushMeta = useLiveQuery(() => db.meta.get("push"), [], undefined)?.value;
   const mine = useLiveQuery(() => db.routines.where("clientId").equals(profile?.id ?? "").toArray(), [profile?.id], [])
     .filter((r) => !r.deletedAt && !r.paused).sort((a, b) => a.time.localeCompare(b.time));
@@ -299,6 +301,14 @@ export function SettingsView() {
   const exportJson = async () => {
     const blob = new Blob([JSON.stringify(await snapshot(), null, 2)], { type: "application/json" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `oak-healthy-${new Date().toISOString().slice(0, 10)}.json` });
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+  const exportCsv = async () => {
+    const input = { routines: await db.routines.toArray(), intakes: await db.intakes.toArray(), profiles: await db.profiles.toArray() };
+    const now = Date.now();
+    const headers = { date: t("Date"), time: t("Time"), person: t("Person"), supplement: t("Supplement"), dose: t("Dose"), status: t("Status"), recordedAt: t("Recorded at (last change)") };
+    const csv = historyCsv(input, { from: historyStart(csvRange, input, now), now, locale: locale(), labels: { headers, Taken: t("Taken"), Skipped: t("Skipped"), Missed: t("Missed") } });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: historyFileName(now) });
     a.click(); URL.revokeObjectURL(a.href);
   };
   const importJson = async (f: File) => {
@@ -407,10 +417,20 @@ export function SettingsView() {
       </Section>
 
       <Section title="Backup" sub="Export everything as JSON, or merge a backup back in (newest change wins).">
-        <div className="flex flex-wrap gap-2">
-          <button onClick={exportJson} className="btn"><Download className="size-4" /> {t("Export JSON")}</button>
-          <button onClick={() => file.current?.click()} className="btn"><Upload className="size-4" /> {t("Import")}</button>
-          <input ref={file} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={exportJson} className="btn"><Download className="size-4" /> {t("Export JSON")}</button>
+            <button onClick={() => file.current?.click()} className="btn"><Upload className="size-4" /> {t("Import")}</button>
+            <input ref={file} type="file" accept="application/json" hidden onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select aria-label={t("History range")} value={String(csvRange)} onChange={(e) => setCsvRange(e.target.value === "all" ? "all" : e.target.value === "90" ? 90 : 30)} className="input w-auto">
+              <option value="30">{t("Last 30 days")}</option>
+              <option value="90">{t("Last 90 days")}</option>
+              <option value="all">{t("All history")}</option>
+            </select>
+            <button onClick={exportCsv} className="btn"><Download className="size-4" /> {t("Download history (CSV)")}</button>
+          </div>
         </div>
       </Section>
 

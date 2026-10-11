@@ -570,5 +570,13 @@ export const VI: Record<string, string> = {
   "This share link couldn't be deleted. It expires {date}.": "Không xoá được liên kết chia sẻ này. Liên kết hết hạn ngày {date}.",
   "Couldn't delete the share link.": "Không xoá được liên kết chia sẻ.",
   "Couldn't be deleted": "Không xoá được",
+  "Download history (CSV)": "Tải lịch sử (CSV)",
+  "History range": "Khoảng thời gian",
+  "Last 30 days": "30 ngày qua",
+  "Last 90 days": "90 ngày qua",
+  "All history": "Toàn bộ lịch sử",
+  "Person": "Người",
+  "Supplement": "Thực phẩm bổ sung",
+  "Recorded at (last change)": "Ghi lúc (lần sửa cuối)",
   "No share links yet. Use Share on the Stack page to create one.": "Chưa có liên kết chia sẻ nào. Dùng nút Chia sẻ ở trang Stack để tạo.",
 };

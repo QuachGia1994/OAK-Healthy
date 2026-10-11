@@ -6,6 +6,12 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.11.0] - 2026-10-11
+
+### Added
+
+- Settings → Backup → Download history (CSV): your dose history for the last 30 days, 90 days or all of it, one row per dose (date, time, person, supplement, dose, Taken / Skipped / Missed, when it was recorded), ready to open in Excel or Google Sheets for a doctor or coach. The file is made on this device; nothing is sent to the server. Missed follows each routine's current schedule.
+
 ## [2.10.0] - 2026-10-11
 
 ### Changed

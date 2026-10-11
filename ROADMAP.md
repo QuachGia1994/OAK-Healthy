@@ -1,5 +1,9 @@
 # Roadmap
 
+## Shipped in 2.11
+
+- Download dose history as CSV (Taken / Skipped / Missed) for a doctor or coach, made on the device.
+
 ## Shipped in 2.10
 
 - A share link the server refused to delete stays in Share links, marked "Couldn't be deleted" with its expiry, and Delete everything no longer retries it.
