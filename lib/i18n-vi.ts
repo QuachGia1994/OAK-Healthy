@@ -532,4 +532,9 @@ export const VI: Record<string, string> = {
   "This circle update failed its signature check, so it isn't shown. Ask the owner for a new invite.": "Bản cập nhật vòng chia sẻ này không qua được kiểm tra chữ ký nên không được hiển thị. Hãy xin chủ sở hữu một lời mời mới.",
   "OAK Healthy moved to healthy.oakgatekeeper.uk. Turn on sync in Settings to take your data along, then reload this page.": "OAK Healthy đã chuyển sang healthy.oakgatekeeper.uk. Hãy bật đồng bộ trong Cài đặt để mang dữ liệu theo, rồi tải lại trang này.",
   "OAK Healthy moved to healthy.oakgatekeeper.uk, but this device couldn't sync first. Check sync in Settings, then reload this page.": "OAK Healthy đã chuyển sang healthy.oakgatekeeper.uk, nhưng thiết bị này chưa đồng bộ được. Hãy kiểm tra đồng bộ trong Cài đặt, rồi tải lại trang này.",
+  "Securing this circle. Members see updates after the next sync.": "Đang bảo mật vòng chia sẻ này. Thành viên sẽ thấy cập nhật sau lần đồng bộ tới.",
+  "This circle update is older than one already shown, so it isn't shown.": "Bản cập nhật vòng chia sẻ này cũ hơn bản đã hiển thị nên không được hiển thị.",
+  "This circle changed on another device at the same time. Try again.": "Vòng chia sẻ này vừa được thay đổi trên thiết bị khác cùng lúc. Hãy thử lại.",
+  "Update the app to change this circle.": "Hãy cập nhật ứng dụng để thay đổi vòng chia sẻ này.",
+  "Another device changed this circle's invite and hasn't synced yet. Members still get updates; new members need the invite link from that device.": "Một thiết bị khác đã đổi lời mời của vòng chia sẻ này nhưng chưa đồng bộ. Thành viên vẫn nhận được cập nhật; thành viên mới cần liên kết mời từ thiết bị đó.",
 };

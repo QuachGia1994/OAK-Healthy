@@ -81,8 +81,10 @@ CREATE TABLE IF NOT EXISTS circles (
   blob TEXT NOT NULL,
   write_hash TEXT NOT NULL,
   updated_at INTEGER NOT NULL,
-  join_hash TEXT
+  join_hash TEXT,
+  epoch INTEGER
 );
+-- v2.6 circle epoch (invite rotations; NULL until a 2.6 owner app writes). Existing databases: worker/migrations/0005_circle_epoch.sql
 -- v2.4 circle members with their own accounts. Existing databases: worker/migrations/0004_circle_members.sql
 CREATE TABLE IF NOT EXISTS member_keys (
   user_id TEXT PRIMARY KEY,

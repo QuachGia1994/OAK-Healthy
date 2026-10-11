@@ -8,7 +8,7 @@ import { useT, locale } from "@/lib/i18n";
 import { LangToggle } from "./lang-toggle";
 import { getMe, type Me } from "@/lib/account";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
-import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, getCircles, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
+import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, getCircles, isOutOfStep, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
 import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
 import { safeNext } from "@/lib/domain/safe-next";
@@ -55,6 +55,7 @@ export function SyncAgent() {
 function CircleRow({ c, onChange, tryIt }: { c: Circle; onChange: () => Promise<void>; tryIt: (fn: () => Promise<unknown>, ok: string) => Promise<void> }) {
   const t = useT();
   const [members, setMembers] = useState<CircleMember[]>([]);
+  const behind = useLiveQuery(() => db.meta.get("circleBehind"), [], undefined)?.value as Record<string, number> | undefined;
   useEffect(() => {
     if (!c.j) return;
     // Circles from before 2.5: create the signing key now, so the copied invite carries it (#o=).
@@ -71,6 +72,10 @@ function CircleRow({ c, onChange, tryIt }: { c: Circle; onChange: () => Promise<
         <button aria-label={t("Copy link")} className="btn w-11 px-0" onClick={copy}><Copy className="size-4" /></button>
         <button className="btn text-missed" onClick={() => tryIt(async () => { await revokeCircle(c.id); await onChange(); }, "Access revoked")}>{t(c.j ? "Delete circle" : "Revoke")}</button>
       </div>
+      {/* A pre-2.5 circle's new signing key cannot sign until a vault sync carries it (lib/circles.ts ensureSigner). */}
+      {c.j && c.sign?.pending && <p className="mt-1 pl-3 text-xs text-neutral-500">{t("Securing this circle. Members see updates after the next sync.")}</p>}
+      {/* Published under a newer invite this device lacks (lib/circles.ts publishCircle); clears once the vault brings it. */}
+      {isOutOfStep(c, behind) && <p className="mt-1 pl-3 text-xs text-neutral-500">{t("Another device changed this circle's invite and hasn't synced yet. Members still get updates; new members need the invite link from that device.")}</p>}
       {members.length > 0 && <ul className="mt-1 space-y-1 pl-3">
         {members.map((m) => (
           <li key={m.userId} className="flex items-center gap-2 text-xs text-neutral-500">

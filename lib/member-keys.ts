@@ -116,9 +116,10 @@ export async function checkSnapshot(circleId: string, blob: string, pinned?: str
 
 // Owner state merge (§ Owner devices). Circles travel in the encrypted vault snapshot; these rules keep two owner
 // devices and in-flight publishes from undoing each other.
-/** The synced fields of an owner circle. epoch counts invite rotations; j and pins belong to one epoch. */
+/** The synced fields of an owner circle. epoch counts invite rotations (the server's count since 2.6); j and pins
+ * belong to one epoch. seq: the last publish number, sealed into each snapshot for the members' replay guard. */
 export interface OwnerCircle {
-  id: string; j?: string; epoch?: number; members?: Record<string, string>; sign?: Signer;
+  id: string; j?: string; epoch?: number; seq?: number; members?: Record<string, string>; sign?: Signer;
   createdAt: number; updatedAt?: number; deletedAt?: number | null;
 }
 const stamp = (c: OwnerCircle) => c.updatedAt ?? c.createdAt;
@@ -132,7 +133,8 @@ export function mergeCircle<T extends OwnerCircle>(a: T, b: T): T {
   const [hi, lo] = stamp(b) > stamp(a) ? [b, a] : [a, b];
   const ea = epochOf(a), eb = epochOf(b), key = ea === eb ? hi : ea > eb ? a : b;
   const members = ea === eb ? { ...lo.members, ...hi.members } : key.members;
-  return { ...hi, j: key.j, epoch: key.epoch, members, sign: b.sign ?? a.sign, updatedAt: Math.max(stamp(a), stamp(b)) };
+  const seq = Math.max(a.seq ?? 0, b.seq ?? 0) || undefined;
+  return { ...hi, j: key.j, epoch: key.epoch, seq, members, sign: b.sign ?? a.sign, updatedAt: Math.max(stamp(a), stamp(b)) };
 }
 /** Only a signer that reached the vault may sign: a second owner device can no longer mint a competing one and
  * get members to pin it (it adopts the pushed signer on its next pull instead). */
@@ -153,4 +155,41 @@ export function mergeCircles<T extends OwnerCircle>(local: T[], remote: T[]): T[
 export function applyPins<T extends OwnerCircle>(stored: T, publishedEpoch: number, pins: Record<string, string>, now = Date.now()): T {
   if (stored.deletedAt || epochOf(stored) !== publishedEpoch || JSON.stringify(pins) === JSON.stringify(stored.members ?? {})) return stored;
   return { ...stored, members: pins, updatedAt: now };
+}
+
+// Server epoch (§ Epoch). Shared by worker/circles.ts and the client, so both apply one rule.
+export const STALE_EPOCH = "This circle changed on another device.";
+export const UPDATE_APP = "Update the app to change this circle.";
+export const isEpoch = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) >= 0;
+export type EpochGate = { ok: true; base: number | null } | { ok: false; epoch: number | null; error: string };
+/** Owner writes (publish, rotation). server: circles.epoch, null until a 2.6 client first writes. sent: body.epoch.
+ * - no epoch (2.5 client): allowed only while the server epoch is unset; after that → refused, "update the app";
+ * - first 2.6 write: adopts the client's count (base = sent), so circles from before 2.6 keep their numbering;
+ * - later: forward only. sent >= server is accepted and moves the server to sent; a lower one is refused with the
+ *   current epoch so the client re-bases. A higher count is the newer owner state by construction (the vault merge
+ *   moves j only to a higher epoch), e.g. a device that kept a pre-2.6 rotation after a behind device wrote first. */
+export function epochGate(server: number | null, sent?: number): EpochGate {
+  if (sent === undefined) return server === null ? { ok: true, base: null } : { ok: false, epoch: server, error: UPDATE_APP };
+  return server === null || sent >= server ? { ok: true, base: sent } : { ok: false, epoch: server, error: STALE_EPOCH };
+}
+/** The epoch to publish under. refused: the server's epoch from a 409 after this device synced. Still behind it means
+ * the invite of that epoch is on a device that has not synced (or its rotation response was lost): publish under the
+ * server's epoch anyway instead of stalling. That cannot undo a removal: a removal is the server deleting the member's
+ * row and rotating join_hash, a publish changes neither, and wraps land only on member rows that exist. The cost is
+ * that members who joined with the invite this device lacks get no wrap until a device holding it publishes. */
+export const publishEpoch = (local: number, refused?: number | null) => (refused != null && refused > local ? refused : local);
+/** The out-of-step note: this device last had to publish under a server epoch it has no invite for. Clears by itself
+ * once the vault brings that epoch's invite (local catches up). */
+export const outOfStep = (local: number, publishedUnder?: number) => publishedUnder !== undefined && publishedUnder > local;
+
+// Replay guard (§ Replay). seq sits inside the sealed payload, which the 2.5 signature already covers, so the signed
+// string and blob format stay the same and 2.5 members keep verifying 2.6 snapshots.
+export const REPLAYED = "This circle update is older than one already shown, so it isn't shown.";
+/** seen: highest seq this member accepted for the circle. Returns the new highest, or throws SnapshotRefused.
+ * Once a numbered snapshot was seen, an unnumbered one can only be a replay: the first numbered publish also set the
+ * server epoch, which shuts out the 2.5 owner apps that publish without a number. */
+export function checkSeq(seen: number | undefined, seq: number | undefined) {
+  if (!seen) return seq || undefined;
+  if (!seq || seq < seen) throw new SnapshotRefused(REPLAYED);
+  return seq;
 }

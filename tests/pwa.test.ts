@@ -203,13 +203,15 @@ test("pushsubscriptionchange server error keeps the old endpoint so the browser 
 
 // swSync pushes the same vault fields as lib/sync.ts: the four stores plus circle state from meta.
 const circle = { id: "c1", name: "Family", updatedAt: 3 };
+const committed = { pub: "spub", priv: { kty: "EC", d: "x" }, createdAt: 2 };
+const pendingCircle = { ...circle, sign: { ...committed, pending: true } }, signed = { ...circle, id: "c2", sign: committed };
 test("swSync vault push carries circles and circlePins", async () => {
   const puts: string[] = [];
   const fetch = async (_url: string, init?: { method?: string; body?: string }) => {
     if (init?.method === "PUT") { puts.push(JSON.parse(init.body!).blob); return { ok: true, status: 200 }; }
     return { ok: false, status: 404 };
   };
-  const meta = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }, { key: "circles", value: [circle] }, { key: "circlePins", value: { c9: "pub9" } }];
+  const meta = [{ key: "syncKey", value: "OAK-ABCD-EFGH-JKLM" }, { key: "circles", value: [circle, pendingCircle] }, { key: "circlePins", value: { c9: "pub9" } }];
   const ctx = loadSw({ fetch, btoa, atob, indexedDB: fakeIdb(meta, { profiles: [], routines: [routine], intakes: [], biomarkers: [] }) });
   await (ctx as unknown as { swSync: () => Promise<void> }).swSync();
   assert.equal(puts.length, 1);
@@ -218,7 +220,7 @@ test("swSync vault push carries circles and circlePins", async () => {
   const { key } = await ctx.vaultKeys("OAK-ABCD-EFGH-JKLM");
   const snap = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb(iv) }, key, unb(ct))));
   assert.deepEqual(Object.keys(snap).sort(), ["biomarkers", "circlePins", "circles", "intakes", "profiles", "routines", "v"]);
-  assert.deepEqual(snap.circles, [circle]);
+  assert.deepEqual(snap.circles, [circle, { ...pendingCircle, sign: committed }]);
   assert.deepEqual(snap.circlePins, { c9: "pub9" });
 });
 // The SW cannot run mergeCircles (member-keys.ts): it passes the pulled vault's circles through and the next tab sync merges.
@@ -228,6 +230,9 @@ const circleCases: [string, unknown, Rec[], unknown][] = [
     [{ key: "circles", value: [circle] }, { key: "circlePins", value: { c1: "a" } }], { circles: [{ ...circle, updatedAt: 7 }], circlePins: { c1: "a", c2: "b" } }],
   ["empty remote circles keep local ones", { circles: [] }, [{ key: "circles", value: [circle] }], { circles: [circle], circlePins: {} }],
   ["nothing anywhere", {}, [], { circles: [], circlePins: {} }],
+  ["a pending local signer is pushed committed (lib/sync.ts circleState)", {}, [{ key: "circles", value: [pendingCircle, signed] }],
+    { circles: [{ ...pendingCircle, sign: committed }, signed], circlePins: {} }],
+  ["a pending signer in the pulled vault is pushed committed", { circles: [pendingCircle] }, [], { circles: [{ ...pendingCircle, sign: committed }], circlePins: {} }],
 ];
 for (const [name, remote, meta, want] of circleCases) {
   test(`vaultCircles ${name}`, () => assert.deepEqual(JSON.parse(JSON.stringify(sw.vaultCircles(remote, meta))), want));

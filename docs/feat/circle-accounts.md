@@ -1,10 +1,10 @@
 # Circle members with their own accounts
 
-> updated 2026-10-11 · v2.5.0
+> updated 2026-10-11 · v2.6.0
 
 A circle shares one profile live and read-only. New circles admit **members**: people with their own OAK account who join from an invite link. Each publish encrypts the snapshot with a fresh content key and wraps that key to every verified member's public key. Removing one member cuts them off from the next publish; the others keep reading. Older **bearer** circles (key in the link `#fragment`) keep working unchanged.
 
-Since 2.5 the owner signs every member snapshot and members check it against a key pinned at join, and the owner's circle state follows the owner to every synced device.
+Since 2.5 the owner signs every member snapshot and members check it against a key pinned at join, and the owner's circle state follows the owner to every synced device. Since 2.6 the server keeps each circle's epoch, so two owner devices cannot leave the invite out of step, and members refuse a replayed older snapshot.
 
 Code: `lib/member-keys.ts` (pure crypto and merge rules, tested in `tests/circles.test.ts`), `lib/circles.ts` (client flows), `lib/sync.ts` (vault carries circle state), `worker/circles.ts` (API), `components/circle-view.tsx` (`/c/`), Settings → Circles.
 
@@ -14,7 +14,7 @@ Code: `lib/member-keys.ts` (pure crypto and merge rules, tested in `tests/circle
 | --- | --- | --- | --- |
 | Member keypair (ECDH P-256), one per account | member's first join or read | `member_keys`: public key (raw point, b64u) + private JWK sealed with AES-GCM | public key, ciphertext |
 | Member seal key | HKDF(sync key, salt `oak-healthy-v1`, info `member-key`) | nowhere, derived on each unlocked device | never |
-| Invite secret `j` (24 random bytes) | owner, per circle; replaced on every member removal (`epoch` + 1) | owner devices (`meta.circles`, vault), invite link `#j=` | never |
+| Invite secret `j` (24 random bytes) | owner, per circle; replaced on every member removal (server `epoch` + 1, § Epoch) | owner devices (`meta.circles`, vault), invite link `#j=` | never |
 | `joinAuth` = HKDF(j, `join-auth`) | owner / joiner | `circles.join_hash` = SHA-256(joinAuth) | joinAuth in transit, hash at rest |
 | `joinMac` = HKDF(j, `join-mac`) | owner / joiner | nowhere | never |
 | Content key (AES-256-GCM) | owner, **new on every publish** | nowhere in plaintext | never |
@@ -43,6 +43,36 @@ The pin comes from the invite link (`#o=`), which the owner hands over out of ba
 Signing keys for circles from before 2.5 are created just before the sync agent's vault push (`ensureSigners`). With sync on, such a key is `pending`: it cannot sign and stays out of the invite `#o=` until a successful vault push carried it (`commitSigners`). Vault pushes are linear (`baseRev`), so if two owner devices both create one, the device that pushes second adopts the first device's key on its pull before it ever signs. No member can pin a key that later loses. Without sync there is no other device, so the key is usable at once. Keys made with a new circle are never pending, because no other device knows that circle yet.
 
 Every meta write goes through `updateMeta`, a read-modify-write in one Dexie transaction. A publish writes back only the pins it verified, and only if the circle is still on the epoch it published under (`applyPins`). Before 2.5, an in-flight publish saved its whole stale copy after a removal had rotated `j`, so the stored invite stopped matching the server.
+
+## Epoch
+
+`circles.epoch` (migration 0005) counts invite rotations. It is `NULL` until a 2.6 owner app first writes. Owner writes (`PUT` publish, `POST /revoke`) send `epoch`, the count the client's `j` and pins belong to. One rule, `epochGate` in `lib/member-keys.ts`, used by the worker and tested directly:
+
+| server epoch | body `epoch` | result |
+| --- | --- | --- |
+| `NULL` | none (2.5 app) | accepted; stays `NULL` |
+| set | none (2.5 app) | 409 "Update the app to change this circle." |
+| `NULL` | `e` | accepted; the circle keeps the client's count (publish stores `e`, rotation `e + 1`) |
+| `e` | `f >= e` | accepted, forward only (publish stores `f`, rotation `f + 1`) |
+| `e` | `f < e` | 409 `{error: "This circle changed on another device.", epoch: e}` |
+
+Forward only, because a higher count is the newer owner state (the vault merge moves `j` only to a higher epoch). At rollout a behind device may write first and the server adopts its lower count; the device holding the newer pre-2.6 rotation must still get through, or nothing would ever write that count again.
+
+The write is guarded in SQL as well (`WHERE epoch IS <read value>`). The member delete and the wrap updates run in the same D1 batch only if the guarded `UPDATE` won, so two concurrent writes cannot both land. A `POST /revoke` whose `joinAuth` already matches `join_hash` is a retry of a rotation that landed: it answers `{ok, epoch}` without changing anything.
+
+The client re-bases instead of overwriting, and never stalls:
+- **Publish refused**: sync the vault now and retry. If the device is still behind the server's epoch (the rotating device has not synced, or lost its answer), it publishes under the server's epoch with its own `j` and pins (`publishEpoch`). This cannot undo a removal: a removal is the server deleting the member row and replacing `join_hash`, a publish changes neither, and wraps land only on rows that exist. The cost: members who joined with the invite this device lacks get no wrap until a device holding it publishes. Settings then shows "Another device changed this circle's invite and hasn't synced yet. Members still get updates; new members need the invite link from that device." (`meta.circleBehind`, this device only; it clears once the vault brings that epoch).
+- **Rotation in flight**: before `POST /revoke` the client stores `{userId, j, from, members}` in `meta.circleRotating` (this device only), and clears it once the answer is stored. If the answer is lost (timeout, closed tab), the next publish sends the same request again: the server reports it done (same `join_hash`), or applies it now if it never arrived, or refuses it, in which case the removal is redone on top of the current state. The new `j` is never lost and the removal is never dropped.
+- **Removal refused**: sync the vault, then retry at the server's epoch. If the other device's new `j` arrived, its pins are used. If not, this device's pins are used: the other removal stays applied (the server already dropped that member), and this removal sets a new `j` anyway.
+- After a removal the client stores the server's new epoch and pushes the vault at once, so the other device adopts the new `j` (higher epoch wins in `mergeCircle`).
+
+Two owner devices removing different members offline therefore end with both members removed and one `j`, the one the server holds.
+
+## Replay
+
+Each member publish takes the next `seq` (kept in `meta.circles`, synced, highest wins). `seq` goes inside the sealed payload. The signature already covers the ciphertext, so the signed string and the blob format are unchanged and a 2.5 member still verifies a 2.6 snapshot. A 2.6 member keeps the highest `seq` it accepted per circle (`meta.circleSeen`, this device only). It refuses a lower one, or an unnumbered one once it has seen a number, with "This circle update is older than one already shown, so it isn't shown." An unnumbered snapshot after a numbered one can only be a replay: the first numbered publish also set the server epoch, which shuts out 2.5 owner apps.
+
+Settings shows "Securing this circle. Members see updates after the next sync." while a circle's signing key is `pending`.
 
 ## Flows
 
@@ -81,8 +111,9 @@ sequenceDiagram
 
 Open limits:
 - **Members who joined before 2.5** pin the signer of the first signed snapshot they see (trust on first use). A server that forges that very first snapshot wins the pin; a fresh invite link (with `#o=`) re-pins the real key.
-- **Replay**: the server can serve an older, genuinely signed snapshot (its date shows on the page). Members do not yet refuse snapshots older than one already seen.
-- **Two owner devices removing members while offline** reach the same `epoch`; the newer edit's `j` wins locally while the server keeps the last `POST /revoke`, so the invite link can mismatch until the next removal.
+- **Replay before the first look**: a member device that has never accepted a numbered snapshot of a circle (new device, or `circleSeen` cleared) accepts whatever signed snapshot it gets first. `circleSeen` is per device, not synced.
+- **Invite out of step while the rotating device is away**: other owner devices keep publishing under the server's epoch and show the out-of-step note. Members who joined with the newer invite get no wrap from them until that device syncs or publishes; removing a member from any device makes a fresh invite.
+- **Mixed owner fleet**: once a 2.6 owner app has written a circle, a 2.5 owner app gets "Update the app to change this circle." for it.
 - **A vault push without circle state** (service worker or a 2.4 client) can hide a pending signing key from the other device, which may then commit its own. The service worker must pass `circles`/`circlePins` through its vault push (`public/sw.js`).
 - **Sync key rotation** (password reset without recovery code): the stored member private key no longer opens. Reading never replaces it (the error asks for a new invite); only an explicit join creates a new keypair, so the member rejoins from a fresh invite link.
 - **An invite link is a join capability**: anyone holding it can join with any account, and the owner app admits them on its next publish. The owner sees each member's email and can remove them.
@@ -99,4 +130,6 @@ Account deletion removes the account's `member_keys` and `circle_members` rows.
 
 `worker/migrations/0004_circle_members.sql` adds `circles.join_hash`, `member_keys` and `circle_members`. Existing rows get `join_hash = NULL` and stay bearer circles; no client change is needed for them. New invites from Settings are member circles.
 
-2.5 needs no migration. Stored circles without `epoch`/`updatedAt` count as epoch 0, last edited at `createdAt`. A pre-2.5 member circle gets its signing key when Settings shows it or on its next publish; copy the invite again to hand out `#o=`. Members who joined earlier keep reading: they pin the first signed snapshot (see Open limits). A snapshot from an owner app still on 2.4 is unsigned and is refused until that app updates and publishes.
+`worker/migrations/0005_circle_epoch.sql` adds `circles.epoch INTEGER` (NULL for every existing row). Apply it before deploying the 2.6 worker, which selects the column. 2.5 owner apps keep publishing and removing members on a circle until a 2.6 owner app writes it. 2.5 members keep reading (format unchanged).
+
+2.5 needed no migration. Stored circles without `epoch`/`updatedAt` count as epoch 0, last edited at `createdAt`. A pre-2.5 member circle gets its signing key when Settings shows it or on its next publish; copy the invite again to hand out `#o=`. Members who joined earlier keep reading: they pin the first signed snapshot (see Open limits). A snapshot from an owner app still on 2.4 is unsigned and is refused until that app updates and publishes.

@@ -1,5 +1,12 @@
 # Roadmap
 
+## Shipped in 2.6
+
+- Server-side circle epoch: owner devices that remove members offline converge on one invite.
+- Replay guard: members refuse a circle update older than one they already saw.
+- Notice while a circle's new signing key waits for sync.
+- Custom domain https://healthy.oakgatekeeper.uk with an automatic hand-over from the old address (2.5.1).
+
 ## Shipped in 2.5
 
 - Circle owner state synced across the owner's devices (inside the encrypted vault).
@@ -48,5 +55,5 @@
 
 ## Next
 
-1. Server-side circle epoch so two owner devices removing members offline cannot leave the invite out of step.
-2. Replay guard for signed circle snapshots (members reject an older signed snapshot).
+1. Replay floor that survives a reinstall (today the highest seen update is kept per device only).
+2. Shared test fixture for the vault circle state of the app and the service worker.

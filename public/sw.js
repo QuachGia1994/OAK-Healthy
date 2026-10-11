@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.5.1";
+const VERSION = "oak-v2.6.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -146,10 +146,13 @@ const putMeta = (db, key, value) => new Promise((res) => { const tx = db.transac
 // Circle state (meta "circles"/"circlePins") rides in the vault like lib/sync.ts. The SW cannot run mergeCircles
 // (lib/member-keys.ts), so it passes the pulled vault's circles through (local ones if the vault has none) and keeps
 // this device's pins over synced ones (sync.ts rule); the next tab sync merges both into meta and pushes the result.
+// Like lib/sync.ts circleState, the pushed copy drops a signer's `pending` (committed once it is in the vault); meta keeps
+// it until the next tab sync's commitSigners.
+const committedSigner = (c) => (c.sign && c.sign.pending ? { ...c, sign: { pub: c.sign.pub, priv: c.sign.priv, createdAt: c.sign.createdAt } } : c);
 function vaultCircles(remote, meta) {
   const mine = (k, d) => (meta.find((m) => m.key === k) || {}).value || d;
   const circles = remote.circles && remote.circles.length ? remote.circles : mine("circles", []);
-  return { circles, circlePins: { ...remote.circlePins, ...mine("circlePins", {}) } };
+  return { circles: circles.map(committedSigner), circlePins: { ...remote.circlePins, ...mine("circlePins", {}) } };
 }
 async function swSync() {
   const db = await openDb();

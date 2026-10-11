@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newSyncKey, open, seal } from "../lib/crypto.ts";
+import { newSyncKey, open, seal, unb64u } from "../lib/crypto.ts";
 import {
-  applyPins, canSign, checkSnapshot, commitSigners, contentKey, joinAuth, joinProof, mergeCircles, newContentKey, newJoinSecret, newMemberKeys, newSigner, openMemberKey,
+  applyPins, canSign, checkSeq, checkSnapshot, commitSigners, contentKey, epochGate, REPLAYED, STALE_EPOCH, UPDATE_APP, joinAuth, joinProof, mergeCircles, newContentKey, outOfStep, publishEpoch, newJoinSecret, newMemberKeys, newSigner, openMemberKey,
   pinsAfterRemoval, signSnapshot, TAMPERED, trustedMembers, UNSIGNED, unwrapFor, verifyProof, wrapFor, type OwnerCircle,
 } from "../lib/member-keys.ts";
 
@@ -155,4 +155,165 @@ test("member snapshots: only the pinned owner's signature is accepted", async ()
   await refused(checkSnapshot(CID, `${other}.${pub}.${sig}`, owner.pub), TAMPERED);
   await refused(checkSnapshot("othercircle1", blob, owner.pub), TAMPERED);
   await refused(checkSnapshot(CID, `${sealed}.${pub}.AAAA`), TAMPERED);
+});
+
+test("server epoch gate: 2.5 writes only while unset, first 2.6 write adopts its count, forward only after that", () => {
+  assert.deepEqual(epochGate(null, undefined), { ok: true, base: null }, "2.5 owner app, epoch never set: accepted");
+  assert.deepEqual(epochGate(4, undefined), { ok: false, epoch: 4, error: UPDATE_APP }, "2.5 owner app after a 2.6 write: update the app");
+  assert.deepEqual(epochGate(0, undefined), { ok: false, epoch: 0, error: UPDATE_APP }, "epoch 0 counts as set");
+  assert.deepEqual(epochGate(null, 3), { ok: true, base: 3 }, "first 2.6 write keeps the circle's own count");
+  assert.deepEqual(epochGate(3, 3), { ok: true, base: 3 });
+  assert.deepEqual(epochGate(4, 3), { ok: false, epoch: 4, error: STALE_EPOCH }, "stale: re-base on 4");
+  assert.deepEqual(epochGate(3, 4), { ok: true, base: 4 }, "ahead of the server: the newer owner state, the server moves up");
+});
+
+// A tiny model of worker/circles.ts POST /revoke on top of the shared gate, and of the owner devices around it.
+interface Srv { epoch: number | null; j: string; members: Set<string> }
+const rotate = (s: Srv, sent: number | undefined, userId: string, j: string) => {
+  if (s.j === j) return { ok: true as const, epoch: s.epoch }; // a retry of a rotation that already landed
+  const g = epochGate(s.epoch, sent);
+  if (!g.ok) return g;
+  s.members.delete(userId); s.j = j; s.epoch = g.base === null ? null : g.base + 1;
+  return { ok: true as const, epoch: s.epoch };
+};
+// PUT (publish): same gate, no change to j or member rows; wraps land only on rows that exist.
+const publish = (s: Srv & { wraps?: string[] }, sent: number, trusted: string[]) => {
+  const g = epochGate(s.epoch, sent);
+  if (!g.ok) return g;
+  s.epoch = g.base; s.wraps = trusted.filter((u) => s.members.has(u));
+  return { ok: true as const, epoch: s.epoch };
+};
+/** lib/circles.ts publishCircle: try the local epoch, on 409 sync and try again, publishing under the server's epoch
+ * if this device is still behind it. Returns the epoch it published under. */
+const publishFrom = (s: Srv, local: () => OwnerCircle, sync: () => void, trusted: string[]) => {
+  let refused: number | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const epoch = publishEpoch(local().epoch ?? 0, refused), r = publish(s, epoch, trusted);
+    if (r.ok) return epoch;
+    refused = r.epoch;
+    if (attempt === 0) sync();
+  }
+  return null;
+};
+const drop = (pins: Record<string, string>, id: string) => Object.fromEntries(Object.entries(pins).filter(([k]) => k !== id));
+
+for (const aPushed of [true, false]) {
+  test(`two owner devices remove different members offline and converge (${aPushed ? "A synced" : "A never synced"})`, () => {
+    const pins = { m1: "P1", m2: "P2", c: "PC" };
+    const s: Srv = { epoch: 0, j: "j0", members: new Set(Object.keys(pins)) };
+    let vault: OwnerCircle[] = [{ id: CID, j: "j0", epoch: 0, members: pins, createdAt: 1, updatedAt: 1 }];
+    let a = vault[0], b = vault[0];
+    // A removes m1.
+    const ra = rotate(s, a.epoch, "m1", "jA");
+    assert.ok(ra.ok);
+    a = { ...a, j: "jA", epoch: ra.epoch!, members: drop(pins, "m1"), updatedAt: 30 };
+    if (aPushed) vault = mergeCircles(vault, [a]);
+    // B, offline since before that, removes m2: refused, re-bases (lib/circles.ts rebase), retries.
+    const stale = rotate(s, b.epoch, "m2", "jB");
+    assert.equal(stale.ok, false);
+    assert.equal((stale as { epoch: number }).epoch, 1);
+    b = { ...mergeCircles([b], vault)[0], epoch: (stale as { epoch: number }).epoch };
+    const rb = rotate(s, b.epoch, "m2", "jB");
+    assert.ok(rb.ok);
+    // pinsAfterRemoval keeps only pins the server still lists, so A's removal of m1 survives even when B never saw it.
+    const listed = Object.fromEntries(Object.entries(b.members ?? {}).filter(([k]) => s.members.has(k)));
+    b = { ...b, j: "jB", epoch: rb.epoch!, members: listed, updatedAt: 20 };
+    assert.deepEqual(b.members, { c: "PC" });
+    vault = mergeCircles(vault, [b]);
+    // A's next publish carries epoch 1: refused (server 2), A syncs, gets jB at 2, publishes on it.
+    assert.equal(publishFrom(s, () => a, () => { a = mergeCircles([a], vault)[0]; }, Object.keys(a.members ?? {})), 2);
+    assert.equal(a.j, "jB");
+    assert.equal(outOfStep(a.epoch!, 2), false, "no out-of-step note: A holds the server's invite");
+    assert.deepEqual([s.j, a.j, b.j], ["jB", "jB", "jB"], "one invite secret everywhere, the one the server holds");
+    assert.equal(s.epoch, 2);
+    assert.deepEqual([...s.members], ["c"], "both removals applied");
+    assert.equal(a.epoch, 2);
+  });
+}
+
+test("the 2.5 flow left the invite out of step (why the server keeps the epoch)", () => {
+  const s = { j: "j0", members: new Set(["m1", "m2", "c"]) };
+  const base: OwnerCircle = { id: CID, j: "j0", epoch: 0, createdAt: 1, updatedAt: 1 };
+  // 2.5: the server took every rotation; each device stored max(local)+1. A's local edit is newer, B posted last.
+  s.members.delete("m1"); s.j = "jA"; const a = { ...base, j: "jA", epoch: 1, updatedAt: 30 };
+  s.members.delete("m2"); s.j = "jB"; const b = { ...base, j: "jB", epoch: 1, updatedAt: 20 };
+  const merged = mergeCircles([a], [b])[0];
+  assert.notEqual(merged.j, s.j, "devices keep jA while the server holds jB: the copied invite no longer works");
+  assert.equal(rotate({ epoch: 1, j: "jA", members: new Set() }, 0, "m2", "jB").ok, false, "2.6 refuses B's stale rotation instead");
+});
+
+test("rollout: a behind owner device publishes first, the server adopts its lower count, both devices still publish", () => {
+  const strict = (server: number | null, sent: number) => server === null || sent === server; // 2.6 review build
+  const s: Srv = { epoch: null, j: "j3", members: new Set(["m", "c"]) }; // pre-2.6 circle; A's 2.5 rotation set j3
+  let vault: OwnerCircle[] = [{ id: CID, j: "j3", epoch: 3, members: { c: "PC" }, createdAt: 1, updatedAt: 9 }];
+  let a = vault[0], b: OwnerCircle = { id: CID, j: "j2", epoch: 2, members: { c: "PC", m: "PM" }, createdAt: 1, updatedAt: 5 };
+  assert.equal(publishFrom(s, () => b, () => {}, ["c", "m"]), 2, "B, behind, publishes first");
+  assert.equal(s.epoch, 2, "the server adopted the lower count");
+  assert.equal(strict(s.epoch, a.epoch!), false, "strict gate: A (epoch 3) refused for good, nothing ever writes 3");
+  assert.equal(publishFrom(s, () => a, () => { a = mergeCircles([a], vault)[0]; }, ["c"]), 3, "forward only: A's newer state is accepted");
+  assert.equal(s.epoch, 3);
+  assert.equal(publishFrom(s, () => b, () => { b = mergeCircles([b], vault)[0]; }, Object.keys(b.members ?? {})), 3, "B: 409, syncs, gets j3, publishes");
+  assert.equal(b.j, "j3");
+  assert.deepEqual([outOfStep(a.epoch!, 3), outOfStep(b.epoch!, 3)], [false, false]);
+});
+
+test("revoke answer lost: the next publish never stalls, the removal holds, the device finishes the rotation", () => {
+  const s: Srv & { wraps?: string[] } = { epoch: 0, j: "j0", members: new Set(["m", "c"]) };
+  const base: OwnerCircle = { id: CID, j: "j0", epoch: 0, members: { m: "PM", c: "PC" }, createdAt: 1, updatedAt: 1 };
+  let vault: OwnerCircle[] = [base], a = base, b = base;
+  // A removes m: lib/circles.ts rotate stores { j: jNew, from: 0 } in circleRotating, the server commits, the answer is lost.
+  const inFlight = { userId: "m", j: "jNew", from: a.epoch! };
+  assert.ok(rotate(s, inFlight.from, inFlight.userId, inFlight.j).ok);
+  assert.deepEqual([s.epoch, a.epoch, a.j], [1, 0, "j0"], "server at 1 with jNew; A still holds j0");
+  // B (vault has nothing newer) publishes: 409 → sync → still behind → publishes under the server's epoch.
+  const strictStall = epochGate(1, 0).ok;
+  assert.equal(strictStall, false, "epoch 0 alone is refused (the 2.6 review build skipped from here on, forever)");
+  assert.equal(publishFrom(s, () => b, () => { b = mergeCircles([b], vault)[0]; }, ["m", "c"]), 1);
+  assert.deepEqual(s.wraps, ["c"], "the removed member gets no wrap: its row is gone");
+  assert.equal(s.j, "jNew", "the publish did not touch the invite");
+  assert.equal(outOfStep(b.epoch!, 1), true, "B shows the out-of-step note");
+  // A's next publish finishes the rotation first: the same request again, the server already holds jNew.
+  const again = rotate(s, inFlight.from, inFlight.userId, inFlight.j);
+  assert.deepEqual(again, { ok: true, epoch: 1 });
+  a = { ...a, j: inFlight.j, epoch: again.epoch!, members: { c: "PC" }, updatedAt: 20 };
+  vault = mergeCircles(vault, [a]);
+  assert.equal(publishFrom(s, () => a, () => {}, ["c"]), 1);
+  b = mergeCircles([b], vault)[0];
+  assert.deepEqual([b.j, b.epoch, outOfStep(b.epoch!, 1)], ["jNew", 1, false], "B gets jNew; the note clears");
+  assert.deepEqual([...s.members], ["c"], "the removal held throughout");
+  // The POST never arrived: the retry applies it now (it is not lost either).
+  const s2: Srv = { epoch: 0, j: "j0", members: new Set(["m", "c"]) };
+  assert.deepEqual(rotate(s2, 0, "m", "jNew"), { ok: true, epoch: 1 });
+  assert.deepEqual([...s2.members], ["c"]);
+});
+
+test("replay guard: members keep the highest seq and refuse an older or unnumbered snapshot", () => {
+  assert.equal(checkSeq(undefined, 5), 5, "first numbered snapshot");
+  assert.equal(checkSeq(undefined, undefined), undefined, "2.5 owner, nothing seen yet: shown, nothing stored");
+  assert.equal(checkSeq(5, 6), 6);
+  assert.equal(checkSeq(5, 5), 5, "the same snapshot again is fine");
+  const refused = (fn: () => unknown) => assert.throws(fn, (e: Error) => e.name === "SnapshotRefused" && e.message === REPLAYED);
+  refused(() => checkSeq(5, 4));
+  refused(() => checkSeq(5, undefined));
+  const x: OwnerCircle = { id: CID, seq: 7, createdAt: 1, updatedAt: 9 }, y: OwnerCircle = { id: CID, seq: 3, createdAt: 1, updatedAt: 10 };
+  assert.equal(mergeCircles([x], [y])[0].seq, 7, "owner devices keep the highest publish number");
+});
+
+test("a 2.5 member verifies a 2.6 snapshot", async () => {
+  // The 2.5 member check, frozen: blob iv.ct.pub.sig, ECDSA over oak-circle-sig-v1|circle|pub|iv.ct.
+  const verify25 = async (circleId: string, blob: string, pinned: string) => {
+    const [iv, ct, pub, sig] = blob.split("."), sealed = `${iv}.${ct}`;
+    if (pub !== pinned) return null;
+    const k = await crypto.subtle.importKey("raw", unb64u(pub), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const ok = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, k, unb64u(sig), new TextEncoder().encode(`oak-circle-sig-v1|${circleId}|${pub}|${sealed}`));
+    return ok ? sealed : null;
+  };
+  const owner = await newSigner(), raw = newContentKey();
+  const view26 = { v: 1, profile: { name: "Mom", color: "#1F6B4D" }, routines: [], intakes: [], publishedAt: 5, seq: 12 };
+  const blob = await signSnapshot(owner, CID, await seal(await contentKey(raw, "encrypt"), view26));
+  const sealed = await verify25(CID, blob, owner.pub);
+  assert.ok(sealed, "signature and blob format unchanged");
+  const seen = await open<{ v: number; profile: { name: string }; seq?: number }>(await contentKey(raw, "decrypt"), sealed!);
+  assert.equal(seen.profile.name, "Mom", "a 2.5 member reads it; seq is just an extra field");
+  assert.equal(seen.seq, 12, "the seq a 2.6 member checks is inside the signed ciphertext");
 });

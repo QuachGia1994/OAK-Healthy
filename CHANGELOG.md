@@ -6,8 +6,15 @@ versioning where practical.
 
 ## [Unreleased]
 
+### Added
+
+- Server-side circle epoch (migration 0005): every owner write carries the epoch it last saw; a stale one gets 409 and the device re-bases on the vault, so two owner devices removing different members offline end with both removals and one invite. A 2.5 app can change a circle only until a 2.6 device has written to it.
+- Replay guard: each circle publish carries a counter inside the sealed payload; a member device refuses an update older than one it already showed. 2.5 members still verify 2.6 updates.
+- A circle whose new signing key is not synced yet says so in Settings.
+
 ### Fixed
 
+- A vault push from the service worker no longer carries a not-yet-committed signing key.
 - Old-address handoff: edited or extra profiles count as local data (only the untouched first-run profile is ignored), so such a device keeps them and sees the notice; a malformed key in a device link no longer throws.
 
 ## [2.5.1] - 2026-10-11
