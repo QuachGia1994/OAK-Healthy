@@ -6,6 +6,16 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-10-11
+
+### Changed
+
+- The old workers.dev address hands over to https://healthy.oakgatekeeper.uk: a synced device pushes, turns off its old reminders and links the new address with its sync key, then opens the page that was asked for (invites, shares and reset links keep working); a device with no data goes straight over; a device with unsynced data shows a notice to turn on sync first. Google and GitHub sign-in accept both addresses.
+
+### Security
+
+- The `next=` target after linking a device is followed only when the URL parser resolves it to this origin.
+
 ## [2.5.0] - 2026-10-11
 
 ### Added

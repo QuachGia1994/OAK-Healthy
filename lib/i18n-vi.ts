@@ -530,4 +530,6 @@ export const VI: Record<string, string> = {
   "Members only": "Chỉ dành cho thành viên",
   "This circle update isn't signed by its owner, so it isn't shown.": "Bản cập nhật vòng chia sẻ này không có chữ ký của chủ sở hữu nên không được hiển thị.",
   "This circle update failed its signature check, so it isn't shown. Ask the owner for a new invite.": "Bản cập nhật vòng chia sẻ này không qua được kiểm tra chữ ký nên không được hiển thị. Hãy xin chủ sở hữu một lời mời mới.",
+  "OAK Healthy moved to healthy.oakgatekeeper.uk. Turn on sync in Settings to take your data along, then reload this page.": "OAK Healthy đã chuyển sang healthy.oakgatekeeper.uk. Hãy bật đồng bộ trong Cài đặt để mang dữ liệu theo, rồi tải lại trang này.",
+  "OAK Healthy moved to healthy.oakgatekeeper.uk, but this device couldn't sync first. Check sync in Settings, then reload this page.": "OAK Healthy đã chuyển sang healthy.oakgatekeeper.uk, nhưng thiết bị này chưa đồng bộ được. Hãy kiểm tra đồng bộ trong Cài đặt, rồi tải lại trang này.",
 };

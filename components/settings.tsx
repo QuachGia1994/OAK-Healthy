@@ -11,6 +11,7 @@ import { disableReminders, enableReminders, pushReminderTimes, pushSupported, te
 import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, getCircles, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
 import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
+import { safeNext } from "@/lib/domain/safe-next";
 import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow } from "@/lib/sync";
 import { DeviceQr } from "./device-qr";
 import { useOak } from "@/lib/use-oak";
@@ -142,18 +143,23 @@ export function SettingsView() {
   };
   // QR handoff: another device's QR opens /settings/#link=<key>. Strip it from the address bar right away.
   useEffect(() => {
-    const m = location.hash.match(/^#link=(.+)$/);
+    // next= (old-domain move, components/domain-move.tsx): the page the visitor asked for, same-origin paths only.
+    const m = location.hash.match(/^#link=([^&]+)(?:&next=(.+))?$/);
     if (!m) return;
     history.replaceState(null, "", location.pathname + location.search);
+    let next = "";
+    try { next = m[2] ? decodeURIComponent(m[2]) : ""; } catch { /* malformed next= is ignored */ }
+    const go = () => { const to = safeNext(next, location.origin, location.pathname); if (to) location.replace(to); };
     const k = decodeURIComponent(m[1]).trim().toUpperCase();
-    if (!isValidKey(k)) { toast.error(t("That doesn't look like an OAK sync key")); return; }
+    if (!isValidKey(k)) { toast.error(t("That doesn't look like an OAK sync key")); return go(); }
     void (async () => {
       const cur = await getSyncKey();
-      if (cur && normalizeKey(cur) === normalizeKey(k)) { toast.success(t("This device is already linked")); return; }
-      if (cur) { toast.error(t("This device already syncs with another key. Turn off sync first.")); return; }
-      if (!confirm(t("Link this device to the encrypted vault from your other device?"))) return;
+      if (cur && normalizeKey(cur) === normalizeKey(k)) { toast.success(t("This device is already linked")); return go(); }
+      if (cur) { toast.error(t("This device already syncs with another key. Turn off sync first.")); return go(); }
+      if (!confirm(t("Link this device to the encrypted vault from your other device?"))) return go();
       await setSyncKey(k);
       if (await doSync(k)) { await adoptSyncedProfiles(); await syncNow(k); }
+      go();
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const enable = async () => { const k = newSyncKey(); await setSyncKey(k); setReveal(true); await doSync(k); };

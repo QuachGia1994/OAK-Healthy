@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.5.0";
+const VERSION = "oak-v2.5.1";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {

@@ -10,6 +10,7 @@ import { RoutineDrawer, openRoutine } from "./routine-drawer";
 import { useHotkey } from "@/lib/use-oak";
 import { Logo } from "./ui";
 import { SyncAgent } from "./settings";
+import { DomainMove } from "./domain-move";
 import { getLang, useT } from "@/lib/i18n";
 import { setMeta } from "@/lib/db";
 import { UserRound } from "lucide-react";
@@ -33,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   const active = (href: string) => (href === "/" ? path === "/" : path?.startsWith(href.replace(/\/$/, "")));
 
-  if (bare) return (<>{children}<Toaster position="bottom-right" customAriaLabel={t("Notifications")} /></>);
+  if (bare) return (<>{children}<DomainMove /><Toaster position="bottom-right" customAriaLabel={t("Notifications")} /></>);
 
   return (
     <div className="flex min-h-dvh bg-neutral-50 dark:bg-neutral-950">
@@ -72,6 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <CommandMenu />
       <SyncAgent />
+      <DomainMove />
       <RoutineDrawer />
       <Toaster position="bottom-right" customAriaLabel={t("Notifications")} mobileOffset={{ bottom: "calc(76px + env(safe-area-inset-bottom))" }} toastOptions={{ className: "!rounded-xl !border-neutral-200 !font-sans" }} />
     </div>
