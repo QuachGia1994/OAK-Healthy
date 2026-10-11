@@ -1,5 +1,11 @@
 # Roadmap
 
+## Shipped in 2.3
+
+- Change password while signed in; add a password to OAuth-only accounts; link/unlink Google and GitHub from Account.
+- Reminder snooze (10 min / 1 hour) and per-routine reminder toggles.
+- Barcode lookup (on-device decode + Open Food Facts) next to label OCR.
+
 ## Shipped in 2.2
 
 - Readable share URLs `/s/<handle>/<slug>` with link previews (public metadata only).
@@ -28,7 +34,6 @@
 
 ## Next
 
-1. Link a second sign-in method from Account (password ↔ Google/GitHub) and change password while signed in.
-2. Circle members with their own accounts (per-member public keys) instead of bearer links.
-3. Reminder snooze and per-routine reminder toggles.
-4. Barcode lookup to complement OCR.
+1. Circle members with their own accounts (per-member public keys) instead of bearer links.
+2. “Mark taken” action on the reminder notification.
+3. Live camera barcode scanning (continuous) in addition to photos.

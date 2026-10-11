@@ -165,6 +165,37 @@ export async function auth(req: Request, env: Env, url: URL, action: string): Pr
     return json({ ok: true });
   }
 
+  // Change the password (or add one to a Google/GitHub-only account). The client re-wraps the same sync key, so the
+  // vault is untouched. Other sessions are signed out; this one stays.
+  if (action === "password" && m === "POST") {
+    const u = await sessionUser(req, env);
+    if (!u) return json({ error: "Sign in first" }, 401);
+    const b = await body<{ oldAuthKey?: string; salt?: string; authKey?: string; wrapped?: string }>(req);
+    if (!isB64(b?.salt, 16, 64) || !isB64(b.authKey, 40, 64) || !isB64(b.wrapped, 20, 2000)) return json({ error: "bad body" }, 400);
+    if (!(await limit(env, `password:${u.id}`, 10, 60 * 60e3))) return tooMany();
+    if (u.auth_hash && (!u.salt || !isB64(b.oldAuthKey, 40, 64) || (await authHash(u.salt, b.oldAuthKey)) !== u.auth_hash)) return json({ error: "Current password is wrong" }, 403);
+    const keep = await sha256(cookie(req, COOKIE)!);
+    await env.DB.batch([
+      env.DB.prepare("UPDATE users SET salt = ?, auth_hash = ?, wrapped = ? WHERE id = ?").bind(b.salt, await authHash(b.salt, b.authKey), b.wrapped, u.id),
+      env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND id_hash != ?").bind(u.id, keep),
+      env.DB.prepare("DELETE FROM reset_tokens WHERE user_id = ?").bind(u.id),
+    ]);
+    return json({ ok: true });
+  }
+
+  // Unlink Google/GitHub, but never the last way to sign in.
+  if (action === "identity" && m === "DELETE") {
+    const u = await sessionUser(req, env);
+    if (!u) return json({ error: "Sign in first" }, 401);
+    const b = await body<{ provider?: string }>(req);
+    if (b?.provider !== "google" && b?.provider !== "github") return json({ error: "unknown provider" }, 400);
+    const ids = (await env.DB.prepare("SELECT provider FROM identities WHERE user_id = ?").bind(u.id).all<{ provider: string }>()).results;
+    if (!ids.some((r) => r.provider === b.provider)) return json({ error: "Not linked" }, 404);
+    if (!u.auth_hash && ids.every((r) => r.provider === b.provider)) return json({ error: "Add a password or another sign-in method first" }, 409);
+    await env.DB.prepare("DELETE FROM identities WHERE user_id = ? AND provider = ?").bind(u.id, b.provider).run();
+    return json({ ok: true });
+  }
+
   return json({ error: "not found" }, 404);
 }
 
@@ -179,7 +210,7 @@ const STATE_COOKIE = "oak_oauth";
 // The state is bound to this browser by an HttpOnly cookie (login-CSRF / forced account linking defence).
 const stateCookie = (url: URL, value: string, maxAge: number) =>
   `${STATE_COOKIE}=${value}; Path=/api/auth/oauth/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${url.protocol === "https:" ? "; Secure" : ""}`;
-const back = (env: Env, url: URL, q: string) => new Response(null, { status: 302, headers: { location: `${appOrigin(env, url)}/login/?${q}`, "set-cookie": stateCookie(url, "", 0) } });
+const back = (env: Env, url: URL, q: string, page = "login") => new Response(null, { status: 302, headers: { location: `${appOrigin(env, url)}/${page}/?${q}`, "set-cookie": stateCookie(url, "", 0) } });
 
 export async function oauth(req: Request, env: Env, url: URL, p: string, step: string): Promise<Response> {
   if (p !== "google" && p !== "github") return json({ error: "unknown provider" }, 404);
@@ -224,10 +255,14 @@ export async function oauth(req: Request, env: Env, url: URL, p: string, step: s
     }
     email = normEmail(email);
     let userId = (await env.DB.prepare("SELECT user_id FROM identities WHERE provider = ? AND subject = ?").bind(p, subject).first<{ user_id: string }>())?.user_id;
+    const signedIn = await sessionUser(req, env);
+    // Linking from Account while signed in: never silently switch to the other account that owns this identity.
+    if (userId && signedIn && userId !== signedIn.id) return back(env, url, `error=identity_taken&provider=${p}`, "account");
+    const linked = !!signedIn && !userId;
     if (!userId) {
-      const signedIn = await sessionUser(req, env);
       const existing = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
       if (signedIn && (!existing || existing.id === signedIn.id)) userId = signedIn.id; // explicit link from a signed-in session
+      else if (signedIn) return back(env, url, `error=email_taken&provider=${p}`, "account");
       else if (existing) return back(env, url, `error=account_exists&provider=${p}`); // never auto-merge by email
       else {
         userId = crypto.randomUUID();
@@ -235,7 +270,7 @@ export async function oauth(req: Request, env: Env, url: URL, p: string, step: s
       }
       await env.DB.prepare("INSERT OR IGNORE INTO identities (provider, subject, user_id, created_at) VALUES (?, ?, ?, ?)").bind(p, subject, userId, Date.now()).run();
     }
-    const h2 = new Headers({ location: `${appOrigin(env, url)}/account/?signedin=${p}` });
+    const h2 = new Headers({ location: `${appOrigin(env, url)}/account/?${linked ? "linked" : "signedin"}=${p}` });
     h2.append("set-cookie", await newSession(env, url, userId));
     h2.append("set-cookie", stateCookie(url, "", 0));
     return new Response(null, { status: 302, headers: h2 });

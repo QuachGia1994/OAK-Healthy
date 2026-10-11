@@ -2,6 +2,7 @@
 // notification from on-device data, so the server only knows "ping this endpoint at minute N (UTC)".
 import { DurableObject } from "cloudflare:workers";
 import { b64u, body, type Env, json, sha256 } from "./util";
+import { okSnooze } from "../lib/domain/remind";
 
 const te = new TextEncoder();
 let signKey: CryptoKey | null = null;
@@ -31,7 +32,7 @@ const okEndpoint = (e: unknown): e is string => {
 export async function push(req: Request, env: Env, action: string): Promise<Response> {
   if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE_JWK) return json({ error: "Push is not configured" }, 503);
   if (action === "key" && req.method === "GET") return json({ key: env.VAPID_PUBLIC });
-  const b = await body<{ endpoint?: string; minutes?: number[] }>(req);
+  const b = await body<{ endpoint?: string; minutes?: number[]; snooze?: number }>(req);
   if (!okEndpoint(b?.endpoint)) return json({ error: "bad endpoint" }, 400);
   const id = await sha256(b.endpoint);
   if (action === "subscribe" && req.method === "PUT") {
@@ -46,6 +47,15 @@ export async function push(req: Request, env: Env, action: string): Promise<Resp
     await env.DB.prepare("DELETE FROM push_subs WHERE id = ?").bind(id).run();
     return json({ ok: true });
   }
+  // One-off ping N minutes from now (notification "Snooze" action). One pending snooze per endpoint; latest wins.
+  if (action === "snooze" && req.method === "POST") {
+    if (!okSnooze(b.snooze)) return json({ error: "bad snooze" }, 400);
+    const at = Math.floor((Date.now() + b.snooze * 60e3) / 60e3) * 60e3;
+    const r = await env.DB.prepare("UPDATE push_subs SET snooze_at = ? WHERE id = ?").bind(at, id).run();
+    if (!r.meta.changes) return json({ error: "not subscribed" }, 404);
+    await armClock(env).catch(() => {});
+    return json({ ok: true, at });
+  }
   if (action === "test" && req.method === "POST") {
     const row = await env.DB.prepare("SELECT endpoint FROM push_subs WHERE id = ?").bind(id).first<{ endpoint: string }>();
     if (!row) return json({ error: "not subscribed" }, 404);
@@ -55,13 +65,14 @@ export async function push(req: Request, env: Env, action: string): Promise<Resp
   return json({ error: "not found" }, 404);
 }
 
-/** Cron (every minute): ping endpoints whose reminder list contains the current UTC minute. */
+/** Every minute: ping endpoints whose reminder list contains the current UTC minute, or whose snooze is due. */
 export async function remind(env: Env, when = Date.now()) {
   if (!env.VAPID_PUBLIC || !env.VAPID_PRIVATE_JWK) return 0;
   const d = new Date(when);
   const key = "%," + String(d.getUTCHours() * 60 + d.getUTCMinutes()).padStart(4, "0") + ",%";
   // Workers Free allows 50 subrequests per invocation: cap at 45 pushes per minute (raise on a paid plan).
-  const rows = await env.DB.prepare("SELECT id, endpoint FROM push_subs WHERE minutes LIKE ? ORDER BY updated_at LIMIT 45").bind(key).all<{ id: string; endpoint: string }>();
+  const rows = await env.DB.prepare("SELECT id, endpoint FROM push_subs WHERE minutes LIKE ? OR snooze_at <= ? ORDER BY updated_at LIMIT 45").bind(key, when + 30e3).all<{ id: string; endpoint: string }>();
+  if (rows.results.length) await env.DB.prepare(`UPDATE push_subs SET snooze_at = NULL WHERE snooze_at <= ? AND id IN (${rows.results.map(() => "?").join(",")})`).bind(when + 30e3, ...rows.results.map((r) => r.id)).run();
   let sent = 0;
   await Promise.all(rows.results.map(async (r) => {
     const res = await sendPush(env, r.endpoint, "dose").catch(() => null);

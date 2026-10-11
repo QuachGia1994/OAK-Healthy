@@ -1,6 +1,7 @@
 "use client";
 import { useT, t as tt, locale } from "@/lib/i18n";
 import { LabelScan } from "./label-scan";
+import { BarcodeScan } from "./barcode-scan";
 import { Copy } from "lucide-react";
 import type { LabelGuess } from "@/lib/domain/label";
 import { useEffect, useState } from "react";
@@ -89,7 +90,7 @@ export function RoutineDrawer() {
             <button aria-label={t("Close")} onClick={() => setOpen(false)} className="flex size-11 items-center justify-center rounded-md text-neutral-400 md:size-8 hover:bg-neutral-100 dark:hover:bg-neutral-800"><X className="size-4" /></button>
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
-            {isNew && <LabelScan onResult={fromLabel} />}
+            {isNew && <div className="grid grid-cols-2 gap-2"><LabelScan onResult={fromLabel} /><BarcodeScan onResult={fromLabel} /></div>}
             <div className="relative">
               <label className="label" htmlFor="rname">{t("Name")}</label>
               <input id="rname" autoFocus={isNew} className="input" placeholder={t("e.g. Vitamin D3")} value={r.name} autoComplete="off"
@@ -147,7 +148,10 @@ export function RoutineDrawer() {
               {expiresOn(r) && <p className="mt-2 text-xs text-neutral-500">{t("Use by {d}", { d: new Date(expiresOn(r)! + "T00:00").toLocaleDateString(locale()) })}</p>}
             </div>
             <div><label className="label">{t("Note")}</label><textarea rows={2} className="input h-auto py-2" value={r.note ?? ""} onChange={(e) => set("note", e.target.value)} /></div>
-            <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-5 accent-[#1F6B4D] md:size-auto" checked={r.paused} onChange={(e) => set("paused", e.target.checked)} /> {t("Paused")}</label>
+            <div className="flex flex-wrap gap-x-6">
+              <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-5 accent-[#1F6B4D] md:size-auto" checked={r.remind !== false} onChange={(e) => set("remind", e.target.checked)} /> {t("Remind me at this time")}</label>
+              <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-5 accent-[#1F6B4D] md:size-auto" checked={r.paused} onChange={(e) => set("paused", e.target.checked)} /> {t("Paused")}</label>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 px-5 pb-[max(env(safe-area-inset-bottom),12px)] pt-3 dark:border-neutral-800">
             {!isNew && <button onClick={remove} aria-label={t("Delete")} className="btn w-11 px-0 text-missed md:w-auto md:px-3"><Trash2 className="size-4" /> <span className="hidden md:inline">{t("Delete")}</span></button>}

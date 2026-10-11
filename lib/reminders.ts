@@ -1,16 +1,13 @@
 "use client";
 // Web Push reminders. The server gets an endpoint plus the UTC minutes to ping — never supplement names.
 import { db, getMeta, setMeta } from "./db";
+import { utcMinutes } from "./domain/remind";
 
 export const pushSupported = () => typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 
 /** Local HH:mm of active routines for every profile → UTC minute-of-day, for today's offset. */
 export async function reminderMinutes() {
-  const off = new Date().getTimezoneOffset();
-  const rs = (await db.routines.toArray()).filter((r) => !r.deletedAt && !r.paused);
-  const set = new Set<number>();
-  for (const r of rs) { const [h, m] = r.time.split(":").map(Number); set.add((((h * 60 + m + off) % 1440) + 1440) % 1440); }
-  return [...set].sort((a, b) => a - b);
+  return utcMinutes(await db.routines.toArray(), new Date().getTimezoneOffset());
 }
 
 async function registration() {

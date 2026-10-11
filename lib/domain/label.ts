@@ -1,6 +1,6 @@
 import { matchInText, type Reference } from "./knowledge.ts";
 
-export interface LabelGuess { ref?: Reference; name?: string; dose?: string; stock?: number; perDose?: number }
+export interface LabelGuess { ref?: Reference; name?: string; dose?: string; stock?: number; perDose?: number; barcode?: string }
 
 /** Turn OCR text from a supplement label into routine prefill values. Pure, so it is unit-tested. */
 export function parseLabel(text: string): LabelGuess {
@@ -24,4 +24,23 @@ export function parseLabel(text: string): LabelGuess {
     stock: count ? Number(count[1]) : undefined,
     perDose: serving ? Number(serving[1]) : undefined,
   };
+}
+
+/** EAN-8 / UPC-A / EAN-13 / GTIN-14 with a valid mod-10 check digit. */
+export function validGtin(code: string) {
+  if (!/^(\d{8}|\d{12,14})$/.test(code)) return false;
+  const d = [...code].map(Number), check = d.pop()!;
+  const sum = d.reverse().reduce((s, n, i) => s + n * (i % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === check;
+}
+
+/** Open Food Facts product fields we read (they also list many supplements). */
+export interface OffProduct { product_name?: string; generic_name?: string; brands?: string; quantity?: string; serving_size?: string }
+
+/** Product record → routine prefill: known supplement first, else the product name; count/dose via parseLabel. */
+export function fromProduct(p: OffProduct, barcode?: string): LabelGuess {
+  const title = [p.product_name || p.generic_name, p.brands?.split(",")[0]?.trim()].filter(Boolean).join(" · ");
+  const g = parseLabel([p.product_name, p.generic_name, p.quantity, p.serving_size && `serving size ${p.serving_size}`].filter(Boolean).join("\n"));
+  const own = (p.product_name || p.generic_name || "").trim().slice(0, 80);
+  return { ...g, name: g.ref?.name ?? (own || title || undefined), barcode };
 }

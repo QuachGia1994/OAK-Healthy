@@ -24,6 +24,8 @@ export interface Routine {
   cycle: CycleConfig;
   category: Category;
   paused: boolean;
+  /** Push reminder at dose time (undefined = on). */
+  remind?: boolean;
   /** Pills left; null = not tracked. */
   stock: number | null;
   perDose: number;

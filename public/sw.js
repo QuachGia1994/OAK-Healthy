@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.2.0";
+const VERSION = "oak-v2.3.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -37,24 +37,32 @@ function idb(store) {
     };
   });
 }
+// Snoozed doses live in meta "snoozed" = { ids, at } (set by the notification action below).
 async function dueNow() {
   const [routines, meta] = await Promise.all([idb("routines"), idb("meta")]);
   const lang = (meta.find((m) => m.key === "lang") || {}).value === "vi" ? "vi" : "en";
+  const snz = (meta.find((m) => m.key === "snoozed") || {}).value;
   const d = new Date(), mins = d.getHours() * 60 + d.getMinutes();
+  const woke = snz && snz.at <= Date.now() + 90e3 ? new Set(snz.ids) : null;
   const due = routines.filter((r) => {
     if (r.deletedAt || r.paused) return false;
+    if (woke && woke.has(r.id)) return true;
+    if (r.remind === false) return false;
     const [h, m] = String(r.time).split(":").map(Number);
     return Math.abs(h * 60 + m - mins) <= 2;
   });
+  if (woke) await openDb().then((db) => putMeta(db, "snoozed", null).finally(() => db.close())).catch(() => {});
   return { lang, due };
 }
+const SNOOZES = [10, 60];
 self.addEventListener("push", (e) => {
   e.waitUntil(dueNow().then(({ lang, due }) => {
     const vi = lang === "vi";
     const names = due.map((r) => r.name).slice(0, 4).join(", ");
     const title = due.length ? (vi ? `Đến giờ uống: ${names}` : `Time for ${names}`) : (vi ? "Nhắc nhở OAK" : "OAK reminder");
     const body = due.length ? due.map((r) => `${r.time} · ${r.dose || r.name}`).slice(0, 4).join("\n") : (vi ? "Mở OAK để xem liều hôm nay." : "Open OAK to see today's doses.");
-    return self.registration.showNotification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png", tag: "oak-dose", renotify: true, data: { url: "/" } });
+    const actions = due.length ? SNOOZES.map((n) => ({ action: `snooze-${n}`, title: vi ? (n < 60 ? `Báo lại ${n} phút` : "Báo lại 1 giờ") : (n < 60 ? `Snooze ${n} min` : "Snooze 1 hour") })) : [];
+    return self.registration.showNotification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png", tag: "oak-dose", renotify: true, actions, data: { url: "/", ids: due.map((r) => r.id) } });
   }));
 });
 // Background Sync ("oak-sync", registered by the app when offline or a push failed on the network).
@@ -133,8 +141,17 @@ self.addEventListener("sync", (e) => {
     return swSync();
   }));
 });
+async function snooze(ids, n) {
+  const sub = await self.registration.pushManager.getSubscription();
+  if (!sub || !ids.length) return;
+  const db = await openDb();
+  try { await putMeta(db, "snoozed", { ids, at: Date.now() + n * 60e3 }); } finally { db.close(); }
+  await fetch("/api/push/snooze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint, snooze: n }) });
+}
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
+  const sn = /^snooze-(\d+)$/.exec(e.action || "");
+  if (sn) { e.waitUntil(snooze((e.notification.data && e.notification.data.ids) || [], Number(sn[1])).catch(() => {})); return; }
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
     const c = cs.find((x) => new URL(x.url).origin === location.origin);
     return c ? c.focus() : self.clients.openWindow("/");

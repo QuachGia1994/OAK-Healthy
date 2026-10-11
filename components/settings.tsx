@@ -3,13 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Bell, Copy, Download, KeyRound, Monitor, RefreshCw, Trash2, Upload, UserRound, Users } from "lucide-react";
+import { Bell, BellOff, Copy, Download, KeyRound, Monitor, RefreshCw, Trash2, Upload, UserRound, Users } from "lucide-react";
 import { useT, locale } from "@/lib/i18n";
 import { LangToggle } from "./lang-toggle";
 import { getMe, type Me } from "@/lib/account";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
 import { circleUrl, createCircle, getCircles, publishCircles, revokeCircle, type Circle } from "@/lib/circles";
-import { adoptSyncedProfiles, db, mergeSnapshot, snapshot, type Snapshot } from "@/lib/db";
+import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
 import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
 import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow } from "@/lib/sync";
 import { DeviceQr } from "./device-qr";
@@ -68,6 +68,8 @@ export function SettingsView() {
   const [circles, setCircles] = useState<Circle[]>([]);
   const [label, setLabel] = useState("");
   const pushMeta = useLiveQuery(() => db.meta.get("push"), [], undefined)?.value;
+  const mine = useLiveQuery(() => db.routines.where("clientId").equals(profile?.id ?? "").toArray(), [profile?.id], [])
+    .filter((r) => !r.deletedAt && !r.paused).sort((a, b) => a.time.localeCompare(b.time));
   useEffect(() => { setCanPush(pushSupported()); void getMe().then(setMe); void getCircles().then(setCircles); }, []);
   useEffect(() => setPush(!!pushMeta), [pushMeta]);
   const tryIt = async (fn: () => Promise<unknown>, ok: string) => { try { await fn(); toast.success(t(ok)); } catch (e) { toast.error(t((e as Error).message)); } };
@@ -200,6 +202,17 @@ export function SettingsView() {
               <span className="flex min-h-11 items-center gap-2 text-sm text-taken"><Bell className="size-4" /> {t("Reminders are on")}</span>
               <button className="btn" onClick={() => tryIt(testReminder, "Test sent")}>{t("Send test")}</button>
               <button className="btn" onClick={() => tryIt(disableReminders, "Reminders off")}>{t("Turn off")}</button>
+              {mine.length > 0 && <div className="basis-full">
+                <p className="label mt-2">{t("Remind me for")}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {mine.map((r) => { const on = r.remind !== false; return (
+                    <button key={r.id} aria-pressed={on} onClick={() => void saveRoutine({ ...r, remind: !on })}
+                      className={`chip chip-btn gap-1.5 ${on ? "border-taken/30 bg-taken-soft text-taken" : "border-neutral-200 text-neutral-500 line-through dark:border-neutral-800"}`}>
+                      {on ? <Bell className="size-3.5" /> : <BellOff className="size-3.5" />}<span className="font-mono text-xs">{r.time}</span> {r.name}
+                    </button>); })}
+                </div>
+                <p className="mt-2 text-xs text-neutral-500">{t("Each notification has Snooze buttons (10 min, 1 hour).")}</p>
+              </div>}
             </> : <button className="btn-primary" onClick={() => tryIt(enableReminders, "Reminders on")}><Bell className="size-4" /> {t("Turn on reminders")}</button>}
           </div>
         )}

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, LogOut, Mail, ShieldCheck, Trash2 } from "lucide-react";
-import { deleteAccount, forgot, getMe, getProviders, login, logout, passwordProblem, resetPassword, rewrap, signup, adoptKey, type Me, type Providers } from "@/lib/account";
+import { changePassword, deleteAccount, forgot, getMe, getProviders, login, logout, passwordProblem, resetPassword, rewrap, signup, adoptKey, unlinkProvider, type Me, type Providers } from "@/lib/account";
 import { addPasskey, listPasskeys, passkeySupported, removePasskey, unlockWithPasskey, type PasskeyWrap } from "@/lib/passkey";
 import { getSyncKey } from "@/lib/sync";
 import { isValidKey } from "@/lib/crypto";
@@ -204,6 +204,68 @@ export function ResetView() {
   );
 }
 
+const LINK_ERR: Record<string, string> = {
+  identity_taken: "That {p} account already belongs to another OAK account. Sign out and sign in with it instead.",
+  email_taken: "That {p} email belongs to another OAK account.",
+  provider_off: "That sign-in provider isn't set up on this server yet.",
+  oauth_state: "The sign-in took too long. Please try again.",
+  oauth_denied: "Sign-in was cancelled.",
+  oauth_token: "The provider rejected the sign-in. Please try again.",
+  email_unverified: "Your provider didn't confirm a verified email.",
+};
+const PNAME: Record<string, string> = { google: "Google", github: "GitHub" };
+
+function SignInMethods({ me, hasKey, busy, run }: { me: Me; hasKey: boolean; busy: boolean; run: (fn: () => Promise<unknown>, ok: string) => Promise<void> }) {
+  const t = useT();
+  const [prov, setProv] = useState<Providers | null>(null);
+  const [open, setOpen] = useState(false);
+  const [cur, setCur] = useState(""), [pw, setPw] = useState(""), [pw2, setPw2] = useState("");
+  useEffect(() => { void getProviders().then(setProv); }, []);
+  const methods = (me.hasPassword ? 1 : 0) + me.providers.length;
+  const problem = pw ? passwordProblem(pw, me.email) : null;
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (problem) return toast.error(t(problem));
+    if (pw !== pw2) return toast.error(t("Passwords don't match"));
+    await run(async () => { await changePassword(me, me.hasPassword ? cur : null, pw); setOpen(false); setCur(""); setPw(""); setPw2(""); }, me.hasPassword ? "Password changed. Other devices were signed out." : "Password added");
+  };
+  const row = "flex min-h-11 flex-wrap items-center gap-2 py-2 text-sm";
+  return (
+    <section className="card space-y-3 p-5">
+      <div><h2 className="text-sm font-semibold">{t("Sign-in methods")}</h2><p className="text-xs text-neutral-500">{t("Link more than one so you never get locked out. Your vault stays the same.")}</p></div>
+      <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+        <li className={row}>
+          <KeyRound className="size-4 text-neutral-400" /><span className="flex-1">{t("Password")} {me.hasPassword && <span className="text-xs text-taken">· {t("On")}</span>}</span>
+          <button className="btn" disabled={busy || (!me.hasPassword && !hasKey)} onClick={() => setOpen(!open)}>{t(me.hasPassword ? "Change password" : "Add password")}</button>
+          {!me.hasPassword && !hasKey && <p className="basis-full text-xs text-skipped">{t("Unlock your vault on this device first")}</p>}
+          {open && (
+            <form onSubmit={save} className="grid basis-full gap-3 pt-2">
+              <input type="email" value={me.email} autoComplete="username" readOnly hidden />
+              {me.hasPassword && <Password label={t("Current password")} value={cur} onChange={setCur} autoComplete="current-password" />}
+              <Password label={t("New password")} value={pw} onChange={setPw} autoComplete="new-password" />
+              <p className={`-mt-1 text-xs ${problem ? "text-missed" : "text-neutral-500"}`}>{t(problem ?? "At least 10 characters. A passphrase of 3–4 words works well.")}</p>
+              <Password label={t("Confirm password")} value={pw2} onChange={setPw2} autoComplete="new-password" />
+              <div className="flex gap-2"><button type="button" className="btn" onClick={() => setOpen(false)}>{t("Cancel")}</button><Submit busy={busy}>{busy ? t("Encrypting…") : t(me.hasPassword ? "Update password" : "Add password")}</Submit></div>
+            </form>
+          )}
+        </li>
+        {(["google", "github"] as const).map((p) => {
+          const on = me.providers.includes(p), Icon = p === "google" ? GoogleIcon : GithubIcon;
+          return (
+            <li key={p} className={row}>
+              <Icon /><span className="flex-1">{PNAME[p]} {on && <span className="text-xs text-taken">· {t("Linked")}</span>}</span>
+              {on ? <button className="btn" disabled={busy || methods <= 1} title={methods <= 1 ? t("Add a password or another sign-in method first") : undefined}
+                  onClick={() => { if (confirm(t("Unlink {p}?", { p: PNAME[p] }))) void run(() => unlinkProvider(p), "Unlinked"); }}>{t("Unlink")}</button>
+                : prov?.[p] ? <a className="btn" href={`/api/auth/oauth/${p}/start`}>{t("Link")}</a>
+                : <span className="text-xs text-neutral-500">{t("Not set up on this server")}</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function AccountView() {
   const t = useT();
   const router = useRouter();
@@ -216,7 +278,14 @@ export function AccountView() {
     const u = await getMe(); setMe(u); setHasKey(!!(await getSyncKey()));
     if (u) setKeys(await listPasskeys().catch(() => []));
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+    const q = new URLSearchParams(location.search), p = PNAME[q.get("provider") ?? q.get("linked") ?? ""] ?? "";
+    if (q.get("linked")) toast.success(t("{p} linked", { p }));
+    const e = q.get("error");
+    if (e) toast.error(t(LINK_ERR[e] ?? "Sign-in failed", { p }));
+    if (q.get("linked") || e) history.replaceState(null, "", "/account/");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
     try { await fn(); toast.success(t(ok)); await load(); } catch (e) { toast.error(t((e as Error).message)); } finally { setBusy(false); }
@@ -243,8 +312,8 @@ export function AccountView() {
           <div className="flex flex-col gap-2 sm:flex-row"><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder={t("Password")} autoComplete="current-password" className="input" />
             <button disabled={busy || !pw} className="btn-primary" onClick={() => run(() => rewrap(me.email, pw), "Vault linked to your password")}>{t("Link vault to password")}</button></div>
         )}
-        <p className="text-xs text-neutral-500">{t("Signed in with")}: {[me.hasPassword && t("password"), ...me.providers.map((p) => (p === "google" ? "Google" : "GitHub"))].filter(Boolean).join(", ")}</p>
       </section>
+      <SignInMethods me={me} hasKey={hasKey} busy={busy} run={run} />
       <section className="card space-y-3 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="text-sm font-semibold">{t("Passkeys")}</h2><p className="text-xs text-neutral-500">{t("Unlock your vault with Face ID, Touch ID or a security key (needs WebAuthn PRF).")}</p></div>
           {passkeySupported() && hasKey && <button disabled={busy} className="btn" onClick={() => run(() => addPasskey(me.email, navigator.platform || "Passkey"), "Passkey added")}>{t("Add passkey")}</button>}</div>
@@ -270,7 +339,7 @@ export function AccountView() {
 const PRIVACY: [string, string][] = [
   [
     "On this device",
-    "Profiles, supplements, doses, schedules, cycles, inventory, intake history and biomarker results are stored in your browser. By default nothing is sent to any server. Label photos are read on your device and never uploaded."
+    "Profiles, supplements, doses, schedules, cycles, inventory, intake history and biomarker results are stored in your browser. By default nothing is sent to any server. Label and barcode photos are read on your device and never uploaded. A barcode lookup sends only the barcode number, from your browser, to the open product database Open Food Facts."
   ],
   [
     "Account (optional)",

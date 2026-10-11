@@ -96,6 +96,29 @@ export async function rewrap(email: string, password: string) {
   await api("/api/auth/wrap", { method: "POST", json: { salt, authKey, wrapped: await seal(encKey, { k: key }) } });
 }
 
+/**
+ * Change the password, or add one to a Google/GitHub-only account. The same sync key is re-wrapped, so the vault and
+ * passkeys keep working. With a password, the key comes from the account's wrap (proves the old password too);
+ * otherwise from this device.
+ */
+export async function changePassword(me: Me, current: string | null, next: string) {
+  let oldAuthKey: string | undefined, key: string | null = null;
+  if (me.hasPassword) {
+    if (!current) throw new Error("Enter your current password");
+    const { salt } = await api<{ salt: string }>("/api/auth/salt", { method: "POST", json: { email: me.email } });
+    const old = await stretch(current, salt);
+    oldAuthKey = old.authKey;
+    if (me.wrapped) key = (await open<{ k: string }>(old.encKey, me.wrapped).catch(() => { throw new Error("Current password is wrong"); })).k;
+  }
+  key ??= await getSyncKey();
+  if (!key) throw new Error("Unlock your vault on this device first");
+  const salt = newSalt();
+  const { authKey, encKey } = await stretch(next, salt);
+  await api("/api/auth/password", { method: "POST", json: { oldAuthKey, salt, authKey, wrapped: await seal(encKey, { k: key }) } });
+}
+
+export const unlinkProvider = (provider: string) => api("/api/auth/identity", { method: "DELETE", json: { provider } });
+
 export const passwordProblem = (pw: string, email = "") =>
   pw.length < 10 ? "Use at least 10 characters" : email && pw.toLowerCase().includes(email.split("@")[0].toLowerCase()) ? "Don't include your email in the password" : null;
 

@@ -71,8 +71,11 @@ CREATE TABLE IF NOT EXISTS push_subs (
   id TEXT PRIMARY KEY,
   endpoint TEXT NOT NULL,
   minutes TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  snooze_at INTEGER
 );
+-- v2.3 reminder snooze. Existing databases: worker/migrations/0003_push_snooze.sql
+CREATE INDEX IF NOT EXISTS push_subs_snooze ON push_subs (snooze_at);
 CREATE TABLE IF NOT EXISTS circles (
   id TEXT PRIMARY KEY,
   blob TEXT NOT NULL,

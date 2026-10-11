@@ -17,6 +17,9 @@ versioning where practical.
 - Chrono-timing: “Suggested schedule” in Insights moves doses to slots that satisfy timing rules and split clashing pairs, with per-item Apply, Apply all and Undo.
 - Biomarkers: adherence-vs-marker chart (30-day adherence before each lab draw) with Pearson r and a plain-language strength label.
 - Device handoff by QR: Settings shows a 60-second QR that opens `/settings/#link=<key>` on the other device; the key stays in the URL fragment and is wiped from the address bar on arrival.
+- Account → Sign-in methods: change your password (re-wraps the same sync key; other sessions are signed out), add a password to a Google/GitHub-only account, link or unlink Google/GitHub (never the last method). Linking an identity owned by another account no longer switches accounts.
+- Reminders: per-routine toggle (routine drawer and Settings chips) and Snooze 10 min / 1 hour actions on the notification. The server stores only one pending snooze time per push endpoint (migration `0003_push_snooze.sql`).
+- Barcode lookup next to label OCR: the barcode is decoded on the device (native BarcodeDetector or lazy ZXing WebAssembly) and only the number is sent, from the browser, to Open Food Facts to prefill name, dose and count. Manual entry with check-digit validation as fallback.
 
 ### Fixed
 
