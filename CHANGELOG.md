@@ -6,6 +6,20 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.12.4] - 2026-10-11
+
+### Fixed
+
+- Accessibility: the Stack page's Status and Category filter buttons now announce which one is selected, and each filter group has a spoken name.
+- The focus ring on Stack rows stays visible in Windows high-contrast mode.
+
+## [2.12.3] - 2026-10-11
+
+### Changed
+
+- Accessibility: bottom-nav labels are readable (contrast at least 4.5:1) and the current tab is announced; every routine form field has a spoken label and the chosen category is announced; Stack rows open with the keyboard and show a focus ring.
+- The 404 page is in Vietnamese and its grey text is readable.
+
 ## [2.12.2] - 2026-10-11
 
 ### Fixed

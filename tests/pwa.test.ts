@@ -351,6 +351,11 @@ const materializeCases: [string, Routine][] = [
   ["paused counts as a schedule change", { ...routine, time: "07:00", paused: true, history: [spans[0]], updatedAt: oct(6) } as Routine],
   ["deleted counts as a schedule change", { ...routine, time: "07:00", deletedAt: oct(6), history: [spans[0]], updatedAt: oct(6) } as Routine],
   ["over MAX_SPANS: the oldest fold into the first", { ...routine, history: many, updatedAt: oct(5) } as Routine],
+  ["unsorted history is stored sorted", { ...routine, history: [spans[1], spans[0]], updatedAt: oct(9) } as Routine],
+  ["a duplicate day: the later span wins", { ...routine, history: [spans[0], { ...spans[0], time: "06:00" }], updatedAt: oct(5) } as Routine],
+  ["history null is dropped", { ...routine, history: null, updatedAt: oct(5) } as unknown as Routine],
+  ["history [] is dropped", { ...routine, history: [], updatedAt: oct(5) } as unknown as Routine],
+  ["stored equal neighbours merge", { ...routine, history: [spans[0], { ...spans[0], from: "2026-10-03" }, spans[1]], updatedAt: oct(9) } as Routine],
 ];
 for (const [name, r] of materializeCases) {
   test(`schedule history materialize ${name}: app (withHistory) and service worker agree`, () => {
@@ -375,6 +380,13 @@ test("schedule history: the notification's Taken stores the implicit span before
   assert.deepEqual(next.history, spans, "implicit span stored from Oct 5");
   assert.equal(scheduleOn(next, "2026-10-08").time, "08:00", "still from Oct 5, not from the Taken day");
   assert.equal(scheduleOn(next, "2026-10-03").time, "07:00");
+});
+
+test("schedule history: the notification's Taken on a routine without stock tracking writes no routine, so history and updatedAt stay (as markDose)", async () => {
+  const r = { ...routine, stock: null, history: [spans[0]], updatedAt: oct(5) } as unknown as Row;
+  const { routine: next, intakes } = await swTaken(r, at8 + 60_000);
+  assert.equal(intakes.length, 1);
+  assert.deepEqual(next, JSON.parse(JSON.stringify(r)));
 });
 
 test("schedule history: the notification's Taken on a routine without history writes no history", async () => {

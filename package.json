@@ -1,6 +1,6 @@
 {
   "name": "oak-healthy-web",
-  "version": "2.12.2",
+  "version": "2.12.4",
   "private": true,
   "type": "module",
   "scripts": {

@@ -46,11 +46,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </button>
         <nav className="mt-4 grid gap-0.5">
           {NAV.map(({ href, label, icon: Icon }) => (
-            <Link key={href} href={href} className={`flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm transition ${active(href) ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-white" : "text-neutral-600 hover:bg-neutral-200/40 dark:text-neutral-400 dark:hover:bg-neutral-900"}`}>
+            <Link key={href} href={href} aria-current={active(href) ? "page" : undefined} className={`flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm transition ${active(href) ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-white" : "text-neutral-600 hover:bg-neutral-200/40 dark:text-neutral-400 dark:hover:bg-neutral-900"}`}>
               <Icon className="size-4" /> {t(label)}
             </Link>
           ))}
-          <Link href="/account/" className={`flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm transition ${active("/account/") ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-white" : "text-neutral-600 hover:bg-neutral-200/40 dark:text-neutral-400 dark:hover:bg-neutral-900"}`}><UserRound className="size-4" /> {t("Account")}</Link>
+          <Link href="/account/" aria-current={active("/account/") ? "page" : undefined} className={`flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-sm transition ${active("/account/") ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-white" : "text-neutral-600 hover:bg-neutral-200/40 dark:text-neutral-400 dark:hover:bg-neutral-900"}`}><UserRound className="size-4" /> {t("Account")}</Link>
         </nav>
         <button onClick={create} className="btn-primary mt-4 w-full"><Plus className="size-4" /> {t("New routine")} <span className="kbd ml-auto border-white/20 bg-white/10 text-white/70 dark:text-neutral-600">C</span></button>
         <div className="mt-auto rounded-xl border border-neutral-200 bg-white p-3 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900">
@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 function MobileTab({ href, label, Icon, on }: { href: string; label: string; Icon: React.ComponentType<{ className?: string }>; on: boolean }) {
   return (
-    <Link href={href} className={`flex h-16 min-w-0 flex-col items-center justify-center gap-1 text-xs ${on ? "text-neutral-900 dark:text-white" : "text-neutral-400"}`}>
+    <Link href={href} aria-current={on ? "page" : undefined} className={`flex h-16 min-w-0 flex-col items-center justify-center gap-1 text-xs ${on ? "text-neutral-900 dark:text-white" : "text-neutral-600 dark:text-neutral-400"}`}>
       <Icon className="size-5" />{label}
     </Link>
   );

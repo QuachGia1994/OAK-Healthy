@@ -579,4 +579,6 @@ export const VI: Record<string, string> = {
   "Supplement": "Thực phẩm bổ sung",
   "Recorded at (last change)": "Ghi lúc (lần sửa cuối)",
   "No share links yet. Use Share on the Stack page to create one.": "Chưa có liên kết chia sẻ nào. Dùng nút Chia sẻ ở trang Stack để tạo.",
+  "Page not found": "Không tìm thấy trang",
+  "Back to Today": "Về Hôm nay",
 };

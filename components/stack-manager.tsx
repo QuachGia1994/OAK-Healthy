@@ -117,19 +117,19 @@ export function StackManager() {
               <input ref={search} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search routines")} className="input pl-9 pr-8" />
               <span className="kbd absolute hidden md:inline-flex right-2 top-1/2 -translate-y-1/2">/</span>
             </div>
-            <div className="flex w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white p-0.5 text-sm sm:w-auto dark:border-neutral-800 dark:bg-neutral-900">
+            <div role="group" aria-label={t("Status")} className="flex w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white p-0.5 text-sm sm:w-auto dark:border-neutral-800 dark:bg-neutral-900">
               {(["all", "active", "off", "paused"] as StatusFilter[]).map((s) => (
-                <button key={s} onClick={() => setStatus(s)} className={`h-11 flex-1 whitespace-nowrap rounded-md px-2.5 transition md:h-7 md:flex-none ${status === s ? "bg-neutral-100 font-medium dark:bg-neutral-800" : "text-neutral-500"}`}>{t(s === "off" ? "Off-cycle" : s === "all" ? "All" : s === "active" ? "Active" : "Paused")}</button>
+                <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)} className={`h-11 flex-1 whitespace-nowrap rounded-md px-2.5 transition md:h-7 md:flex-none ${status === s ? "bg-neutral-100 font-medium dark:bg-neutral-800" : "text-neutral-500"}`}>{t(s === "off" ? "Off-cycle" : s === "all" ? "All" : s === "active" ? "Active" : "Paused")}</button>
               ))}
             </div>
             <select aria-label={t("Sort by")} value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [key, dir] = e.target.value.split(":") as [SortKey, SortDir]; setSort({ key, dir }); }} className="input w-full sm:w-auto md:hidden">
               {([["time", "Time"], ["name", "Name"], ["stock", "Inventory"], ["status", "Status"], ["cycle", "Cycle"]] as [SortKey, string][]).flatMap(([k, l]) => (["asc", "desc"] as SortDir[]).map((d) => <option key={k + d} value={`${k}:${d}`}>{t("Sort by")}: {t(l)} {d === "asc" ? "↑" : "↓"}</option>))}
             </select>
           </div>
-          <div className="mb-4 flex flex-wrap gap-1.5">
-            <button onClick={() => setCat("all")} className={`chip chip-btn ${cat === "all" ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{t("All")} {routines.length}</button>
+          <div role="group" aria-label={t("Category")} className="mb-4 flex flex-wrap gap-1.5">
+            <button type="button" aria-pressed={cat === "all"} onClick={() => setCat("all")} className={`chip chip-btn ${cat === "all" ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{t("All")} {routines.length}</button>
             {CATEGORIES.filter((c) => counts[c]).map((c) => (
-              <button key={c} onClick={() => setCat(c)} className={`chip chip-btn ${cat === c ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{t(c)} <span className="opacity-60">{counts[c]}</span></button>
+              <button key={c} type="button" aria-pressed={cat === c} onClick={() => setCat(c)} className={`chip chip-btn ${cat === c ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 bg-white text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900"}`}>{t(c)} <span className="opacity-60">{counts[c]}</span></button>
             ))}
           </div>
 
@@ -142,26 +142,28 @@ export function StackManager() {
                 const s = routineStatus(r, today);
                 const inv = inventoryAlert(r, today), left = inv.daysLeft;
                 return (
-                  <li key={r.id} onClick={() => openRoutine(r.id)} className="group grid cursor-pointer grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 transition hover:bg-neutral-50 md:grid-cols-[1fr_90px_140px_110px_110px_76px] dark:hover:bg-neutral-800/50">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800">{r.name.slice(0, 2)}</span>
-                      <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 truncate text-sm font-medium">{r.name}{clashIds.has(r.id) && <AlertTriangle className="size-3.5 text-missed" aria-label={t("Interaction")} />}</p>
-                        <p className="truncate text-xs text-neutral-500"><span>{t(r.category)}</span> · {r.dose || "—"} <span className="md:hidden">· {r.time}</span></p>
-                      </div>
-                    </div>
+                  <li key={r.id} className="group relative grid cursor-pointer grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 transition hover:bg-neutral-50 md:grid-cols-[1fr_90px_140px_110px_110px_76px] dark:hover:bg-neutral-800/50">
+                    {/* The name cell is the row's button; its ::after covers the whole row so a tap anywhere still opens it.
+                        Pause, Duplicate, Reorder and the expiry hint (its tooltip) sit above that layer (relative z-10), so no control is nested in another. */}
+                    <button type="button" onClick={() => openRoutine(r.id)} className="flex min-w-0 items-center gap-3 rounded-md text-left outline-hidden after:absolute after:inset-0 after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-neutral-900 dark:focus-visible:after:ring-white">
+                      <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800">{r.name.slice(0, 2)}</span>
+                      <span className="block min-w-0">
+                        <span className="flex items-center gap-1.5 truncate text-sm font-medium">{r.name}{clashIds.has(r.id) && <><AlertTriangle className="size-3.5 text-missed" aria-hidden="true" /><span className="sr-only">{t("Interaction")}</span></>}</span>
+                        <span className="block truncate text-xs text-neutral-500"><span>{t(r.category)}</span> · {r.dose || "—"} <span className="md:hidden">· {r.time}</span></span>
+                      </span>
+                    </button>
                     <span className="hidden font-mono text-sm text-neutral-600 md:block dark:text-neutral-400">{r.time}</span>
                     <span className="hidden text-sm text-neutral-600 md:block dark:text-neutral-400">{cycleLabel(r.cycle)}{r.cycle.durationDays ? ` · ${r.cycle.durationDays}d` : ""}</span>
-                    <span className="hidden items-center gap-1 text-sm md:flex" onClick={(e) => inv.reorderUrl && e.stopPropagation()}>
+                    <span className="hidden items-center gap-1 text-sm md:flex">
                       {left == null ? <span className="text-neutral-400">—</span> : <span className={`tabular ${inv.low ? "font-medium text-skipped" : "text-neutral-600 dark:text-neutral-400"}`}>{r.stock} · {left}d</span>}
-                      {(inv.expiring || inv.expired) && <span role="img" aria-label={inv.expired ? t("Expired") : t("Expires in {n}d", { n: inv.expiryDays ?? 0 })} title={inv.expired ? t("Expired") : t("Expires in {n}d", { n: inv.expiryDays ?? 0 })}><Hourglass className={`size-3.5 ${inv.expired ? "text-missed" : "text-skipped"}`} /></span>}
-                      {inv.reorderUrl && <a href={inv.reorderUrl} target="_blank" rel="noopener noreferrer" aria-label={t("Reorder")} title={t("Reorder")} className={`flex size-6 items-center justify-center rounded ${inv.low ? "text-skipped" : "text-neutral-400"} hover:bg-neutral-100 dark:hover:bg-neutral-800`}><ShoppingCart className="size-3.5" /></a>}
+                      {(inv.expiring || inv.expired) && <span role="img" className="relative z-10" aria-label={inv.expired ? t("Expired") : t("Expires in {n}d", { n: inv.expiryDays ?? 0 })} title={inv.expired ? t("Expired") : t("Expires in {n}d", { n: inv.expiryDays ?? 0 })}><Hourglass className={`size-3.5 ${inv.expired ? "text-missed" : "text-skipped"}`} /></span>}
+                      {inv.reorderUrl && <a href={inv.reorderUrl} target="_blank" rel="noopener noreferrer" aria-label={t("Reorder")} title={t("Reorder")} className={`relative z-10 flex size-6 items-center justify-center rounded ${inv.low ? "text-skipped" : "text-neutral-400"} hover:bg-neutral-100 dark:hover:bg-neutral-800`}><ShoppingCart className="size-3.5" /></a>}
                     </span>
                     <span className="hidden md:block"><span className={`chip ${STATUS_CLS[s]}`}>{t(STATUS_LABEL[s])}</span></span>
-                    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-1">
                       <span className={`chip md:hidden ${STATUS_CLS[s]}`}>{t(STATUS_LABEL[s])}</span>
-                      <button aria-label={t(r.paused ? "Resume" : "Pause")} onClick={() => togglePause(r)} className="hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800">{r.paused ? <Play className="size-4" /> : <Pause className="size-4" />}</button>
-                      <button aria-label={t("Duplicate")} onClick={() => duplicateRoutine(r)} className="hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800"><Copy className="size-4" /></button>
+                      <button aria-label={t(r.paused ? "Resume" : "Pause")} onClick={() => togglePause(r)} className="relative z-10 hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800">{r.paused ? <Play className="size-4" /> : <Pause className="size-4" />}</button>
+                      <button aria-label={t("Duplicate")} onClick={() => duplicateRoutine(r)} className="relative z-10 hidden size-8 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 md:flex dark:hover:bg-neutral-800"><Copy className="size-4" /></button>
                     </div>
                   </li>
                 );

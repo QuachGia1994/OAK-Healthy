@@ -108,14 +108,14 @@ export function RoutineDrawer() {
               {ref && <p className="mt-1.5 text-xs text-neutral-500"><Sparkles className="mr-1 inline size-3 text-taken" />{t(ref.advice)}{ref.source && <> · <a href={ref.source} target="_blank" rel="noreferrer" className="underline underline-offset-2">{t("Source")}</a></>}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="label">{t("Dose")}</label><input className="input" placeholder={t("1 capsule")} value={r.dose} onChange={(e) => set("dose", e.target.value)} /></div>
-              <div><label className="label">{t("Time")}</label><input type="time" className="input font-mono" value={r.time} onChange={(e) => set("time", e.target.value)} /></div>
+              <div><label className="label" htmlFor="r-dose">{t("Dose")}</label><input id="r-dose" className="input" placeholder={t("1 capsule")} value={r.dose} onChange={(e) => set("dose", e.target.value)} /></div>
+              <div><label className="label" htmlFor="r-time">{t("Time")}</label><input id="r-time" type="time" className="input font-mono" value={r.time} onChange={(e) => set("time", e.target.value)} /></div>
             </div>
             <div>
-              <label className="label">{t("Category")}</label>
-              <div className="flex flex-wrap gap-1.5">
+              <p className="label" id="r-category">{t("Category")}</p>
+              <div role="group" aria-labelledby="r-category" className="flex flex-wrap gap-1.5">
                 {CATEGORIES.map((c) => (
-                  <button key={c} onClick={() => set("category", c)} className={`chip chip-btn ${r.category === c ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 text-neutral-600 dark:border-neutral-800 dark:text-neutral-400"}`}>{t(c)}</button>
+                  <button key={c} type="button" aria-pressed={r.category === c} onClick={() => set("category", c)} className={`chip chip-btn ${r.category === c ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900" : "border-neutral-200 text-neutral-600 dark:border-neutral-800 dark:text-neutral-400"}`}>{t(c)}</button>
                 ))}
               </div>
             </div>
@@ -126,28 +126,28 @@ export function RoutineDrawer() {
               </div>
               {!r.cycle.continuous && (
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div><label className="label">{t("Days on")}</label><input type="number" min={1} className="input tabular" value={r.cycle.daysOn} onChange={(e) => set("cycle", { ...r.cycle, daysOn: Math.max(1, +e.target.value || 1) })} /></div>
-                  <div><label className="label">{t("Days off")}</label><input type="number" min={0} className="input tabular" value={r.cycle.daysOff} onChange={(e) => set("cycle", { ...r.cycle, daysOff: Math.max(0, +e.target.value || 0) })} /></div>
+                  <div><label className="label" htmlFor="r-days-on">{t("Days on")}</label><input id="r-days-on" type="number" min={1} className="input tabular" value={r.cycle.daysOn} onChange={(e) => set("cycle", { ...r.cycle, daysOn: Math.max(1, +e.target.value || 1) })} /></div>
+                  <div><label className="label" htmlFor="r-days-off">{t("Days off")}</label><input id="r-days-off" type="number" min={0} className="input tabular" value={r.cycle.daysOff} onChange={(e) => set("cycle", { ...r.cycle, daysOff: Math.max(0, +e.target.value || 0) })} /></div>
                 </div>
               )}
               <div className="mt-3 grid grid-cols-2 gap-3">
-                <div><label className="label">{t("Start")}</label><input type="date" className="input" value={r.startDate} onChange={(e) => set("startDate", e.target.value)} /></div>
-                <div><label className="label">{t("Duration (days)")}</label><input type="number" min={0} placeholder={t("Forever")} className="input tabular" value={r.cycle.durationDays ?? ""} onChange={(e) => set("cycle", { ...r.cycle, durationDays: e.target.value ? Math.max(1, +e.target.value) : null })} /></div>
+                <div><label className="label" htmlFor="r-start">{t("Start")}</label><input id="r-start" type="date" className="input" value={r.startDate} onChange={(e) => set("startDate", e.target.value)} /></div>
+                <div><label className="label" htmlFor="r-duration">{t("Duration (days)")}</label><input id="r-duration" type="number" min={0} placeholder={t("Forever")} className="input tabular" value={r.cycle.durationDays ?? ""} onChange={(e) => set("cycle", { ...r.cycle, durationDays: e.target.value ? Math.max(1, +e.target.value) : null })} /></div>
               </div>
             </div>
             <div className="rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
               <span className="text-sm font-medium">{t("Inventory")}</span>
               <p className="text-xs text-neutral-500">{t("Auto-decrements when you mark a dose Taken.")}</p>
               <div className="mt-3 grid grid-cols-2 gap-3">
-                <div><label className="label">{t("Pills left")}</label><input type="number" min={0} placeholder={t("Not tracked")} className="input tabular" value={r.stock ?? ""} onChange={(e) => set("stock", e.target.value === "" ? null : Math.max(0, +e.target.value))} /></div>
-                <div><label className="label">{t("Per dose")}</label><input type="number" min={1} className="input tabular" value={r.perDose} onChange={(e) => set("perDose", Math.max(1, +e.target.value || 1))} /></div>
-                <div><label className="label">{t("Opened on")}</label><input type="date" className="input" value={r.openedOn ?? ""} onChange={(e) => set("openedOn", e.target.value || null)} /></div>
-                <div><label className="label">{t("Good for (days after opening)")}</label><input type="number" min={1} placeholder={t("Not tracked")} className="input tabular" value={r.shelfLifeDays ?? ""} onChange={(e) => set("shelfLifeDays", e.target.value === "" ? null : Math.max(1, +e.target.value || 1))} /></div>
-                <div className="col-span-2"><label className="label">{t("Reorder link")}</label><input type="url" inputMode="url" placeholder="https://" className="input" value={r.buyUrl ?? ""} onChange={(e) => set("buyUrl", e.target.value)} /></div>
+                <div><label className="label" htmlFor="r-stock">{t("Pills left")}</label><input id="r-stock" type="number" min={0} placeholder={t("Not tracked")} className="input tabular" value={r.stock ?? ""} onChange={(e) => set("stock", e.target.value === "" ? null : Math.max(0, +e.target.value))} /></div>
+                <div><label className="label" htmlFor="r-per-dose">{t("Per dose")}</label><input id="r-per-dose" type="number" min={1} className="input tabular" value={r.perDose} onChange={(e) => set("perDose", Math.max(1, +e.target.value || 1))} /></div>
+                <div><label className="label" htmlFor="r-opened">{t("Opened on")}</label><input id="r-opened" type="date" className="input" value={r.openedOn ?? ""} onChange={(e) => set("openedOn", e.target.value || null)} /></div>
+                <div><label className="label" htmlFor="r-shelf">{t("Good for (days after opening)")}</label><input id="r-shelf" type="number" min={1} placeholder={t("Not tracked")} className="input tabular" value={r.shelfLifeDays ?? ""} onChange={(e) => set("shelfLifeDays", e.target.value === "" ? null : Math.max(1, +e.target.value || 1))} /></div>
+                <div className="col-span-2"><label className="label" htmlFor="r-buy">{t("Reorder link")}</label><input id="r-buy" type="url" inputMode="url" placeholder="https://" className="input" value={r.buyUrl ?? ""} onChange={(e) => set("buyUrl", e.target.value)} /></div>
               </div>
               {expiresOn(r) && <p className="mt-2 text-xs text-neutral-500">{t("Use by {d}", { d: new Date(expiresOn(r)! + "T00:00").toLocaleDateString(locale()) })}</p>}
             </div>
-            <div><label className="label">{t("Note")}</label><textarea rows={2} className="input h-auto py-2" value={r.note ?? ""} onChange={(e) => set("note", e.target.value)} /></div>
+            <div><label className="label" htmlFor="r-note">{t("Note")}</label><textarea id="r-note" rows={2} className="input h-auto py-2" value={r.note ?? ""} onChange={(e) => set("note", e.target.value)} /></div>
             <div className="flex flex-wrap gap-x-6">
               <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-5 accent-[#1F6B4D] md:size-auto" checked={r.remind !== false} onChange={(e) => set("remind", e.target.checked)} /> {t("Remind me at this time")}</label>
               <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" className="size-5 accent-[#1F6B4D] md:size-auto" checked={r.paused} onChange={(e) => set("paused", e.target.checked)} /> {t("Paused")}</label>

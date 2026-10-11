@@ -1,6 +1,7 @@
 // Which schedule held on a past day (docs/feat/schedule-history.md). A routine's `history` lists effective-from spans;
 // the effective last span always equals the current fields, so today's list never reads history. Pure, no I/O.
-// public/sw.js does not know it: planned() (intake-key.ts) and the notification keep the current fields.
+// public/sw.js mirrors withHistory(r, today) as `materialize` for the notification's Taken (parity: tests/pwa.test.ts);
+// planned() (intake-key.ts) and the notification's plan check keep the current fields.
 import type { CycleConfig, Routine, ScheduleSpan } from "./types.ts";
 import { cycleStatus } from "./cycle.ts";
 import { toLocalDay } from "./day.ts";
@@ -84,7 +85,8 @@ export function plannedOn(r: Routine, day: string, s: Schedule = scheduleOn(r, d
 
 /** History for writing `r`, edited from `before` (default r itself): materialize before's implicit span, then a changed
  *  schedule sets a span from today (same day: replaced), undo delete drops the closing span, equal neighbours merge, cap.
- *  One span left = no history (the current fields hold on every day). Returns r itself when nothing changes. */
+ *  One span left = no history (the current fields hold on every day). Returns r itself when nothing changes.
+ *  Twin: public/sw.js `materialize` (the no-edit case); change both and the parity table in tests/pwa.test.ts. */
 export function withHistory(r: Routine, today: string, before: Routine = r): Routine {
   const old = scheduleOf(before), next = scheduleOf(r);
   let h = parseHistory(before.history, today) ?? [];
