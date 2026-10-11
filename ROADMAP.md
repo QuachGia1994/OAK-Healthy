@@ -64,3 +64,4 @@
 
 1. Delete share links: keep the ids of links this device created and add a delete route, so Delete everything removes them too (today they expire after 365 days).
 2. Purge old vault tombstones once no device can still hold the key (today they stay, hashed ids only).
+3. Show "Everything deleted" after the reload that ends Delete everything (today the toast is lost with the page).
