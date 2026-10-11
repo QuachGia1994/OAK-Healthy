@@ -6,18 +6,15 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-11
+
+Everything deployed since 2.1.0; the 2.2 and 2.3 rounds went live without their own version.
+
 ### Added
 
 - Circles with member accounts: invite links `/c/<id>#j=<secret>`; people join with their own OAK account and get the snapshot through a per-member ECIES key wrap. Each publish uses a fresh content key; Remove rotates the invite secret and re-publishes so the others keep access. D1 migration `0004_circle_members.sql` (tables `member_keys`, `circle_members`, column `circles.join_hash`). Bearer-link circles are unchanged.
 - Reminder notifications: “Taken” marks the listed doses on-device (intake + stock, same rule as the dashboard, skips cycle off-days) and refreshes open tabs; Snooze is now 10 min.
 - Live camera barcode scanning (getUserMedia + BarcodeDetector/ponyfill, check-digit-valid GTINs only); falls back to a photo when the camera is unavailable.
-
-### Fixed
-
-- Reminders → Send test: re-reads the browser's push subscription, re-registers it with the server and retries once on 403/404/410, instead of failing with “Push service rejected the test”.
-- Reminders: Chrome subscriptions on `*.google.com` push hosts (e.g. `jmt17.google.com`) are accepted; they failed with “Reminder sync failed (400)”. The error now includes the server's reason.
-- Account deletion also removes the account's member keys and circle memberships.
-
 - Public `/privacy` page (English + Vietnamese) linked from the sign-in screens; required by the Google sign-in consent screen.
 - Readable share URLs `/s/<handle>/<slug>` with link previews (Open Graph + Twitter card). Only the handle, the slug words and the item count are public; the stack stays encrypted with the key in the `#fragment`. Old `/s/<id>` links keep working and get a generic preview.
 - Background Sync: offline edits or network-failed pushes register a one-off `oak-sync`; the service worker hands it to an open tab, or syncs the encrypted vault itself (same HKDF/AES-GCM + last-writer-wins) when no tab is open.
@@ -33,6 +30,9 @@ versioning where practical.
 
 ### Fixed
 
+- Reminders → Send test: re-reads the browser's push subscription, re-registers it with the server and retries once on 403/404/410, instead of failing with “Push service rejected the test”.
+- Reminders: Chrome subscriptions on `*.google.com` push hosts (e.g. `jmt17.google.com`) are accepted; they failed with “Reminder sync failed (400)”. The error now includes the server's reason.
+- Account deletion also removes the account's member keys and circle memberships.
 - Base64 encoding of large vaults is chunked, so snapshots near the 1.5 MB limit no longer overflow the call stack.
 - Label scan matches names regardless of spaces and hyphens ("Vitamin D-3", "Omega 3").
 - Every knowledge-base entry now cites a source (13 entries had none).
