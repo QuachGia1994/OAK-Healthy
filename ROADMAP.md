@@ -1,5 +1,12 @@
 # Roadmap
 
+## Shipped in 2.4
+
+- Circle members with their own OAK accounts: per-member P-256 keys, a fresh content key on every publish, remove one member while the others keep access. Older bearer-link circles keep working.
+- “Taken” action on the reminder notification (writes the dose on-device, same rule as the dashboard, cycle off-days skipped).
+- Live camera barcode scanning, with the photo picker as fallback.
+- Send test re-registers a stale push subscription before testing.
+
 ## Shipped in 2.3
 
 - Change password while signed in; add a password to OAuth-only accounts; link/unlink Google and GitHub from Account.
@@ -34,6 +41,6 @@
 
 ## Next
 
-1. Circle members with their own accounts (per-member public keys) instead of bearer links.
-2. “Mark taken” action on the reminder notification.
-3. Live camera barcode scanning (continuous) in addition to photos.
+1. Circle owner state (invite secret, pins) synced across the owner's devices.
+2. Signed snapshots so members can verify integrity, not only confidentiality.
+3. `pushsubscriptionchange` handling in the service worker.

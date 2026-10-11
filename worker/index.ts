@@ -1,11 +1,12 @@
 // OAK Healthy edge API: zero-knowledge vault + encrypted share links. Static app served from ./out.
 import { auth, keys, oauth } from "./auth";
+import { circle, circleKey } from "./circles";
 import { armClock, push } from "./push";
 export { ReminderClock } from "./push";
 import { clientIp, type Env, json, limit, sameOrigin, sha256, shortId, validId } from "./util";
 import { buildSlug, isPrettySlug } from "../lib/domain/share";
 
-const MAX_VAULT = 1_500_000, MAX_SHARE = 200_000, MAX_CIRCLE = 400_000, SHARE_TTL_MS = 365 * 864e5;
+const MAX_VAULT = 1_500_000, MAX_SHARE = 200_000, SHARE_TTL_MS = 365 * 864e5;
 
 async function vault(req: Request, env: Env, id: string) {
   if (!validId(id)) return json({ error: "bad id" }, 400);
@@ -65,40 +66,6 @@ async function share(req: Request, env: Env, id?: string) {
   return json({ error: "method" }, 405);
 }
 
-/** Circles: a live, read-only, end-to-end encrypted view of one profile for family or a coach.
- * The publisher holds a write token; viewers hold only the decryption key in the URL fragment. */
-async function circle(req: Request, env: Env, id?: string) {
-  const token = req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
-  if (req.method === "POST" && !id) {
-    const b = (await req.json().catch(() => null)) as { blob?: string } | null;
-    if (!b || typeof b.blob !== "string" || !b.blob.includes(".") || token.length < 20) return json({ error: "bad body" }, 400);
-    if (b.blob.length > MAX_CIRCLE) return json({ error: "too large" }, 413);
-    if (!(await limit(env, `circle:${clientIp(req)}`, 20, 60 * 60e3))) return json({ error: "Too many attempts. Try again later." }, 429);
-    const cid = shortId(12);
-    await env.DB.prepare("INSERT INTO circles (id, blob, write_hash, updated_at) VALUES (?, ?, ?, ?)").bind(cid, b.blob, await sha256(token), Date.now()).run();
-    return json({ id: cid }, 201);
-  }
-  if (!id || !validId(id)) return json({ error: "bad id" }, 400);
-  if (req.method === "GET") {
-    const row = await env.DB.prepare("SELECT blob, updated_at FROM circles WHERE id = ?").bind(id).first<{ blob: string; updated_at: number }>();
-    return row ? json({ blob: row.blob, updatedAt: row.updated_at }) : json({ error: "not found" }, 404);
-  }
-  const wh = await sha256(token);
-  if (req.method === "PUT") {
-    const b = (await req.json().catch(() => null)) as { blob?: string } | null;
-    if (!b || typeof b.blob !== "string" || b.blob.length > MAX_CIRCLE) return json({ error: "bad body" }, 400);
-    const r = await env.DB.prepare("UPDATE circles SET blob = ?, updated_at = ? WHERE id = ? AND write_hash = ?").bind(b.blob, Date.now(), id, wh).run();
-    return r.meta.changes ? json({ ok: true }) : json({ error: "forbidden" }, 403);
-  }
-  if (req.method === "DELETE") {
-    const r = await env.DB.prepare("DELETE FROM circles WHERE id = ? AND write_hash = ?").bind(id, wh).run();
-    if (r.meta.changes) return json({ ok: true });
-    const exists = await env.DB.prepare("SELECT 1 FROM circles WHERE id = ?").bind(id).first();
-    return exists ? json({ error: "forbidden" }, 403) : json({ ok: true }); // already gone: idempotent
-  }
-  return json({ error: "method" }, 405);
-}
-
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /** Link previews for share URLs. Only public metadata (handle, slug words, item count) is used: the stack itself
@@ -145,8 +112,12 @@ export default {
       }
       let pm = p.match(/^\/api\/push\/([a-z]+)$/);
       if (pm) return await push(req, env, pm[1]);
-      pm = p.match(/^\/api\/circle(?:\/([^/]+))?$/);
-      if (pm) return await circle(req, env, pm[1]);
+      if (p.startsWith("/api/circle")) {
+        if (!sameOrigin(req, env, url)) return json({ error: "bad origin" }, 403);
+        if (p === "/api/circle-key") return await circleKey(req, env);
+        pm = p.match(/^\/api\/circle(?:\/([^/]+)(?:\/(members|revoke|join|me))?)?$/);
+        if (pm) return await circle(req, env, pm[1], pm[2]);
+      }
       let m = p.match(/^\/api\/vault\/([^/]+)$/);
       if (m) return await vault(req, env, m[1]);
       if (p === "/api/share") return await share(req, env);

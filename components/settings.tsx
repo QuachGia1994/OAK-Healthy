@@ -8,7 +8,7 @@ import { useT, locale } from "@/lib/i18n";
 import { LangToggle } from "./lang-toggle";
 import { getMe, type Me } from "@/lib/account";
 import { disableReminders, enableReminders, pushReminderTimes, pushSupported, testReminder } from "@/lib/reminders";
-import { circleUrl, createCircle, getCircles, publishCircles, revokeCircle, type Circle } from "@/lib/circles";
+import { circleMembers, circleUrl, createCircle, getCircles, publishCircle, publishCircles, revokeCircle, revokeMember, type Circle, type CircleMember } from "@/lib/circles";
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
 import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
 import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow } from "@/lib/sync";
@@ -47,6 +47,36 @@ export function SyncAgent() {
     return () => { clearTimeout(t); window.removeEventListener("oak:changed", later); window.removeEventListener("focus", now); window.removeEventListener("online", now); navigator.serviceWorker?.removeEventListener("message", onSw); };
   }, []);
   return null;
+}
+
+function CircleRow({ c, onChange, tryIt }: { c: Circle; onChange: () => Promise<void>; tryIt: (fn: () => Promise<unknown>, ok: string) => Promise<void> }) {
+  const t = useT();
+  const [members, setMembers] = useState<CircleMember[]>([]);
+  useEffect(() => {
+    if (!c.j) return;
+    // A join waits for a publish; publishing here lets a new member in as soon as the owner opens Settings.
+    const load = () => circleMembers(c).then((ms) => { setMembers(ms); return ms; });
+    void load().then((ms) => (ms.some((m) => !m.active) ? publishCircle(c).then(load) : ms)).catch(() => {});
+  }, [c]);
+  const copy = () => { void navigator.clipboard.writeText(circleUrl(c)); toast.success(t("Invite link copied")); };
+  return (
+    <li className="py-1.5 text-sm">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate">{c.label}{!c.j && <span className="chip ml-2 text-xs text-neutral-500">{t("Bearer link")}</span>}</span>
+        <button aria-label={t("Copy link")} className="btn w-11 px-0" onClick={copy}><Copy className="size-4" /></button>
+        <button className="btn text-missed" onClick={() => tryIt(async () => { await revokeCircle(c.id); await onChange(); }, "Access revoked")}>{t(c.j ? "Delete circle" : "Revoke")}</button>
+      </div>
+      {members.length > 0 && <ul className="mt-1 space-y-1 pl-3">
+        {members.map((m) => (
+          <li key={m.userId} className="flex items-center gap-2 text-xs text-neutral-500">
+            <UserRound className="size-3.5 shrink-0" /><span className="min-w-0 flex-1 truncate">{m.email ?? m.userId}</span>
+            <span>{t(m.active ? "Can view" : "Waiting for sync")}</span>
+            <button className="btn min-h-8 text-missed" onClick={() => tryIt(async () => { await revokeMember(c.id, m.userId); await onChange(); }, "Member removed. The invite link changed.")}>{t("Remove")}</button>
+          </li>
+        ))}
+      </ul>}
+    </li>
+  );
 }
 
 function Section({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {
@@ -211,23 +241,19 @@ export function SettingsView() {
                       {on ? <Bell className="size-3.5" /> : <BellOff className="size-3.5" />}<span className="font-mono text-xs">{r.time}</span> {r.name}
                     </button>); })}
                 </div>
-                <p className="mt-2 text-xs text-neutral-500">{t("Each notification has Snooze buttons (10 min, 1 hour).")}</p>
+                <p className="mt-2 text-xs text-neutral-500">{t("Each notification has Taken and Snooze 10 min buttons.")}</p>
               </div>}
             </> : <button className="btn-primary" onClick={() => tryIt(enableReminders, "Reminders on")}><Bell className="size-4" /> {t("Turn on reminders")}</button>}
           </div>
         )}
       </Section>
 
-      <Section title="Circles" sub="Share this profile live and read-only with family or a coach. Each link has its own key; revoke it any time.">
+      <Section title="Circles" sub="Share this profile live and read-only with family or a coach. People join with their own OAK account; remove anyone any time and the others keep access.">
         <div className="space-y-3">
           <div className="flex gap-2"><input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("Who is it for? e.g. Mom, Coach")} className="input min-w-0" /><button onClick={invite} className="btn-primary shrink-0"><Users className="size-4" /> {t("Invite")}</button></div>
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {circles.filter((c) => c.clientId === profile?.id).map((c) => (
-              <li key={c.id} className="flex items-center gap-2 py-1.5 text-sm">
-                <span className="min-w-0 flex-1 truncate">{c.label}</span>
-                <button aria-label={t("Copy link")} className="btn w-11 px-0" onClick={() => { void navigator.clipboard.writeText(circleUrl(c)); toast.success(t("Invite link copied")); }}><Copy className="size-4" /></button>
-                <button className="btn text-missed" onClick={() => tryIt(async () => { await revokeCircle(c.id); setCircles(await getCircles()); }, "Access revoked")}>{t("Revoke")}</button>
-              </li>
+              <CircleRow key={`${c.id}:${c.j ?? ""}`} c={c} tryIt={tryIt} onChange={async () => setCircles(await getCircles())} />
             ))}
           </ul>
         </div>

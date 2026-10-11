@@ -113,7 +113,7 @@ export async function auth(req: Request, env: Env, url: URL, action: string): Pr
   if (action === "me" && m === "DELETE") {
     const u = await sessionUser(req, env);
     if (!u) return json({ error: "Sign in first" }, 401);
-    await env.DB.batch(["sessions", "identities", "reset_tokens", "wrapped_keys"].map((t) => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(u.id))
+    await env.DB.batch(["sessions", "identities", "reset_tokens", "wrapped_keys", "member_keys", "circle_members"].map((t) => env.DB.prepare(`DELETE FROM ${t} WHERE user_id = ?`).bind(u.id))
       .concat(env.DB.prepare("DELETE FROM users WHERE id = ?").bind(u.id)));
     return json({ ok: true }, 200, { "set-cookie": setCookie(url, "", 0) });
   }

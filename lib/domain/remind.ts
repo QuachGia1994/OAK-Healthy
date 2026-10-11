@@ -1,8 +1,6 @@
 // Reminder rules shared by the app (lib/reminders.ts), the worker (snooze bounds) and tests.
 import type { Routine } from "./types";
 
-/** Snooze lengths offered on the notification (minutes). Browsers show at most two actions. */
-export const SNOOZE_CHOICES = [10, 60] as const;
 export const SNOOZE_MIN = 5, SNOOZE_MAX = 180;
 export const okSnooze = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= SNOOZE_MIN && (n as number) <= SNOOZE_MAX;
 

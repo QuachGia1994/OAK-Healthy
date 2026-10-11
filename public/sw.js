@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.3.0";
+const VERSION = "oak-v2.4.0";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -54,15 +54,41 @@ async function dueNow() {
   if (woke) await openDb().then((db) => putMeta(db, "snoozed", null).finally(() => db.close())).catch(() => {});
   return { lang, due };
 }
-const SNOOZES = [10, 60];
+// Mirror of lib/domain/intake-key.ts (doseKey, doseAt, planned, takenNext) and cycle.ts; tests/pwa.test.ts runs both on the same fixtures.
+const EARLY_MS = 5 * 60e3;
+function doseKey(id, at) { return `${id}@${at}`; }
+function doseAt(time, now) {
+  const d = new Date(now), [h, m] = String(time).split(":").map(Number);
+  const on = (offset) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset, h || 0, m || 0).getTime();
+  return on(0) - EARLY_MS > now ? on(-1) : on(0);
+}
+const dayNo = (y, m, d) => Math.round(Date.UTC(y, m - 1, d) / 864e5);
+function cycleOn(startDate, cfg, at) {
+  const t = new Date(at), [y, m, d] = String(startDate).split("-").map(Number);
+  const elapsed = dayNo(t.getFullYear(), t.getMonth() + 1, t.getDate()) - dayNo(y, m, d);
+  if (elapsed < 0 || (cfg.durationDays > 0 && elapsed >= cfg.durationDays)) return false;
+  const total = cfg.daysOn + cfg.daysOff;
+  return cfg.continuous || total <= 0 || elapsed % total < cfg.daysOn;
+}
+function planned(r, at) { return !r.deletedAt && !r.paused && cycleOn(r.startDate, r.cycle, at); }
+function takenNext(r, at, prev, now) {
+  if (!planned(r, at) || (prev && !prev.deletedAt && prev.status === "Taken")) return null;
+  const intake = { key: doseKey(r.id, at), supplementId: r.id, clientId: r.clientId, scheduledAt: at, status: "Taken", updatedAt: now, deletedAt: null };
+  return { intake, routine: r.stock == null ? null : { ...r, stock: Math.max(0, r.stock - r.perDose), updatedAt: now } };
+}
+// Browsers show at most two actions: Taken + one snooze. snooze-<n> stays parsed so older notifications keep working.
+const SNOOZE = 10;
 self.addEventListener("push", (e) => {
-  e.waitUntil(dueNow().then(({ lang, due }) => {
-    const vi = lang === "vi";
-    const names = due.map((r) => r.name).slice(0, 4).join(", ");
+  e.waitUntil(dueNow().then(({ lang, due: candidates }) => {
+    const vi = lang === "vi", now = Date.now();
+    const due = candidates.filter((r) => planned(r, doseAt(r.time, now)));
+    const shown = due.slice(0, 4);
+    const names = shown.map((r) => r.name).join(", ");
     const title = due.length ? (vi ? `Đến giờ uống: ${names}` : `Time for ${names}`) : (vi ? "Nhắc nhở OAK" : "OAK reminder");
-    const body = due.length ? due.map((r) => `${r.time} · ${r.dose || r.name}`).slice(0, 4).join("\n") : (vi ? "Mở OAK để xem liều hôm nay." : "Open OAK to see today's doses.");
-    const actions = due.length ? SNOOZES.map((n) => ({ action: `snooze-${n}`, title: vi ? (n < 60 ? `Báo lại ${n} phút` : "Báo lại 1 giờ") : (n < 60 ? `Snooze ${n} min` : "Snooze 1 hour") })) : [];
-    return self.registration.showNotification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png", tag: "oak-dose", renotify: true, actions, data: { url: "/", ids: due.map((r) => r.id) } });
+    const body = due.length ? shown.map((r) => `${r.time} · ${r.dose || r.name}`).join("\n") : (vi ? "Mở OAK để xem liều hôm nay." : "Open OAK to see today's doses.");
+    const actions = due.length ? [{ action: "taken", title: vi ? "Đã uống" : "Taken" }, { action: `snooze-${SNOOZE}`, title: vi ? `Báo lại ${SNOOZE} phút` : `Snooze ${SNOOZE} min` }] : [];
+    const doses = shown.map((r) => ({ id: r.id, at: doseAt(r.time, now) }));
+    return self.registration.showNotification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png", tag: "oak-dose", renotify: true, actions, data: { url: "/", lang, ids: due.map((r) => r.id), doses } });
   }));
 });
 // Background Sync ("oak-sync", registered by the app when offline or a push failed on the network).
@@ -133,14 +159,48 @@ async function swSync() {
     throw new Error("conflict");
   } finally { db.close(); }
 }
+const ownTabs = () => self.clients.matchAll({ type: "window" }).then((cs) => cs.filter((c) => new URL(c.url).origin === location.origin));
 self.addEventListener("sync", (e) => {
   if (e.tag !== "oak-sync") return;
-  e.waitUntil(self.clients.matchAll({ type: "window" }).then((cs) => {
-    const mine = cs.filter((c) => new URL(c.url).origin === location.origin);
+  e.waitUntil(ownTabs().then((mine) => {
     if (mine.length) { mine[0].postMessage({ type: "oak-sync" }); return; }
     return swSync();
   }));
 });
+// "Taken" action: the same Intake + stock write as markDose (lib/db.ts), in one IndexedDB transaction.
+function writeTaken(db, doses, now) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(["intakes", "routines"], "readwrite");
+    const intakes = tx.objectStore("intakes"), routines = tx.objectStore("routines");
+    for (const { id, at } of doses) {
+      const gr = routines.get(id);
+      gr.onsuccess = () => {
+        if (!gr.result) return;
+        const gi = intakes.get(doseKey(id, at));
+        gi.onsuccess = () => {
+          const next = takenNext(gr.result, at, gi.result, now);
+          if (!next) return;
+          intakes.put(next.intake);
+          if (next.routine) routines.put(next.routine);
+        };
+      };
+    }
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+  });
+}
+// Open tabs re-read Dexie live queries via Dexie's own cross-context channel (dexie 4: "x-storagemutated-1", { all: true }),
+// and the first tab syncs; with no tab, Background Sync or swSync pushes the change.
+async function markTaken(doses) {
+  const db = await openDb();
+  try { await writeTaken(db, doses, Date.now()); } finally { db.close(); }
+  const bc = new BroadcastChannel("x-storagemutated-1");
+  bc.postMessage({ all: true });
+  bc.close();
+  const mine = await ownTabs();
+  if (mine.length) { mine[0].postMessage({ type: "oak-sync" }); return; }
+  if (self.registration.sync) return self.registration.sync.register("oak-sync").catch(() => swSync());
+  return swSync();
+}
 async function snooze(ids, n) {
   const sub = await self.registration.pushManager.getSubscription();
   if (!sub || !ids.length) return;
@@ -150,6 +210,11 @@ async function snooze(ids, n) {
 }
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();
+  if (e.action === "taken") {
+    const d = e.notification.data || {}, vi = d.lang === "vi";
+    e.waitUntil(markTaken(d.doses || []).catch(() => self.registration.showNotification(vi ? "Chưa lưu được" : "Couldn't save", { body: vi ? "Mở OAK để đánh dấu đã uống." : "Open OAK to mark it taken.", icon: "/icon-192.png", tag: "oak-dose", data: { url: "/" } })));
+    return;
+  }
   const sn = /^snooze-(\d+)$/.exec(e.action || "");
   if (sn) { e.waitUntil(snooze((e.notification.data && e.notification.data.ids) || [], Number(sn[1])).catch(() => {})); return; }
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {

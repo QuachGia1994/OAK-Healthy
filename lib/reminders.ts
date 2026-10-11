@@ -34,11 +34,38 @@ export async function pushReminderTimes() {
   if (!res.ok) throw new Error(`Reminder sync failed (${res.status})`);
 }
 
-export async function testReminder() {
+/** The browser may rotate the push subscription (or the server may have dropped it): re-read it and re-register. */
+async function freshEndpoint() {
   const p = await getMeta<{ endpoint: string } | null>("push", null);
   if (!p) throw new Error("Reminders are off");
-  const r = (await fetch("/api/push/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: p.endpoint }) }).then((x) => x.json())) as { ok?: boolean };
-  if (!r.ok) throw new Error("Push service rejected the test");
+  const reg = await navigator.serviceWorker.getRegistration();
+  let sub = await reg?.pushManager.getSubscription();
+  if (!sub && reg) {
+    const { key } = (await fetch("/api/push/key").then((r) => r.json())) as { key?: string };
+    if (key) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  }
+  if (sub && sub.endpoint !== p.endpoint) await setMeta("push", { endpoint: sub.endpoint });
+  await pushReminderTimes();
+  return sub?.endpoint ?? p.endpoint;
+}
+
+async function sendTest(endpoint: string) {
+  const res = await fetch("/api/push/test", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint }) });
+  return (await res.json().catch(() => ({ status: res.status }))) as { ok?: boolean; status?: number; error?: string };
+}
+
+export async function testReminder() {
+  let r = await sendTest(await freshEndpoint());
+  // 403/404/410 = the subscription is stale or was made with an old key: drop it, subscribe again, retry once.
+  if (!r.ok && (r.status === 403 || r.status === 404 || r.status === 410 || r.error === "not subscribed")) {
+    const reg = await navigator.serviceWorker.getRegistration();
+    await (await reg?.pushManager.getSubscription())?.unsubscribe();
+    r = await sendTest(await freshEndpoint());
+  }
+  if (!r.ok) {
+    console.warn("push test", r);
+    throw new Error("Push service rejected the test");
+  }
 }
 
 export async function disableReminders() {
