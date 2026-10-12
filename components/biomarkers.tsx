@@ -97,10 +97,10 @@ export function Biomarkers({ clientId }: { clientId: string }) {
     <div className="card mt-3 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-sm font-medium"><FlaskConical className="size-4 text-neutral-400" /> {t("Biomarkers")}</p>
-        <button onClick={() => setOpen(!open)} className="btn"><Plus className="size-4" /> {t("Add lab result")}</button>
+        <button type="button" aria-expanded={open} aria-controls={open ? "lab-result-form" : undefined} onClick={() => setOpen(!open)} className="btn"><Plus className="size-4" /> {t("Add lab result")}</button>
       </div>
       {open && (
-        <form onSubmit={add} className="mt-4 grid gap-3 rounded-xl border border-neutral-200 p-3 sm:grid-cols-[1fr_120px_150px_auto] sm:items-end dark:border-neutral-800">
+        <form id="lab-result-form" onSubmit={add} className="mt-4 grid gap-3 rounded-xl border border-neutral-200 p-3 sm:grid-cols-[1fr_120px_150px_auto] sm:items-end dark:border-neutral-800">
           <label><span className="label">{t("Marker")}</span><select value={marker} onChange={(e) => setMarker(e.target.value)} className="input">{BIOMARKERS.map((m) => <option key={m.key} value={m.key}>{t(m.name)} ({m.unit})</option>)}</select></label>
           <label><span className="label">{t("Value")} ({markerRef(marker)?.unit})</span><input inputMode="decimal" required value={value} onChange={(e) => setValue(e.target.value)} className="input tabular" /></label>
           <label><span className="label">{t("Date")}</span><input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="input" /></label>

@@ -15,7 +15,7 @@ import { circleMembers, circleUrl, createCircle, ensureSigner, ensureSigners, ge
 import { adoptSyncedProfiles, db, mergeSnapshot, saveRoutine, snapshot, type Snapshot } from "@/lib/db";
 import { isValidKey, newSyncKey, normalizeKey } from "@/lib/crypto";
 import { safeNext } from "@/lib/domain/safe-next";
-import { getSyncKey, requestBackgroundSync, setSyncKey, syncNow, type SyncResult } from "@/lib/sync";
+import { getSyncKey, NETWORK_ERROR, requestBackgroundSync, setSyncKey, syncErrorText, syncNow, type SyncResult } from "@/lib/sync";
 import { DeviceQr } from "./device-qr";
 import { useOak } from "@/lib/use-oak";
 import { saveBlob } from "@/lib/download";
@@ -53,9 +53,9 @@ export function SyncAgent() {
           await ensureSigners().catch(() => {});
           const r = await syncNow(k);
           // Network failures only (server errors would just loop); the SW-triggered run never re-registers itself.
-          if (!r.ok && !fromSw && /fetch|network|load failed/i.test(r.error)) void requestBackgroundSync();
+          if (!r.ok && !fromSw && NETWORK_ERROR.test(r.error)) void requestBackgroundSync();
           // Once: sync is off now, so the next run has no key.
-          if (vaultGone(r)) toast(tr(r.error), { duration: 15000 });
+          if (vaultGone(r)) toast(syncErrorText(r.error, tr), { duration: 15000 });
           window.dispatchEvent(new CustomEvent("oak:synced", { detail: r }));
         }
         await Promise.all([pushReminderTimes().catch(() => {}), publishCircles().catch(() => {})]);
@@ -198,7 +198,7 @@ export function DeleteEverything({ signedIn }: { signedIn: boolean }) {
       {step ? <p role="status" className="flex min-h-11 items-center gap-2 text-sm"><Loader2 className="size-4 animate-spin" /> {t(WIPE_DOING[step])}</p>
         : failed || unfinished ? (
           <div role="alert" className="space-y-2">
-            <p className="text-sm text-missed">{failed ? `${t(WIPE_FAILED[failed.step])} ${t(failed.error)}` : t("Deleting everything didn't finish.")}</p>
+            <p className="text-sm text-missed">{failed ? `${t(WIPE_FAILED[failed.step])} ${syncErrorText(failed.error, t)}` : t("Deleting everything didn't finish.")}</p>
             <p className="text-xs text-neutral-500">{t("Retry continues where it stopped.")}</p>
             <button className="btn text-missed" onClick={run}>{t("Retry")}</button>
           </div>
@@ -267,7 +267,7 @@ export function SettingsView() {
     const r = await syncNow(k);
     setBusy(false);
     if (r.ok) toast.success(t("Synced"), { description: t("Vault revision {rev}", { rev: r.rev }) + (r.pulled ? " · " + t("{n} changes pulled", { n: r.pulled }) : "") });
-    else toast.error(t(r.error));
+    else toast.error(syncErrorText(r.error, t));
     return r.ok;
   };
   // QR handoff: another device's QR opens /settings/#link=<key>. Strip it from the address bar right away.
@@ -353,9 +353,9 @@ export function SettingsView() {
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-lg border border-taken/20 bg-taken-soft px-3 py-2 text-sm text-taken"><KeyRound className="size-4 shrink-0" /> {t("Sync is on")} {last ? `· ${t("last synced")} ${new Date(last).toLocaleString(locale())}` : ""}</div>
             <div>
-              <label className="label">{t("Your sync key (also your recovery code): enter it on another device to link it")}</label>
+              <label className="label" htmlFor="sync-key">{t("Your sync key (also your recovery code): enter it on another device to link it")}</label>
               <div className="flex flex-wrap gap-2 sm:flex-nowrap">
-                <code className="input flex min-w-0 basis-full items-center overflow-x-auto font-mono text-xs sm:basis-auto">{reveal ? key : key.replace(/[A-Z0-9](?=.{5})/g, "•")}</code>
+                <output id="sync-key" aria-live="off" className="input flex min-w-0 basis-full items-center overflow-x-auto font-mono text-xs sm:basis-auto">{reveal ? key : key.replace(/[A-Z0-9](?=.{5})/g, "•")}</output>
                 <button className="btn" onClick={() => setReveal(!reveal)}>{reveal ? t("Hide") : t("Show")}</button>
                 <button className="btn" onClick={() => { void navigator.clipboard.writeText(key); toast.success(t("Key copied")); }}>{t("Copy")}</button>
               </div>
@@ -370,8 +370,8 @@ export function SettingsView() {
           <div className="space-y-4">
             <button disabled={busy} onClick={enable} className="btn-primary"><KeyRound className="size-4" /> {t("Turn on sync")}</button>
             <div>
-              <label className="label">{t("Already have a key? Link this device")}</label>
-              <div className="flex gap-2"><input value={input} onChange={(e) => setInput(e.target.value)} placeholder="OAK-XXXX-XXXX-…" className="input min-w-0 font-mono" /><button disabled={busy} onClick={join} className="btn">{t("Link")}</button></div>
+              <label className="label" htmlFor="sync-link-key">{t("Already have a key? Link this device")}</label>
+              <div className="flex gap-2"><input id="sync-link-key" value={input} onChange={(e) => setInput(e.target.value)} placeholder="OAK-XXXX-XXXX-…" className="input min-w-0 font-mono" /><button disabled={busy} onClick={join} className="btn">{t("Link")}</button></div>
             </div>
           </div>
         )}

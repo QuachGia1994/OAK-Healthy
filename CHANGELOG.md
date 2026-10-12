@@ -6,6 +6,18 @@ versioning where practical.
 
 ## [Unreleased]
 
+## [2.12.5] - 2026-10-11
+
+### Fixed
+
+- Sync: when two devices change the same item at exactly the same time, both now settle on the same version instead of keeping different copies (the app and the service worker use one rule).
+- Sync errors are shown in Vietnamese, including when the server can't be reached; the original error is kept only for diagnostics.
+- Accessibility: the change-password and add-lab-result forms announce whether they are open; the Stack status filter is readable in dark mode; two Settings fields have spoken labels; the sync key (recovery code) is no longer read aloud when shown.
+
+### Tests
+
+- New multi-device sync tests pin last-write-wins, 409 conflicts and 403 responses.
+
 ## [2.12.4] - 2026-10-11
 
 ### Fixed

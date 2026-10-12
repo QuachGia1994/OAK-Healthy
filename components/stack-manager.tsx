@@ -119,7 +119,7 @@ export function StackManager() {
             </div>
             <div role="group" aria-label={t("Status")} className="flex w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white p-0.5 text-sm sm:w-auto dark:border-neutral-800 dark:bg-neutral-900">
               {(["all", "active", "off", "paused"] as StatusFilter[]).map((s) => (
-                <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)} className={`h-11 flex-1 whitespace-nowrap rounded-md px-2.5 transition md:h-7 md:flex-none ${status === s ? "bg-neutral-100 font-medium dark:bg-neutral-800" : "text-neutral-500"}`}>{t(s === "off" ? "Off-cycle" : s === "all" ? "All" : s === "active" ? "Active" : "Paused")}</button>
+                <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)} className={`h-11 flex-1 whitespace-nowrap rounded-md px-2.5 transition md:h-7 md:flex-none ${status === s ? "bg-neutral-100 font-medium dark:bg-neutral-800" : "text-neutral-500 dark:text-neutral-400"}`}>{t(s === "off" ? "Off-cycle" : s === "all" ? "All" : s === "active" ? "Active" : "Paused")}</button>
               ))}
             </div>
             <select aria-label={t("Sort by")} value={`${sort.key}:${sort.dir}`} onChange={(e) => { const [key, dir] = e.target.value.split(":") as [SortKey, SortDir]; setSort({ key, dir }); }} className="input w-full sm:w-auto md:hidden">

@@ -6,6 +6,7 @@
 - Safer file downloads (backup JSON, history CSV) and a wider CSV formula guard (2.12.1).
 - The notification's Taken keeps past days on their old schedule; CSV guard also skips zero-width characters (2.12.2).
 - Accessibility pass for iPhone: readable bottom nav, labelled form fields, keyboard-openable Stack rows; Vietnamese 404 (2.12.3); announced Stack filters (2.12.4).
+- Two devices editing the same item at the same moment converge; sync errors in Vietnamese; multi-device sync tests (2.12.5).
 
 ## Shipped in 2.11
 

@@ -338,6 +338,17 @@ test("schedule history: last writer wins per routine, so a newer stock-only reco
   assert.equal(got[0].history, undefined);
 });
 
+// LWW tie (lane-37 F1): the service worker's vault merge breaks an exact updatedAt tie with the same sorted-key rule as
+// lib/db.ts newer (tests/sync-devices.test.ts compares the two rules case by case), so arrival order does not matter.
+test("vault merge LWW tie: the service worker keeps the same record whichever copy is local and whichever arrives", async () => {
+  const a = { ...routine, stock: 10, updatedAt: 9 }, b = { ...routine, stock: 12, updatedAt: 9 };
+  const ab = await mergeSw([{ ...a }], [{ ...b }]), ba = await mergeSw([{ ...b }], [{ ...a }]);
+  assert.deepEqual(ab, ba);
+  assert.equal(ab[0].stock, 12, "the larger sorted-key JSON wins");
+  const same = await mergeSw([{ ...a, note: "x" }], [{ note: "x", ...a }]);
+  assert.deepEqual(same, [{ ...a, note: "x" }], "an identical copy (other key order) is a no-op");
+});
+
 const oct = (d: number, h = 12) => new Date(2026, 9, d, h, 0).getTime();
 const many = Array.from({ length: MAX_SPANS }, (_, i) => ({ ...spans[0], from: new Date(Date.UTC(2026, 5, 1 + i)).toISOString().slice(0, 10), time: i % 2 ? "09:00" : "07:00" }));
 const materializeCases: [string, Routine][] = [

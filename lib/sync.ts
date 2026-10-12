@@ -5,6 +5,7 @@ import { commitSigners, pullCircleState, pushCircleState, type VaultCircles } fr
 import type { Circle } from "./circles";
 import type { ShareRef } from "./domain/wipe";
 import { cleanShareFields, isShareId, parseSharesGone, SHARE_GRACE_MS, type ShareGone } from "./domain/shares";
+import { VI } from "./i18n-vi";
 
 /** The share list (meta `shares`, contract C1) and its tombstones (meta `sharesGone`, contract C3), as meta or vault fields. */
 type ShareLists = { shares?: unknown; sharesGone?: unknown };
@@ -128,6 +129,26 @@ export async function syncNow(secret: string, now = Date.now()): Promise<SyncRes
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/** A failed fetch: Chromium "Failed to fetch", WebKit "Load failed", Firefox "NetworkError when attempting to fetch resource." */
+export const NETWORK_ERROR = /fetch|network|load failed/i;
+/** The worker rejected the bearer on PUT, as `Sync key rejected` is on GET. */
+const KEY_REJECTED = /^Push failed 403$/;
+/** syncNow's `Server N` / `Push failed N`, lib/account.ts `Request failed (N)`. */
+const HTTP_ERROR = /^(?:Server|Push failed) (\d+)$|^Request failed \((\d+)\)$/;
+
+/** The sentence shown for a raw error (r.error stays raw: NETWORK_ERROR and the log read it). Never raw server or
+ * exception text: unknown text is logged and replaced. */
+export function syncErrorText(error: string, t: (s: string, vars?: Record<string, string | number>) => string) {
+  // Offline and a server that is down fail the same way, so the text names neither.
+  if (NETWORK_ERROR.test(error)) return t("Can't reach the server. Check your connection and try again.");
+  if (KEY_REJECTED.test(error)) return t("Sync key rejected");
+  const http = HTTP_ERROR.exec(error);
+  if (http) return t("Server error {status}. Try again later.", { status: http[1] ?? http[2] });
+  if (Object.hasOwn(VI, error)) return t(error);
+  console.warn("sync error:", error);
+  return t("Something went wrong. Try again.");
 }
 
 /** Ask the service worker to retry sync when connectivity returns (Background Sync API; Chromium browsers).

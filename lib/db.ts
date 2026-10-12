@@ -103,9 +103,15 @@ export async function deleteBiomarker(id: string, deleted = true) {
   changed();
 }
 
-const newer = <T extends { updatedAt: number }>(a: T | undefined, b: T) => !a || b.updatedAt > a.updatedAt;
+/** JSON with every object's keys sorted, so one record gives one string on every device. Twin: public/sw.js stable. */
+export const stable = (x: unknown) => JSON.stringify(x, (_k, v: unknown) => (v && typeof v === "object" && !Array.isArray(v)
+  ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : v));
+/** b replaces a: a later updatedAt, or on a tie the larger stable() string, so every device keeps the same copy and an
+ * identical one is no change. Twin: public/sw.js newer (tests/sync-devices.test.ts checks they agree). */
+export const newer = <T extends { updatedAt: number }>(a: T | undefined, b: T) =>
+  !a || b.updatedAt > a.updatedAt || (b.updatedAt === a.updatedAt && stable(b) > stable(a));
 
-/** Last-writer-wins merge by updatedAt; tombstones (deletedAt) win when newer. */
+/** Last-writer-wins merge (newer); tombstones (deletedAt) win when newer. */
 export async function mergeSnapshot(s: Snapshot): Promise<number> {
   let n = 0;
   await db.transaction("rw", [db.profiles, db.routines, db.intakes, db.biomarkers], async () => {

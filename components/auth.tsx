@@ -237,10 +237,10 @@ function SignInMethods({ me, hasKey, busy, run }: { me: Me; hasKey: boolean; bus
       <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
         <li className={row}>
           <KeyRound className="size-4 text-neutral-400" /><span className="flex-1">{t("Password")} {me.hasPassword && <span className="text-xs text-taken">· {t("On")}</span>}</span>
-          <button className="btn" disabled={busy || (!me.hasPassword && !hasKey)} onClick={() => setOpen(!open)}>{t(me.hasPassword ? "Change password" : "Add password")}</button>
+          <button type="button" className="btn" disabled={busy || (!me.hasPassword && !hasKey)} aria-expanded={open} aria-controls={open ? "password-form" : undefined} onClick={() => setOpen(!open)}>{t(me.hasPassword ? "Change password" : "Add password")}</button>
           {!me.hasPassword && !hasKey && <p className="basis-full text-xs text-skipped">{t("Unlock your vault on this device first")}</p>}
           {open && (
-            <form onSubmit={save} className="grid basis-full gap-3 pt-2">
+            <form id="password-form" onSubmit={save} className="grid basis-full gap-3 pt-2">
               <input type="email" value={me.email} autoComplete="username" readOnly hidden />
               {me.hasPassword && <Password label={t("Current password")} value={cur} onChange={setCur} autoComplete="current-password" />}
               <Password label={t("New password")} value={pw} onChange={setPw} autoComplete="new-password" />

@@ -1,5 +1,5 @@
 // OAK Healthy service worker: app-shell precache + stale-while-revalidate for static assets. API is never cached.
-const VERSION = "oak-v2.12.4";
+const VERSION = "oak-v2.12.5";
 const SHELL = ["/", "/stack/", "/insights/", "/settings/", "/account/", "/login/", "/signup/", "/forgot/", "/reset/", "/s/", "/c/", "/manifest.webmanifest", "/icon-192.png"];
 
 self.addEventListener("install", (e) => {
@@ -163,6 +163,12 @@ const getAll = (db, store) => new Promise((res) => {
   const q = db.transaction(store, "readonly").objectStore(store).getAll();
   q.onsuccess = () => res(q.result || []); q.onerror = () => res([]);
 });
+// Twins of lib/db.ts stable / newer (LWW with a deterministic tie-break); function declarations so tests can read them.
+function stable(x) {
+  return JSON.stringify(x, (_k, v) => (v && typeof v === "object" && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : v));
+}
+function newer(cur, item) { return !cur || item.updatedAt > cur.updatedAt || (item.updatedAt === cur.updatedAt && stable(item) > stable(cur)); }
 function mergeInto(db, snap) {
   const names = Object.keys(STORES).filter((s) => db.objectStoreNames.contains(s));
   return new Promise((res, rej) => {
@@ -171,7 +177,7 @@ function mergeInto(db, snap) {
       const os = tx.objectStore(s);
       for (const item of snap[s] || []) {
         const g = os.get(item[STORES[s]]);
-        g.onsuccess = () => { const cur = g.result; if (!cur || item.updatedAt > cur.updatedAt) os.put(item); };
+        g.onsuccess = () => { if (newer(g.result, item)) os.put(item); };
       }
     }
     tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);

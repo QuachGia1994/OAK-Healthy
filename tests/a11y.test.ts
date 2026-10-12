@@ -48,20 +48,22 @@ test("navigation: the active link carries aria-current=page (sidebar, account an
   assert.match(tab, /aria-current=\{[^}]*"page"/);
 });
 
-test("routine form: every field label is tied to its control by htmlFor and a unique id", () => {
-  const s = src("components/routine-drawer.tsx");
-  const labels = [...s.matchAll(/<label className="label"([^>]*)>/g)];
-  assert.ok(labels.length >= 13, `labels: ${labels.length}`);
-  for (const [tag, attrs] of labels) {
-    const id = attrs.match(/htmlFor="([^"]+)"/)?.[1];
-    assert.ok(id, `label without htmlFor: ${tag}`);
-    assert.equal(s.split(`id="${id}"`).length - 1, 1, `one control with id="${id}"`);
-  }
-  assert.match(s, /role="group" aria-labelledby="r-category"/, "the Category chips are a labelled group");
-});
+for (const [file, min] of [["components/routine-drawer.tsx", 13], ["components/settings.tsx", 2]] as const) {
+  test(`${file}: every field label is tied to its control by htmlFor and a unique id`, () => {
+    const s = src(file);
+    const labels = [...s.matchAll(/<label className="label"([^>]*)>/g)];
+    assert.ok(labels.length >= min, `labels: ${labels.length}`);
+    for (const [tag, attrs] of labels) {
+      const id = attrs.match(/htmlFor="([^"]+)"/)?.[1];
+      assert.ok(id, `label without htmlFor: ${tag}`);
+      assert.equal(s.split(`id="${id}"`).length - 1, 1, `one control with id="${id}"`);
+    }
+  });
+}
 
-test("routine form: the selected Category chip is announced (aria-pressed), not shown by colour only", () => {
+test("routine form: the Category chips are a labelled group and the selected chip is announced (aria-pressed), not shown by colour only", () => {
   const s = src("components/routine-drawer.tsx");
+  assert.match(s, /role="group" aria-labelledby="r-category"/, "the Category chips are a labelled group");
   const group = s.slice(s.indexOf('aria-labelledby="r-category"'), s.indexOf("</div>", s.indexOf('aria-labelledby="r-category"')));
   const chip = group.match(/<button\b(?:=>|[^>"]|"[^"]*")*>/)?.[0] ?? "";
   assert.match(chip, /aria-pressed=\{r\.category === c\}/, chip);
@@ -100,6 +102,45 @@ test("Stack filters: status and category toggles announce the selected one (aria
     const group = before.slice(before.lastIndexOf("<div"));
     assert.match(group, /role="group" aria-label=\{t\("(Status|Category)"\)\}/, `${onClick} group`);
   }
+});
+
+test("Stack status filter: an inactive option reaches 4.5:1 in light (white bar) and dark (neutral-900 bar)", () => {
+  const s = src("components/stack-manager.tsx");
+  const at = s.lastIndexOf("<button", s.indexOf("onClick={() => setStatus(s)}"));
+  const tag = s.slice(at).match(/^<button\b(?:=>|[^>"]|"[^"]*")*>/)?.[0] ?? "";
+  // the inactive branch of `status === s ? "…" : "…"` is the second string
+  const inactive = tag.match(/status === s \? "[^"]*" : "([^"]*)"/)?.[1] ?? "";
+  const light = textTone(inactive, false), dark = textTone(inactive, true);
+  assert.ok(light && dark, `inactive option has a light and a dark text colour: "${inactive}"`);
+  assert.ok(contrast(NEUTRAL[light!], "#ffffff") >= 4.5, `neutral-${light} on #fff: ${contrast(NEUTRAL[light!], "#ffffff").toFixed(2)}:1`);
+  assert.ok(contrast(NEUTRAL[dark!], NEUTRAL["900"]) >= 4.5, `dark neutral-${dark} on #171717: ${contrast(NEUTRAL[dark!], NEUTRAL["900"]).toFixed(2)}:1`);
+});
+
+for (const [file, panel] of [["components/auth.tsx", "form"], ["components/biomarkers.tsx", "form"]] as const) {
+  test(`disclosure in ${file}: the toggle says whether its panel is open (aria-expanded) and which panel (aria-controls)`, () => {
+    const s = src(file);
+    const on = s.indexOf("onClick={() => setOpen(!open)}");
+    assert.ok(on > 0, "toggle button");
+    const tag = s.slice(s.lastIndexOf("<button", on)).match(/^<button\b(?:=>|[^>"]|"[^"]*")*>/)?.[0] ?? "";
+    assert.match(tag, /aria-expanded=\{open\}/, tag);
+    assert.match(tag, /type="button"/, tag);
+    const id = tag.match(/aria-controls=\{open \? "([^"]+)" : undefined\}/)?.[1];
+    assert.ok(id, `aria-controls names the panel only while it is rendered: ${tag}`);
+    assert.equal(s.split(`id="${id}"`).length - 1, 1, `one panel with id="${id}"`);
+    assert.match(s, new RegExp(`\\{open && \\(\\s*<${panel}\\b[^>]*id="${id}"`), "the id is on the panel the toggle opens");
+  });
+}
+
+test("settings: the sync key box is not a live region, so Show does not make a screen reader speak the key", () => {
+  const box = src("components/settings.tsx").match(/<output\b[^>]*id="sync-key"[^>]*>/)?.[0] ?? "";
+  assert.ok(box, "the key is shown in <output id=sync-key>");
+  assert.match(box, /aria-live="off"/, box);
+});
+
+test("inputs (.input): focus keeps a transparent outline for forced-colors mode (outline-hidden, not outline-none)", () => {
+  const input = src("app/globals.css").match(/^\.input \{([^}]*)\}/m)?.[1] ?? "";
+  assert.match(input, /\boutline-hidden\b/, input);
+  assert.doesNotMatch(input, /\boutline-none\b/, input);
 });
 
 const walk = (d: string): string[] => readdirSync(new URL(`../${d}`, import.meta.url), { withFileTypes: true })
